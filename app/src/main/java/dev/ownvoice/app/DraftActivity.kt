@@ -86,9 +86,12 @@ class DraftActivity : Activity() {
     }
 
     /** Compose boost: each style's version of what the user wrote, as (label, text). Never a new post. */
-    private suspend fun boost(typed: String) = Judge.Boost.entries.mapNotNull { how ->
-        status.text = "${how.label}: rewriting on this phone…"
-        Judge.clean(OwnvoiceService.engine.ask(Judge.rewritePrompt(typed, how.ask), 256)).takeIf { it.isNotEmpty() }?.let { how.label to it }
+    private suspend fun boost(typed: String): List<Pair<String, String>> {
+        OwnvoiceService.engine.ensureReady { status.text = it }
+        return Judge.Boost.entries.mapNotNull { how ->
+            status.text = "${how.label}: rewriting on this phone…"
+            Judge.clean(OwnvoiceService.engine.ask(Judge.rewritePrompt(typed, how.ask), 256)).takeIf { it.isNotEmpty() }?.let { how.label to it }
+        }
     }
 
     /** Shows the drafts, or in compose mode the user's [original] text and then its improved versions under their [labels]. */

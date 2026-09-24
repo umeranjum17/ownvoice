@@ -19,6 +19,9 @@ interface DraftEngine {
 
     /** One steady answer (temperature 0) to [prompt], for judging and rewriting. */
     suspend fun ask(prompt: String, maxTokens: Int): String
+
+    /** Makes sure the model is on the phone, reporting any download through [status]. */
+    suspend fun ensureReady(status: (String) -> Unit) {}
 }
 
 /** A failure with a message meant for the user as is. */
@@ -59,7 +62,7 @@ object Nano : DraftEngine {
     }
 
     /** Checks the model and, if needed, downloads it while reporting progress. */
-    suspend fun ensureReady(status: (String) -> Unit) = plain {
+    override suspend fun ensureReady(status: (String) -> Unit) = plain {
         val state = model.checkStatus()
         Log.i(OwnvoiceService.TAG, "model status $state")
         when (state) {
