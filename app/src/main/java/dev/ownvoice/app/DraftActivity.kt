@@ -13,7 +13,6 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
-import android.widget.Toast
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -112,7 +111,7 @@ class DraftActivity : Activity() {
 
     private fun copy(draft: String) {
         getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", draft))
-        Toast.makeText(this, "Copied.", Toast.LENGTH_SHORT).show()
+        OwnvoiceService.instance?.say("Copied.")
         finish()
     }
 }

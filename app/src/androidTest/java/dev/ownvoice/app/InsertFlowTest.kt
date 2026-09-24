@@ -141,6 +141,12 @@ class InsertFlowTest {
         waitUntil("drafts panel to close") { sheet.isDestroyed }
         instr.waitForIdleSync()
         assertTrue("bubble not back after the panel closed", service.bubbleVisible)
+        // Toasts are dropped for background apps, so the bubble itself tells the user what happened.
+        if (service.insertVerified == true) {
+            var shown = ""
+            instr.runOnMainSync { shown = service.bubbleText.toString() }
+            assertTrue("bubble shows \"$shown\", not the insert result", shown.startsWith("Inserted"))
+        }
         return service.insertVerified == true
     }
 }

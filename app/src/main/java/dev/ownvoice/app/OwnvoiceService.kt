@@ -18,7 +18,6 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.TextView
-import android.widget.Toast
 
 /**
  * Shows the Ownvoice bubble over other apps. Reads the screen only when the bubble is tapped,
@@ -27,6 +26,7 @@ import android.widget.Toast
 class OwnvoiceService : AccessibilityService() {
     companion object {
         const val TAG = "Ownvoice"
+        private const val BUBBLE_DP = 52
         @Volatile var instance: OwnvoiceService? = null
         var engine: DraftEngine = Nano
     }
@@ -37,8 +37,10 @@ class OwnvoiceService : AccessibilityService() {
     }
 
     private val main = Handler(Looper.getMainLooper())
+    private val notes = Handler(Looper.getMainLooper())
     private lateinit var wm: WindowManager
     private lateinit var bubble: TextView
+    private lateinit var bubbleParams: WindowManager.LayoutParams
     private var pending: String? = null
 
     var capture: Capture? = null
@@ -60,18 +62,20 @@ class OwnvoiceService : AccessibilityService() {
             textSize = 16f
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
-            background = GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(0xFF2E5BFF.toInt()) }
-            contentDescription = "Ownvoice: draft a reply"
+            background = GradientDrawable().apply { cornerRadius = BUBBLE_DP / 2 * resources.displayMetrics.density; setColor(0xFF2E5BFF.toInt()) }
             setOnClickListener { readScreen() }
+            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE // screen readers announce results
         }
-        val size = (52 * resources.displayMetrics.density).toInt()
+        val size = (BUBBLE_DP * resources.displayMetrics.density).toInt()
         // Not focusable, so the app underneath keeps its keyboard and focused field.
-        wm.addView(bubble, WindowManager.LayoutParams(
+        bubbleParams = WindowManager.LayoutParams(
             size, size,
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT,
-        ).also { it.gravity = Gravity.END or Gravity.CENTER_VERTICAL })
+        ).also { it.gravity = Gravity.END or Gravity.CENTER_VERTICAL }
+        wm.addView(bubble, bubbleParams)
+        restoreBubble.run()
         instance = this
     }
 
@@ -84,6 +88,7 @@ class OwnvoiceService : AccessibilityService() {
     override fun onDestroy() {
         instance = null
         main.removeCallbacksAndMessages(null)
+        notes.removeCallbacksAndMessages(null)
         if (::bubble.isInitialized) wm.removeView(bubble)
         super.onDestroy()
     }
@@ -98,7 +103,7 @@ class OwnvoiceService : AccessibilityService() {
         val root = field?.window?.root ?: appRoot()
         val conversation = root?.let { visibleText(it, field) }.orEmpty()
         if (conversation.isBlank()) {
-            return toast("Ownvoice can't see any text on this screen.")
+            return say("No text on this screen.")
         }
         capture = Capture(conversation, field)
         insertVerified = null
@@ -142,12 +147,12 @@ class OwnvoiceService : AccessibilityService() {
         when {
             got == want -> {
                 Log.i(TAG, "insert verified (${want.count { it == '\n' }} newlines)")
-                finishInsert("Inserted. Read it over, then send it yourself.")
+                finishInsert("Inserted. Send it yourself.")
             }
             // Chrome reports a contenteditable's text without its line breaks, so they can't be read back.
             '\n' in want && got == want.replace("\n", "") -> {
                 Log.i(TAG, "insert verified except newlines, which this field doesn't expose")
-                finishInsert("Inserted. Check the line breaks, then send it yourself.")
+                finishInsert("Inserted. Check line breaks.")
             }
             final -> {
                 Log.w(TAG, "insert mismatch: wanted ${want.length} chars (${want.count { it == '\n' }} newlines), field has ${got?.length} (${got?.count { it == '\n' }} newlines)")
@@ -161,14 +166,40 @@ class OwnvoiceService : AccessibilityService() {
         val text = pending
         pending = null
         insertVerified = message != null
-        if (message != null) return toast(message)
+        if (message != null) return say(message)
         if (text != null) {
             getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
         }
-        toast("Couldn't insert the draft exactly here, so it's copied. Check the field, or paste it.")
+        say("Couldn't insert. Copied, paste it.")
     }
 
-    private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+    /**
+     * Shows a short result on the bubble itself for a few seconds. Toasts don't work here: Android
+     * drops a background app's toasts when its notifications are off, which is the default.
+     */
+    fun say(message: String) {
+        if (!::bubble.isInitialized) return
+        Log.i(TAG, "bubble: $message")
+        notes.removeCallbacksAndMessages(null)
+        bubble.text = message
+        bubble.contentDescription = message
+        val pad = (16 * resources.displayMetrics.density).toInt()
+        bubble.setPadding(pad, 0, pad, 0)
+        bubbleParams.width = WindowManager.LayoutParams.WRAP_CONTENT
+        wm.updateViewLayout(bubble, bubbleParams)
+        notes.postDelayed(restoreBubble, 4_000)
+    }
+
+    /** Latest text on the bubble, read by the on-device test. */
+    val bubbleText: CharSequence get() = bubble.text
+
+    private val restoreBubble = Runnable {
+        bubble.text = "OV"
+        bubble.contentDescription = "Ownvoice: draft a reply"
+        bubble.setPadding(0, 0, 0, 0)
+        bubbleParams.width = (BUBBLE_DP * resources.displayMetrics.density).toInt()
+        wm.updateViewLayout(bubble, bubbleParams)
+    }
 
     /**
      * The field being typed in. A WebView answers input focus with itself until something walks its
