@@ -29,6 +29,19 @@
             android:exported="false"
             android:label="What was read" />
 
+        <!-- Exported for "Share" of a markdown voice profile; an import only shows what it found until the user adds it. -->
+        <activity
+            android:name=".VoiceActivity"
+            android:exported="true"
+            android:label="Your voice">
+            <intent-filter android:label="Import to Your voice">
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/markdown" />
+                <data android:mimeType="text/x-markdown" />
+            </intent-filter>
+        </activity>
+
         <activity
             android:name=".DraftActivity"
             android:excludeFromRecents="true"

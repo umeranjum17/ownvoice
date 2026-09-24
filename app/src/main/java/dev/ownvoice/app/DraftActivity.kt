@@ -36,7 +36,7 @@ class DraftActivity : Activity() {
     val meanings = mutableListOf<Judge.Check?>()
 
     /** One text on show: the text, its chips and, for an improved version, its meaning check. */
-    private class Row(val text: String, val chips: Chips, val slop: TextView, val quality: TextView, val reach: TextView, val meaning: TextView?)
+    private class Row(val text: String, val shown: TextView, val chips: Chips, val slop: TextView, val quality: TextView, val reach: TextView, val meaning: TextView?)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -71,20 +71,23 @@ class DraftActivity : Activity() {
     private fun draft() {
         val capture = OwnvoiceService.instance?.capture ?: return finish()
         val mode = capture.mode
+        val voice = Voice.rules(this)
+        // Own text with nothing on screen to reply to is a fresh post, where the statement-endings rule applies.
+        val post = mode == Judge.Mode.COMPOSE && !Judge.replying(capture.written)
         if (mode == Judge.Mode.EMPTY) return run { status.text = Judge.WRITE_FIRST }
         status.text = "Reading done."
         scope.launch {
             val started = SystemClock.elapsedRealtime()
             try {
                 if (mode == Judge.Mode.COMPOSE) {
-                    val versions = boost(capture.typed)
+                    val versions = boost(capture.typed, Voice.guide(voice, post))
                     drafts = versions.map { it.second }
                     Log.i(OwnvoiceService.TAG, "boosts=${drafts.size} in ${SystemClock.elapsedRealtime() - started} ms")
-                    show(true, capture.conversation, capture.typed, versions.map { it.first })
+                    show(true, capture.conversation, capture.typed, versions.map { it.first }, voice, post)
                 } else {
-                    drafts = OwnvoiceService.engine.drafts(capture.conversation) { status.text = it }
+                    drafts = OwnvoiceService.engine.drafts(capture.conversation, Voice.guide(voice, post = false)) { status.text = it }
                     Log.i(OwnvoiceService.TAG, "drafts=${drafts.size} in ${SystemClock.elapsedRealtime() - started} ms")
-                    show(capture.input != null, capture.conversation, null, null)
+                    show(capture.input != null, capture.conversation, null, null, voice, post)
                 }
             } catch (e: PlainError) {
                 Log.w(OwnvoiceService.TAG, "draft failed after ${SystemClock.elapsedRealtime() - started} ms: ${e.message}")
@@ -94,16 +97,16 @@ class DraftActivity : Activity() {
     }
 
     /** Compose boost: each style's version of what the user wrote, as (label, text). Never a new post. */
-    private suspend fun boost(typed: String): List<Pair<String, String>> {
+    private suspend fun boost(typed: String, guide: String): List<Pair<String, String>> {
         OwnvoiceService.engine.ensureReady { status.text = it }
         return Judge.Boost.entries.mapNotNull { how ->
             status.text = "${how.label}: rewriting on this phone…"
-            Judge.clean(OwnvoiceService.engine.ask(Judge.rewritePrompt(typed, how.ask), 256)).takeIf { it.isNotEmpty() }?.let { how.label to it }
+            Judge.clean(OwnvoiceService.engine.ask(Judge.rewritePrompt(typed, how.ask, guide), 256)).takeIf { it.isNotEmpty() }?.let { how.label to it }
         }
     }
 
     /** Shows the drafts, or in compose mode the user's [original] text and then its improved versions under their [labels]. */
-    private fun show(canInsert: Boolean, conversation: String, original: String?, labels: List<String>?) {
+    private fun show(canInsert: Boolean, conversation: String, original: String?, labels: List<String>?, voice: Voice.Rules, post: Boolean) {
         status.text = when {
             drafts.isEmpty() -> "The model returned no drafts. Try again."
             original != null -> "Insert one to replace your text, then send it yourself."
@@ -111,15 +114,15 @@ class DraftActivity : Activity() {
             else -> "No text field was focused. Copy one."
         }
         val rows = mutableListOf<Row>()
-        if (original != null && drafts.isNotEmpty()) rows += row("Your text", original, meaning = false, buttons = false, canInsert)
-        drafts.forEachIndexed { i, draft -> rows += row(labels?.get(i), draft, meaning = original != null, buttons = true, canInsert) }
+        if (original != null && drafts.isNotEmpty()) rows += row("Your text", original, meaning = false, buttons = false, canInsert, voice, post)
+        drafts.forEachIndexed { i, draft -> rows += row(labels?.get(i), draft, meaning = original != null, buttons = true, canInsert, voice, post) }
         scores.clear()
         meanings.clear()
         repeat(rows.size) { scores += null; meanings += null }
-        scope.launch { score(rows, conversation, original) }
+        scope.launch { score(rows, conversation, original, voice, post) }
     }
 
-    private fun row(label: String?, text: String, meaning: Boolean, buttons: Boolean, canInsert: Boolean): Row {
+    private fun row(label: String?, text: String, meaning: Boolean, buttons: Boolean, canInsert: Boolean, voice: Voice.Rules, post: Boolean): Row {
         if (label != null) list.addView(TextView(this).apply {
             this.text = label
             textSize = 13f
@@ -127,14 +130,15 @@ class DraftActivity : Activity() {
             setTextColor(0xFF2E5BFF.toInt())
             setPadding(0, (12 * dp).toInt(), 0, 0)
         })
-        list.addView(TextView(this).apply {
-            this.text = highlight(text, Slop.hits(text))
+        val shown = TextView(this).apply {
+            this.text = highlight(text, Slop.hits(text, voice, post))
             textSize = 16f
             setTextColor(Color.BLACK)
             setPadding(0, ((if (label == null) 10 else 2) * dp).toInt(), 0, (4 * dp).toInt())
-        })
+        }
+        list.addView(shown)
         val chips = Chips(this)
-        val row = Row(text, chips, chips.chip("Slop: checking…"), chips.chip("Quality: checking…"), chips.chip("Reach: checking…"),
+        val row = Row(text, shown, chips, chips.chip("Slop: checking…"), chips.chip("Quality: checking…"), chips.chip("Reach: checking…"),
             if (meaning) TextView(this).apply { textSize = 14f; this.text = "Meaning: checking…" } else null)
         list.addView(chips.row)
         list.addView(chips.detail)
@@ -147,18 +151,21 @@ class DraftActivity : Activity() {
     }
 
     /** Scores the texts one by one after they show, so scoring never delays them; versions of [original] also get a meaning check. */
-    private suspend fun score(rows: List<Row>, conversation: String, original: String?) {
+    private suspend fun score(rows: List<Row>, conversation: String, original: String?, voice: Voice.Rules, post: Boolean) {
         val started = SystemClock.elapsedRealtime()
         val message = ask(Judge.kindPrompt(conversation), 5)?.let(Judge::isMessage) ?: false
         rows.forEachIndexed { i, row ->
             val draft = row.text
-            val result = Judge.scoreDraft(draft, ask(Judge.draftPrompt(conversation, draft, message), 220), message)
+            val result = Judge.scoreDraft(draft, ask(Judge.draftPrompt(conversation, draft, message, Voice.guide(voice, post && !message)), 220), message, voice, post)
+            // A chat is never a fresh post, so the judge's answer can take back an ending-question mark.
+            row.shown.text = highlight(draft, result.hits)
             val chips = row.chips
             val score = result.slop
             chips.set(row.slop, "Slop: ${Slop.words(score)}", slopDetail(result.hits, draft, result.generic, result.specific, score))
             chips.set(row.quality, "Quality: " + if (result.quality.isEmpty()) "not checked" else flags(result.quality),
                 "Quality checks:\n" + checkLines(result.quality).ifEmpty { "The judge didn't answer." } +
-                    "\n“Sounds like you” is a rough guess from what's on screen.\n" + Judge.SAME_MODEL)
+                    "\n“Sounds like you” is a rough guess from what's on screen" +
+                    (if (voice.empty) ".\n" else " and your rules under Your voice.\n") + Judge.SAME_MODEL)
             if (message) chips.set(row.reach, "Response: " + if (result.reach.isEmpty()) "not checked" else flags(result.reach),
                 "Response checks for a message:\n" + checkLines(result.reach).ifEmpty { "The judge didn't answer." } + "\n" + Judge.SAME_MODEL)
             else chips.set(row.reach, "Reach: learning",

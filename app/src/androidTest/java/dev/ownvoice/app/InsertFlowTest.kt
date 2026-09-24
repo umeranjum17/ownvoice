@@ -6,6 +6,8 @@ import android.content.Intent
 import android.os.ParcelFileDescriptor
 import android.view.View
 import android.view.ViewGroup
+import android.text.Spanned
+import android.text.style.BackgroundColorSpan
 import android.widget.TextView
 import androidx.test.core.app.ActivityScenario
 import android.widget.Button
@@ -76,7 +78,14 @@ class InsertFlowTest {
 
         /** Canned drafts, judge answers and rewrites; the judge is slow on purpose, to show drafts come first. */
         object Stub : DraftEngine {
-            override suspend fun drafts(conversation: String, status: (String) -> Unit): List<String> = listOf(DRAFT)
+            /** The drafts to return, and the rules the last draft request was given. */
+            var drafts = listOf(DRAFT)
+            var guide = ""
+
+            override suspend fun drafts(conversation: String, guide: String, status: (String) -> Unit): List<String> {
+                this.guide = guide
+                return drafts
+            }
 
             override suspend fun ask(prompt: String, maxTokens: Int): String {
                 delay(1000)
@@ -92,6 +101,9 @@ class InsertFlowTest {
                 }
             }
         }
+
+        /** A made-up voice profile, never a real person's. */
+        const val VOICE_PROFILE = "# Voice: Robin Test\n## Rhythm\n- No em dashes.\n## Never say\n- \"circle the wagons\"\n- per my last email\n## Diction\n- \"kettle\"\n"
 
         const val JUDGE = "GENERIC: 1\nSPECIFICITY: 9\nSPECIFIC: pass - names the stove\nCLEAR: pass\nVOICE: pass\n" +
             "FITS: pass\nCLAIMS: concern - says they own a stove\nANSWERS: pass - confirms Saturday\nNEXT_STEP: pass - 9 o'clock"
@@ -196,6 +208,44 @@ class InsertFlowTest {
         assertNull(service.capture)
         assertTrue("Nothing read in the last 30 days." in texts(reads))
         instr.runOnMainSync { reads.finish() }
+    }
+
+    /** A phrase imported into Your voice is highlighted in a draft, and the draft request carries the rules but not the phrases. */
+    @Test
+    fun importedNeverSayPhraseIsHighlighted() {
+        val draft = "Sure, let's circle the wagons on Saturday."
+        Voice.wipe(ctx)
+        try {
+            val voice = instr.startActivitySync(Intent(ctx, VoiceActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as VoiceActivity
+            instr.runOnMainSync { voice.preview(VOICE_PROFILE) }
+            assertTrue(texts(voice).toString(), texts(voice).any { it.startsWith("Found in the file:\nNever say (2): “circle the wagons”, “per my last email”") })
+            tap(voice, "Add these")
+            assertEquals(listOf("circle the wagons", "per my last email"), Voice.rules(ctx).never)
+            assertTrue(Voice.rules(ctx).noDashes)
+            instr.runOnMainSync { voice.finish() }
+            // Its own fields are in this package too, so let it close before the bubble looks for the focused field.
+            waitUntil("Your voice to close") { voice.isDestroyed }
+
+            Stub.drafts = listOf(draft)
+            instr.runOnMainSync { screen.edit.setText(""); screen.edit.requestFocus() }
+            val sheet = openPanel()
+            waitUntil("drafts") { sheet.drafts.isNotEmpty() }
+            assertEquals("No em dashes.", Stub.guide)
+            instr.waitForIdleSync()
+            val shown = views(sheet).first { it.text.toString() == draft }.text as Spanned
+            val marked = shown.getSpans(0, shown.length, BackgroundColorSpan::class.java).map { draft.substring(shown.getSpanStart(it), shown.getSpanEnd(it)) }
+            assertEquals(listOf("circle the wagons"), marked)
+            waitUntil("scores") { sheet.scores.single() != null }
+            instr.waitForIdleSync()
+            tap(sheet, "Slop: clean")
+            assertTrue(texts(sheet).toString(), texts(sheet).any { "• “circle the wagons”: on your never-say list" in it })
+            tap(sheet, "Quality: 2 flags")
+            assertTrue(texts(sheet).toString(), texts(sheet).any { "! Sounds like you: Breaks your rules: says “circle the wagons” from your never-say list." in it })
+            instr.runOnMainSync { sheet.finish() }
+        } finally {
+            Stub.drafts = listOf(DRAFT)
+            Voice.wipe(ctx)
+        }
     }
 
     @Test
