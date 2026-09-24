@@ -61,9 +61,14 @@ object Slop {
 
     private val HASHTAG = Regex("(?<![\\w#])#[\\p{L}\\d_]+")
 
-    fun hits(text: String): List<Hit> {
+    /**
+     * The marked phrases in [text], plus the user's own never-say phrases in [voice]. With [post] (a fresh
+     * post, not a reply) and the statement-endings rule on, a closing question is marked too.
+     */
+    fun hits(text: String, voice: Voice.Rules = Voice.Rules(), post: Boolean = false): List<Hit> {
         val hits = mutableListOf<Hit>()
         fun add(regex: Regex, reason: String) = regex.findAll(text).forEach { hits += Hit(it.range.first, it.range.last + 1, reason) }
+        voice.never.filter { it.isNotBlank() }.forEach { add(Voice.matcher(it), Voice.NEVER_SAY) }
         add(STOCK, "stock phrase")
         CONTRAST.forEach { add(it, "contrast frame") }
         add(TRIAD, "list of three")
@@ -73,6 +78,7 @@ object Slop {
         // Only the last sentence can be a closing call to action.
         val lastSentence = Regex("[.!?\\n]\\s+(?=\\S[^.!?\\n]*[.!?]*\\s*$)").findAll(text).lastOrNull()?.range?.last?.plus(1) ?: 0
         CTA.find(text, lastSentence)?.let { hits += Hit(it.range.first, it.range.last + 1, "closing call to action") }
+        if (post && voice.statementEndings && text.trimEnd().endsWith('?')) hits += Hit(lastSentence, text.trimEnd().length, Voice.ENDS_ON_QUESTION)
         val tags = HASHTAG.findAll(text).toList()
         if (tags.size >= 2) tags.forEach { hits += Hit(it.range.first, it.range.last + 1, "hashtag stuffing") }
         val emoji = emojiRanges(text)

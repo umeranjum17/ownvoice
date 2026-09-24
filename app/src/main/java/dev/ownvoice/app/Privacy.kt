@@ -69,9 +69,10 @@ object Privacy {
 
     fun record(context: Context, read: Read) = save(context, keep(reads(context, read.time) + read, read.time))
 
-    /** Deletes the log and anything read or drafted that is still held in memory. */
+    /** Deletes the log, Your voice, and anything read or drafted that is still held in memory. */
     fun wipe(context: Context) {
         prefs(context).edit().remove("reads").commit()
+        Voice.wipe(context)
         OwnvoiceService.instance?.forget()
     }
 

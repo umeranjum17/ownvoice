@@ -14,8 +14,8 @@ import kotlinx.coroutines.launch
 
 /** The model behind drafts, scores and rewrites. Tests swap in a stub. */
 interface DraftEngine {
-    /** Two or three varied reply drafts for what is on screen. */
-    suspend fun drafts(conversation: String, status: (String) -> Unit): List<String>
+    /** Two or three varied reply drafts for what is on screen, following the user's rules in [guide] (may be empty). */
+    suspend fun drafts(conversation: String, guide: String, status: (String) -> Unit): List<String>
 
     /** One steady answer (temperature 0) to [prompt], for judging and rewriting. */
     suspend fun ask(prompt: String, maxTokens: Int): String
@@ -31,10 +31,10 @@ class PlainError(message: String) : Exception(message)
 object Nano : DraftEngine {
     private val model by lazy { Generation.getClient() }
 
-    override suspend fun drafts(conversation: String, status: (String) -> Unit): List<String> {
+    override suspend fun drafts(conversation: String, guide: String, status: (String) -> Unit): List<String> {
         ensureReady(status)
         status("Drafting on this phone…")
-        val request = generateContentRequest(TextPart(prompt(conversation))) {
+        val request = generateContentRequest(TextPart(prompt(conversation, guide))) {
             temperature = 0.9f
             topK = 40
             candidateCount = 3
@@ -116,9 +116,10 @@ object Nano : DraftEngine {
 
     private const val UNSUPPORTED = "This phone can't run Gemini Nano on device yet, so Ownvoice can't draft here."
 
-    private fun prompt(conversation: String) = buildString {
+    private fun prompt(conversation: String, guide: String) = buildString {
         append("You help someone reply in a chat. Below is the text visible on their screen; it may include app labels.\n")
         append("Write one short, natural reply they could send next, in the conversation's language and tone. ")
+        if (guide.isNotEmpty()) append("Follow their rules: ").append(guide).append(' ')
         append("Output only the reply text.\n\nScreen:\n")
         append(conversation.takeLast(3000))
     }

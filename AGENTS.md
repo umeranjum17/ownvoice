@@ -9,6 +9,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - Chrome drops the page selection when any activity comes to the front, so an `ACTION_PROCESS_TEXT` result may be ignored or inserted at the caret. `RewriteActivity.replace` copies it as well.
 - `uiautomator dump`, or any UiAutomation opened without `FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES`, unbinds the service and closes its windows. After the app process is killed (force-stop, `am start -S`, `adb install -r` or `am instrument`), Android doesn't rebind the service until `enabled_accessibility_services` changes, so switch it off and on and check `accessibility_enabled` is 1 (uninstalling the test package can leave it 0).
 - OnePlus phones show a "Continue installation" screen on every `adb install`. On the OnePlus 13, `adb shell input tap 540 1833` taps it once its buttons show (about 5 s in); tap only while `dumpsys window` shows `InstallGuideActivity` in focus, or the tap lands on whatever is underneath. The "Installed" page it leaves on top makes `am instrument` time out launching activities, so press Back first.
+- To hand the app a file on the phone (for example a voice profile for the share import), write it with `adb shell run-as dev.ownvoice.app` into the app's `files/` and share `file:///data/data/dev.ownvoice.app/files/...`. The app can't read a folder `adb shell` creates under `/sdcard/Android/data`.
 
 ## Maintaining this file
 

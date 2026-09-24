@@ -49,7 +49,7 @@ class RewriteActivity : Activity() {
         }
         status.text = "Pick a rewrite. It runs on this phone."
         body.addView(TextView(this).apply {
-            text = highlight(original, Slop.hits(original))
+            text = highlight(original, Slop.hits(original, Voice.rules(context)))
             textSize = 14f
             setTextColor(0xFF555555.toInt())
             maxLines = 6
@@ -92,7 +92,7 @@ class RewriteActivity : Activity() {
             }
             if (text.isEmpty()) return@launch run { status.text = "The model returned nothing. Try again." }
             status.text = if (editable) "Replace your text with it, or copy it." else "Copy it."
-            val hits = Slop.hits(text)
+            val hits = Slop.hits(text, Voice.rules(this@RewriteActivity))
             result.addView(TextView(this@RewriteActivity).apply {
                 this.text = highlight(text, hits)
                 textSize = 16f

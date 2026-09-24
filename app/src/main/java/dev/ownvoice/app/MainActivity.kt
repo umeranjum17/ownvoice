@@ -21,6 +21,7 @@ class MainActivity : Activity() {
     private lateinit var model: TextView
     private lateinit var pause: Switch
     private lateinit var reads: Button
+    private lateinit var voice: Button
     private lateinit var apps: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,6 +31,7 @@ class MainActivity : Activity() {
         model = TextView(this).apply { textSize = 16f; setPadding(0, pad, 0, 0) }
         pause = Switch(this).apply { text = "Pause: hide the bubble everywhere"; textSize = 16f; setPadding(0, pad, 0, 0) }
         reads = Button(this).apply { setOnClickListener { startActivity(Intent(context, ReadsActivity::class.java)) } }
+        voice = Button(this).apply { setOnClickListener { startActivity(Intent(context, VoiceActivity::class.java)) } }
         apps = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         setContentView(FrameLayout(this).apply { fitsSystemWindows = true; addView(ScrollView(context).apply { addView(LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -58,6 +60,7 @@ class MainActivity : Activity() {
                 setOnClickListener { checkModel() }
             })
             addView(pause)
+            addView(voice)
             addView(reads)
             addView(TextView(context).apply { text = "Apps where the bubble works"; textSize = 18f; setPadding(0, pad, 0, 0) })
             addView(TextView(context).apply { text = "In apps that are off, the bubble doesn't show and nothing is read."; textSize = 14f })
@@ -71,6 +74,7 @@ class MainActivity : Activity() {
         pause.setOnCheckedChangeListener(null)
         pause.isChecked = Privacy.paused(this)
         pause.setOnCheckedChangeListener { _, on -> Privacy.setPaused(this, on) }
+        voice.text = "Your voice (${Voice.rules(this).never.size} never-say phrases)"
         reads.text = "What was read (${Privacy.reads(this).size} in the last 30 days)"
         showApps()
     }

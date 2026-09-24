@@ -24,7 +24,8 @@ class ReadsActivity : Activity() {
             addView(TextView(context).apply {
                 textSize = 14f
                 text = "Each time you tap the bubble, Ownvoice notes the app, the time, what it did and how many characters it read. " +
-                    "Never any of the text. This list stays on this phone and each entry is deleted after 30 days."
+                    "Never any of the text. This list stays on this phone and each entry is deleted after 30 days. " +
+                    "Wipe everything also deletes Your voice."
             })
             addView(Button(context).apply {
                 text = "Wipe everything"

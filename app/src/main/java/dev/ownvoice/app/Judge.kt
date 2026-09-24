@@ -32,16 +32,18 @@ object Judge {
 
     fun isMessage(answer: String) = "MESSAGE" in answer.uppercase()
 
-    fun draftPrompt(conversation: String, draft: String, message: Boolean) = buildString {
+    fun draftPrompt(conversation: String, draft: String, message: Boolean, guide: String = "") = buildString {
         append("You check a reply draft before someone sends it. Be strict, and brief. Casual tone, typos and bluntness are fine.\n\n")
         append("Screen (the conversation, may include app labels):\n").append(conversation.takeLast(2000))
         append("\n\nDraft reply:\n").append(draft)
+        if (guide.isNotEmpty()) append("\n\nThe person's own writing rules: ").append(guide)
         append("\n\nAnswer in exactly these lines and nothing else. Each check line is pass or concern, a dash, and at most 8 words.\n")
         append("GENERIC: 0-10 (10 = could be sent to anyone about anything)\n")
         append("SPECIFICITY: 0-10 (10 = concrete details from this conversation)\n")
         append("SPECIFIC: pass or concern - does it say something concrete?\n")
         append("CLEAR: pass or concern - does it make one clear point?\n")
-        append("VOICE: pass or concern - does it match how the person writes on screen?\n")
+        append("VOICE: pass or concern - does it match how the person writes on screen")
+        append(if (guide.isNotEmpty()) " and follow their rules?\n" else "?\n")
         append("FITS: pass or concern - does its length and tone fit this thread?\n")
         append("CLAIMS: pass or concern - concern if it states facts about the writer, numbers, plans or products the screen doesn't support\n")
         if (message) {
@@ -54,10 +56,15 @@ object Judge {
         }
     }
 
-    fun scoreDraft(draft: String, answer: String?, message: Boolean): Scores {
+    /** [post] is true for a fresh post rather than a reply, where the statement-endings rule applies. */
+    fun scoreDraft(draft: String, answer: String?, message: Boolean, voice: Voice.Rules = Voice.Rules(), post: Boolean = false): Scores {
         val lines = answer?.let(::parse).orEmpty()
-        val hits = Slop.hits(draft)
-        val quality = checks(lines, QUALITY)
+        val hits = Slop.hits(draft, voice, post && !message)
+        val broken = Voice.broken(hits, draft, voice)
+        // The user's own rules decide "sounds like you" whatever the judge says.
+        val quality = checks(lines, QUALITY).filter { !(broken.isNotEmpty() && it.name == "Sounds like you") }.toMutableList()
+        if (broken.isNotEmpty()) quality.add(QUALITY.indexOfFirst { it.first == "VOICE" }.coerceAtMost(quality.size),
+            Check("Sounds like you", false, "Breaks your rules: " + broken.joinToString("; ") + "."))
         val reach = checks(lines, if (message) RESPONSE else REACH).toMutableList()
         if (!message) {
             if (Regex("https?://|www\\.").containsMatchIn(draft)) reach += Check("Links", false, "Has a link; feeds may show it to fewer people.")
@@ -91,14 +98,18 @@ object Judge {
      */
     fun mode(typed: String, written: String) = when {
         typed.isNotBlank() -> Mode.COMPOSE
-        // ponytail: a line of 4+ words counts as something to reply to, so short labels like "Everyone can reply"
-        // don't; misses chats of only one-to-three-word messages and scripts written without spaces.
-        written.lines().any { it.trim().split(Regex("\\s+")).size >= 4 } -> Mode.REPLY
+        replying(written) -> Mode.REPLY
         else -> Mode.EMPTY
     }
 
-    fun rewritePrompt(text: String, ask: String) = buildString {
+    /** Whether the screen shows something to reply to; own text on a screen without it is a fresh post. */
+    // ponytail: a line of 4+ words counts as something to reply to, so short labels like "Everyone can reply"
+    // don't; misses chats of only one-to-three-word messages and scripts written without spaces.
+    fun replying(written: String) = written.lines().any { it.trim().split(Regex("\\s+")).size >= 4 }
+
+    fun rewritePrompt(text: String, ask: String, guide: String = "") = buildString {
         append("Rewrite the text below. ").append(ask).append(". Keep its meaning, facts, language and tone. ")
+        if (guide.isNotEmpty()) append("Follow the writer's rules: ").append(guide).append(' ')
         append("Don't add anything new. Output only the rewritten text.\n\nText:\n").append(text)
     }
 
