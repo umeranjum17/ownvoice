@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.provider.Settings
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import kotlinx.coroutines.MainScope
@@ -22,14 +23,15 @@ class MainActivity : Activity() {
         val pad = (16 * resources.displayMetrics.density).toInt()
         service = TextView(this).apply { textSize = 16f }
         model = TextView(this).apply { textSize = 16f; setPadding(0, pad, 0, 0) }
-        setContentView(LinearLayout(this).apply {
+        setContentView(FrameLayout(this).apply { fitsSystemWindows = true; addView(LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
+            addView(TextView(context).apply { text = "Ownvoice"; textSize = 24f })
             addView(TextView(context).apply {
                 textSize = 14f
                 text = "Tap the Ownvoice bubble in any app to get reply drafts from the model on this phone. " +
                     "Ownvoice reads the screen only when you tap the bubble, inserts only when you tap Insert, " +
-                    "and never sends anything. Nothing leaves your phone."
+                    "and never sends anything. Nothing you write leaves your phone."
             })
             addView(service)
             addView(Button(context).apply {
@@ -45,7 +47,7 @@ class MainActivity : Activity() {
                 text = "Open the test screen"
                 setOnClickListener { startActivity(Intent(context, TestScreenActivity::class.java)) }
             })
-        })
+        }) })
     }
 
     override fun onResume() {

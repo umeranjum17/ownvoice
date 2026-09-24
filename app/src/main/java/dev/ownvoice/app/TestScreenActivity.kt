@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.text.InputType
 import android.webkit.WebView
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 
@@ -28,13 +29,13 @@ class TestScreenActivity : Activity() {
             settings.javaScriptEnabled = true
             loadDataWithBaseURL(null, PAGE, "text/html", "utf-8", null)
         }
-        setContentView(LinearLayout(this).apply {
+        setContentView(FrameLayout(this).apply { fitsSystemWindows = true; addView(LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
             addView(TextView(context).apply { text = CHAT; textSize = 16f })
             addView(edit)
             addView(web, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        })
+        }) })
     }
 
     companion object {

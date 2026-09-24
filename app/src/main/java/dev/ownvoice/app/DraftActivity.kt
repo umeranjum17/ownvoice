@@ -45,6 +45,7 @@ class DraftActivity : Activity() {
         }
         setContentView(FrameLayout(this).apply {
             setBackgroundColor(0x66000000)
+            fitsSystemWindows = true
             setOnClickListener { finish() }
             addView(panel, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.BOTTOM))
         })
