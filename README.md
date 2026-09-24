@@ -16,7 +16,7 @@ The same on-device model writes and judges the drafts, and models tend to like t
 
 ## Rewrite selected text
 
-Select text in any app, open the selection menu (in Chrome it's under ⋮), and choose **Ownvoice**. Or share text to Ownvoice. Pick **Tighten**, **Plainer** or **Fix grammar**. You see the rewrite with its slop chip and a meaning check, which warns when the rewrite adds or changes a claim or a number. **Replace** puts it back into the field if the app allows editing; **Copy** copies it. This needs no accessibility permission.
+Select text in any app, open the selection menu (in Chrome it's under ⋮), and choose **Ownvoice**. Or share text to Ownvoice. Pick **Tighten**, **Plainer** or **Fix grammar**. You see the rewrite with its slop chip and a meaning check, which warns when the rewrite adds, drops or changes a claim or a number. **Replace** puts it back into the field if the app allows editing; **Copy** copies it. This needs no accessibility permission.
 
 Replace also copies the rewrite. Chrome drops the page's selection as soon as another screen opens, so it may ignore the rewrite or insert it at the cursor. Then paste it.
 
