@@ -85,6 +85,12 @@ class Chips(activity: Activity) {
     }
 }
 
+/** Shows a rewrite's meaning check: green when kept, red when a claim or number may have changed. */
+fun TextView.showMeaning(m: Judge.Check) {
+    text = (if (m.ok) "✓ Meaning kept: " else "! Meaning may have changed: ") + m.reason
+    setTextColor(if (m.ok) 0xFF2E7D32.toInt() else 0xFFC62828.toInt())
+}
+
 fun checkLines(checks: List<Judge.Check>) = checks.joinToString("\n") { (if (it.ok) "✓ " else "! ") + it.name + ": " + it.reason }
 
 fun flags(checks: List<Judge.Check>) = when (val n = checks.count { !it.ok }) {

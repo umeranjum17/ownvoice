@@ -73,8 +73,32 @@ object Judge {
         GRAMMAR("Fix grammar", "Fix only spelling, grammar and punctuation. Change nothing else"),
     }
 
-    fun rewritePrompt(text: String, how: Rewrite) = buildString {
-        append("Rewrite the text below. ").append(how.ask).append(". Keep its meaning, facts, language and tone. ")
+    /** Compose boost: improved versions of what the user wrote in the field. */
+    enum class Boost(val label: String, val ask: String) {
+        TIGHTER("Tighter", "Make it tighter: cut filler and repeated words, keep every point"),
+        PLAINER("Plainer and more like you", "Use plainer, everyday words, the way the writer talks, and keep their casing, slang and quirks"),
+        DETAIL("Lead with a specific detail", "Start with the most specific, concrete detail already in the text. Don't invent details"),
+    }
+
+    /** What a bubble tap offers: better versions of the user's own text, replies to the screen, or neither. */
+    enum class Mode { COMPOSE, REPLY, EMPTY }
+
+    const val WRITE_FIRST = "Write a line or two first - Ownvoice improves what you wrote; it doesn't invent a post"
+
+    /**
+     * [typed] is the field's own text (not its hint); [written] is the text on screen outside any field
+     * and without button labels. Own text is always boosted rather than replaced by a new draft.
+     */
+    fun mode(typed: String, written: String) = when {
+        typed.isNotBlank() -> Mode.COMPOSE
+        // ponytail: a line of 4+ words counts as something to reply to, so short labels like "Everyone can reply"
+        // don't; misses chats of only one-to-three-word messages and scripts written without spaces.
+        written.lines().any { it.trim().split(Regex("\\s+")).size >= 4 } -> Mode.REPLY
+        else -> Mode.EMPTY
+    }
+
+    fun rewritePrompt(text: String, ask: String) = buildString {
+        append("Rewrite the text below. ").append(ask).append(". Keep its meaning, facts, language and tone. ")
         append("Don't add anything new. Output only the rewritten text.\n\nText:\n").append(text)
     }
 
@@ -96,6 +120,13 @@ object Judge {
             ?: Check("Meaning", true, "No numbers added or dropped. The model couldn't check the rest.")
     }
 
+    /** Drops a "Here's the rewrite:" line and wrapping quotes the model sometimes adds. */
+    fun clean(text: String): String {
+        val lines = text.trim().lines()
+        val body = if (lines.size > 1 && lines[0].trim().endsWith(':') && lines[0].trim().startsWith("Here", ignoreCase = true)) lines.drop(1) else lines
+        return body.joinToString("\n").trim().removeSurrounding("\"").trim()
+    }
+
     /** Reads "KEY: value" lines, tolerating markdown the model adds. */
     fun parse(answer: String): Map<String, String> = answer.lines().mapNotNull { line ->
         val m = Regex("^[\\s*#>•-]*([A-Za-z_ ]+?)[*\\s]*:[*\\s]*(.+)$").find(line) ?: return@mapNotNull null
@@ -104,7 +135,7 @@ object Judge {
 
     private fun checks(lines: Map<String, String>, keys: List<Pair<String, String>>) = keys.mapNotNull { (key, name) ->
         val value = lines[key] ?: return@mapNotNull null
-        val verdict = Regex("^(pass|concern)\\b[\\s:,.;–—-]*", RegexOption.IGNORE_CASE).find(value) ?: return@mapNotNull null
+        val verdict = Regex("^[\\s–—-]*(pass|concern)\\b[\\s:,.;–—-]*", RegexOption.IGNORE_CASE).find(value) ?: return@mapNotNull null
         val ok = verdict.groupValues[1].equals("pass", ignoreCase = true)
         val reason = value.substring(verdict.range.last + 1).trim().ifEmpty { if (ok) "Looks fine." else "Worth a look." }
         Check(name, ok, reason.replaceFirstChar { it.uppercase() })

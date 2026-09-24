@@ -12,6 +12,7 @@ import android.widget.Button
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -31,9 +32,12 @@ import java.util.concurrent.TimeUnit
 class InsertFlowTest {
     companion object {
         const val DRAFT = "Saturday works.\nI'll bring the stove.\n\nSee you at 9"
+        /** What the user wrote before tapping the bubble, and the stub's improved versions of it. */
+        const val OWN = "saturday works for me i think\nand i can bring the stove"
+        const val TIGHTER = "Saturday works.\nI'll bring the stove."
+        const val PLAINER = "saturday works for me\ni can bring the stove"
+        const val DETAIL = "The stove's coming with me at 9.\nSaturday works."
         private val instr = InstrumentationRegistry.getInstrumentation()
-        /** What the service told the engine the user had typed, on the last bubble tap. */
-        @Volatile var typed: String? = null
 
         @BeforeClass
         @JvmStatic
@@ -60,10 +64,7 @@ class InsertFlowTest {
 
         /** Canned drafts, judge answers and rewrites; the judge is slow on purpose, to show drafts come first. */
         object Stub : DraftEngine {
-            override suspend fun drafts(conversation: String, typed: String, status: (String) -> Unit): List<String> {
-                InsertFlowTest.typed = typed
-                return listOf(DRAFT)
-            }
+            override suspend fun drafts(conversation: String, status: (String) -> Unit): List<String> = listOf(DRAFT)
 
             override suspend fun ask(prompt: String, maxTokens: Int): String {
                 delay(1000)
@@ -72,6 +73,9 @@ class InsertFlowTest {
                     prompt.startsWith("You check a reply") -> JUDGE
                     prompt.startsWith("Compare a rewrite") -> "GENERIC: 1\nSPECIFICITY: 8\nMEANING: pass - same meaning"
                     Judge.Rewrite.GRAMMAR.ask in prompt -> "I went to the shop at 9."
+                    Judge.Boost.TIGHTER.ask in prompt -> TIGHTER
+                    Judge.Boost.PLAINER.ask in prompt -> PLAINER
+                    Judge.Boost.DETAIL.ask in prompt -> DETAIL
                     else -> "Went to the shop at 10."
                 }
             }
@@ -191,11 +195,37 @@ class InsertFlowTest {
         instr.waitForIdleSync()
     }
 
+    /** Own text in the field: it is scored, three versions of it follow, and Insert replaces it, newlines and all. */
     @Test
-    fun emptyNativeFieldHintIsNotTyped() {
-        instr.runOnMainSync { screen.edit.setText(""); screen.edit.requestFocus() }
-        draftAndInsert()
-        assertEquals("", typed)
+    fun composeBoostReplacesNativeText() {
+        instr.runOnMainSync { screen.edit.setText(OWN); screen.edit.requestFocus() }
+        assertTrue("service could not verify the insert", boostAndInsert())
+        assertEquals(TIGHTER, screen.edit.text.toString())
+    }
+
+    @Test
+    fun composeBoostReplacesWebTextarea() {
+        focusWeb("ta")
+        js("document.getElementById('ta').value = ${JSONObject.quote(OWN)}")
+        assertTrue("service could not verify the insert", boostAndInsert())
+        assertEquals(TIGHTER, JSONArray("[${js("document.getElementById('ta').value")}]").getString(0))
+    }
+
+    private fun boostAndInsert(): Boolean {
+        val service = OwnvoiceService.instance!!
+        waitUntil("the field's own text to show") { service.focusedField()?.text?.toString() == OWN }
+        val sheet = openPanel()
+        waitUntil("boosted versions") { sheet.drafts.isNotEmpty() }
+        assertEquals(listOf(TIGHTER, PLAINER, DETAIL), sheet.drafts)
+        instr.waitForIdleSync()
+        val shown = texts(sheet)
+        assertTrue(shown.toString(), shown.containsAll(listOf("Your text", OWN, "Tighter", "Plainer and more like you", "Lead with a specific detail")))
+        waitUntil("meaning checks", timeoutMs = 20_000) { sheet.meanings.last() != null }
+        instr.waitForIdleSync()
+        assertEquals("the user's text and each version get scores", 4, sheet.scores.count { it != null })
+        assertEquals(listOf(null, true, true, false), sheet.meanings.map { it?.ok })
+        assertTrue(texts(sheet).toString(), "! Meaning may have changed: Adds 9 not in your text." in texts(sheet))
+        return insertFirst(sheet)
     }
 
     @Test
@@ -230,6 +260,15 @@ class InsertFlowTest {
 
     /** Taps the bubble's action, then Insert on the first draft; returns the service's own verdict. */
     private fun draftAndInsert(checkScores: Boolean = false): Boolean {
+        val sheet = openPanel()
+        waitUntil("drafts") { sheet.drafts.isNotEmpty() }
+        assertEquals(listOf(DRAFT), sheet.drafts)
+        if (checkScores) checkScores(sheet)
+        return insertFirst(sheet)
+    }
+
+    /** Taps the bubble's action and returns the drafts panel it opens. */
+    private fun openPanel(): DraftActivity {
         val service = OwnvoiceService.instance!!
         waitUntil("the test screen's field to have input focus") {
             service.focusedField()?.let { it.packageName?.toString() == screen.packageName } == true
@@ -238,9 +277,12 @@ class InsertFlowTest {
         instr.runOnMainSync { service.readScreen() }
         val sheet = monitor.waitForActivityWithTimeout(5_000) as DraftActivity
         instr.removeMonitor(monitor)
-        waitUntil("drafts") { sheet.drafts.isNotEmpty() }
-        assertEquals(listOf(DRAFT), sheet.drafts)
-        if (checkScores) checkScores(sheet)
+        return sheet
+    }
+
+    /** Taps Insert on the first draft and returns the service's own verdict. */
+    private fun insertFirst(sheet: DraftActivity): Boolean {
+        val service = OwnvoiceService.instance!!
         assertFalse("bubble shown over the drafts panel", service.bubbleVisible)
         instr.runOnMainSync {
             val found = ArrayList<View>()
