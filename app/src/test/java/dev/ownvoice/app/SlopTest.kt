@@ -32,6 +32,8 @@ class SlopTest {
         flags("Bring tea, coffee or juice.", "list of three")
         clear("Bring tea and coffee.", "list of three")
         clear("Yes, Saturday works, and I'll bring the stove.", "list of three")
+        clear("Yes, Saturday works, and the stove is ready.", "list of three")
+        clear("Sure, 9 works, and Sam will bring food.", "list of three")
     }
 
     @Test fun emDashes() {
@@ -96,5 +98,8 @@ class SlopTest {
         assertEquals(listOf("40"), Slop.addedNumbers("We grew a lot last year", "We grew 40 percent last year"))
         assertEquals(emptyList<String>(), Slop.addedNumbers("Meet at 9:30 on the 3rd", "Let's meet on the 3rd at 9:30"))
         assertEquals(emptyList<String>(), Slop.addedNumbers("We grew 40 percent last year", "We grew a lot last year"))
+        assertEquals(emptyList<String>(), Slop.addedNumbers("We sold 1000 tents", "We sold 1,000 tents"))
+        assertEquals(emptyList<String>(), Slop.addedNumbers("We sold 1,000 tents", "We sold 1000 tents"))
+        assertEquals(emptyList<String>(), Slop.addedNumbers("Meet at 9.30", "Meet at 9:30"))
     }
 }

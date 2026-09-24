@@ -36,7 +36,7 @@ object Slop {
 
     // Three short items in a row: "fast, simple, and fun".
     private const val ITEM = "(?<![\\w'’-])(?!(?:i|you|he|she|it|we|they)\\b|[\\w-]*['’])[\\w'’-]+(?: [\\w'’-]+)?"
-    private val TRIAD = Regex("$I$ITEM, $ITEM,? (?:and|or) $ITEM\\b")
+    private val TRIAD = Regex("$I$ITEM, $ITEM,? (?:and|or) $ITEM(?=[.,;:!?]|$)")
 
     private val DASH = Regex("—| – | -- ")
 
@@ -110,7 +110,8 @@ object Slop {
     /** Numbers in [rewrite] that [original] never had: a rewrite must not add facts. Swap the arguments for dropped numbers. */
     fun addedNumbers(original: String, rewrite: String): List<String> {
         val num = Regex("\\d+(?:[.,:]\\d+)*")
-        val had = num.findAll(original).map { it.value }.toSet()
-        return num.findAll(rewrite).map { it.value }.filter { it !in had }.distinct().toList()
+        fun key(n: String) = n.replace(",", "").replace(':', '.')
+        val had = num.findAll(original).map { key(it.value) }.toSet()
+        return num.findAll(rewrite).map { it.value }.filter { key(it) !in had }.distinctBy(::key).toList()
     }
 }

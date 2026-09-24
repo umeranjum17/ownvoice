@@ -48,6 +48,7 @@ class JudgeTest {
         assertTrue(Judge.meaning("see you soon", "See you soon.", "MEANING: pass - same").ok)
         assertEquals("Drops 40 from your text.", Judge.meaning("we grew 40 percent", "we grew a lot", "MEANING: pass").reason)
         assertEquals("Adds 10 not in your text. Drops 9 from your text.", Judge.meaning("at 9", "at 10", null).reason)
+        assertTrue(Judge.meaning("sold 1000 at 9.30", "Sold 1,000 at 9:30.", "MEANING: pass").ok)
         assertEquals("\"Overhaul\" is stronger", Judge.meaning("a", "b", "MEANING: concern - \"Overhaul\" is stronger").reason)
     }
 
