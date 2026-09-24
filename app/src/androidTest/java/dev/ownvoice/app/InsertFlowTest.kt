@@ -173,7 +173,7 @@ class InsertFlowTest {
         assertEquals(emptyList<Privacy.Read>(), Privacy.reads(ctx))
     }
 
-    /** A tap is logged with counts and the first line only, and Wipe everything clears the log and what was read. */
+    /** A tap is logged with its mode and counts and no message text, and Wipe everything clears the log and what was read. */
     @Test
     fun readIsLoggedAndWipeClearsIt() {
         val service = OwnvoiceService.instance!!
@@ -183,8 +183,8 @@ class InsertFlowTest {
         waitUntil("drafts") { sheet.drafts.isNotEmpty() }
         val read = Privacy.reads(ctx).single()
         assertEquals(ctx.packageName, read.app)
-        assertTrue(read.summary, read.summary.endsWith("First line: “Sam: Are we still on for Saturday?”"))
-        assertFalse("full text logged", "tent" in read.summary)
+        assertTrue(read.summary, read.summary.startsWith("Reply drafts. ") && read.summary.endsWith(" 0 in your field."))
+        for (word in listOf("Sam", "Saturday", "tent")) assertFalse("message text logged", word in read.summary)
         instr.runOnMainSync { sheet.finish() }
         waitUntil("drafts panel to close") { sheet.isDestroyed }
         assertTrue(service.capture != null)

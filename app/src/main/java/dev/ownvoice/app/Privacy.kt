@@ -10,7 +10,6 @@ object Privacy {
     /** Apps where the bubble works until the user says otherwise: X, LinkedIn, Gmail and WhatsApp. Every other app starts off. */
     val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
     const val KEEP_MS = 30L * 24 * 60 * 60 * 1000
-    private const val FIRST_LINE_CHARS = 60
 
     /** One bubble tap: when, in which app, and how much it read. */
     data class Read(val time: Long, val app: String, val label: String, val summary: String) {
@@ -30,15 +29,14 @@ object Privacy {
     /** The reads younger than 30 days at [now]. */
     fun keep(reads: List<Read>, now: Long) = reads.filter { now - it.time < KEEP_MS }
 
-    /** Character counts and the first line only, never the full text. */
-    fun summary(conversation: String, typed: String): String {
-        val first = (conversation.lineSequence() + typed.lineSequence()).map { it.trim() }.firstOrNull { it.isNotEmpty() }
-        val line = when {
-            first == null -> "nothing"
-            first.length > FIRST_LINE_CHARS -> "“" + first.take(FIRST_LINE_CHARS).trimEnd() + "…”"
-            else -> "“$first”"
+    /** Which mode ran and the character counts, never any of the text. */
+    fun summary(mode: Judge.Mode, conversation: String, typed: String): String {
+        val ran = when (mode) {
+            Judge.Mode.REPLY -> "Reply drafts"
+            Judge.Mode.COMPOSE -> "Compose boost"
+            Judge.Mode.EMPTY -> "Nothing to work on"
         }
-        return "${conversation.length} characters on screen, ${typed.length} in your field. First line: $line"
+        return "$ran. ${conversation.length} characters on screen, ${typed.length} in your field."
     }
 
     // Writes use commit(): they are tiny, and a switch or wipe must not be lost if the process dies right after.

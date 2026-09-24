@@ -129,7 +129,7 @@ class OwnvoiceService : AccessibilityService() {
         root?.let { visibleText(it, field, lines, written) }
         val read = Capture(lines.joinToString("\n"), written.joinToString("\n"), field)
         val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
-        Privacy.record(this, Privacy.Read(System.currentTimeMillis(), app, label, Privacy.summary(read.conversation, read.typed)))
+        Privacy.record(this, Privacy.Read(System.currentTimeMillis(), app, label, Privacy.summary(read.mode, read.conversation, read.typed)))
         if (lines.isEmpty() && field == null) {
             return say("No text on this screen.")
         }

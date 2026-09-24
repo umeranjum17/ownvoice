@@ -25,12 +25,12 @@ class PrivacyTest {
         assertEquals(listOf(now - 30 * day + 1, now - day, now), Privacy.keep(reads, now).map { it.time })
     }
 
-    @Test fun summaryHasCountsAndFirstLineOnly() {
-        val chat = "\n  Sam: Are we still on for Saturday?\nSam: I can bring the tent."
-        assertEquals("${chat.length} characters on screen, 3 in your field. First line: “Sam: Are we still on for Saturday?”", Privacy.summary(chat, "hey"))
-        val long = "x".repeat(200)
-        assertEquals("200 characters on screen, 0 in your field. First line: “${"x".repeat(60)}…”", Privacy.summary(long, ""))
-        assertEquals("0 characters on screen, 0 in your field. First line: nothing", Privacy.summary("", ""))
+    @Test fun summaryHasModeAndCountsButNoText() {
+        val chat = "Sam: Are we still on for Saturday?\nSam: I can bring the tent."
+        assertEquals("Reply drafts. ${chat.length} characters on screen, 0 in your field.", Privacy.summary(Judge.Mode.REPLY, chat, ""))
+        val boost = Privacy.summary(Judge.Mode.COMPOSE, chat, "Saturday works")
+        assertEquals("Compose boost. ${chat.length} characters on screen, 14 in your field.", boost)
+        assertEquals("Nothing to work on. 0 characters on screen, 0 in your field.", Privacy.summary(Judge.Mode.EMPTY, "", ""))
     }
 
     @Test fun readSurvivesEncodingAndTabsCannotBreakIt() {
