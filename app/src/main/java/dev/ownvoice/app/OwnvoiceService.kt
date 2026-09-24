@@ -54,10 +54,25 @@ class OwnvoiceService : AccessibilityService() {
     var insertVerified: Boolean? = null
         private set
 
-    /** Hidden while the drafts panel shows, so it neither covers a draft nor starts another read. */
-    var bubbleVisible: Boolean
+    /** Set while the drafts or rewrite panel shows, so the bubble neither covers a draft nor starts another read. */
+    var panelOpen = false
+        set(value) { field = value; updateBubble() }
+
+    val bubbleVisible: Boolean
         get() = ::bubble.isInitialized && bubble.visibility == View.VISIBLE
-        set(value) { if (::bubble.isInitialized) bubble.visibility = if (value) View.VISIBLE else View.GONE }
+
+    /** Shows the bubble only over an app switched on in Ownvoice, never while paused or while the panel shows. */
+    fun updateBubble() {
+        if (!::bubble.isInitialized) return
+        bubble.visibility = if (!panelOpen && Privacy.on(this, currentApp())) View.VISIBLE else View.GONE
+    }
+
+    /** Drops whatever the last tap read, for Wipe everything. */
+    fun forget() {
+        capture = null
+    }
+
+    private fun currentApp() = appRoot()?.packageName?.toString()
 
     override fun onServiceConnected() {
         wm = getSystemService(WindowManager::class.java)
@@ -80,9 +95,11 @@ class OwnvoiceService : AccessibilityService() {
         wm.addView(bubble, bubbleParams)
         restoreBubble.run()
         instance = this
+        updateBubble()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) updateBubble()
         if (pending != null) verifyInsert(final = false)
     }
 
@@ -102,15 +119,21 @@ class OwnvoiceService : AccessibilityService() {
      * and an accessibility overlay over another app does not count.
      */
     fun readScreen() {
+        // Nothing is read in an app that is switched off, or while paused.
+        val app = currentApp()
+        if (app == null || !Privacy.on(this, app)) return updateBubble()
         val field = focusedField()
         val root = field?.window?.root ?: appRoot()
         val lines = mutableListOf<String>()
         val written = mutableListOf<String>()
         root?.let { visibleText(it, field, lines, written) }
+        val read = Capture(lines.joinToString("\n"), written.joinToString("\n"), field)
+        val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
+        Privacy.record(this, Privacy.Read(System.currentTimeMillis(), app, label, Privacy.summary(read.mode, read.conversation, read.typed)))
         if (lines.isEmpty() && field == null) {
             return say("No text on this screen.")
         }
-        capture = Capture(lines.joinToString("\n"), written.joinToString("\n"), field)
+        capture = read
         insertVerified = null
         startActivity(Intent(this, DraftActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
     }

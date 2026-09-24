@@ -3,6 +3,7 @@ package dev.ownvoice.app
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.Typeface
 import android.os.Bundle
@@ -41,17 +42,24 @@ class DraftActivity : Activity() {
         super.onCreate(savedInstanceState)
         status = TextView(this)
         list = sheet(status)
+        list.addView(LinearLayout(this).apply {
+            addView(Button(context).apply { text = "Pause Ownvoice"; setOnClickListener { Privacy.setPaused(context, true); finish() } })
+            addView(Button(context).apply {
+                text = "What was read"
+                setOnClickListener { startActivity(Intent(context, ReadsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)); finish() }
+            })
+        })
         draft()
     }
 
     // Every way out (Insert, Copy, Close, tap outside, Back) stops the activity.
     override fun onStart() {
         super.onStart()
-        OwnvoiceService.instance?.bubbleVisible = false
+        OwnvoiceService.instance?.panelOpen = true
     }
 
     override fun onStop() {
-        OwnvoiceService.instance?.bubbleVisible = true
+        OwnvoiceService.instance?.panelOpen = false
         super.onStop()
     }
 

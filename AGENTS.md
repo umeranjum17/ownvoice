@@ -4,6 +4,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 
 - Build, install and on-device test commands: see `README.md`.
 - ML Kit GenAI runs the model only for the app in front (`BACKGROUND_USE_BLOCKED`). An accessibility overlay over another app doesn't count, so model calls happen in an activity (`DraftActivity`), not in `OwnvoiceService`.
+- The bubble shows, and a tap reads, only in apps switched on in `Privacy` (defaults in `Privacy.DEFAULT_ON`; Ownvoice's own package starts off), so on-device checks must switch `dev.ownvoice.app` or the target app on first. Prefs writes use `commit()` because `am instrument` kills the process right after a test.
 - Chrome refuses `ACTION_SET_TEXT` while another app's window is on top, and it reports a contenteditable's text without its newlines. `OwnvoiceService.insert` handles both.
 - Chrome drops the page selection when any activity comes to the front, so an `ACTION_PROCESS_TEXT` result may be ignored or inserted at the caret. `RewriteActivity.replace` copies it as well.
 - `uiautomator dump`, or any UiAutomation opened without `FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES`, unbinds the service and closes its windows. After the app process is killed (force-stop, `am start -S`, `adb install -r` or `am instrument`), Android doesn't rebind the service until `enabled_accessibility_services` changes, so switch it off and on and check `accessibility_enabled` is 1 (uninstalling the test package can leave it 0).

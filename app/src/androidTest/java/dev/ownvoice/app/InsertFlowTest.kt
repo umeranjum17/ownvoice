@@ -15,8 +15,10 @@ import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.AfterClass
 import org.junit.BeforeClass
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,7 +46,17 @@ class InsertFlowTest {
         fun setUpService() {
             enableService()
             OwnvoiceService.engine = Stub
+            // Every app but the default list starts off, this one included.
+            instr.runOnMainSync { Privacy.setPaused(ctx, false); Privacy.setAllowed(ctx, ctx.packageName, true) }
         }
+
+        @AfterClass
+        @JvmStatic
+        fun tearDown() {
+            instr.runOnMainSync { Privacy.setAllowed(ctx, ctx.packageName, false) }
+        }
+
+        private val ctx get() = instr.targetContext
 
         /** Turns the service on without turning off any other enabled service. */
         private fun enableService() {
@@ -132,6 +144,58 @@ class InsertFlowTest {
         assertTrue(detail, "! Claims: Says they own a stove" in detail && Judge.SAME_MODEL in detail)
         tap(sheet, "Slop: clean")
         assertTrue(texts(sheet).any { it.startsWith("Slop: clean (10/100)") && Judge.SAME_MODEL in it })
+    }
+
+    /** In an app that is switched off, or while paused, the bubble hides and a tap reads nothing. */
+    @Test
+    fun switchedOffOrPausedReadsNothing() {
+        val service = OwnvoiceService.instance!!
+        instr.runOnMainSync { screen.edit.setText(""); screen.edit.requestFocus() }
+        Privacy.wipe(ctx)
+        try {
+            instr.runOnMainSync { Privacy.setAllowed(ctx, ctx.packageName, false) }
+            assertNoRead(service)
+            instr.runOnMainSync { Privacy.setAllowed(ctx, ctx.packageName, true); Privacy.setPaused(ctx, true) }
+            assertNoRead(service)
+        } finally {
+            instr.runOnMainSync { Privacy.setAllowed(ctx, ctx.packageName, true); Privacy.setPaused(ctx, false) }
+        }
+        waitUntil("bubble back") { service.bubbleVisible }
+    }
+
+    private fun assertNoRead(service: OwnvoiceService) {
+        waitUntil("bubble hidden") { !service.bubbleVisible }
+        val monitor = instr.addMonitor(DraftActivity::class.java.name, null, false)
+        instr.runOnMainSync { service.readScreen() }
+        assertNull("drafts panel opened", monitor.waitForActivityWithTimeout(2_000))
+        instr.removeMonitor(monitor)
+        assertNull(service.capture)
+        assertEquals(emptyList<Privacy.Read>(), Privacy.reads(ctx))
+    }
+
+    /** A tap is logged with its mode and counts and no message text, and Wipe everything clears the log and what was read. */
+    @Test
+    fun readIsLoggedAndWipeClearsIt() {
+        val service = OwnvoiceService.instance!!
+        Privacy.wipe(ctx)
+        instr.runOnMainSync { screen.edit.setText(""); screen.edit.requestFocus() }
+        val sheet = openPanel()
+        waitUntil("drafts") { sheet.drafts.isNotEmpty() }
+        val read = Privacy.reads(ctx).single()
+        assertEquals(ctx.packageName, read.app)
+        assertTrue(read.summary, read.summary.startsWith("Reply drafts. ") && read.summary.endsWith(" 0 in your field."))
+        for (word in listOf("Sam", "Saturday", "tent")) assertFalse("message text logged", word in read.summary)
+        instr.runOnMainSync { sheet.finish() }
+        waitUntil("drafts panel to close") { sheet.isDestroyed }
+        assertTrue(service.capture != null)
+
+        val reads = instr.startActivitySync(Intent(ctx, ReadsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ReadsActivity
+        assertTrue(texts(reads).any { it.endsWith(read.summary) })
+        tap(reads, "Wipe everything")
+        assertEquals(emptyList<Privacy.Read>(), Privacy.reads(ctx))
+        assertNull(service.capture)
+        assertTrue("Nothing read in the last 30 days." in texts(reads))
+        instr.runOnMainSync { reads.finish() }
     }
 
     @Test

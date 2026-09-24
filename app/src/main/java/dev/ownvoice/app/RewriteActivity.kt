@@ -63,11 +63,11 @@ class RewriteActivity : Activity() {
 
     override fun onStart() {
         super.onStart()
-        OwnvoiceService.instance?.bubbleVisible = false
+        OwnvoiceService.instance?.panelOpen = true
     }
 
     override fun onStop() {
-        OwnvoiceService.instance?.bubbleVisible = true
+        OwnvoiceService.instance?.panelOpen = false
         super.onStop()
     }
 

@@ -28,7 +28,12 @@ Replace also copies the rewrite. Chrome drops the page's selection as soon as an
 
 ## Privacy
 
-- **Reads only on request.** Ownvoice reads the screen only when you tap its bubble. It reads the visible text and the field you're typing in. Nothing is saved: what it read stays in memory only until your next tap.
+Ownvoice reads the screen only when you tap its bubble. What it reads stays on this phone, and it never sends anything.
+
+- **Reads only on request.** Ownvoice reads the screen only when you tap its bubble, never in the background. It reads the visible text and the field you're typing in, and keeps that in memory only until your next tap.
+- **Every read is logged where you can see it.** **What was read** on the main screen, or in the drafts panel, lists each tap: the app, the time, what it did (reply drafts, compose boost or nothing to work on) and how many characters it read, never any of the text. The list stays on the phone and each entry is deleted after 30 days. **Wipe everything** clears the list and whatever the last tap read.
+- **Per app.** The bubble works only in apps switched on under **Apps where the bubble works**. X, LinkedIn, Gmail and WhatsApp start on; every other app, Signal included, starts off. In an app that's off, the bubble doesn't show and nothing is read.
+- **Pause.** The **Pause** switch on the main screen, or **Pause Ownvoice** in the drafts panel, hides the bubble everywhere until you switch it back.
 - **Never sends.** Ownvoice changes a text field only when you tap Insert. It never taps Send, posts or acts for you.
 - **Nothing you write leaves the phone.** Drafting runs on the phone's own model. Ownvoice has no server and no network code. Like other ML Kit libraries, ML Kit may send Google anonymous usage metrics such as API name and latency. See [ML Kit's data disclosure](https://developers.google.com/ml-kit/android-data-disclosure). Your screen text and drafts are not part of those metrics.
 
@@ -36,8 +41,9 @@ Replace also copies the rewrite. Chrome drops the page's selection as soon as an
 
 1. Install the app, open **Ownvoice**, tap **Turn Ownvoice on or off** and switch Ownvoice on in Accessibility settings.
 2. Back in Ownvoice, tap **Check or download the model**. On first use the phone downloads Gemini Nano, and this screen shows when it is ready.
-3. In any app, tap into the message box, then tap the blue **OV** bubble at the right edge of the screen, halfway down. The drafts panel opens over the app. If you've already written something in the box, the panel shows better versions of it instead.
-4. Tap **Insert** to put a draft in the message box, or **Copy** to copy it. Then send it yourself.
+3. Under **Apps where the bubble works**, check the apps you want it in. X, LinkedIn, Gmail and WhatsApp are on to start.
+4. In one of those apps, tap into the message box, then tap the blue **OV** bubble at the right edge of the screen, halfway down. The drafts panel opens over the app. If you've already written something in the box, the panel shows better versions of it instead.
+5. Tap **Insert** to put a draft in the message box, or **Copy** to copy it. Then send it yourself.
 
 The bubble is an accessibility overlay, so it needs no draw-over-other-apps permission. The drafts panel is a see-through activity instead of an overlay. ML Kit GenAI runs the model only for the app in front of the screen (`BACKGROUND_USE_BLOCKED`), and an accessibility overlay over another app doesn't count.
 
@@ -54,13 +60,13 @@ Gemini Nano through ML Kit needs a supported phone (for example recent Pixel, Sa
 
 ## Test
 
-The phrase rules and the parsing of the judge's answers have plain JVM unit tests:
+The phrase rules, the parsing of the judge's answers, the per-app defaults and the 30-day log have plain JVM unit tests:
 
 ```sh
 ./gradlew :app:testDebugUnitTest
 ```
 
-`InsertFlowTest` runs on a real device or emulator. It swaps in a stub engine, so it doesn't need the model. It opens Ownvoice's own test screen (in the debug build only) and taps through bubble → drafts panel → Insert. It checks that a multi-line draft lands exactly in a native `EditText`, a web `textarea` and a web `contenteditable`, and that the scores fill in after the drafts show. It checks compose boost too: your own text is scored, three versions follow with meaning checks, and Insert replaces your text with a multi-line version in a native field and a web `textarea`. It also covers the rewrite screen: Replace returns the rewrite, and a rewrite with a new number gets a warning. The test turns Ownvoice's accessibility service on by itself.
+`InsertFlowTest` runs on a real device or emulator. It swaps in a stub engine, so it doesn't need the model. It opens Ownvoice's own test screen (in the debug build only) and taps through bubble → drafts panel → Insert. It checks that a multi-line draft lands exactly in a native `EditText`, a web `textarea` and a web `contenteditable`, and that the scores fill in after the drafts show. It checks compose boost too: your own text is scored, three versions follow with meaning checks, and Insert replaces your text with a multi-line version in a native field and a web `textarea`. It checks the privacy controls: with the app switched off or Ownvoice paused, the bubble hides and a tap reads and logs nothing; a tap is logged with its mode and counts and no message text, and Wipe everything clears the log. It also covers the rewrite screen: Replace returns the rewrite, and a rewrite with a new number gets a warning. The test turns Ownvoice's accessibility service on by itself, and switches the bubble on for Ownvoice's own screens while it runs.
 
 ```sh
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
@@ -71,7 +77,7 @@ adb shell am instrument -w dev.ownvoice.app.test/androidx.test.runner.AndroidJUn
 
 `./gradlew connectedDebugAndroidTest` works too, but it uninstalls the app afterwards.
 
-To try Ownvoice by hand on the debug build's test screen: `adb shell am start -n dev.ownvoice.app/.TestScreenActivity`.
+To try Ownvoice by hand on the debug build's test screen, switch Ownvoice on in its own app list, then run `adb shell am start -n dev.ownvoice.app/.TestScreenActivity`.
 
 ## Licence
 
