@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import org.json.JSONArray
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.BeforeClass
@@ -26,12 +27,14 @@ class InsertFlowTest {
     companion object {
         const val DRAFT = "Saturday works.\nI'll bring the stove.\n\nSee you at 9"
         private val instr = InstrumentationRegistry.getInstrumentation()
+        /** What the service told the engine the user had typed, on the last bubble tap. */
+        @Volatile var typed: String? = null
 
         @BeforeClass
         @JvmStatic
         fun setUpService() {
             enableService()
-            OwnvoiceService.engine = DraftEngine { _, _, _ -> listOf(DRAFT) }
+            OwnvoiceService.engine = DraftEngine { _, typed, _ -> this.typed = typed; listOf(DRAFT) }
         }
 
         /** Turns the service on without turning off any other enabled service. */
@@ -80,6 +83,13 @@ class InsertFlowTest {
     }
 
     @Test
+    fun emptyNativeFieldHintIsNotTyped() {
+        instr.runOnMainSync { screen.edit.setText(""); screen.edit.requestFocus() }
+        draftAndInsert()
+        assertEquals("", typed)
+    }
+
+    @Test
     fun webTextarea() {
         focusWeb("ta")
         val verified = draftAndInsert()
@@ -121,6 +131,7 @@ class InsertFlowTest {
         instr.removeMonitor(monitor)
         waitUntil("drafts") { sheet.drafts.isNotEmpty() }
         assertEquals(listOf(DRAFT), sheet.drafts)
+        assertFalse("bubble shown over the drafts panel", service.bubbleVisible)
         instr.runOnMainSync {
             val found = ArrayList<View>()
             sheet.window.decorView.findViewsWithText(found, "Insert", View.FIND_VIEWS_WITH_TEXT)
@@ -129,6 +140,7 @@ class InsertFlowTest {
         waitUntil("insert verdict") { service.insertVerified != null }
         waitUntil("drafts panel to close") { sheet.isDestroyed }
         instr.waitForIdleSync()
+        assertTrue("bubble not back after the panel closed", service.bubbleVisible)
         return service.insertVerified == true
     }
 }

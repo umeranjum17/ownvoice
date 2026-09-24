@@ -52,6 +52,17 @@ class DraftActivity : Activity() {
         draft()
     }
 
+    // Every way out (Insert, Copy, Close, tap outside, Back) stops the activity.
+    override fun onStart() {
+        super.onStart()
+        OwnvoiceService.instance?.bubbleVisible = false
+    }
+
+    override fun onStop() {
+        OwnvoiceService.instance?.bubbleVisible = true
+        super.onStop()
+    }
+
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()

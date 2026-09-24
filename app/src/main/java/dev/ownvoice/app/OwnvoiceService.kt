@@ -12,6 +12,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -46,6 +47,11 @@ class OwnvoiceService : AccessibilityService() {
     /** Latest insert outcome, read by the on-device test. */
     var insertVerified: Boolean? = null
         private set
+
+    /** Hidden while the drafts panel shows, so it neither covers a draft nor starts another read. */
+    var bubbleVisible: Boolean
+        get() = ::bubble.isInitialized && bubble.visibility == View.VISIBLE
+        set(value) { if (::bubble.isInitialized) bubble.visibility = if (value) View.VISIBLE else View.GONE }
 
     override fun onServiceConnected() {
         wm = getSystemService(WindowManager::class.java)
