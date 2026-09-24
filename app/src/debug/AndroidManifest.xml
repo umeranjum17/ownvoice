@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Exported so the test screen can be opened with adb (am start) to try Ownvoice by hand. Debug builds only. -->
     <application>
         <activity
             android:name=".TestScreenActivity"
-            android:exported="false"
+            android:exported="true"
             android:label="@string/test_screen" />
     </application>
 </manifest>

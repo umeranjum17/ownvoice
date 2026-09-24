@@ -12,9 +12,13 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Turns what is on screen into reply drafts. Tests swap in a stub. */
-fun interface DraftEngine {
+/** The model behind drafts, scores and rewrites. Tests swap in a stub. */
+interface DraftEngine {
+    /** Two or three varied reply drafts for what is on screen. */
     suspend fun drafts(conversation: String, typed: String, status: (String) -> Unit): List<String>
+
+    /** One steady answer (temperature 0) to [prompt], for judging and rewriting. */
+    suspend fun ask(prompt: String, maxTokens: Int): String
 }
 
 /** A failure with a message meant for the user as is. */
@@ -42,6 +46,16 @@ object Nano : DraftEngine {
                 .forEach { if (it.isNotEmpty() && it !in drafts) drafts += it }
         }
         return drafts.take(3)
+    }
+
+    override suspend fun ask(prompt: String, maxTokens: Int): String {
+        ensureReady {}
+        val request = generateContentRequest(TextPart(prompt)) {
+            temperature = 0f
+            topK = 1
+            maxOutputTokens = maxTokens
+        }
+        return plain { model.generateContent(request) }.candidates.firstOrNull()?.text?.trim().orEmpty()
     }
 
     /** Checks the model and, if needed, downloads it while reporting progress. */
