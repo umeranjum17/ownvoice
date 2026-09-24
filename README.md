@@ -87,12 +87,6 @@ adb shell am instrument -w dev.ownvoice.app.test/androidx.test.runner.AndroidJUn
 
 `./gradlew connectedDebugAndroidTest` works too, but it uninstalls the app afterwards.
 
-`DraftSpeedTest` times reply drafts with and without Your voice rules in the prompt, on the real model. It runs only when asked:
-
-```sh
-adb shell am instrument -w -e speed true -e class dev.ownvoice.app.DraftSpeedTest dev.ownvoice.app.test/androidx.test.runner.AndroidJUnitRunner
-```
-
 To try Ownvoice by hand on the debug build's test screen, switch Ownvoice on in its own app list, then run `adb shell am start -n dev.ownvoice.app/.TestScreenActivity`.
 
 ## Licence

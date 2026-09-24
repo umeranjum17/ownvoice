@@ -73,15 +73,14 @@ class VoiceActivity : Activity() {
             addView(TextView(context).apply { text = "One phrase per line. Any case; whole words only."; textSize = 14f })
             addView(never)
         }) }) })
-        load()
         dashes.setOnCheckedChangeListener { _, _ -> save() }
         endings.setOnCheckedChangeListener { _, _ -> save() }
         if (savedInstanceState == null) shared(intent)
     }
 
-    override fun onNewIntent(intent: Intent) {
-        super.onNewIntent(intent)
-        shared(intent)
+    override fun onResume() {
+        super.onResume()
+        load()
     }
 
     /** A voice profile shared to Ownvoice, as a file or as text. */

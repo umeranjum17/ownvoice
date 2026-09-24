@@ -70,7 +70,7 @@ object Voice {
     /**
      * The rules as one short line for a prompt, or "" when there are none. [post] adds the ending rule,
      * which only applies to a fresh post: questions are fine in replies. The never-say list stays out:
-     * on the phone it made drafts longer and slower (see DraftSpeedTest), and the highlights catch those phrases anyway.
+     * on the phone, the never-say list in the prompt made drafts longer and slower, and the highlights catch those phrases anyway.
      */
     fun guide(rules: Rules, post: Boolean) = listOfNotNull(
         "No em dashes.".takeIf { rules.noDashes },
