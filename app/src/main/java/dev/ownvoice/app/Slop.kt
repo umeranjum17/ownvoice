@@ -110,7 +110,7 @@ object Slop {
     /** Numbers in [rewrite] that [original] never had: a rewrite must not add facts. Swap the arguments for dropped numbers. */
     fun addedNumbers(original: String, rewrite: String): List<String> {
         val num = Regex("\\d+(?:[.,:]\\d+)*")
-        fun key(n: String) = n.replace(",", "").replace(':', '.')
+        fun key(n: String) = n.replace(Regex(",(?=\\d{3}(?!\\d))"), "").replace(':', '.')
         val had = num.findAll(original).map { key(it.value) }.toSet()
         return num.findAll(rewrite).map { it.value }.filter { key(it) !in had }.distinctBy(::key).toList()
     }

@@ -101,5 +101,9 @@ class SlopTest {
         assertEquals(emptyList<String>(), Slop.addedNumbers("We sold 1000 tents", "We sold 1,000 tents"))
         assertEquals(emptyList<String>(), Slop.addedNumbers("We sold 1,000 tents", "We sold 1000 tents"))
         assertEquals(emptyList<String>(), Slop.addedNumbers("Meet at 9.30", "Meet at 9:30"))
+        assertEquals(emptyList<String>(), Slop.addedNumbers("Raised 12,500,000", "Raised 12500000"))
+        assertEquals(listOf("15"), Slop.addedNumbers("Ran 1,5 km", "Ran 15 km"))
+        assertEquals(listOf("1,5"), Slop.addedNumbers("Ran 15 km", "Ran 1,5 km"))
+        assertEquals(listOf("23"), Slop.addedNumbers("Items 2,3", "Items 23"))
     }
 }
