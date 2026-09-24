@@ -65,7 +65,13 @@ object Nano : DraftEngine {
                 }
             }
             // On a OnePlus 13 the download flow never reported completion, so also poll the status.
-            while (model.checkStatus() != FeatureStatus.AVAILABLE) delay(5_000)
+            while (true) {
+                when (model.checkStatus()) {
+                    FeatureStatus.AVAILABLE -> break
+                    FeatureStatus.UNAVAILABLE -> throw PlainError(UNSUPPORTED)
+                }
+                delay(5_000)
+            }
             download.cancel()
         }
     }

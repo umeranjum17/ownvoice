@@ -43,10 +43,6 @@ class MainActivity : Activity() {
                 text = "Check or download the model"
                 setOnClickListener { checkModel() }
             })
-            addView(Button(context).apply {
-                text = "Open the test screen"
-                setOnClickListener { startActivity(Intent(context, TestScreenActivity::class.java)) }
-            })
         }) })
     }
 

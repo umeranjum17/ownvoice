@@ -17,11 +17,6 @@
         </activity>
 
         <activity
-            android:name=".TestScreenActivity"
-            android:exported="false"
-            android:label="@string/test_screen" />
-
-        <activity
             android:name=".DraftActivity"
             android:excludeFromRecents="true"
             android:exported="false"

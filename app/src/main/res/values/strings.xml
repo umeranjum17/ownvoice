@@ -1,5 +1,4 @@
 <resources>
     <string name="app_name">Ownvoice</string>
-    <string name="test_screen">Ownvoice test screen</string>
     <string name="service_description">Ownvoice shows a small bubble. Only when you tap it does Ownvoice read the conversation on screen and the text field you are typing in, to draft replies with the on-device model. It inserts a draft only when you tap Insert, and it never sends anything. Nothing leaves your phone.</string>
 </resources>

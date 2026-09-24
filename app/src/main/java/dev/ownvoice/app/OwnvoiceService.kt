@@ -32,7 +32,7 @@ class OwnvoiceService : AccessibilityService() {
 
     /** What the bubble tap read: the visible text, and the field being typed in, if any. */
     class Capture(val conversation: String, val input: AccessibilityNodeInfo?) {
-        val typed: String get() = input?.text?.toString().orEmpty()
+        val typed: String get() = input?.takeUnless { it.isShowingHintText }?.text?.toString().orEmpty()
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -128,7 +128,10 @@ class OwnvoiceService : AccessibilityService() {
     private fun verifyInsert(final: Boolean) {
         val want = pending ?: return
         val field = capture?.input ?: return
-        if (!field.refresh()) return
+        if (!field.refresh()) {
+            if (final) finishInsert(null)
+            return
+        }
         val got = field.text?.toString()
         when {
             got == want -> {

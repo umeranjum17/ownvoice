@@ -32,7 +32,7 @@ Gemini Nano through ML Kit needs a supported phone (for example recent Pixel, Sa
 
 ## Test
 
-`InsertFlowTest` runs on a real device or emulator. It swaps in a stub draft engine, so it doesn't need the model. It opens Ownvoice's own test screen, taps through bubble → drafts panel → Insert, and checks that a multi-line draft lands exactly in a native `EditText`, a web `textarea` and a web `contenteditable`. The test turns Ownvoice's accessibility service on by itself.
+`InsertFlowTest` runs on a real device or emulator. It swaps in a stub draft engine, so it doesn't need the model. It opens Ownvoice's own test screen (in the debug build only), taps through bubble → drafts panel → Insert, and checks that a multi-line draft lands exactly in a native `EditText`, a web `textarea` and a web `contenteditable`. The test turns Ownvoice's accessibility service on by itself.
 
 ```sh
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
