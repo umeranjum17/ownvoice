@@ -5,8 +5,9 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - Build, install and on-device test commands: see `README.md`.
 - ML Kit GenAI runs the model only for the app in front (`BACKGROUND_USE_BLOCKED`). An accessibility overlay over another app doesn't count, so model calls happen in an activity (`DraftActivity`), not in `OwnvoiceService`.
 - Chrome refuses `ACTION_SET_TEXT` while another app's window is on top, and it reports a contenteditable's text without its newlines. `OwnvoiceService.insert` handles both.
+- Chrome drops the page selection when any activity comes to the front, so an `ACTION_PROCESS_TEXT` result may be ignored or inserted at the caret. `RewriteActivity.replace` copies it as well.
 - `uiautomator dump`, or any UiAutomation opened without `FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES`, unbinds the service and closes its windows. After the app process is killed (force-stop or `am instrument`), Android doesn't rebind the service until `enabled_accessibility_services` changes, so switch it off and on.
-- OnePlus phones show a "Continue installation" screen on every `adb install`, and it must be tapped on the device.
+- OnePlus phones show a "Continue installation" screen on every `adb install`. On the OnePlus 13, `adb shell input tap 540 1833` taps it once its buttons show (about 5 s in). The "Installed" page it leaves on top makes `am instrument` time out launching activities, so press Back first.
 
 ## Maintaining this file
 

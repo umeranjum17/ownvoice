@@ -2,7 +2,23 @@
 
 Ownvoice is a local-first, open-source writing booster for Android. A small bubble sits over your apps. Tap it and Ownvoice reads the conversation on screen and drafts two or three short replies with the language model on your phone (Gemini Nano, through ML Kit GenAI). Tap Insert and the draft goes into the text field you were typing in. You read it over and you send it.
 
-This is the first thin slice: one engine (the on-device model), one flow (reply drafts), and an on/off switch.
+Each draft gets three separate scores, and you can rewrite any text you select, in any app, without turning on accessibility.
+
+## Scores
+
+Every draft shows three chips. Tap one for its reasons. They are never blended into one number.
+
+- **Slop** says how generic and templated the draft reads: clean, a bit generic, or sloppy. It never guesses whether a model or a person wrote it. Phrase rules written for Ownvoice ([`Slop.kt`](app/src/main/java/dev/ownvoice/app/Slop.kt)) highlight stock phrases, "not X but Y" frames, lists of three, em dashes, flattery openers, closing calls to action, "Here's a reply" preambles, and emoji or hashtag stuffing. The on-device model also rates genericness and specificity. The number out of 100 shows only in the detail.
+- **Quality** shows five checks from the on-device model: specific, clear, sounds like you, fits the thread, and claims. The claims check flags facts about you, numbers, plans or products that the conversation doesn't support.
+- **Reach** (public posts and threads) has no number yet, only reasons: whether the draft starts a conversation, its "not interested" risk, its hook, links, and its length. It stays in "learning" until a prediction can be checked against your own posts. In chats and email, **Response** takes its place: does the draft answer every question, and is the next step clear?
+
+The same on-device model writes and judges the drafts, and models tend to like their own writing, so each detail says so. Drafts show first, and the scores fill in after.
+
+## Rewrite selected text
+
+Select text in any app, open the selection menu (in Chrome it's under ⋮), and choose **Ownvoice**. Or share text to Ownvoice. Pick **Tighten**, **Plainer** or **Fix grammar**. You see the rewrite with its slop chip and a meaning check, which warns when the rewrite adds, drops or changes a claim or a number. **Replace** puts it back into the field if the app allows editing; **Copy** copies it. This needs no accessibility permission.
+
+Replace also copies the rewrite. Chrome drops the page's selection as soon as another screen opens, so it may ignore the rewrite or insert it at the cursor. Then paste it.
 
 ## Privacy
 
@@ -32,7 +48,13 @@ Gemini Nano through ML Kit needs a supported phone (for example recent Pixel, Sa
 
 ## Test
 
-`InsertFlowTest` runs on a real device or emulator. It swaps in a stub draft engine, so it doesn't need the model. It opens Ownvoice's own test screen (in the debug build only), taps through bubble → drafts panel → Insert, and checks that a multi-line draft lands exactly in a native `EditText`, a web `textarea` and a web `contenteditable`. The test turns Ownvoice's accessibility service on by itself.
+The phrase rules and the parsing of the judge's answers have plain JVM unit tests:
+
+```sh
+./gradlew :app:testDebugUnitTest
+```
+
+`InsertFlowTest` runs on a real device or emulator. It swaps in a stub engine, so it doesn't need the model. It opens Ownvoice's own test screen (in the debug build only) and taps through bubble → drafts panel → Insert. It checks that a multi-line draft lands exactly in a native `EditText`, a web `textarea` and a web `contenteditable`, and that the scores fill in after the drafts show. It also covers the rewrite screen: Replace returns the rewrite, and a rewrite with a new number gets a warning. The test turns Ownvoice's accessibility service on by itself.
 
 ```sh
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
@@ -42,6 +64,8 @@ adb shell am instrument -w dev.ownvoice.app.test/androidx.test.runner.AndroidJUn
 ```
 
 `./gradlew connectedDebugAndroidTest` works too, but it uninstalls the app afterwards.
+
+To try Ownvoice by hand on the debug build's test screen: `adb shell am start -n dev.ownvoice.app/.TestScreenActivity`.
 
 ## Licence
 
