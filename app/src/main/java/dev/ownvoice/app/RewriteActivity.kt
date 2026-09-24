@@ -85,7 +85,7 @@ class RewriteActivity : Activity() {
         job = scope.launch {
             status.text = "${how.label}: rewriting on this phone…"
             val text = try {
-                clean(OwnvoiceService.engine.ask(Judge.rewritePrompt(original, how), 256))
+                Judge.clean(OwnvoiceService.engine.ask(Judge.rewritePrompt(original, how.ask), 256))
             } catch (e: PlainError) {
                 status.text = e.message
                 return@launch
@@ -120,18 +120,10 @@ class RewriteActivity : Activity() {
             val scores = Judge.Scores(hits, Judge.number(lines["GENERIC"]), Judge.number(lines["SPECIFICITY"]), emptyList(), emptyList(), false)
             chips.set(chip, "Slop: ${Slop.words(scores.slop)}", slopDetail(hits, text, scores.generic, scores.specific, scores.slop))
             val m = Judge.meaning(original, text, answer)
-            check.text = (if (m.ok) "✓ Meaning kept: " else "! Meaning may have changed: ") + m.reason
-            check.setTextColor(if (m.ok) 0xFF2E7D32.toInt() else 0xFFC62828.toInt())
+            check.showMeaning(m)
             slop = scores
             meaning = m
         }
-    }
-
-    /** Drops a "Here's the rewrite:" line and wrapping quotes the model sometimes adds. */
-    private fun clean(text: String): String {
-        val lines = text.trim().lines()
-        val body = if (lines.size > 1 && lines[0].trim().endsWith(':') && lines[0].trim().startsWith("Here", ignoreCase = true)) lines.drop(1) else lines
-        return body.joinToString("\n").trim().removeSurrounding("\"").trim()
     }
 
     /**

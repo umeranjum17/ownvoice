@@ -57,10 +57,31 @@ class JudgeTest {
         assertEquals(listOf("Hook", "Length"), s.reach.map { it.name })
         assertFalse(s.reach[0].ok)
         assertTrue(Judge.scoreDraft("x", "CLAIMS: Pass", message = true).quality.single().ok)
+        assertEquals("The order is altered.", Judge.meaning("a", "b", "MEANING: - Concern: The order is altered.").reason)
     }
 
     @Test fun kind() {
         assertTrue(Judge.isMessage("MESSAGE"))
         assertFalse(Judge.isMessage("Post."))
+    }
+
+    @Test fun ownTextIsBoostedNotReplacedByADraft() {
+        assertEquals(Judge.Mode.COMPOSE, Judge.mode("shipped the thing today", ""))
+        assertEquals(Judge.Mode.COMPOSE, Judge.mode("ok so", "Sam: Are we still on for Saturday?"))
+    }
+
+    @Test fun emptyFieldRepliesToAConversation() {
+        assertEquals(Judge.Mode.REPLY, Judge.mode("", "Sam\nAre we still on for Saturday?"))
+        assertEquals(Judge.Mode.REPLY, Judge.mode("  \n", "Sam: Are we still on for Saturday?"))
+    }
+
+    @Test fun emptyFieldWithNothingToReplyToInventsNothing() {
+        assertEquals(Judge.Mode.EMPTY, Judge.mode("", ""))
+        assertEquals(Judge.Mode.EMPTY, Judge.mode("", "Cancel\nPost\nEveryone can reply\nexample.com"))
+    }
+
+    @Test fun cleanDropsPreambleAndQuotes() {
+        assertEquals("Shipped it.\nMore soon", Judge.clean("Here's the rewrite:\n\"Shipped it.\nMore soon\""))
+        assertEquals("Here: it is", Judge.clean("Here: it is"))
     }
 }

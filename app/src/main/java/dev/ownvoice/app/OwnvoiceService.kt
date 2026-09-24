@@ -31,9 +31,13 @@ class OwnvoiceService : AccessibilityService() {
         var engine: DraftEngine = Nano
     }
 
-    /** What the bubble tap read: the visible text, and the field being typed in, if any. */
-    class Capture(val conversation: String, val input: AccessibilityNodeInfo?) {
-        val typed: String get() = input?.takeUnless { it.isShowingHintText }?.text?.toString().orEmpty()
+    /**
+     * What the bubble tap read: the visible text, the part of it written on screen outside fields and
+     * button labels, and the field being typed in, if any.
+     */
+    class Capture(val conversation: String, val written: String, val input: AccessibilityNodeInfo?) {
+        val typed: String = input?.takeUnless { it.isShowingHintText }?.text?.toString().orEmpty()
+        val mode get() = Judge.mode(typed, written)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -100,11 +104,13 @@ class OwnvoiceService : AccessibilityService() {
     fun readScreen() {
         val field = focusedField()
         val root = field?.window?.root ?: appRoot()
-        val conversation = root?.let { visibleText(it, field) }.orEmpty()
-        if (conversation.isBlank()) {
+        val lines = mutableListOf<String>()
+        val written = mutableListOf<String>()
+        root?.let { visibleText(it, field, lines, written) }
+        if (lines.isEmpty() && field == null) {
             return say("No text on this screen.")
         }
-        capture = Capture(conversation, field)
+        capture = Capture(lines.joinToString("\n"), written.joinToString("\n"), field)
         insertVerified = null
         startActivity(Intent(this, DraftActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
     }
@@ -197,7 +203,7 @@ class OwnvoiceService : AccessibilityService() {
         notes.removeCallbacksAndMessages(null)
         bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE
         bubble.text = "OV"
-        bubble.contentDescription = "Ownvoice: draft a reply"
+        bubble.contentDescription = "Ownvoice: draft a reply or improve your text"
         bubble.setPadding(0, 0, 0, 0)
         bubbleParams.width = (BUBBLE_DP * resources.displayMetrics.density).toInt()
         wm.updateViewLayout(bubble, bubbleParams)
@@ -222,17 +228,19 @@ class OwnvoiceService : AccessibilityService() {
         windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive }?.root
             ?: windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }?.root
 
-    /** Generic tree walk: visible text in screen order, skipping the field being typed in. */
-    private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?): String {
-        val lines = mutableListOf<String>()
+    /**
+     * Generic tree walk: visible text in screen order into [lines], skipping the field being typed in.
+     * [written] gets only text shown on screen, not descriptions of buttons or text in other fields.
+     */
+    private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>) {
         fun walk(node: AccessibilityNodeInfo) {
             if (node == skip || !node.isVisibleToUser) return
             (node.text ?: node.contentDescription)?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let {
                 if (lines.lastOrNull() != it) lines += it
+                if (node.text != null && !node.isEditable) written += it
             }
             for (i in 0 until node.childCount) node.getChild(i)?.let(::walk)
         }
         walk(root)
-        return lines.joinToString("\n")
     }
 }
