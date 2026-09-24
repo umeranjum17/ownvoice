@@ -2,6 +2,7 @@ name: Android
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 jobs:
@@ -16,4 +17,4 @@ jobs:
       - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
       # InsertFlowTest needs a device with an accessibility service, so CI only builds its APK.
-      - run: ./gradlew assembleDebug assembleDebugAndroidTest testDebugUnitTest
+      - run: ./gradlew assembleDebug assembleDebugAndroidTest

@@ -63,8 +63,7 @@ class OwnvoiceService : AccessibilityService() {
             gravity = Gravity.CENTER
             setTextColor(Color.WHITE)
             background = GradientDrawable().apply { cornerRadius = BUBBLE_DP / 2 * resources.displayMetrics.density; setColor(0xFF2E5BFF.toInt()) }
-            setOnClickListener { readScreen() }
-            accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE // screen readers announce results
+            setOnClickListener { if (text == "OV") readScreen() else restoreBubble.run() }
         }
         val size = (BUBBLE_DP * resources.displayMetrics.density).toInt()
         // Not focusable, so the app underneath keeps its keyboard and focused field.
@@ -181,6 +180,7 @@ class OwnvoiceService : AccessibilityService() {
         if (!::bubble.isInitialized) return
         Log.i(TAG, "bubble: $message")
         notes.removeCallbacksAndMessages(null)
+        bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         bubble.text = message
         bubble.contentDescription = message
         val pad = (16 * resources.displayMetrics.density).toInt()
@@ -194,6 +194,8 @@ class OwnvoiceService : AccessibilityService() {
     val bubbleText: CharSequence get() = bubble.text
 
     private val restoreBubble = Runnable {
+        notes.removeCallbacksAndMessages(null)
+        bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE
         bubble.text = "OV"
         bubble.contentDescription = "Ownvoice: draft a reply"
         bubble.setPadding(0, 0, 0, 0)
