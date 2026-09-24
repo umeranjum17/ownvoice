@@ -4,7 +4,6 @@ import android.app.UiAutomation
 import android.content.Intent
 import android.os.ParcelFileDescriptor
 import android.view.View
-import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Button
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
@@ -114,7 +113,7 @@ class InsertFlowTest {
     private fun draftAndInsert(): Boolean {
         val service = OwnvoiceService.instance!!
         waitUntil("the test screen's field to have input focus") {
-            service.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.let { it.isEditable && it.packageName?.toString() == screen.packageName } == true
+            service.focusedField()?.let { it.packageName?.toString() == screen.packageName } == true
         }
         val monitor = instr.addMonitor(DraftActivity::class.java.name, null, false)
         instr.runOnMainSync { service.readScreen() }

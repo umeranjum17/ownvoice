@@ -88,7 +88,7 @@ class OwnvoiceService : AccessibilityService() {
      * and an accessibility overlay over another app does not count.
      */
     fun readScreen() {
-        val field = findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf { it.isEditable }
+        val field = focusedField()
         val root = field?.window?.root ?: appRoot()
         val conversation = root?.let { visibleText(it, field) }.orEmpty()
         if (conversation.isBlank()) {
@@ -163,6 +163,21 @@ class OwnvoiceService : AccessibilityService() {
     }
 
     private fun toast(message: String) = Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+
+    /**
+     * The field being typed in. A WebView answers input focus with itself until something walks its
+     * virtual tree (seen with WebView 133), so look inside it when that happens.
+     */
+    fun focusedField(): AccessibilityNodeInfo? {
+        val focus = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
+        if (focus.isEditable) return focus
+        fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+            if (node.isFocused && node.isEditable) return node
+            for (i in 0 until node.childCount) node.getChild(i)?.let(::find)?.let { return it }
+            return null
+        }
+        return find(focus)
+    }
 
     private fun appRoot(): AccessibilityNodeInfo? =
         windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION && it.isActive }?.root
