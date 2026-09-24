@@ -35,7 +35,8 @@ object Slop {
     )
 
     // Three short items in a row: "fast, simple, and fun".
-    private val TRIAD = Regex(I + "\\b[\\w'’-]+(?: [\\w'’-]+)?, [\\w'’-]+(?: [\\w'’-]+)?,? (?:and|or) [\\w'’-]+(?: [\\w'’-]+)?\\b")
+    private const val ITEM = "(?<![\\w'’-])(?!(?:i|you|he|she|it|we|they)\\b|[\\w-]*['’])[\\w'’-]+(?: [\\w'’-]+)?"
+    private val TRIAD = Regex("$I$ITEM, $ITEM,? (?:and|or) $ITEM\\b")
 
     private val DASH = Regex("—| – | -- ")
 
@@ -49,7 +50,7 @@ object Slop {
     private val PREAMBLE = Regex(
         I + "^\\s*(?:(?:sure|certainly|of course|absolutely)[!,.]\\s*)?(?:here(?:'s|’s| is| are) (?:a|an|my|the|some|one|your)?\\s*" +
             "(?:[\\w,'’-]+ ){0,3}(?:reply|replies|response|responses|draft|drafts|version|message|rewrite|option|suggestion)s?\\b[^\\n:]*:?" +
-            "|(?:reply|response|draft|rewrite):|as an ai\\b[^.\\n]*\\.?|(?:sure|certainly|of course)[!,.])"
+            "|(?:reply|response|draft|rewrite):|as an ai\\b[^.\\n]*\\.?)"
     )
 
     private val CTA = Regex(
@@ -106,7 +107,7 @@ object Slop {
         else -> "sloppy"
     }
 
-    /** Numbers in [rewrite] that [original] never had: a rewrite must not add facts. */
+    /** Numbers in [rewrite] that [original] never had: a rewrite must not add facts. Swap the arguments for dropped numbers. */
     fun addedNumbers(original: String, rewrite: String): List<String> {
         val num = Regex("\\d+(?:[.,:]\\d+)*")
         val had = num.findAll(original).map { it.value }.toSet()

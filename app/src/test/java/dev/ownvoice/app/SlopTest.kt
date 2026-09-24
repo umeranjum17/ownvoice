@@ -31,6 +31,7 @@ class SlopTest {
         flags("It's fast, simple, and fun.", "list of three")
         flags("Bring tea, coffee or juice.", "list of three")
         clear("Bring tea and coffee.", "list of three")
+        clear("Yes, Saturday works, and I'll bring the stove.", "list of three")
     }
 
     @Test fun emDashes() {
@@ -58,10 +59,11 @@ class SlopTest {
 
     @Test fun metaPreambles() {
         flags("Here's a reply you could send: Saturday works.", "meta preamble")
-        flags("Sure! Saturday works.", "meta preamble")
+        flags("Sure! Here's a reply: Saturday works.", "meta preamble")
         flags("Here is a short, friendly response:\nSaturday works.", "meta preamble")
         clear("Here we go again.", "meta preamble")
         clear("Saturday works.", "meta preamble")
+        clear("Sure, 9 works.", "meta preamble")
     }
 
     @Test fun emojiAndHashtagStuffing() {
@@ -93,5 +95,6 @@ class SlopTest {
     @Test fun addedNumbers() {
         assertEquals(listOf("40"), Slop.addedNumbers("We grew a lot last year", "We grew 40 percent last year"))
         assertEquals(emptyList<String>(), Slop.addedNumbers("Meet at 9:30 on the 3rd", "Let's meet on the 3rd at 9:30"))
+        assertEquals(emptyList<String>(), Slop.addedNumbers("We grew 40 percent last year", "We grew a lot last year"))
     }
 }

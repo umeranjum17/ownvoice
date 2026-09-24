@@ -89,10 +89,11 @@ object Judge {
 
     /** The meaning check of a rewrite: the judge's view plus any number it made up. */
     fun meaning(original: String, rewrite: String, answer: String?): Check {
-        val added = Slop.addedNumbers(original, rewrite)
-        if (added.isNotEmpty()) return Check("Meaning", false, "Adds ${added.joinToString()} not in your text.")
+        val added = Slop.addedNumbers(original, rewrite).takeIf { it.isNotEmpty() }?.let { "Adds ${it.joinToString()} not in your text." }
+        val dropped = Slop.addedNumbers(rewrite, original).takeIf { it.isNotEmpty() }?.let { "Drops ${it.joinToString()} from your text." }
+        if (added != null || dropped != null) return Check("Meaning", false, listOfNotNull(added, dropped).joinToString(" "))
         return checks(answer?.let(::parse).orEmpty(), listOf("MEANING" to "Meaning")).firstOrNull()
-            ?: Check("Meaning", true, "No numbers added. The model couldn't check the rest.")
+            ?: Check("Meaning", true, "No numbers added or dropped. The model couldn't check the rest.")
     }
 
     /** Reads "KEY: value" lines, tolerating markdown the model adds. */
@@ -103,8 +104,8 @@ object Judge {
 
     private fun checks(lines: Map<String, String>, keys: List<Pair<String, String>>) = keys.mapNotNull { (key, name) ->
         val value = lines[key] ?: return@mapNotNull null
-        val verdict = Regex("^(pass|ok|yes|good|concern|no|fail)\\b[\\s:,.;–—-]*", RegexOption.IGNORE_CASE).find(value) ?: return@mapNotNull null
-        val ok = verdict.groupValues[1].lowercase() in setOf("pass", "ok", "yes", "good")
+        val verdict = Regex("^(pass|concern)\\b[\\s:,.;–—-]*", RegexOption.IGNORE_CASE).find(value) ?: return@mapNotNull null
+        val ok = verdict.groupValues[1].equals("pass", ignoreCase = true)
         val reason = value.substring(verdict.range.last + 1).trim().ifEmpty { if (ok) "Looks fine." else "Worth a look." }
         Check(name, ok, reason.replaceFirstChar { it.uppercase() })
     }
