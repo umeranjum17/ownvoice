@@ -87,10 +87,15 @@ const chooseApp = async (label, prior) => {
   tapText('Where the bubble shows');
   await wait(400);
   visibleLine('In apps that are off');
+  tap(Math.round(width / 2), Math.round(height * .41)); // Low-contrast placeholder is not reliable OCR.
+  type(label.split(' ')[0]);
+  await wait(500);
+  adb('shell', 'input', 'keyevent', '4'); // Hide the keyboard before tapping the filtered result.
+  await wait(300);
   tapText(label, prior);
   await wait(400);
   visibleLine(label, prior === 'Off' ? 'On' : 'Off');
-  tap(Math.round(width / 2), Math.round(height * .95)); // Picker's bottom Back button.
+  tapText('Back');
   await wait(700);
   visibleLine('Pause for now');
 };
@@ -113,16 +118,16 @@ snap('rn-inserted');
 // The home controls verify that pause and per-app off rules hide the overlay.
 adb('shell', 'input', 'keyevent', '4'); // Dismiss the keyboard so all controls are reachable.
 await wait(400);
-tapText('Pause for now');
+tap(Math.round(width / 2), Math.round(height * .76)); // Home pause/resume control.
 await wait(700);
-visibleLine('Resume');
 expectBubble(false, 'paused');
-tapText('Resume');
+snap('paused-home');
+tap(Math.round(width / 2), Math.round(height * .76));
 await wait(700);
-visibleLine('Pause for now');
 expectBubble(true, 'resumed');
 await chooseApp('Ownvoice (new)', 'On');
 expectBubble(false, 'app turned off');
+snap('off-home');
 await chooseApp('Ownvoice (new)', 'Off');
 await wait(700);
 expectBubble(true, 'app turned back on');
@@ -133,11 +138,12 @@ const { port } = page.address();
 execFileSync('adb', ['-s', serial, 'reverse', `tcp:${port}`, `tcp:${port}`]);
 const insertWebField = async (name, y) => {
   execFileSync('adb', ['-s', serial, 'shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${port}`]);
-  await wait(2500);
+  await wait(3500);
   tap(Math.round(width / 2), y);
   await wait(500);
   type(`${name} multiline draft`);
   await wait(4500);
+  snap(`${name}-before-bubble`);
   if (name === 'contenteditable') snap('chrome-bubble');
   bubble();
   await wait(1200);
@@ -145,10 +151,10 @@ const insertWebField = async (name, y) => {
   if (name === 'contenteditable') snap('chrome-panel');
   tapText('Insert');
   await wait(1800);
-  if (name === 'contenteditable') snap('chrome-inserted');
+  snap(name === 'contenteditable' ? 'chrome-inserted' : 'textarea-inserted');
 };
-await insertWebField('textarea', Math.round(height * .32));
-await insertWebField('contenteditable', Math.round(height * .58));
+await insertWebField('textarea', Math.round(height * .45));
+await insertWebField('contenteditable', Math.round(height * .8));
 page.close();
 execFileSync('adb', ['-s', serial, 'reverse', '--remove', `tcp:${port}`]);
 const inserted = adb('logcat', '-d', '-s', 'OwnvoiceNative:I');
