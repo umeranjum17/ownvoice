@@ -63,15 +63,17 @@ class LinkTest {
      * A stand-in computer holding the test computer key and requiring a client key. /v1/hello answers with the
      * pin of the key the phone showed; anything else answers the helper's limit error.
      */
-    private fun computer(): String {
+    private fun computer(refusePhone: Boolean = false): String {
         val store = KeyStore.getInstance("PKCS12").apply { load(null); setKeyEntry("k", key("computer"), CharArray(0), arrayOf(cert("computer"))) }
         val keys = KeyManagerFactory.getInstance("SunX509").apply { init(store, CharArray(0)) }
         val anyPhone = object : X509TrustManager {
-            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+            override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {
+                if (refusePhone) throw java.security.cert.CertificateException("not paired")
+            }
             override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
             override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
         }
-        val ctx = SSLContext.getInstance("TLS").apply { init(keys.keyManagers, arrayOf(anyPhone), null) }
+        val ctx = SSLContext.getInstance("TLSv1.3").apply { init(keys.keyManagers, arrayOf(anyPhone), null) }
         val s = ctx.serverSocketFactory.createServerSocket(0, 5, InetAddress.getLoopbackAddress()) as SSLServerSocket
         s.needClientAuth = true
         thread(isDaemon = true) {
@@ -105,7 +107,7 @@ class LinkTest {
 
     @Test fun talksOnlyToThePinnedComputerAndShowsItsOwnKey() {
         val addr = computer()
-        val (answer, used) = Link.post(listOf("127.0.0.1:1", addr), "/v1/hello", JSONObject(), Link.socketFactory(phone, computerPin), 5_000)
+        val (answer, used) = Link.post(listOf("127.0.0.1:1", addr), "/v1/hello", JSONObject(), phone, computerPin, 5_000)
         assertEquals(addr, used)
         assertEquals(Link.pin(cert("phone")), answer.getString("phone"))
     }
@@ -113,13 +115,29 @@ class LinkTest {
     @Test fun aComputerWithAnotherKeyIsNeverTalkedTo() {
         val addr = computer()
         val otherPin = Link.pin(cert("phone"))
-        val e = assertThrows(Link.Failure::class.java) { Link.post(listOf(addr), "/v1/hello", JSONObject(), Link.socketFactory(phone, otherPin), 5_000) }
+        val e = assertThrows(Link.Failure::class.java) { Link.post(listOf(addr), "/v1/hello", JSONObject(), phone, otherPin, 5_000) }
         assertEquals("unreachable", e.code)
+    }
+
+    @Test fun aComputerThatNoLongerKnowsThisPhoneSaysNotPaired() {
+        val addr = computer(refusePhone = true)
+        val e = assertThrows(Link.Failure::class.java) { Link.post(listOf(addr), "/v1/hello", JSONObject(), phone, computerPin, 5_000) }
+        assertEquals("not_paired", e.code)
+    }
+
+    @Test fun neverSayPhrasesAreKeptWholeWithinTheComputersLimit() {
+        val never = (1..200).map { "phrase number $it" }
+        val full = Computer.withNever("No em dashes.", never)
+        assertTrue(full.length <= Link.MAX_GUIDE)
+        val kept = full.substringAfter("Never say: ").removeSuffix(".").split("; ")
+        assertEquals(never.take(kept.size), kept)
+        assertEquals("No em dashes. Never say: a; b.", Computer.withNever("No em dashes.", listOf("a", "b")))
+        assertEquals("No em dashes.", Computer.withNever("No em dashes.", emptyList()))
     }
 
     @Test fun theComputersErrorCodeComesThrough() {
         val addr = computer()
-        val e = assertThrows(Link.Failure::class.java) { Link.post(listOf(addr), "/v1/write", JSONObject(), Link.socketFactory(phone, computerPin), 5_000) }
+        val e = assertThrows(Link.Failure::class.java) { Link.post(listOf(addr), "/v1/write", JSONObject(), phone, computerPin, 5_000) }
         assertEquals("limit", e.code)
     }
 

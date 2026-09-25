@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	maxBody   = 16 << 10
+	maxBody   = 64 << 10
 	maxScreen = 12000
 	maxGuide  = 1000
 	maxPhones = 3

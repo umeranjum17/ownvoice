@@ -19,12 +19,13 @@ class PrivacyTest {
         assertFalse(Privacy.allowed("com.whatsapp", false))
     }
 
-    @Test fun onlyXLinkedInRedditAndSlackMayGoToTheComputerAtFirst() {
-        for (app in listOf("com.twitter.android", "com.linkedin.android", "com.reddit.frontpage", "com.Slack")) {
+    @Test fun onlyXLinkedInAndRedditMayGoToTheComputerAtFirst() {
+        for (app in listOf("com.twitter.android", "com.linkedin.android", "com.reddit.frontpage")) {
             assertTrue(app, Privacy.mayGoToComputer(app, null))
             assertTrue(app, Privacy.allowed(app, null))
         }
-        for (app in listOf("com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b", "org.thoughtcrime.securesms", "com.discord", "dev.ownvoice.app")) {
+        assertTrue(Privacy.allowed("com.Slack", null))
+        for (app in listOf("com.Slack", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b", "org.thoughtcrime.securesms", "com.discord", "dev.ownvoice.app")) {
             assertFalse(app, Privacy.mayGoToComputer(app, null))
         }
         assertTrue(Privacy.mayGoToComputer("com.google.android.gm", true))

@@ -123,7 +123,7 @@ class DraftActivity : Activity() {
                 "Try my computer again"
             }
             engine !is Computer && Computer.wanted(this, capture.app, anyway = true) ->
-                "Write this one on my computer (sends ${capture.conversation.length} characters)"
+                "Write this one on my computer"
             else -> return
         }
         list.addView(Button(this).apply {

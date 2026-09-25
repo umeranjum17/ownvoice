@@ -353,6 +353,15 @@ func TestWriteMapsWhatTheCLIPrints(t *testing.T) {
 	}
 }
 
+func TestALongNonLatinScreenFitsTheBody(t *testing.T) {
+	r := newRig(t, t.TempDir())
+	key := paired(t, r)
+	status, body := write(t, r, key, "", strings.Repeat("€", maxScreen), strings.Repeat("ع", maxGuide))
+	if status != 200 {
+		t.Fatalf("%d %v", status, body)
+	}
+}
+
 func TestInventedExperienceIsDroppedUnlessTheWriterSaidIt(t *testing.T) {
 	r := newRig(t, t.TempDir())
 	key := paired(t, r)

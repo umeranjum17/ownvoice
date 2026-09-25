@@ -71,10 +71,15 @@ class Computer(
         fun pick(context: Context, app: String, anyway: Boolean, phone: DraftEngine): DraftEngine {
             if (!wanted(context, app, anyway)) return phone
             val never = Voice.rules(context).never
-            return Computer(phone) { conversation, guide ->
-                val full = if (never.isEmpty()) guide else "$guide Never say: ${never.joinToString("; ")}.".trim()
-                Link.write(context, conversation, full, readMs = 20_000)
-            }
+            return Computer(phone) { conversation, guide -> Link.write(context, conversation, withNever(guide, never), readMs = 20_000) }
+        }
+
+        /** [guide] with as many whole never-say phrases as fit the computer's limit, so none is cut mid-way. */
+        fun withNever(guide: String, never: List<String>): String {
+            var kept = never
+            fun full() = if (kept.isEmpty()) guide else "$guide Never say: ${kept.joinToString("; ")}.".trim()
+            while (full().length > Link.MAX_GUIDE && kept.isNotEmpty()) kept = kept.dropLast(1)
+            return full()
         }
     }
 }

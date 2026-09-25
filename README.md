@@ -20,7 +20,7 @@ The phone reaches the computer on your home network or over [Tailscale](https://
 What changes on the phone:
 
 - **Who writes your drafts** on the main screen: your computer (this phone fills in when it's off) or this phone only.
-- **Apps that may go to your computer**: X, LinkedIn, Reddit and Slack start on. Gmail, WhatsApp and every other app start off, so their screens stay on the phone. In an app that's off, the drafts panel offers **Write this one on my computer**, with the number of characters it would send.
+- **Apps that may go to your computer**: X, LinkedIn and Reddit start on. Slack, Gmail, WhatsApp and every other app start off, so their screens stay on the phone. In an app that's off, the drafts panel offers **Write this one on my computer**.
 - Every draft says **Written on your computer** or **Written on this phone**. When the phone writes instead, the panel says why in plain words ("Your computer didn't answer, so this phone wrote these.") and offers **Try my computer again**.
 - Drafts are always scored on the phone. A draft your computer wrote is scored by a different model from the one that wrote it, and the score details say so.
 - **What was read** notes when a read was sent to your computer.
@@ -28,7 +28,7 @@ What changes on the phone:
 
 ### How the link works, and what it refuses
 
-- **Only text in, drafts out.** The helper answers three requests: pair, hello, and "here is the screen and the writer's rules, give me reply drafts". The prompt, the model (Claude Sonnet) and every flag are the helper's own. The phone sends data, never instructions, and the helper refuses unknown fields, other kinds of request, anything over 16 KB and a second request while one is running.
+- **Only text in, drafts out.** The helper answers three requests: pair, hello, and "here is the screen and the writer's rules, give me reply drafts". The prompt, the model (Claude Sonnet) and every flag are the helper's own. The phone sends data, never instructions, and the helper refuses unknown fields, other kinds of request, anything over 64 KB and a second request while one is running.
 - **Your own CLI, tool-free, and it never touches your sign-in.** The helper runs your unmodified, signed-in `claude -p` with `--safe-mode` (no CLAUDE.md, hooks, plugins, skills or MCP servers), `--tools ""` (no tools at all), `--no-session-persistence` (no saved session), `--strict-mcp-config` and `--disable-slash-commands`, in an empty temporary folder. The helper never opens `~/.claude`, `~/.codex` or any credential, and never sends one anywhere; tests prove it.
 - **Its own words, never yours.** Drafts that claim experience you never mentioned ("we built", "our team", "I shipped") are dropped unless your Your voice note says it. The prompt forbids them too.
 - **Pinned mutual TLS.** Each side has one key and pins the other's. The phone's key is made in the Android Keystore and can't be copied off the phone. Outside the pairing window, a key that isn't paired is refused before any request is read. Pairing codes work once, for 5 minutes, and close after 5 wrong tries. The computer asks you to confirm every pairing, and it pairs at most 3 phones.

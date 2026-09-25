@@ -23,7 +23,6 @@ import java.util.Base64
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLEngine
-import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.X509ExtendedKeyManager
 import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
@@ -35,6 +34,9 @@ import javax.security.auth.x500.X500Principal
  */
 object Link {
     private const val ALIAS = "ownvoice-link"
+    /** The most screen text and rules the computer takes, the same as the helper's maxScreen and maxGuide. */
+    const val MAX_SCREEN = 12_000
+    const val MAX_GUIDE = 1000
 
     /** What the computer's pairing code holds: its key's pin, a one-time code and where to reach it. */
     data class Pairing(val pin: String, val code: String, val addrs: List<String>)
@@ -90,10 +92,12 @@ object Link {
         "kayak", "lava", "lemur", "linen", "lynx", "yogurt",
     )
 
-    /** Trusts exactly one computer key, whatever name or address it answers on. */
+    /** Trusts exactly one computer key, whatever name or address it answers on. [met] once that computer showed it. */
     class PinnedTrust(private val pin: String) : X509TrustManager {
+        @Volatile var met = false
         override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
             if (chain.isEmpty() || pin(chain[0]) != pin) throw CertificateException("not your computer")
+            met = true
         }
         override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = throw CertificateException("client only")
         override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
@@ -111,17 +115,16 @@ object Link {
         override fun chooseServerAlias(keyType: String?, issuers: Array<out Principal>?, socket: Socket?): String? = null
     }
 
-    fun socketFactory(key: PhoneKey, pin: String): SSLSocketFactory =
-        SSLContext.getInstance("TLS").apply { init(arrayOf(key), arrayOf(PinnedTrust(pin)), null) }.socketFactory
-
     /**
-     * Posts [body] to the first of [addrs] that answers, trying each in turn. Returns the answer and the
-     * address that gave it. Throws [Failure] with the computer's error code, or "unreachable".
+     * Posts [body] to the first of [addrs] where the computer with [pin] answers, trying each in turn. Returns the
+     * answer and the address that gave it. Throws [Failure] with the computer's error code, "not_paired" when it
+     * turns this phone's key down, or "unreachable".
      */
-    fun post(addrs: List<String>, path: String, body: JSONObject, factory: SSLSocketFactory, readMs: Int): Pair<JSONObject, String> {
+    fun post(addrs: List<String>, path: String, body: JSONObject, key: PhoneKey, pin: String, readMs: Int): Pair<JSONObject, String> {
         for (addr in addrs) {
+            val trust = PinnedTrust(pin)
             val conn = URL("https://$addr$path").openConnection() as HttpsURLConnection
-            conn.sslSocketFactory = factory
+            conn.sslSocketFactory = SSLContext.getInstance("TLS").apply { init(arrayOf(key), arrayOf(trust), null) }.socketFactory
             conn.hostnameVerifier = javax.net.ssl.HostnameVerifier { _, _ -> true } // the pin identifies the computer
             conn.connectTimeout = 1500
             conn.readTimeout = readMs
@@ -132,6 +135,8 @@ object Link {
                 conn.connect()
             } catch (e: java.io.IOException) {
                 conn.disconnect()
+                // With TLS 1.3 the computer turns down a key it doesn't know only after showing its own, as an alert or a reset.
+                if (trust.met) throw Failure("not_paired")
                 continue // the next address
             }
             // Connected: a failure now is final, so a slow computer is never asked twice.
@@ -140,7 +145,7 @@ object Link {
                 conn.responseCode
             } catch (e: java.io.IOException) {
                 conn.disconnect()
-                throw Failure("unreachable")
+                throw Failure(if (e is java.net.SocketTimeoutException) "unreachable" else "not_paired")
             }
             val text = (if (status < 400) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
             conn.disconnect()
@@ -198,7 +203,7 @@ object Link {
         val key = phoneKey()
         val body = JSONObject().put("code", pairing.code).put("name", phoneName(context))
         val (answer, addr) = try {
-            post(pairing.addrs, "/v1/pair", body, socketFactory(key, pairing.pin), readMs = 180_000)
+            post(pairing.addrs, "/v1/pair", body, key, pairing.pin, readMs = 180_000)
         } catch (e: Failure) {
             throw PlainError(
                 when (e.code) {
@@ -231,8 +236,8 @@ object Link {
     /** Reply drafts from the paired computer. Throws [Failure]. */
     fun write(context: Context, screen: String, guide: String, readMs: Int): List<String> {
         val computer = computer(context) ?: throw Failure("not_paired")
-        val body = JSONObject().put("kind", "reply").put("engine", "claude").put("screen", screen.takeLast(12_000)).put("guide", guide.take(1000))
-        val (answer, addr) = post(computer.addrs, "/v1/write", body, socketFactory(phoneKey(), computer.pin), readMs)
+        val body = JSONObject().put("kind", "reply").put("engine", "claude").put("screen", screen.takeLast(MAX_SCREEN)).put("guide", guide.take(MAX_GUIDE))
+        val (answer, addr) = post(computer.addrs, "/v1/write", body, phoneKey(), computer.pin, readMs)
         // The address that answered goes first next time.
         prefs(context).edit().putString("addrs", (listOf(addr) + computer.addrs).distinct().joinToString("\n"))
             .putLong("seen", System.currentTimeMillis()).commit()
