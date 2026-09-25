@@ -3,11 +3,11 @@ package dev.ownvoice.app
 import android.app.Activity
 import android.content.ComponentName
 import android.content.Intent
+import android.graphics.text.LineBreaker
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
-import android.text.Layout
 import android.view.Gravity
 import android.view.View
 import android.widget.EditText
@@ -162,8 +162,8 @@ class SetupActivity : Activity() {
 
     /** A centred title and, if given, a plain subtitle under it, which is returned. */
     private fun title(column: LinearLayout, title: String, subtitle: String?) =
-        column.add(text(title, Type.HEADLINE).apply { gravity = Gravity.CENTER; breakStrategy = Layout.BREAK_STRATEGY_BALANCED }, top = 20f, bottom = if (subtitle == null) 20f else 0f).let {
-            subtitle?.let { column.add(text(it, Type.BODY_LARGE, muted).apply { gravity = Gravity.CENTER; breakStrategy = Layout.BREAK_STRATEGY_BALANCED; setPadding(px(8), 0, px(8), 0) }, top = 8f, bottom = 20f) }
+        column.add(text(title, Type.HEADLINE).apply { gravity = Gravity.CENTER; breakStrategy = LineBreaker.BREAK_STRATEGY_BALANCED }, top = 20f, bottom = if (subtitle == null) 20f else 0f).let {
+            subtitle?.let { column.add(text(it, Type.BODY_LARGE, muted).apply { gravity = Gravity.CENTER; breakStrategy = LineBreaker.BREAK_STRATEGY_BALANCED; setPadding(px(8), 0, px(8), 0) }, top = 8f, bottom = 20f) }
         }
 
     private fun spacer(column: LinearLayout) = column.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
@@ -185,11 +185,11 @@ class SetupActivity : Activity() {
             row(item(icon(R.drawable.ic_lock, primary), "Stays on this phone", "Nothing is sent anywhere"))
             row(item(icon(R.drawable.ic_chat, primary), "You always press Send", "Ownvoice never sends for you"))
         })
-        column.add(text("On the next screen, tap Ownvoice, then switch on “Use Ownvoice”:", Type.BODY).apply { gravity = Gravity.CENTER; breakStrategy = Layout.BREAK_STRATEGY_BALANCED }, top = 18f, bottom = 8f)
+        column.add(text("On the next screen, tap Ownvoice, then switch on “Use Ownvoice”:", Type.BODY).apply { gravity = Gravity.CENTER; breakStrategy = LineBreaker.BREAK_STRATEGY_BALANCED }, top = 18f, bottom = 8f)
         column.add(switchHint())
         column.add(text("Android then asks to allow “full control”. It asks that of every helper like this one. Tap Allow.", Type.BODY).apply {
             gravity = Gravity.CENTER
-            breakStrategy = Layout.BREAK_STRATEGY_BALANCED
+            breakStrategy = LineBreaker.BREAK_STRATEGY_BALANCED
         }, top = 10f)
         spacer(column)
         column.add(filled("Turn on") { openSwitch() }, top = 20f)
