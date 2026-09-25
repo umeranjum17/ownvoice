@@ -78,7 +78,7 @@ test('polish fallback also keeps a numbered message intact', async () => {
   native.modelStatus.mockResolvedValue('available');
   native.drafts.mockResolvedValue([]);
   const message = 'Here are two options:\n1. Bring the tent\n2. Bring the stove';
-  native.ask.mockResolvedValueOnce(message).mockRejectedValueOnce(new Error('9'));
+  native.ask.mockResolvedValueOnce(message).mockRejectedValue(new Error('9'));
   await expect(phoneWriter.write({ conversation: '', written: '', typed: message })).resolves.toEqual([message]);
 });
 
@@ -103,8 +103,27 @@ test('keeps native drafts when a later streamed call fails', async () => {
 test('keeps a numbered streamed message when the next call fails', async () => {
   native.modelStatus.mockResolvedValue('available');
   native.drafts.mockResolvedValue([]);
-  native.ask.mockResolvedValueOnce("Here's a reply: 1. Bring the tent\n- Bring the stove").mockRejectedValueOnce(new Error('9'));
+  native.ask.mockResolvedValueOnce("Here's a reply: 1. Bring the tent\n- Bring the stove").mockRejectedValue(new Error('9'));
   await expect(phoneWriter.write({ conversation: 'Sam: What should we bring?', written: '', typed: '' })).resolves.toEqual(['1. Bring the tent\n- Bring the stove']);
+});
+
+test('continues after a failed version and keeps a later clean reply', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue([]);
+  native.ask.mockRejectedValueOnce(new Error('9'))
+    .mockResolvedValueOnce('See you there.').mockResolvedValueOnce('“Here are three versions:”');
+  await expect(phoneWriter.write({ conversation: 'Sam: Are we still on?', written: '', typed: '' })).resolves.toEqual(['See you there.']);
+  expect(native.ask).toHaveBeenCalledTimes(3);
+});
+
+test('continues after a failed version with a native draft already collected', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue(['1. Bring the tent\n- Bring the stove']);
+  native.ask.mockRejectedValueOnce(new Error('9')).mockResolvedValueOnce('See you there.');
+  await expect(phoneWriter.write({ conversation: 'Sam: What should we bring?', written: '', typed: '' })).resolves.toEqual([
+    '1. Bring the tent\n- Bring the stove', 'See you there.',
+  ]);
+  expect(native.ask).toHaveBeenCalledTimes(2);
 });
 
 test('uses streamed generation when native generation returns no candidates', async () => {

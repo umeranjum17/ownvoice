@@ -65,17 +65,19 @@ function prompt({ conversation, typed, guide }: DraftRequest) {
 }
 
 async function fallback(promptText: string, drafts: string[], polishing: boolean) {
+  let failure: unknown;
   for (let version = drafts.length; version < count; version++) {
     let text: string;
     try {
       text = await Native.ask(`phone-draft-${Date.now()}-${version}`, `${promptText}\n\nReturn a different version from the other replies: ${version + 1}. Return only one message, with no preamble, quotes, or numbering.`, { maxTokens: 120 });
     } catch (error) {
-      if (!drafts.length) throw error;
-      break;
+      failure ??= error;
+      continue;
     }
     const [draft] = cleanDrafts([text], 1, polishing);
     if (draft && !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === draft.toLowerCase().replace(/\s+/g, ' '))) drafts.push(draft);
   }
+  if (!drafts.length && failure) throw failure;
   return drafts;
 }
 
