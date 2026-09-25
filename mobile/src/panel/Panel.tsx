@@ -1,21 +1,38 @@
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Native, { Capture } from '../../modules/ownvoice-native';
-import { stubDrafts } from './stubWriter';
+import { phoneWriter } from './phoneWriter';
 
 export default function Panel() {
   const [capture, setCapture] = useState<Capture | null>(null);
   const [inserting, setInserting] = useState(false);
-  useEffect(() => { void Native.capture().then(setCapture).catch(() => {}); }, []);
-  const drafts = stubDrafts(capture?.typed ?? '');
+  const [drafts, setDrafts] = useState<string[]>([]);
+  const [note, setNote] = useState('Writing…');
+  useEffect(() => {
+    let ready = false;
+    const progress = Native.addListener('onModelProgress', ({ fraction }) => { if (!ready) setNote(`Getting Ownvoice ready… ${Math.round(fraction * 100)}%`); });
+    void Native.capture().then(async value => {
+      setCapture(value);
+      if (!value) {
+        ready = true;
+        setNote('No screen to read. Close and try again.');
+        return;
+      }
+      setDrafts(await phoneWriter.write({ conversation: value.conversation, written: value.written, typed: value.typed }, state => {
+        ready = state === 'writing';
+        setNote(ready ? 'Writing…' : 'Getting Ownvoice ready…');
+      }));
+    }).catch(error => { ready = true; setNote(error instanceof Error ? error.message : 'Try again in a moment.'); });
+    return () => progress.remove();
+  }, []);
   const close = () => { void Native.closePanel().catch(() => {}); };
   return <View style={styles.scrim}>
     <Pressable accessibilityLabel="Close" style={styles.outside} onPress={close} />
     <View style={styles.sheet}>
       <View style={styles.handle} />
-      <Text style={styles.title}>{capture?.typed ? 'Polish your message' : 'Suggested replies'}</Text>
-      <Text style={styles.note}>Pick one to put in your message box. You send it yourself.</Text>
-      {!capture?.hasField && <Text style={styles.note}>Tap into the message box first to use Insert, or copy one.</Text>}
+      <Text style={styles.title}>{capture?.typed.trim() ? 'Polish your message' : 'Suggested replies'}</Text>
+      <Text style={styles.note}>{drafts.length ? 'Pick one to put in your message box. You send it yourself.' : note}</Text>
+      {capture && !capture.hasField && <Text style={styles.note}>Tap into the message box first to use Insert, or copy one.</Text>}
       <ScrollView>{drafts.map(draft => <View key={draft} style={styles.card}>
         <Text style={styles.draft}>{draft}</Text>
         <View style={styles.actions}>

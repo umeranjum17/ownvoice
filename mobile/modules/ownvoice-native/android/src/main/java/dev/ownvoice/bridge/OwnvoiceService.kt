@@ -21,6 +21,12 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.TextView
 
+internal fun accessibleText(text: CharSequence?, isShowingHintText: Boolean): String? =
+  text?.takeUnless { isShowingHintText }?.toString()
+
+internal fun capturedInputText(text: CharSequence?, isShowingHintText: Boolean): String =
+  accessibleText(text, isShowingHintText).orEmpty()
+
 class OwnvoiceService : AccessibilityService() {
   companion object {
     const val TAG = "OwnvoiceNative"
@@ -131,7 +137,7 @@ class OwnvoiceService : AccessibilityService() {
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written) }
-    val typed = field?.takeUnless { it.isShowingHintText }?.text?.toString().orEmpty()
+    val typed = capturedInputText(field?.text, field?.isShowingHintText == true)
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field)
     synchronized(facts) { facts += TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty()) }
@@ -153,7 +159,7 @@ class OwnvoiceService : AccessibilityService() {
   private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>) {
     fun walk(node: AccessibilityNodeInfo) {
       if (node == skip || !node.isVisibleToUser) return
-      (node.text ?: node.contentDescription)?.toString()?.trim()?.takeIf { it.isNotEmpty() }?.let { if (lines.lastOrNull() != it) lines += it; if (node.text != null && !node.isEditable) written += it }
+      accessibleText(node.text ?: node.contentDescription, node.isShowingHintText)?.trim()?.takeIf { it.isNotEmpty() }?.let { if (lines.lastOrNull() != it) lines += it; if (node.text != null && !node.isEditable) written += it }
       for (i in 0 until node.childCount) node.getChild(i)?.let(::walk)
     }
     walk(root)

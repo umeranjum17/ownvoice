@@ -3,9 +3,12 @@ import { NativeModule, requireNativeModule } from 'expo';
 export type ServiceState = 'on' | 'off' | 'stuck';
 export type Capture = { conversation: string; written: string; typed: string; app: string; label: string; at: number; hasField: boolean };
 export type TapFact = { at: number; app: string; label: string; screen: boolean; typed: boolean; replying: boolean };
+export type ModelStatus = 'available' | 'downloadable' | 'downloading' | 'unavailable';
 type Events = {
   onServiceChange: (event: { state: ServiceState }) => void;
   onInserted: (event: { ok: boolean; newlinesLost: boolean }) => void;
+  onModelProgress: (event: { fraction: number }) => void;
+  onModelPartial: (event: { id: string; text: string }) => void;
 };
 declare class OwnvoiceNativeModule extends NativeModule<Events> {
   serviceState(): Promise<ServiceState>;
@@ -20,5 +23,9 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   copy(text: string): Promise<void>;
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;
   closePanel(): Promise<void>;
+  modelStatus(): Promise<ModelStatus>;
+  downloadModel(): Promise<void>;
+  ask(id: string, prompt: string, options: { maxTokens: number }): Promise<string>;
+  drafts(prompt: string, options: { candidates: number; maxTokens: number }): Promise<string[]>;
 }
 export default requireNativeModule<OwnvoiceNativeModule>('OwnvoiceNative');
