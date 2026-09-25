@@ -42,7 +42,7 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
     for (const part of parts(candidate, polishing)) {
       const standalone = !polishing && (candidates.length > 1 || limit === 1) && [...part.matchAll(numbered)].length === 1;
       const unnumbered = standalone ? part.replace(/^\s*[1-3][.):]\s+/, '') : part;
-      const draft = (polishing ? unnumbered : unnumbered.replace(/^\s*(?:draft|option|version)\s*[1-3][.):]\s*/i, '')).trim()
+      const draft = unnumbered.trim().replace(/^(?:draft|option|version)\s*[1-3][.):]\s*/i, '')
         .replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
         .replace(/^'([\s\S]*)'$/, '$1').replace(/^‘([\s\S]*)’$/, '$1').trim();
       const key = draft.toLowerCase().replace(/\s+/g, ' ');

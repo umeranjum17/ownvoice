@@ -61,6 +61,15 @@ test('polish keeps headings and lists intact', async () => {
   ]);
 });
 
+test('polish removes candidate labels without splitting a message', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue(['Version 1: Sounds good.', 'Draft 2: Here are two options:\n- Bring the tent\n- Bring the stove']);
+  native.ask.mockResolvedValueOnce('Version 3: Here is the plan:\n1. Bring the tent\n2. Bring the stove');
+  await expect(phoneWriter.write({ conversation: '', written: '', typed: 'I can bring the tent' })).resolves.toEqual([
+    'Sounds good.', 'Here are two options:\n- Bring the tent\n- Bring the stove', 'Here is the plan:\n1. Bring the tent\n2. Bring the stove',
+  ]);
+});
+
 test('polish fallback also keeps a numbered message intact', async () => {
   native.modelStatus.mockResolvedValue('available');
   native.drafts.mockResolvedValue([]);
