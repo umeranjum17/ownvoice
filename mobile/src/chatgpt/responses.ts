@@ -22,7 +22,7 @@ export async function streamResponses(prompt: string, onText?: (text: string) =>
       if (!line.startsWith('data:')) continue;
       const data = line.slice(5).trim(); if (!data || data === '[DONE]') continue;
       const parsed = JSON.parse(data);
-      const text = parsed.delta ?? parsed.text ?? parsed.output_text;
+      const text = parsed.type === 'response.output_text.delta' ? parsed.delta : undefined;
       if (typeof text === 'string') { result += text; onText?.(text); }
       if (parsed.type === 'response.failed') throw new Error('ChatGPT could not answer.');
     }
@@ -34,7 +34,7 @@ export async function streamResponses(prompt: string, onText?: (text: string) =>
 export const chatgptWriter: Writer = {
   async write({ conversation, written, guide }: DraftRequest) {
     const drafts = versions(await streamResponses(rewritePrompt(written, conversation, guide)));
-    if (!drafts.length) throw new Error('ChatGPT could not answer.');
+    if (drafts.length !== 3 || drafts.some(draft => !draft.trim())) throw new Error('ChatGPT could not answer.');
     return drafts;
   },
 };

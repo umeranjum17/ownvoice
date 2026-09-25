@@ -12,7 +12,8 @@ test('phone fallback reports a readable reason and preserves the primary on succ
   const phone: Writer = { write: async () => ['phone draft'] };
   const failed = await withPhoneFallback({ write: async () => { throw Error('secret'); } }, phone, req);
   expect(failed).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
-  expect(await withPhoneFallback({ write: async () => ['main'] }, phone, req)).toEqual({ drafts: ['main'] });
+  expect(await withPhoneFallback({ write: async () => ['main'] }, phone, req)).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
+  expect(await withPhoneFallback({ write: async () => ['one', 'two', 'three'] }, phone, req)).toEqual({ drafts: ['one', 'two', 'three'] });
 });
 
 test('remote switch vectors: valid, signature, app, rollback, version; failures keep last; first run is on', async () => {
@@ -20,6 +21,7 @@ test('remote switch vectors: valid, signature, app, rollback, version; failures 
   const base = { v: 1, app: 'ownvoice', seq: 3, chatgpt: 'off' as const };
   const valid = await signed(base);
   expect(await verify(valid, publicKey, 2)).toBe(true);
+  expect(await verify(await signed({ ...base, note: 'extra' } as Flag['payload']), publicKey, 2)).toBe(false);
   expect(await verify({ ...valid, sig: b64(new Uint8Array(64)) }, publicKey, 2)).toBe(false);
   expect(await verify(await signed({ ...base, app: 'other' }), publicKey, 2)).toBe(false);
   expect(await verify(await signed({ ...base, seq: 2 }), publicKey, 2)).toBe(false);

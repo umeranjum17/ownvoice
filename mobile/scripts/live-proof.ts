@@ -33,7 +33,7 @@ while (true) {
     if (!line.startsWith('data:')) continue;
     const data = line.slice(5).trim(); if (!data || data === '[DONE]') continue;
     const item = JSON.parse(data);
-    const delta = item.delta ?? item.text ?? item.output_text;
+    const delta = item.type === 'response.output_text.delta' ? item.delta : undefined;
     if (typeof delta === 'string') { firstTextMs ??= performance.now() - started; text += delta; }
     if (item.type === 'response.failed') throw new Error('The streamed answer failed.');
   }

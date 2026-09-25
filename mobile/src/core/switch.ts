@@ -6,12 +6,12 @@ export const SWITCH_URL = 'https://raw.githubusercontent.com/umeranjum17/ownvoic
 export const SWITCH_PUBLIC_KEY = 'sn6nXy45sHxKHfM0Tvc2adkhbAaMN1QRQDY7L1qGiR0=';
 export const CACHE_MS = 6 * 60 * 60 * 1000;
 export const CHATGPT_OFF = 'ChatGPT is turned off for now. This phone wrote these.';
-export type Flag = { payload: { v: number; app: string; seq: number; chatgpt: 'on' | 'off'; note?: string }; sig: string };
+export type Flag = { payload: { v: number; app: string; seq: number; chatgpt: 'on' | 'off' }; sig: string };
 export type SwitchState = { seq: number; chatgpt: 'on' | 'off'; fetchedAt: number };
 export type SwitchStore = { get(): Promise<SwitchState | null>; set(state: SwitchState): Promise<void> };
 const bytes = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 export async function verify(flag: Flag, publicKey: string, previousSeq: number): Promise<boolean> {
-  if (flag?.payload?.v !== 1 || flag.payload.app !== 'ownvoice' || !Number.isSafeInteger(flag.payload.seq) || flag.payload.seq <= previousSeq || !['on', 'off'].includes(flag.payload.chatgpt)) return false;
+  if (flag?.payload?.v !== 1 || Object.keys(flag.payload).length !== 4 || flag.payload.app !== 'ownvoice' || !Number.isSafeInteger(flag.payload.seq) || flag.payload.seq <= previousSeq || !['on', 'off'].includes(flag.payload.chatgpt)) return false;
   try { return await ed.verify(bytes(flag.sig), new TextEncoder().encode(JSON.stringify(flag.payload)), bytes(publicKey)); } catch { return false; }
 }
 export async function chatgptEnabled(store: SwitchStore, fetcher: typeof fetch = fetch, now = Date.now(), publicKey = SWITCH_PUBLIC_KEY): Promise<boolean> {
