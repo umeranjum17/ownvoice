@@ -47,6 +47,8 @@ test('keeps a numbered or bulleted message intact unless explicitly labelled as 
   expect(cleanDrafts(['1. Sounds good.', '2. See you there.', '3. I can bring it.'])).toEqual(['Sounds good.', 'See you there.', 'I can bring it.']);
   expect(cleanDrafts(["1. I'll bring the tent. 2. You bring the stove."], 1)).toEqual(["1. I'll bring the tent. 2. You bring the stove."]);
   expect(cleanDrafts(["Here's a reply: ‘Sounds good!’", "Here's the reply:\nSee you there."])).toEqual(['Sounds good!', 'See you there.']);
+  expect(cleanDrafts(["Here is the plan:\nI'll bring the tent."])).toEqual(["Here is the plan:\nI'll bring the tent."]);
+  expect(cleanDrafts(['Here are the snacks:\nApples and pears.'])).toEqual(['Here are the snacks:\nApples and pears.']);
 });
 
 test('keeps clean native drafts while filling missing slots with streamed replies', async () => {
@@ -72,6 +74,17 @@ test('cleans a numbered streamed reply and retains it if the next call fails', a
   native.drafts.mockResolvedValue([]);
   native.ask.mockResolvedValueOnce("Here's a reply: 1. Sounds good.").mockRejectedValueOnce(new Error('9'));
   await expect(phoneWriter.write({ conversation: 'Sam: Are we still on?', written: '', typed: '' })).resolves.toEqual(['Sounds good.']);
+});
+
+test('uses streamed generation when native generation returns no candidates', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue([]);
+  native.ask.mockResolvedValueOnce('Here is the reply: Sounds good.')
+    .mockResolvedValueOnce('See you there.').mockResolvedValueOnce('I can bring it.');
+  await expect(phoneWriter.write({ conversation: 'Sam: Are we still on?', written: '', typed: '' })).resolves.toEqual([
+    'Sounds good.', 'See you there.', 'I can bring it.',
+  ]);
+  expect(native.ask).toHaveBeenCalledTimes(3);
 });
 
 test('propagates a streamed failure if no usable draft exists', async () => {

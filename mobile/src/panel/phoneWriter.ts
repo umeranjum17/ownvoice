@@ -1,5 +1,4 @@
 import Native from '../../modules/ownvoice-native';
-import { clean } from '../core/judge';
 import { message } from '../core/nano';
 import type { DraftRequest, Writer } from '../core/writers';
 
@@ -10,9 +9,7 @@ const labelled = /(?:^|\s)(?:draft|option|version)\s*[1-3][.):]\s*/gi;
 function body(text: string) {
   const lines = text.trim().split(/\r?\n/);
   const first = lines[0]?.trim() ?? '';
-  if (/^(?:(?:okay|sure)[,!.]?\s*)?(?:here (?:are|is)|these are|below are)\b/i.test(first) &&
-    (/\b(?:versions?|options?|drafts?)\b/i.test(first) || first.endsWith(':')) ||
-    /^here(?:'s| is) (?:a|the|your) reply\s*:/i.test(first)) {
+  if (/^(?:(?:okay|sure)[,!.]?\s*)?(?:here (?:are|is)|these are|below are)\b[^:]*\b(?:versions?|options?|drafts?)\b\s*:|^here(?:'s| is) (?:a|the|your) reply\s*:/i.test(first)) {
     const colon = first.indexOf(':');
     lines[0] = colon < 0 ? '' : first.slice(colon + 1).trim();
   }
@@ -42,12 +39,12 @@ export function cleanDrafts(candidates: string[], limit = count) {
   for (const candidate of candidates) {
     for (const part of parts(candidate)) {
       const standalone = (candidates.length > 1 || limit === 1) && [...part.matchAll(numbered)].length === 1;
-      const draft = clean(standalone ? part.replace(/^\s*[1-3][.):]\s+/, '') : part)
+      const draft = (standalone ? part.replace(/^\s*[1-3][.):]\s+/, '') : part).trim()
         .replace(/^\s*(?:draft|option|version)\s*[1-3][.):]\s*/i, '')
         .replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
         .replace(/^'([\s\S]*)'$/, '$1').replace(/^‘([\s\S]*)’$/, '$1').trim();
       const key = draft.toLowerCase().replace(/\s+/g, ' ');
-      if (draft && !/^(?:(?:okay|sure)[,!.]?\s*)?(?:here(?:'s| is| are)|these are|below are)\b[^\n]*:\s*$/i.test(draft) && !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === key)) drafts.push(draft);
+      if (draft && !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === key)) drafts.push(draft);
       if (drafts.length === limit) return drafts;
     }
   }

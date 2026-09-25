@@ -83,7 +83,7 @@ internal object PhoneModel {
         .map { it.text.trim().removeSurrounding("\"") }
         .forEach { if (it.isNotEmpty() && it !in result) result.add(it) }
     }
-    return result.take(candidates).ifEmpty { throw IllegalStateException("Empty drafts") }
+    return result.take(candidates)
   }
 
   fun errorCode(error: Throwable): Int = when (error) {
