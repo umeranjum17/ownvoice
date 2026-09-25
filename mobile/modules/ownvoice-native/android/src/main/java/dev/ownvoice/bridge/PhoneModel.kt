@@ -74,7 +74,7 @@ internal object PhoneModel {
     }
     val result = mutableListOf<String>()
     repeat(2) {
-      if (result.size < 2) model.generateContent(request).candidates
+      if (result.size < candidates) model.generateContent(request).candidates
         .map { it.text.trim().removeSurrounding("\"") }
         .forEach { if (it.isNotEmpty() && it !in result) result.add(it) }
     }
