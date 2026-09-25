@@ -56,7 +56,7 @@ export default function Home() {
       <Text style={[type.body, { color: t.text }]}>I can bring the tent if you bring the stove.</Text>
     </Card></View>
     <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.muted} value={text} onChangeText={setText} multiline style={[type.body, { minHeight: 56, borderWidth: 1, borderColor: t.outline, borderRadius: 12, padding: space.m, color: t.text }]} />
-    <Button kind="filled" label="Turn on accessibility" onPress={() => { void native().openAccessibilitySettings().catch(() => {}); }} />
+    <Button kind="filled" label="Turn on Ownvoice" onPress={() => { void native().openAccessibilitySettings().catch(() => {}); }} />
     <Button kind="text" disabled={!rules} label="Where the bubble shows" onPress={() => { void native().launcherApps().then(setApps).catch(() => {}); }} />
     <Button kind="text" disabled={!rules} label={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change(current => ({ ...current, paused: !current.paused })); }} />
     <Button kind="text" label={`Recent activity: ${activity}`} onPress={() => { void native().takeTapFacts().then((facts: TapFact[]) => setActivity(count => count + facts.length)).catch(() => {}); }} />
