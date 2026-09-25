@@ -73,6 +73,7 @@ export function Sheet({ title, note, mood, onClose, children, cover }: SheetProp
         </Pressable>
       </View>
       {note && !covered ? <Text style={[type.note, { color: t.muted, marginHorizontal: space.xl, marginTop: 2, marginBottom: space.l }]}>{note}</Text> : null}
+      {cover && !covered ? <Pressable accessibilityRole="button" onPress={() => setCovered(true)} style={{ marginHorizontal: space.xl, marginBottom: space.s }}><Text style={[type.label, { color: t.primary }]}>Why?</Text></Pressable> : null}
       <ScrollView contentContainerStyle={styles.body} stickyHeaderIndices={undefined}>
         {covered && cover ? cover.children : children}
       </ScrollView>

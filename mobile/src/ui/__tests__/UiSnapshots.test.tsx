@@ -1,6 +1,6 @@
-import { Appearance, Text } from 'react-native';
+import { AccessibilityInfo, Appearance, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { Sheet } from '../Sheet';
 import { Card } from '../Card';
 import { Button } from '../Button';
@@ -15,6 +15,7 @@ import { Progress } from '../Progress';
 import { Dot } from '../Dot';
 
 jest.useFakeTimers();
+jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
 
 const withSafeArea = (e: React.ReactElement) => <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>{e}</SafeAreaProvider>;
 
@@ -54,7 +55,9 @@ describe.each(['light', 'dark'] as const)('ui components (%s)', scheme => {
   afterEach(() => { Appearance.setColorScheme('light'); });
 
   test.each(cases)('%s', async (name, element) => {
-    const tree = (await render(element())).toJSON();
-    expect(tree).toMatchSnapshot(`${scheme}/${name}`);
+    const screen = render(element());
+    await act(async () => { await Promise.resolve(); jest.runAllTimers(); });
+    if (name === 'sheet-covered') fireEvent.press(screen.getByText('Why?'));
+    expect(screen.toJSON()).toMatchSnapshot(`${scheme}/${name}`);
   });
 });

@@ -40,6 +40,7 @@ export default function Panel() {
   return <Sheet
     title={capture?.typed.trim() ? 'Polish your message' : 'Suggested replies'}
     note={drafts.length ? 'Pick one to put in your message box. You send it yourself.' : note}
+    mood={drafts.length ? 'ready' : 'thinking'}
     onClose={close}>
     {fraction != null && <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View>}
     {capture && !capture.hasField && <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>Tap into the message box first to use Insert, or copy one.</Text>}
