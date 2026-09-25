@@ -14,7 +14,6 @@ import { ReasonRow } from '../ReasonRow';
 import { Progress } from '../Progress';
 import { Dot } from '../Dot';
 
-jest.useFakeTimers();
 jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
 
 const withSafeArea = (e: React.ReactElement) => <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>{e}</SafeAreaProvider>;
@@ -55,9 +54,9 @@ describe.each(['light', 'dark'] as const)('ui components (%s)', scheme => {
   afterEach(() => { Appearance.setColorScheme('light'); });
 
   test.each(cases)('%s', async (name, element) => {
-    const screen = render(element());
-    await act(async () => { await Promise.resolve(); jest.runAllTimers(); });
-    if (name === 'sheet-covered') fireEvent.press(screen.getByText('Why?'));
+    const screen = await render(element());
+    await act(async () => { await Promise.resolve(); });
+    if (name === 'sheet-covered') await fireEvent.press(screen.getByText('Why?'));
     expect(screen.toJSON()).toMatchSnapshot(`${scheme}/${name}`);
   });
 });

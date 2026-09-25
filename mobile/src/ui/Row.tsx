@@ -25,6 +25,7 @@ export function Row({ lead, title, subtitle, end, onPress, disabled = false }: R
   </>;
   if (!onPress) return <View style={[styles.row, disabled && styles.off]}>{inner}</View>;
   return <Pressable
+    accessibilityRole="button"
     disabled={disabled}
     onPress={onPress}
     android_ripple={{ color: t.text + '12', foreground: true }}

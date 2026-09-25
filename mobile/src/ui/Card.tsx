@@ -19,7 +19,8 @@ export function Card({ variant, label, busy = false, children }: CardProps) {
   const reduced = useReducedMotion();
   const fade = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
-    if (reduced === true) { fade.setValue(1); return; }
+    if (reduced === null) return;
+    if (reduced) { fade.setValue(1); return; }
     Animated.timing(fade, { toValue: 1, duration: 150, useNativeDriver: true }).start();
   }, [reduced, fade]);
   return <Animated.View style={[styles.card, { opacity: fade }, variant === 'outlined'

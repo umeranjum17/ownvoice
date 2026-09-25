@@ -9,7 +9,7 @@ exports[`ui components (dark) button-disabled: dark/button-disabled 1`] = `
       "borderColor": "#49454F",
       "borderRadius": 16,
       "borderWidth": 1,
-      "opacity": 0,
+      "opacity": 1,
       "paddingBottom": 8,
       "paddingHorizontal": 16,
       "paddingTop": 16,
@@ -101,7 +101,7 @@ exports[`ui components (dark) card-filled: dark/card-filled 1`] = `
     {
       "backgroundColor": "#36343B",
       "borderRadius": 16,
-      "opacity": 0,
+      "opacity": 1,
       "paddingBottom": 8,
       "paddingHorizontal": 16,
       "paddingTop": 16,
@@ -165,7 +165,7 @@ exports[`ui components (dark) card-outlined-busy: dark/card-outlined-busy 1`] = 
       "borderColor": "#49454F",
       "borderRadius": 16,
       "borderWidth": 1,
-      "opacity": 0,
+      "opacity": 1,
       "paddingBottom": 8,
       "paddingHorizontal": 16,
       "paddingTop": 16,
@@ -1108,6 +1108,7 @@ exports[`ui components (dark) reason-ok: dark/reason-ok 1`] = `
 
 exports[`ui components (dark) row: dark/row 1`] = `
 <View
+  accessibilityRole="button"
   accessibilityState={
     {
       "busy": undefined,
@@ -1399,7 +1400,7 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
           "paddingBottom": 8,
           "transform": [
             {
-              "translateY": 600,
+              "translateY": 0,
             },
           ],
         }
@@ -1883,7 +1884,7 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
                 "borderColor": "#49454F",
                 "borderRadius": 16,
                 "borderWidth": 1,
-                "opacity": 0,
+                "opacity": 1,
                 "paddingBottom": 8,
                 "paddingHorizontal": 16,
                 "paddingTop": 16,
@@ -2114,7 +2115,7 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
           "paddingBottom": 8,
           "transform": [
             {
-              "translateY": 600,
+              "translateY": 0,
             },
           ],
         }
@@ -2154,462 +2155,6 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
           }
         }
       >
-        <View
-          style={
-            {
-              "height": 40,
-              "marginRight": 12,
-              "width": 40,
-            }
-          }
-        >
-          <RNSVGSvgView
-            accessible={false}
-            align="xMidYMid"
-            bbHeight={40}
-            bbWidth={40}
-            focusable={false}
-            height={40}
-            meetOrSlice={0}
-            minX={0}
-            minY={0}
-            style={
-              [
-                {
-                  "backgroundColor": "transparent",
-                  "borderWidth": 0,
-                },
-                {
-                  "flex": 0,
-                  "height": 40,
-                  "width": 40,
-                },
-              ]
-            }
-            vbHeight={120}
-            vbWidth={120}
-            width={40}
-            xml="<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="480" height="480"><g transform="translate(0 -0.00) rotate(0.00 60 110) translate(60 110) scale(1.0000 1.0000) translate(-60 -110)"><path d="M86 94 L100 84" fill="none" stroke="#EE6F58" stroke-width="10.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M60 14 C69 31 98 48 98 77 A38 38 0 0 1 22 77 C22 48 51 31 60 14 Z" fill="#FF8A73" stroke="#FF8A73" stroke-width="5" stroke-linejoin="round"/><path d="M40 50 Q33 60 32.5 70" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="4.2" stroke-linecap="round"/><ellipse cx="40.50" cy="84.50" rx="6" ry="3.4" fill="#E0504A" opacity="0.9"/><ellipse cx="79.50" cy="84.50" rx="6" ry="3.4" fill="#E0504A" opacity="0.9"/><ellipse cx="47.00" cy="76.00" rx="4.60" ry="6.20" fill="#4E140B"/><circle cx="45.53" cy="73.64" r="1.56" fill="#FFFFFF"/><ellipse cx="73.00" cy="76.00" rx="4.60" ry="6.20" fill="#4E140B"/><circle cx="71.53" cy="73.64" r="1.56" fill="#FFFFFF"/><path d="M53.00 84.00 C54.50 93.50 65.50 93.50 67.00 84.00 Z" fill="#4E140B" stroke="#4E140B" stroke-width="1.6" stroke-linejoin="round"/><path d="M56.60 89.20 Q60.00 87.00 63.40 89.20 Q60.00 91.40 56.60 89.20 Z" fill="#E0504A"/><g transform="rotate(10 96.0 76.0)"><rect x="84" y="62" width="24" height="28" rx="4.5" fill="#FFFFFF" stroke="#4E140B" stroke-width="2.6"/><path d="M89 70.0 L103 70.0" fill="none" stroke="#4E140B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M89 76.5 L103 76.5" fill="none" stroke="#4E140B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M89 83.0 L98 83.0" fill="none" stroke="#4E140B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g><path d="M102.78 43.11 L101.95 38.38" fill="none" stroke="#FF8A73" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M107.50 43.94 L110.50 38.74" fill="none" stroke="#FF8A73" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M110.58 47.61 L115.09 45.96" fill="none" stroke="#FF8A73" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></g></svg>"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <RNSVGGroup
-              fill={
-                {
-                  "payload": 4278190080,
-                  "type": 0,
-                }
-              }
-            >
-              <RNSVGGroup
-                fill={
-                  {
-                    "payload": 4278190080,
-                    "type": 0,
-                  }
-                }
-                matrix={
-                  [
-                    1,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                  ]
-                }
-              >
-                <RNSVGPath
-                  d="M86 94 L100 84"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinecap",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4293816152,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeLinejoin={1}
-                  strokeWidth={10.5}
-                />
-                <RNSVGPath
-                  d="M60 14 C69 31 98 48 98 77 A38 38 0 0 1 22 77 C22 48 51 31 60 14 Z"
-                  fill={
-                    {
-                      "payload": 4294937203,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4294937203,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinejoin={1}
-                  strokeWidth={5}
-                />
-                <RNSVGPath
-                  d="M40 50 Q33 60 32.5 70"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeOpacity",
-                      "strokeLinecap",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4294967295,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeOpacity={0.55}
-                  strokeWidth={4.2}
-                />
-                <RNSVGEllipse
-                  cx={40.5}
-                  cy={84.5}
-                  fill={
-                    {
-                      "payload": 4292890698,
-                      "type": 0,
-                    }
-                  }
-                  opacity={0.9}
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  rx={6}
-                  ry={3.4}
-                />
-                <RNSVGEllipse
-                  cx={79.5}
-                  cy={84.5}
-                  fill={
-                    {
-                      "payload": 4292890698,
-                      "type": 0,
-                    }
-                  }
-                  opacity={0.9}
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  rx={6}
-                  ry={3.4}
-                />
-                <RNSVGEllipse
-                  cx={47}
-                  cy={76}
-                  fill={
-                    {
-                      "payload": 4283307019,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  rx={4.6}
-                  ry={6.2}
-                />
-                <RNSVGCircle
-                  cx={45.53}
-                  cy={73.64}
-                  fill={
-                    {
-                      "payload": 4294967295,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  r={1.56}
-                />
-                <RNSVGEllipse
-                  cx={73}
-                  cy={76}
-                  fill={
-                    {
-                      "payload": 4283307019,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  rx={4.6}
-                  ry={6.2}
-                />
-                <RNSVGCircle
-                  cx={71.53}
-                  cy={73.64}
-                  fill={
-                    {
-                      "payload": 4294967295,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  r={1.56}
-                />
-                <RNSVGPath
-                  d="M53.00 84.00 C54.50 93.50 65.50 93.50 67.00 84.00 Z"
-                  fill={
-                    {
-                      "payload": 4283307019,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4283307019,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinejoin={1}
-                  strokeWidth={1.6}
-                />
-                <RNSVGPath
-                  d="M56.60 89.20 Q60.00 87.00 63.40 89.20 Q60.00 91.40 56.60 89.20 Z"
-                  fill={
-                    {
-                      "payload": 4292890698,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                />
-                <RNSVGGroup
-                  fill={
-                    {
-                      "payload": 4278190080,
-                      "type": 0,
-                    }
-                  }
-                  matrix={
-                    [
-                      0.984807753012208,
-                      0.17364817766693033,
-                      -0.17364817766693033,
-                      0.984807753012208,
-                      14.655717213514734,
-                      -15.51561428495313,
-                    ]
-                  }
-                >
-                  <RNSVGRect
-                    fill={
-                      {
-                        "payload": 4294967295,
-                        "type": 0,
-                      }
-                    }
-                    height={28}
-                    propList={
-                      [
-                        "fill",
-                        "stroke",
-                        "strokeWidth",
-                      ]
-                    }
-                    rx={4.5}
-                    stroke={
-                      {
-                        "payload": 4283307019,
-                        "type": 0,
-                      }
-                    }
-                    strokeWidth={2.6}
-                    width={24}
-                    x={84}
-                    y={62}
-                  />
-                  <RNSVGPath
-                    d="M89 70.0 L103 70.0"
-                    fill={null}
-                    propList={
-                      [
-                        "fill",
-                        "stroke",
-                        "strokeWidth",
-                        "strokeLinecap",
-                        "strokeLinejoin",
-                      ]
-                    }
-                    stroke={
-                      {
-                        "payload": 4283307019,
-                        "type": 0,
-                      }
-                    }
-                    strokeLinecap={1}
-                    strokeLinejoin={1}
-                    strokeWidth={2.4}
-                  />
-                  <RNSVGPath
-                    d="M89 76.5 L103 76.5"
-                    fill={null}
-                    propList={
-                      [
-                        "fill",
-                        "stroke",
-                        "strokeWidth",
-                        "strokeLinecap",
-                        "strokeLinejoin",
-                      ]
-                    }
-                    stroke={
-                      {
-                        "payload": 4283307019,
-                        "type": 0,
-                      }
-                    }
-                    strokeLinecap={1}
-                    strokeLinejoin={1}
-                    strokeWidth={2.4}
-                  />
-                  <RNSVGPath
-                    d="M89 83.0 L98 83.0"
-                    fill={null}
-                    propList={
-                      [
-                        "fill",
-                        "stroke",
-                        "strokeWidth",
-                        "strokeLinecap",
-                        "strokeLinejoin",
-                      ]
-                    }
-                    stroke={
-                      {
-                        "payload": 4283307019,
-                        "type": 0,
-                      }
-                    }
-                    strokeLinecap={1}
-                    strokeLinejoin={1}
-                    strokeWidth={2.4}
-                  />
-                </RNSVGGroup>
-                <RNSVGPath
-                  d="M102.78 43.11 L101.95 38.38"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinecap",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4294937203,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeLinejoin={1}
-                  strokeWidth={2.6}
-                />
-                <RNSVGPath
-                  d="M107.50 43.94 L110.50 38.74"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinecap",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4294937203,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeLinejoin={1}
-                  strokeWidth={2.6}
-                />
-                <RNSVGPath
-                  d="M110.58 47.61 L115.09 45.96"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinecap",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4294937203,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeLinejoin={1}
-                  strokeWidth={2.6}
-                />
-              </RNSVGGroup>
-            </RNSVGGroup>
-          </RNSVGSvgView>
-        </View>
         <Text
           numberOfLines={1}
           style={
@@ -2626,7 +2171,7 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
             ]
           }
         >
-          Reply to Sam
+          Why this reply
         </Text>
         <View
           accessibilityLabel="Close"
@@ -2741,23 +2286,46 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
       >
         <View>
           <View
-            collapsable={false}
             style={
-              {
-                "backgroundColor": "#141218",
-                "borderColor": "#49454F",
-                "borderRadius": 16,
-                "borderWidth": 1,
-                "opacity": 0,
-                "paddingBottom": 8,
-                "paddingHorizontal": 16,
-                "paddingTop": 16,
-              }
+              [
+                {
+                  "alignItems": "center",
+                  "borderRadius": 20,
+                  "flexDirection": "row",
+                  "gap": 16,
+                  "minHeight": 64,
+                  "overflow": "hidden",
+                  "paddingHorizontal": 16,
+                  "paddingVertical": 12,
+                },
+                false,
+              ]
             }
           >
-            <Text>
-              Yes, still on!
-            </Text>
+            <View
+              style={
+                {
+                  "flex": 1,
+                }
+              }
+            >
+              <Text
+                style={
+                  [
+                    {
+                      "fontSize": 16,
+                      "fontWeight": "400",
+                      "lineHeight": 24,
+                    },
+                    {
+                      "color": "#E6E0E9",
+                    },
+                  ]
+                }
+              >
+                How it reads
+              </Text>
+            </View>
           </View>
         </View>
       </RCTScrollView>
@@ -2960,7 +2528,7 @@ exports[`ui components (light) button-disabled: light/button-disabled 1`] = `
       "borderColor": "#CAC4D0",
       "borderRadius": 16,
       "borderWidth": 1,
-      "opacity": 0,
+      "opacity": 1,
       "paddingBottom": 8,
       "paddingHorizontal": 16,
       "paddingTop": 16,
@@ -3052,7 +2620,7 @@ exports[`ui components (light) card-filled: light/card-filled 1`] = `
     {
       "backgroundColor": "#E6E0E9",
       "borderRadius": 16,
-      "opacity": 0,
+      "opacity": 1,
       "paddingBottom": 8,
       "paddingHorizontal": 16,
       "paddingTop": 16,
@@ -3116,7 +2684,7 @@ exports[`ui components (light) card-outlined-busy: light/card-outlined-busy 1`] 
       "borderColor": "#CAC4D0",
       "borderRadius": 16,
       "borderWidth": 1,
-      "opacity": 0,
+      "opacity": 1,
       "paddingBottom": 8,
       "paddingHorizontal": 16,
       "paddingTop": 16,
@@ -4059,6 +3627,7 @@ exports[`ui components (light) reason-ok: light/reason-ok 1`] = `
 
 exports[`ui components (light) row: light/row 1`] = `
 <View
+  accessibilityRole="button"
   accessibilityState={
     {
       "busy": undefined,
@@ -4350,7 +3919,7 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
           "paddingBottom": 8,
           "transform": [
             {
-              "translateY": 600,
+              "translateY": 0,
             },
           ],
         }
@@ -4834,7 +4403,7 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
                 "borderColor": "#CAC4D0",
                 "borderRadius": 16,
                 "borderWidth": 1,
-                "opacity": 0,
+                "opacity": 1,
                 "paddingBottom": 8,
                 "paddingHorizontal": 16,
                 "paddingTop": 16,
@@ -5065,7 +4634,7 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
           "paddingBottom": 8,
           "transform": [
             {
-              "translateY": 600,
+              "translateY": 0,
             },
           ],
         }
@@ -5105,462 +4674,6 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
           }
         }
       >
-        <View
-          style={
-            {
-              "height": 40,
-              "marginRight": 12,
-              "width": 40,
-            }
-          }
-        >
-          <RNSVGSvgView
-            accessible={false}
-            align="xMidYMid"
-            bbHeight={40}
-            bbWidth={40}
-            focusable={false}
-            height={40}
-            meetOrSlice={0}
-            minX={0}
-            minY={0}
-            style={
-              [
-                {
-                  "backgroundColor": "transparent",
-                  "borderWidth": 0,
-                },
-                {
-                  "flex": 0,
-                  "height": 40,
-                  "width": 40,
-                },
-              ]
-            }
-            vbHeight={120}
-            vbWidth={120}
-            width={40}
-            xml="<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="480" height="480"><g transform="translate(0 -0.00) rotate(0.00 60 110) translate(60 110) scale(1.0000 1.0000) translate(-60 -110)"><path d="M86 94 L100 84" fill="none" stroke="#EE6F58" stroke-width="10.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M60 14 C69 31 98 48 98 77 A38 38 0 0 1 22 77 C22 48 51 31 60 14 Z" fill="#FF8A73" stroke="#FF8A73" stroke-width="5" stroke-linejoin="round"/><path d="M40 50 Q33 60 32.5 70" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="4.2" stroke-linecap="round"/><ellipse cx="40.50" cy="84.50" rx="6" ry="3.4" fill="#E0504A" opacity="0.9"/><ellipse cx="79.50" cy="84.50" rx="6" ry="3.4" fill="#E0504A" opacity="0.9"/><ellipse cx="47.00" cy="76.00" rx="4.60" ry="6.20" fill="#4E140B"/><circle cx="45.53" cy="73.64" r="1.56" fill="#FFFFFF"/><ellipse cx="73.00" cy="76.00" rx="4.60" ry="6.20" fill="#4E140B"/><circle cx="71.53" cy="73.64" r="1.56" fill="#FFFFFF"/><path d="M53.00 84.00 C54.50 93.50 65.50 93.50 67.00 84.00 Z" fill="#4E140B" stroke="#4E140B" stroke-width="1.6" stroke-linejoin="round"/><path d="M56.60 89.20 Q60.00 87.00 63.40 89.20 Q60.00 91.40 56.60 89.20 Z" fill="#E0504A"/><g transform="rotate(10 96.0 76.0)"><rect x="84" y="62" width="24" height="28" rx="4.5" fill="#FFFFFF" stroke="#4E140B" stroke-width="2.6"/><path d="M89 70.0 L103 70.0" fill="none" stroke="#4E140B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M89 76.5 L103 76.5" fill="none" stroke="#4E140B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M89 83.0 L98 83.0" fill="none" stroke="#4E140B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></g><path d="M102.78 43.11 L101.95 38.38" fill="none" stroke="#C44A34" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M107.50 43.94 L110.50 38.74" fill="none" stroke="#C44A34" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M110.58 47.61 L115.09 45.96" fill="none" stroke="#C44A34" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></g></svg>"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <RNSVGGroup
-              fill={
-                {
-                  "payload": 4278190080,
-                  "type": 0,
-                }
-              }
-            >
-              <RNSVGGroup
-                fill={
-                  {
-                    "payload": 4278190080,
-                    "type": 0,
-                  }
-                }
-                matrix={
-                  [
-                    1,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                  ]
-                }
-              >
-                <RNSVGPath
-                  d="M86 94 L100 84"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinecap",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4293816152,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeLinejoin={1}
-                  strokeWidth={10.5}
-                />
-                <RNSVGPath
-                  d="M60 14 C69 31 98 48 98 77 A38 38 0 0 1 22 77 C22 48 51 31 60 14 Z"
-                  fill={
-                    {
-                      "payload": 4294937203,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4294937203,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinejoin={1}
-                  strokeWidth={5}
-                />
-                <RNSVGPath
-                  d="M40 50 Q33 60 32.5 70"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeOpacity",
-                      "strokeLinecap",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4294967295,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeOpacity={0.55}
-                  strokeWidth={4.2}
-                />
-                <RNSVGEllipse
-                  cx={40.5}
-                  cy={84.5}
-                  fill={
-                    {
-                      "payload": 4292890698,
-                      "type": 0,
-                    }
-                  }
-                  opacity={0.9}
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  rx={6}
-                  ry={3.4}
-                />
-                <RNSVGEllipse
-                  cx={79.5}
-                  cy={84.5}
-                  fill={
-                    {
-                      "payload": 4292890698,
-                      "type": 0,
-                    }
-                  }
-                  opacity={0.9}
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  rx={6}
-                  ry={3.4}
-                />
-                <RNSVGEllipse
-                  cx={47}
-                  cy={76}
-                  fill={
-                    {
-                      "payload": 4283307019,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  rx={4.6}
-                  ry={6.2}
-                />
-                <RNSVGCircle
-                  cx={45.53}
-                  cy={73.64}
-                  fill={
-                    {
-                      "payload": 4294967295,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  r={1.56}
-                />
-                <RNSVGEllipse
-                  cx={73}
-                  cy={76}
-                  fill={
-                    {
-                      "payload": 4283307019,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  rx={4.6}
-                  ry={6.2}
-                />
-                <RNSVGCircle
-                  cx={71.53}
-                  cy={73.64}
-                  fill={
-                    {
-                      "payload": 4294967295,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                  r={1.56}
-                />
-                <RNSVGPath
-                  d="M53.00 84.00 C54.50 93.50 65.50 93.50 67.00 84.00 Z"
-                  fill={
-                    {
-                      "payload": 4283307019,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4283307019,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinejoin={1}
-                  strokeWidth={1.6}
-                />
-                <RNSVGPath
-                  d="M56.60 89.20 Q60.00 87.00 63.40 89.20 Q60.00 91.40 56.60 89.20 Z"
-                  fill={
-                    {
-                      "payload": 4292890698,
-                      "type": 0,
-                    }
-                  }
-                  propList={
-                    [
-                      "fill",
-                    ]
-                  }
-                />
-                <RNSVGGroup
-                  fill={
-                    {
-                      "payload": 4278190080,
-                      "type": 0,
-                    }
-                  }
-                  matrix={
-                    [
-                      0.984807753012208,
-                      0.17364817766693033,
-                      -0.17364817766693033,
-                      0.984807753012208,
-                      14.655717213514734,
-                      -15.51561428495313,
-                    ]
-                  }
-                >
-                  <RNSVGRect
-                    fill={
-                      {
-                        "payload": 4294967295,
-                        "type": 0,
-                      }
-                    }
-                    height={28}
-                    propList={
-                      [
-                        "fill",
-                        "stroke",
-                        "strokeWidth",
-                      ]
-                    }
-                    rx={4.5}
-                    stroke={
-                      {
-                        "payload": 4283307019,
-                        "type": 0,
-                      }
-                    }
-                    strokeWidth={2.6}
-                    width={24}
-                    x={84}
-                    y={62}
-                  />
-                  <RNSVGPath
-                    d="M89 70.0 L103 70.0"
-                    fill={null}
-                    propList={
-                      [
-                        "fill",
-                        "stroke",
-                        "strokeWidth",
-                        "strokeLinecap",
-                        "strokeLinejoin",
-                      ]
-                    }
-                    stroke={
-                      {
-                        "payload": 4283307019,
-                        "type": 0,
-                      }
-                    }
-                    strokeLinecap={1}
-                    strokeLinejoin={1}
-                    strokeWidth={2.4}
-                  />
-                  <RNSVGPath
-                    d="M89 76.5 L103 76.5"
-                    fill={null}
-                    propList={
-                      [
-                        "fill",
-                        "stroke",
-                        "strokeWidth",
-                        "strokeLinecap",
-                        "strokeLinejoin",
-                      ]
-                    }
-                    stroke={
-                      {
-                        "payload": 4283307019,
-                        "type": 0,
-                      }
-                    }
-                    strokeLinecap={1}
-                    strokeLinejoin={1}
-                    strokeWidth={2.4}
-                  />
-                  <RNSVGPath
-                    d="M89 83.0 L98 83.0"
-                    fill={null}
-                    propList={
-                      [
-                        "fill",
-                        "stroke",
-                        "strokeWidth",
-                        "strokeLinecap",
-                        "strokeLinejoin",
-                      ]
-                    }
-                    stroke={
-                      {
-                        "payload": 4283307019,
-                        "type": 0,
-                      }
-                    }
-                    strokeLinecap={1}
-                    strokeLinejoin={1}
-                    strokeWidth={2.4}
-                  />
-                </RNSVGGroup>
-                <RNSVGPath
-                  d="M102.78 43.11 L101.95 38.38"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinecap",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4291054132,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeLinejoin={1}
-                  strokeWidth={2.6}
-                />
-                <RNSVGPath
-                  d="M107.50 43.94 L110.50 38.74"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinecap",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4291054132,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeLinejoin={1}
-                  strokeWidth={2.6}
-                />
-                <RNSVGPath
-                  d="M110.58 47.61 L115.09 45.96"
-                  fill={null}
-                  propList={
-                    [
-                      "fill",
-                      "stroke",
-                      "strokeWidth",
-                      "strokeLinecap",
-                      "strokeLinejoin",
-                    ]
-                  }
-                  stroke={
-                    {
-                      "payload": 4291054132,
-                      "type": 0,
-                    }
-                  }
-                  strokeLinecap={1}
-                  strokeLinejoin={1}
-                  strokeWidth={2.6}
-                />
-              </RNSVGGroup>
-            </RNSVGGroup>
-          </RNSVGSvgView>
-        </View>
         <Text
           numberOfLines={1}
           style={
@@ -5577,7 +4690,7 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
             ]
           }
         >
-          Reply to Sam
+          Why this reply
         </Text>
         <View
           accessibilityLabel="Close"
@@ -5692,23 +4805,46 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
       >
         <View>
           <View
-            collapsable={false}
             style={
-              {
-                "backgroundColor": "#FEF7FF",
-                "borderColor": "#CAC4D0",
-                "borderRadius": 16,
-                "borderWidth": 1,
-                "opacity": 0,
-                "paddingBottom": 8,
-                "paddingHorizontal": 16,
-                "paddingTop": 16,
-              }
+              [
+                {
+                  "alignItems": "center",
+                  "borderRadius": 20,
+                  "flexDirection": "row",
+                  "gap": 16,
+                  "minHeight": 64,
+                  "overflow": "hidden",
+                  "paddingHorizontal": 16,
+                  "paddingVertical": 12,
+                },
+                false,
+              ]
             }
           >
-            <Text>
-              Yes, still on!
-            </Text>
+            <View
+              style={
+                {
+                  "flex": 1,
+                }
+              }
+            >
+              <Text
+                style={
+                  [
+                    {
+                      "fontSize": 16,
+                      "fontWeight": "400",
+                      "lineHeight": 24,
+                    },
+                    {
+                      "color": "#1D1B20",
+                    },
+                  ]
+                }
+              >
+                How it reads
+              </Text>
+            </View>
           </View>
         </View>
       </RCTScrollView>
