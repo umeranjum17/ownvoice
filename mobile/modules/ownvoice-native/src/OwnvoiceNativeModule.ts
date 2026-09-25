@@ -10,6 +10,7 @@ type Events = {
 declare class OwnvoiceNativeModule extends NativeModule<Events> {
   serviceState(): Promise<ServiceState>;
   openAccessibilitySettings(): Promise<void>;
+  bubbleRules(): Promise<{ paused: boolean; on: string[]; off: string[]; defaults: string[] }>;
   setBubbleRules(rules: { paused: boolean; on: string[]; off: string[]; defaults: string[] }): Promise<void>;
   setPractice(on: boolean): Promise<void>;
   say(message: string, ms?: number): Promise<void>;

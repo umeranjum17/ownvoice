@@ -28,7 +28,8 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var instance: OwnvoiceService? = null
     @Volatile var onApps: Set<String> = emptySet()
     @Volatile var offApps: Set<String> = emptySet()
-    @Volatile var defaults: Set<String> = emptySet()
+    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
+    @Volatile var defaults: Set<String> = DEFAULT_ON
     @Volatile var paused = false
     @Volatile var practice = false
     @Volatile var panelIsOpen = false
@@ -63,7 +64,7 @@ class OwnvoiceService : AccessibilityService() {
     practice = prefs.getBoolean("practice", false)
     onApps = prefs.getStringSet("on", emptySet()).orEmpty()
     offApps = prefs.getStringSet("off", emptySet()).orEmpty()
-    defaults = prefs.getStringSet("defaults", emptySet()).orEmpty()
+    defaults = prefs.getStringSet("defaults", DEFAULT_ON).orEmpty()
     wm = getSystemService(WindowManager::class.java)
     bubble = TextView(this).apply {
       gravity = Gravity.CENTER
@@ -95,6 +96,7 @@ class OwnvoiceService : AccessibilityService() {
   override fun onInterrupt() {}
   override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); if (::bubble.isInitialized && resting) restoreBubble.run() }
   override fun onDestroy() {
+    forget()
     instance = null
     onServiceChange?.invoke("off")
     main.removeCallbacksAndMessages(null)
@@ -116,6 +118,7 @@ class OwnvoiceService : AccessibilityService() {
 
   fun setRules(pausedNow: Boolean, on: Set<String>, off: Set<String>, defaultApps: Set<String>) {
     paused = pausedNow; onApps = on; offApps = off; defaults = defaultApps
+    if (capture != null && !allowed(capture?.app)) forget()
     prefs.edit().putBoolean("paused", pausedNow).putStringSet("on", on).putStringSet("off", off).putStringSet("defaults", defaultApps).apply()
     updateBubble()
   }
@@ -158,22 +161,24 @@ class OwnvoiceService : AccessibilityService() {
     walk(root)
   }
 
-  fun captured() = capture
+  fun captured() = capture?.takeIf { allowed(it.app) }
   fun forget() { capture = null }
   fun drainFacts(): List<TapFact> = synchronized(facts) { facts.toList().also { facts.clear() } }
 
   fun insert(text: String, done: (Boolean, Boolean) -> Unit) {
-    val field = capture?.input ?: return finishInsert(text, false, false, done)
+    val field = captured()?.input ?: return finishInsert(text, false, false, done)
     val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
     fun attempt(left: Int) {
       field.refresh()
       if (field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
-        main.postDelayed({
+        fun verify(left: Int) {
           field.refresh()
           val got = field.text?.toString()
           val newlinesLost = '\n' in text && got == text.replace("\n", "")
-          finishInsert(text, got == text || newlinesLost, newlinesLost, done)
-        }, 300)
+          if (got == text || newlinesLost || left == 0) finishInsert(text, got == text || newlinesLost, newlinesLost, done)
+          else main.postDelayed({ verify(left - 1) }, 150)
+        }
+        main.postDelayed({ verify(10) }, 150)
       } else if (left > 0) main.postDelayed({ attempt(left - 1) }, 150)
       else finishInsert(text, false, false, done)
     }
@@ -183,6 +188,7 @@ class OwnvoiceService : AccessibilityService() {
     Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost")
     if (ok) say(if (newlinesLost) "Inserted. Check it looks right before sending." else "Inserted. Send it yourself.")
     else { getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text)); say("Couldn't insert. Copied, paste it.") }
+    forget()
     onInserted?.invoke(ok, newlinesLost)
     done(ok, newlinesLost)
   }
@@ -210,6 +216,7 @@ class OwnvoiceService : AccessibilityService() {
   }
   fun debugTree(): String {
     val root = appRoot() ?: return "{}"
+    if (!allowed(root.packageName?.toString())) return "{}"
     fun walk(node: AccessibilityNodeInfo): org.json.JSONObject {
       val out = org.json.JSONObject().put("text", node.text?.toString() ?: node.contentDescription?.toString() ?: "").put("editable", node.isEditable).put("focused", node.isFocused)
       val children = JSONArray(); for (i in 0 until node.childCount) node.getChild(i)?.let { children.put(walk(it)) }; out.put("children", children)

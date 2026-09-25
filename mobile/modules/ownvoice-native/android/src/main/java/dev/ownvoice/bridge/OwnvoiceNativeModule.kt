@@ -1,5 +1,7 @@
 package dev.ownvoice.bridge
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
@@ -24,11 +26,17 @@ class OwnvoiceNativeModule : Module() {
       val me = ComponentName(context, OwnvoiceService::class.java).flattenToString()
       context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(":settings:fragment_args_key", me))
     }.runOnQueue(Queues.MAIN)
+    AsyncFunction("bubbleRules") {
+      val prefs = context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE)
+      mapOf("paused" to prefs.getBoolean("paused", false), "on" to prefs.getStringSet("on", emptySet()).orEmpty().toList(),
+        "off" to prefs.getStringSet("off", emptySet()).orEmpty().toList(),
+        "defaults" to prefs.getStringSet("defaults", OwnvoiceService.DEFAULT_ON).orEmpty().toList())
+    }.runOnQueue(Queues.MAIN)
     AsyncFunction("setBubbleRules") { rules: Map<String, Any?> ->
       val paused = rules["paused"] as? Boolean ?: false
       val on = (rules["on"] as? List<String>).orEmpty()
       val off = (rules["off"] as? List<String>).orEmpty()
-      val defaults = (rules["defaults"] as? List<String>).orEmpty()
+      val defaults = (rules["defaults"] as? List<String>) ?: OwnvoiceService.DEFAULT_ON.toList()
       context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit()
         .putBoolean("paused", paused).putStringSet("on", on.toSet()).putStringSet("off", off.toSet()).putStringSet("defaults", defaults.toSet()).apply()
       OwnvoiceService.instance?.setRules(paused, on.toSet(), off.toSet(), defaults.toSet())
@@ -49,8 +57,13 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("forget") { OwnvoiceService.instance?.forget() }.runOnQueue(Queues.MAIN)
     AsyncFunction("debugTree") { OwnvoiceService.instance?.debugTree() ?: "{}" }.runOnQueue(Queues.MAIN)
     AsyncFunction("insert") { text: String, promise: Promise ->
-      val service = OwnvoiceService.instance ?: return@AsyncFunction promise.resolve(mapOf("ok" to false, "newlinesLost" to false))
+      val service = OwnvoiceService.instance
       PanelActivity.current?.finish()
+      if (service == null) {
+        context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
+        sendEvent("onInserted", mapOf("ok" to false, "newlinesLost" to false))
+        return@AsyncFunction promise.resolve(mapOf("ok" to false, "newlinesLost" to false))
+      }
       service.insert(text) { ok, newlinesLost -> promise.resolve(mapOf("ok" to ok, "newlinesLost" to newlinesLost)) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("closePanel") { PanelActivity.current?.finish() }.runOnQueue(Queues.MAIN)

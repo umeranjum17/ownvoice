@@ -21,6 +21,7 @@ const snap = name => {
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 execFileSync('adb', ['-s', serial, 'logcat', '-c']);
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
+adb('shell', 'pm', 'clear', pkg);
 // Reinstall kills the process without rebinding this service; toggle only this emulator's service entry.
 const enabled = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const services = new Set(enabled === 'null' ? [] : enabled.split(':'));
@@ -51,6 +52,12 @@ const expectBubble = (visible, label) => {
   if (bubbleVisible() !== visible) throw new Error(`Bubble visibility did not match ${label}.`);
 };
 
+tap(Math.round(width / 2), Math.round(height * .60));
+await wait(700);
+expectBubble(true, 'test app enabled');
+tap(Math.round(width / 2), Math.round(height * .66));
+await wait(700);
+
 // A focused input keeps its owning app in front when the accessibility overlay is tapped.
 tap(Math.round(width / 2), Math.round(height * .47));
 await wait(500);
@@ -65,16 +72,16 @@ snap('rn-inserted');
 // The home controls verify that pause and per-app off rules hide the overlay.
 adb('shell', 'input', 'keyevent', '4'); // Dismiss the keyboard so all controls are reachable.
 await wait(400);
-tap(Math.round(width / 2), Math.round(height * .67)); // Pause.
+tap(Math.round(width / 2), Math.round(height * .68)); // Pause.
 await wait(700);
 expectBubble(false, 'paused');
-tap(Math.round(width / 2), Math.round(height * .67)); // Resume.
+tap(Math.round(width / 2), Math.round(height * .68)); // Resume.
 await wait(700);
 expectBubble(true, 'resumed');
-tap(Math.round(width / 2), Math.round(height * .61)); // Turn this app off.
+tap(Math.round(width / 2), Math.round(height * .60)); // Turn this app off.
 await wait(700);
 expectBubble(false, 'app turned off');
-tap(Math.round(width / 2), Math.round(height * .61)); // Turn it back on.
+tap(Math.round(width / 2), Math.round(height * .60)); // Turn it back on.
 await wait(700);
 expectBubble(true, 'app turned back on');
 
