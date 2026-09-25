@@ -11,74 +11,74 @@ class SlopTest {
     private fun clear(text: String, reason: String) = assertFalse("unexpected $reason in: $text -> ${reasons(text)}", reason in reasons(text))
 
     @Test fun stockPhrases() {
-        flags("Let's delve into the data.", "stock phrase")
-        flags("This tool is a game-changer for us.", "stock phrase")
-        flags("I'll circle back on Monday.", "stock phrase")
-        clear("I'll call you back on Monday.", "stock phrase")
-        clear("The tent fits four people.", "stock phrase")
+        flags("Let's delve into the data.", "a phrase people say to anyone")
+        flags("This tool is a game-changer for us.", "a phrase people say to anyone")
+        flags("I'll circle back on Monday.", "a phrase people say to anyone")
+        clear("I'll call you back on Monday.", "a phrase people say to anyone")
+        clear("The tent fits four people.", "a phrase people say to anyone")
     }
 
     @Test fun contrastFrames() {
-        flags("It's not about speed, it's about trust.", "contrast frame")
-        flags("This isn't just a phone.", "contrast frame")
-        flags("Not a bug but a feature.", "contrast frame")
-        flags("The real question is who pays.", "contrast frame")
-        clear("I'm not sure but I think so.", "contrast frame")
-        clear("It is not raining.", "contrast frame")
+        flags("It's not about speed, it's about trust.", "“not this, but that” pattern")
+        flags("This isn't just a phone.", "“not this, but that” pattern")
+        flags("Not a bug but a feature.", "“not this, but that” pattern")
+        flags("The real question is who pays.", "“not this, but that” pattern")
+        clear("I'm not sure but I think so.", "“not this, but that” pattern")
+        clear("It is not raining.", "“not this, but that” pattern")
     }
 
     @Test fun listsOfThree() {
-        flags("It's fast, simple, and fun.", "list of three")
-        flags("Bring tea, coffee or juice.", "list of three")
-        clear("Bring tea and coffee.", "list of three")
-        clear("Yes, Saturday works, and I'll bring the stove.", "list of three")
-        clear("Yes, Saturday works, and the stove is ready.", "list of three")
-        clear("Sure, 9 works, and Sam will bring food.", "list of three")
+        flags("It's fast, simple, and fun.", "three things in a row")
+        flags("Bring tea, coffee or juice.", "three things in a row")
+        clear("Bring tea and coffee.", "three things in a row")
+        clear("Yes, Saturday works, and I'll bring the stove.", "three things in a row")
+        clear("Yes, Saturday works, and the stove is ready.", "three things in a row")
+        clear("Sure, 9 works, and Sam will bring food.", "three things in a row")
     }
 
     @Test fun emDashes() {
-        flags("Saturday works — see you then.", "em dash")
-        flags("Saturday works—see you then.", "em dash")
-        clear("Saturday works - see you then.", "em dash")
-        clear("Pages 3-5.", "em dash")
+        flags("Saturday works — see you then.", Slop.LONG_DASH)
+        flags("Saturday works—see you then.", Slop.LONG_DASH)
+        clear("Saturday works - see you then.", Slop.LONG_DASH)
+        clear("Pages 3-5.", Slop.LONG_DASH)
     }
 
     @Test fun flatteryOpeners() {
-        flags("Great question! It depends.", "flattery opener")
-        flags("Love this take. I'd add one thing.", "flattery opener")
-        flags("Couldn't agree more, honestly.", "flattery opener")
-        clear("Saturday works, great.", "flattery opener")
-        clear("I think it depends.", "flattery opener")
+        flags("Great question! It depends.", "starts with flattery")
+        flags("Love this take. I'd add one thing.", "starts with flattery")
+        flags("Couldn't agree more, honestly.", "starts with flattery")
+        clear("Saturday works, great.", "starts with flattery")
+        clear("I think it depends.", "starts with flattery")
     }
 
     @Test fun closingCallsToAction() {
-        flags("Saturday works. What do you think?", "closing call to action")
-        flags("Here is the plan. Let me know if you have questions.", "closing call to action")
-        flags("Shipped the fix. Thoughts?", "closing call to action")
-        clear("Let me know if you're coming. I'll bring the stove.", "closing call to action")
-        clear("See you at 9.", "closing call to action")
+        flags("Saturday works. What do you think?", "ends by asking for their thoughts")
+        flags("Here is the plan. Let me know if you have questions.", "ends by asking for their thoughts")
+        flags("Shipped the fix. Thoughts?", "ends by asking for their thoughts")
+        clear("Let me know if you're coming. I'll bring the stove.", "ends by asking for their thoughts")
+        clear("See you at 9.", "ends by asking for their thoughts")
     }
 
     @Test fun metaPreambles() {
-        flags("Here's a reply you could send: Saturday works.", "meta preamble")
-        flags("Sure! Here's a reply: Saturday works.", "meta preamble")
-        flags("Here is a short, friendly response:\nSaturday works.", "meta preamble")
-        clear("Here we go again.", "meta preamble")
-        clear("Saturday works.", "meta preamble")
-        clear("Sure, 9 works.", "meta preamble")
+        flags("Here's a reply you could send: Saturday works.", "starts with “Here’s a reply”")
+        flags("Sure! Here's a reply: Saturday works.", "starts with “Here’s a reply”")
+        flags("Here is a short, friendly response:\nSaturday works.", "starts with “Here’s a reply”")
+        clear("Here we go again.", "starts with “Here’s a reply”")
+        clear("Saturday works.", "starts with “Here’s a reply”")
+        clear("Sure, 9 works.", "starts with “Here’s a reply”")
     }
 
     @Test fun emojiAndHashtagStuffing() {
-        flags("Launch day 🚀🔥🎉", "emoji stuffing")
-        flags("New post #ai #buildinpublic", "hashtag stuffing")
-        clear("Nice 🙂", "emoji stuffing")
-        clear("See issue #42 in the repo", "hashtag stuffing")
+        flags("Launch day 🚀🔥🎉", "lots of emoji")
+        flags("New post #ai #buildinpublic", "lots of hashtags")
+        clear("Nice 🙂", "lots of emoji")
+        clear("See issue #42 in the repo", "lots of hashtags")
     }
 
     @Test fun plainReplyIsClean() {
         val text = "Saturday works.\nI'll bring the stove.\n\nSee you at 9"
         assertEquals(emptyList<String>(), reasons(text))
-        assertEquals("clean", Slop.words(Slop.score(0, 1, 9)))
+        assertEquals("Sounds natural", Slop.words(Slop.score(0, 1, 9)))
     }
 
     @Test fun hitSpansPointAtThePhrase() {
@@ -88,9 +88,9 @@ class SlopTest {
     }
 
     @Test fun scoreWords() {
-        assertEquals("clean", Slop.words(Slop.score(1, null, null)))
-        assertEquals("a bit generic", Slop.words(Slop.score(1, 4, 6)))
-        assertEquals("sloppy", Slop.words(Slop.score(3, 8, 2)))
+        assertEquals("Sounds natural", Slop.words(Slop.score(1, null, null)))
+        assertEquals("A bit stock", Slop.words(Slop.score(1, 4, 6)))
+        assertEquals("Sounds canned", Slop.words(Slop.score(3, 8, 2)))
         assertEquals(100, Slop.score(10, 10, 0))
     }
 

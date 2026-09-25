@@ -1,5 +1,12 @@
 <resources>
-    <style name="Ownvoice" parent="@android:style/Theme.Material.Light.NoActionBar">
-        <item name="android:windowLightStatusBar">true</item>
+    <!-- Plain Material 3 in the phone's own colours (dynamic colour from Android 12) and its own font. -->
+    <style name="Ownvoice" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar" />
+
+    <!-- The drafts and rewrite sheets: see-through over the app the user was in. -->
+    <style name="Ownvoice.Sheet">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Translucent</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
     </style>
 </resources>
