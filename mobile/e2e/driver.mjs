@@ -46,9 +46,9 @@ const visibleLine = (label, state = '') => {
   for (let attempt = 0; attempt < 8; attempt++) {
     const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
     // Tesseract misses white-on-blue buttons when it segments the whole screen.
-    for (const top of [0, Math.round(height * .25)]) {
-      const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x${Math.round(height * .68)}+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
-      const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '6'] : []), 'tsv'], { input, encoding: 'utf8' });
+    for (const top of [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)]) {
+      const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
+      const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
       const lines = new Map();
       for (const row of tsv.split('\n').slice(1)) {
         const columns = row.split('\t');
