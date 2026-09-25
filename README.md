@@ -1,6 +1,6 @@
 # Ownvoice
 
-The installed Android app described below remains the Kotlin build until its [Expo React Native successor](mobile/README.md) reaches parity. The successor now has an Android accessibility bubble and drafts panel, but is not yet a replacement for the flows below.
+The installed Android app described below remains the Kotlin build until its [Expo React Native successor](mobile/README.md) reaches parity. The Expo app now has an Android accessibility bubble and drafts panel, while its separate ChatGPT helpers are not yet connected to the screen. It is not yet a replacement for the flows below.
 
 Ownvoice is a local-first, open-source writing booster for Android. A small bubble sits over your apps. Tap it and Ownvoice reads the conversation on screen and drafts two or three short replies with the language model on your phone (Gemini Nano, through ML Kit GenAI). Tap Insert and the draft goes into the text field you were typing in. You read it over and you send it.
 
