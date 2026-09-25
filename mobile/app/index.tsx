@@ -48,7 +48,7 @@ export default function Home() {
     <Button title="Turn on accessibility" onPress={() => { void native().openAccessibilitySettings().catch(() => {}); }} />
     <Button disabled={!rules} title="Where the bubble shows" onPress={() => { void native().launcherApps().then(setApps).catch(() => {}); }} />
     <Button disabled={!rules} title={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change(current => ({ ...current, paused: !current.paused })); }} />
-    <Button title={`Recent activity: ${activity}`} onPress={() => { void native().takeTapFacts().then((facts: TapFact[]) => setActivity(activity + facts.length)).catch(() => {}); }} />
+    <Button title={`Recent activity: ${activity}`} onPress={() => { void native().takeTapFacts().then((facts: TapFact[]) => setActivity(count => count + facts.length)).catch(() => {}); }} />
     <Button title="Clear last screen" onPress={() => { void native().forget().catch(() => {}); }} />
   </View>;
 }

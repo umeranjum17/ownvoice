@@ -39,6 +39,7 @@ adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 await wait(4500);
 
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+const density = Number(adb('shell', 'wm', 'density').match(/(\d+)/)?.[1]) / 160;
 const tap = (x, y) => adb('shell', 'input', 'tap', String(x), String(y));
 const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
 const visibleLine = (label, state = '') => {
@@ -86,8 +87,8 @@ const expectBubble = (visible, label) => {
 const chooseApp = async (label, prior) => {
   tapText('Where the bubble shows');
   await wait(400);
-  visibleLine('In apps that are off');
-  tap(Math.round(width / 2), Math.round(height * .41)); // Low-contrast placeholder is not reliable OCR.
+  const [, noteY] = visibleLine('In apps that are off');
+  tap(Math.round(width / 2), Math.round(noteY + 36 * density));
   type(label.split(' ')[0]);
   await wait(500);
   adb('shell', 'input', 'keyevent', '4'); // Hide the keyboard before tapping the filtered result.
@@ -118,16 +119,14 @@ snap('rn-inserted');
 // The home controls verify that pause and per-app off rules hide the overlay.
 adb('shell', 'input', 'keyevent', '4'); // Dismiss the keyboard so all controls are reachable.
 await wait(400);
-tap(Math.round(width / 2), Math.round(height * .76)); // Home pause/resume control.
+tapText('Pause for now');
 await wait(700);
 expectBubble(false, 'paused');
-snap('paused-home');
-tap(Math.round(width / 2), Math.round(height * .76));
+tapText('Resume');
 await wait(700);
 expectBubble(true, 'resumed');
 await chooseApp('Ownvoice (new)', 'On');
 expectBubble(false, 'app turned off');
-snap('off-home');
 await chooseApp('Ownvoice (new)', 'Off');
 await wait(700);
 expectBubble(true, 'app turned back on');
@@ -143,7 +142,6 @@ const insertWebField = async (name, y) => {
   await wait(500);
   type(`${name} multiline draft`);
   await wait(4500);
-  snap(`${name}-before-bubble`);
   if (name === 'contenteditable') snap('chrome-bubble');
   bubble();
   await wait(1200);
@@ -151,7 +149,7 @@ const insertWebField = async (name, y) => {
   if (name === 'contenteditable') snap('chrome-panel');
   tapText('Insert');
   await wait(1800);
-  snap(name === 'contenteditable' ? 'chrome-inserted' : 'textarea-inserted');
+  if (name === 'contenteditable') snap('chrome-inserted');
 };
 await insertWebField('textarea', Math.round(height * .45));
 await insertWebField('contenteditable', Math.round(height * .8));

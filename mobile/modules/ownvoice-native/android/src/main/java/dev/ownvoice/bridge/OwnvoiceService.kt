@@ -20,7 +20,6 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.TextView
-import org.json.JSONArray
 
 class OwnvoiceService : AccessibilityService() {
   companion object {
@@ -225,15 +224,5 @@ class OwnvoiceService : AccessibilityService() {
       getDrawable(R.drawable.ic_ownvoice_pen)!!.mutate().apply { setTint(colour(if (night) android.R.color.system_accent1_800 else android.R.color.system_accent1_0, Color.WHITE)) },
     )).apply { setLayerGravity(1, Gravity.CENTER); setLayerSize(1, px(24), px(24)) }
     bubble.setPadding(0, 0, 0, 0); params.width = px(52); params.height = px(52); wm.updateViewLayout(bubble, params)
-  }
-  fun debugTree(): String {
-    val root = appRoot() ?: return "{}"
-    if (!allowed(root.packageName?.toString()) || !root.isVisibleToUser) return "{}"
-    fun walk(node: AccessibilityNodeInfo): org.json.JSONObject {
-      val out = org.json.JSONObject().put("text", node.text?.toString() ?: node.contentDescription?.toString() ?: "").put("editable", node.isEditable).put("focused", node.isFocused)
-      val children = JSONArray(); for (i in 0 until node.childCount) node.getChild(i)?.takeIf { it.isVisibleToUser }?.let { children.put(walk(it)) }; out.put("children", children)
-      return out
-    }
-    return walk(root).toString()
   }
 }

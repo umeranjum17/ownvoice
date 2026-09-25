@@ -56,7 +56,6 @@ class OwnvoiceNativeModule : Module() {
       OwnvoiceService.instance?.drainFacts()?.map { mapOf("at" to it.at, "app" to it.app, "label" to it.label, "screen" to it.screen, "typed" to it.typed, "replying" to it.replying) }.orEmpty()
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("forget") { OwnvoiceService.instance?.forget() }.runOnQueue(Queues.MAIN)
-    AsyncFunction("debugTree") { OwnvoiceService.instance?.debugTree() ?: "{}" }.runOnQueue(Queues.MAIN)
     AsyncFunction("copy") { text: String ->
       context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
       OwnvoiceService.instance?.say("Copied.")

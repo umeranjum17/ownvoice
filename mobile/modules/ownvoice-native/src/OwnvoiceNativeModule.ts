@@ -20,6 +20,5 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   copy(text: string): Promise<void>;
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;
   closePanel(): Promise<void>;
-  debugTree(): Promise<string>;
 }
 export default requireNativeModule<OwnvoiceNativeModule>('OwnvoiceNative');
