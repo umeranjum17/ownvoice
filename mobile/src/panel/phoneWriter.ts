@@ -6,18 +6,20 @@ const count = 3;
 const numbered = /(?:^|\s)(?:(?:draft|option|version)\s*)?([1-3])[.):]\s+/gi;
 const labelled = /(?:^|\s)(?:draft|option|version)\s*[1-3][.):]\s*/gi;
 
-function body(text: string) {
+function body(text: string, polishing: boolean) {
   const lines = text.trim().split(/\r?\n/);
   const first = lines[0]?.trim() ?? '';
-  if (/^(?:(?:okay|sure)[,!.]?\s*)?(?:here (?:are|is)|these are|below are)\b[^:]*\b(?:versions?|options?|drafts?)\b\s*:|^here(?:'s| is) (?:a|the|your) reply\s*:/i.test(first)) {
+  if (/^(?:(?:okay|sure)[,!.]?\s*)?here(?:'s| is) (?:a|the|your) reply\s*:/i.test(first) ||
+    !polishing && /^(?:(?:okay|sure)[,!.]?\s*)?(?:here (?:are|is)|these are|below are)\b[^:]*\b(?:versions?|options?|drafts?)\b\s*:/i.test(first)) {
     const colon = first.indexOf(':');
     lines[0] = colon < 0 ? '' : first.slice(colon + 1).trim();
   }
   return lines.join('\n').trim();
 }
 
-function parts(text: string) {
-  const value = body(text);
+function parts(text: string, polishing: boolean) {
+  const value = body(text, polishing);
+  if (polishing) return [value];
   const explicit = /\b(?:versions?|options?|drafts?)\b/i.test(text.split(/\r?\n/, 1)[0]) && value !== text.trim();
   const pattern = explicit ? numbered : labelled;
   const markers: { start: number; end: number }[] = [];
@@ -34,13 +36,13 @@ function parts(text: string) {
   return [value];
 }
 
-export function cleanDrafts(candidates: string[], limit = count) {
+export function cleanDrafts(candidates: string[], limit = count, polishing = false) {
   const drafts: string[] = [];
   for (const candidate of candidates) {
-    for (const part of parts(candidate)) {
-      const standalone = (candidates.length > 1 || limit === 1) && [...part.matchAll(numbered)].length === 1;
-      const draft = (standalone ? part.replace(/^\s*[1-3][.):]\s+/, '') : part).trim()
-        .replace(/^\s*(?:draft|option|version)\s*[1-3][.):]\s*/i, '')
+    for (const part of parts(candidate, polishing)) {
+      const standalone = !polishing && (candidates.length > 1 || limit === 1) && [...part.matchAll(numbered)].length === 1;
+      const unnumbered = standalone ? part.replace(/^\s*[1-3][.):]\s+/, '') : part;
+      const draft = (polishing ? unnumbered : unnumbered.replace(/^\s*(?:draft|option|version)\s*[1-3][.):]\s*/i, '')).trim()
         .replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
         .replace(/^'([\s\S]*)'$/, '$1').replace(/^‘([\s\S]*)’$/, '$1').trim();
       const key = draft.toLowerCase().replace(/\s+/g, ' ');
@@ -58,7 +60,7 @@ function prompt({ conversation, typed, guide }: DraftRequest) {
     : `You help someone reply in a chat.\nWrite exactly one short, natural reply to the latest message, in the conversation's language and tone. Use only the facts shown; don't invent details or give alternatives.${rules} Output only the reply text.\n\nConversation:\n${conversation.slice(-3000)}`;
 }
 
-async function fallback(promptText: string, drafts: string[]) {
+async function fallback(promptText: string, drafts: string[], polishing: boolean) {
   for (let version = drafts.length; version < count; version++) {
     let text: string;
     try {
@@ -67,7 +69,7 @@ async function fallback(promptText: string, drafts: string[]) {
       if (!drafts.length) throw error;
       break;
     }
-    const [draft] = cleanDrafts([text], 1);
+    const [draft] = cleanDrafts([text], 1, polishing);
     if (draft && !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === draft.toLowerCase().replace(/\s+/g, ' '))) drafts.push(draft);
   }
   return drafts;
@@ -82,8 +84,9 @@ export const phoneWriter = {
       }
       onState('writing');
       const promptText = prompt(request);
-      const drafts = cleanDrafts(await Native.drafts(promptText, { candidates: count, maxTokens: 120 }));
-      const result = drafts.length === count ? drafts : await fallback(promptText, drafts);
+      const polishing = !!request.typed.trim();
+      const drafts = cleanDrafts(await Native.drafts(promptText, { candidates: count, maxTokens: 120 }), count, polishing);
+      const result = drafts.length === count ? drafts : await fallback(promptText, drafts, polishing);
       if (!result.length) throw new Error('-107');
       return result;
     } catch (error) {

@@ -49,6 +49,24 @@ test('keeps a numbered or bulleted message intact unless explicitly labelled as 
   expect(cleanDrafts(["Here's a reply: ‘Sounds good!’", "Here's the reply:\nSee you there."])).toEqual(['Sounds good!', 'See you there.']);
   expect(cleanDrafts(["Here is the plan:\nI'll bring the tent."])).toEqual(["Here is the plan:\nI'll bring the tent."]);
   expect(cleanDrafts(['Here are the snacks:\nApples and pears.'])).toEqual(['Here are the snacks:\nApples and pears.']);
+  expect(cleanDrafts(["Sure, here's a reply: Sounds good."])).toEqual(['Sounds good.']);
+});
+
+test('polish keeps headings and lists intact', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  const message = 'Here are two options:\n- Bring the tent\n- Bring the stove';
+  native.drafts.mockResolvedValue([message, "Here is the plan:\n1. I'll bring the tent.\n2. You bring the stove.", "Sure, here's a reply: I'll bring the tent."]);
+  await expect(phoneWriter.write({ conversation: '', written: '', typed: message })).resolves.toEqual([
+    message, "Here is the plan:\n1. I'll bring the tent.\n2. You bring the stove.", "I'll bring the tent.",
+  ]);
+});
+
+test('polish fallback also keeps a numbered message intact', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue([]);
+  const message = 'Here are two options:\n1. Bring the tent\n2. Bring the stove';
+  native.ask.mockResolvedValueOnce(message).mockRejectedValueOnce(new Error('9'));
+  await expect(phoneWriter.write({ conversation: '', written: '', typed: message })).resolves.toEqual([message]);
 });
 
 test('keeps clean native drafts while filling missing slots with streamed replies', async () => {
