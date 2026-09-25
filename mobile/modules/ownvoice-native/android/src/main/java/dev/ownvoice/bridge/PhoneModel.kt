@@ -76,8 +76,7 @@ internal object PhoneModel {
     repeat(2) {
       if (result.size < 2) model.generateContent(request).candidates
         .map { it.text.trim().removeSurrounding("\"") }
-        .filter { it.isNotEmpty() && it !in result }
-        .forEach(result::add)
+        .forEach { if (it.isNotEmpty() && it !in result) result.add(it) }
     }
     return result.take(candidates).ifEmpty { throw IllegalStateException("Empty drafts") }
   }

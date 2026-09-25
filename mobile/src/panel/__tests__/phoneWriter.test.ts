@@ -10,13 +10,23 @@ const native = Native as jest.Mocked<typeof Native>;
 test('gets the model ready and returns drafts for the message in the field', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
   native.downloadModel.mockResolvedValue();
-  native.drafts.mockResolvedValue(['First', 'Second']);
-  const ready = jest.fn();
-  native.drafts.mockImplementation(async () => { expect(ready).toHaveBeenCalledTimes(1); return ['First', 'Second']; });
-  await expect(phoneWriter.write({ conversation: '', written: '', typed: 'hello', guide: '' }, ready)).resolves.toEqual(['First', 'Second']);
+  const states: string[] = [];
+  native.downloadModel.mockImplementation(async () => { expect(states).toEqual(['downloading']); });
+  native.drafts.mockImplementation(async () => { expect(states).toEqual(['downloading', 'writing']); return ['First', 'Second']; });
+  await expect(phoneWriter.write({ conversation: '', written: '', typed: 'hello', guide: '' }, state => states.push(state))).resolves.toEqual(['First', 'Second']);
   expect(native.downloadModel).toHaveBeenCalled();
   expect(native.drafts.mock.calls[0][0]).toContain('hello');
   expect(native.drafts.mock.calls[0][0]).toContain('one short natural version');
+});
+
+test('whitespace in the field selects a reply to the conversation', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue(['See you there.']);
+  const states: string[] = [];
+  await expect(phoneWriter.write({ conversation: 'See you at noon?', written: '', typed: '   ' }, state => states.push(state))).resolves.toEqual(['See you there.']);
+  expect(states).toEqual(['writing']);
+  expect(native.drafts.mock.calls.at(-1)?.[0]).toContain('See you at noon?');
+  expect(native.drafts.mock.calls.at(-1)?.[0]).not.toContain('Improve this message');
 });
 
 test('turns native error codes into the app words', async () => {
