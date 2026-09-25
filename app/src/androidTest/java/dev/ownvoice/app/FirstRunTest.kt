@@ -115,7 +115,13 @@ class FirstRunTest {
         assertTrue(Privacy.allowed(ctx, ctx.packageName))
         assertTrue(Privacy.setUp(ctx))
         waitUntil("home") { resumed() is MainActivity }
-        resumed()?.let { home -> instr.runOnMainSync { home.finish() } }
+        // Home's first view already shows the choices just saved: a fresh resume reads the same lines.
+        val home = resumed()!!
+        fun appsLine() = texts(home).let { it[it.indexOf("Where the bubble shows") + 1] }
+        val first = appsLine()
+        instr.runOnMainSync { instr.callActivityOnPause(home); instr.callActivityOnResume(home) }
+        assertEquals(appsLine(), first)
+        instr.runOnMainSync { home.finish() }
     }
 
     private fun resumed(): Activity? {
