@@ -21,7 +21,7 @@ What changes on the phone:
 
 - **Who writes your drafts** on the main screen: your computer (this phone fills in when it's off) or this phone only.
 - **Apps that may go to your computer**: X, LinkedIn and Reddit start on. Slack, Gmail, WhatsApp and every other app start off, so their screens stay on the phone. In an app that's off, the drafts panel offers **Write this one on my computer**.
-- Every draft says **Written on your computer** or **Written on this phone**. When the phone writes instead, the panel says why in plain words ("Your computer didn't answer, so this phone wrote these.") and offers **Try my computer again**.
+- Every draft says **Written on your computer** or **Written on this phone**. When the phone writes instead, the panel says why in plain words ("Your computer didn't answer. This phone wrote these instead.") and offers **Try my computer again**.
 - Drafts are always scored on the phone. A draft your computer wrote is scored by a different model from the one that wrote it, and the score details say so.
 - **What was read** notes when a read was sent to your computer.
 - **Forget this computer** deletes the pairing and this phone's key.

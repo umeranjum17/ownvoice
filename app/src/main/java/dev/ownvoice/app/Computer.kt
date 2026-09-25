@@ -26,7 +26,7 @@ class Computer(
     var wrote = Writer.PHONE
         private set
 
-    /** Why the phone wrote the last drafts instead, in plain words; null when the computer wrote them. */
+    /** Why the computer didn't write the last drafts, and whether the phone did, in plain words; null when the computer wrote them. */
     var why: String? = null
         private set
 
@@ -44,7 +44,8 @@ class Computer(
         call.cancel()
         wrote = Writer.PHONE
         why = reason(if (result == null) "unreachable" else (result.exceptionOrNull() as? Link.Failure)?.code ?: "failed")
-        return fallback.drafts(conversation, guide, status)
+        // Only say the phone wrote them once it has; a phone that can't write throws past this.
+        return fallback.drafts(conversation, guide, status).also { why = "$why This phone wrote these instead." }
     }
 
     override suspend fun ask(prompt: String, maxTokens: Int) = fallback.ask(prompt, maxTokens)
@@ -52,13 +53,13 @@ class Computer(
     override suspend fun ensureReady(status: (String) -> Unit) = fallback.ensureReady(status)
 
     companion object {
-        /** Why the phone wrote instead of the computer, for the drafts panel. */
+        /** Why the computer didn't write, for the drafts panel. */
         fun reason(code: String) = when (code) {
-            "unreachable", "timeout" -> "Your computer didn't answer, so this phone wrote these."
-            "limit" -> "Your computer has reached its limit for now, so this phone wrote these."
-            "busy" -> "Your computer was still busy with the last one, so this phone wrote these."
-            "not_paired" -> "Your computer doesn't know this phone any more, so this phone wrote these. Pair again on the main screen."
-            else -> "Your computer couldn't write these, so this phone did."
+            "unreachable", "timeout" -> "Your computer didn't answer."
+            "limit" -> "Your computer has reached its limit for now."
+            "busy" -> "Your computer was still busy with the last one."
+            "not_paired" -> "Your computer doesn't know this phone any more. Pair again on the main screen."
+            else -> "Your computer couldn't write this one."
         }
 
         /** Whether [app]'s screen may go to the computer on this tap: it's allowed for [app], or the person asked for this one. */

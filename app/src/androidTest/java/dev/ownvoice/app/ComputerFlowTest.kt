@@ -114,7 +114,7 @@ class ComputerFlowTest {
         instr.runOnMainSync { Privacy.setMayGoToComputer(ctx, ctx.packageName, true) }
         val sheet = openPanel()
         waitUntil("the offer", 20_000) { texts(sheet).contains("Try my computer again") }
-        assertTrue(texts(sheet).any { it.startsWith("Your computer didn't answer") && it.endsWith(CantWrite.SAYS) })
+        assertTrue(texts(sheet).toString(), texts(sheet).contains("Your computer didn't answer. " + CantWrite.SAYS))
         instr.runOnMainSync { sheet.finish() }
     }
 
@@ -134,7 +134,7 @@ class ComputerFlowTest {
         assertEquals(Writer.PHONE, sheet.writer)
         assertEquals(listOf(InsertFlowTest.DRAFT), sheet.drafts)
         val all = texts(sheet)
-        assertTrue(all.toString(), all.any { it.startsWith("Your computer didn't answer, so this phone wrote these.") })
+        assertTrue(all.toString(), all.any { it.startsWith("Your computer didn't answer. This phone wrote these instead.") })
         assertTrue(all.contains(Writer.PHONE.caption) && all.contains("Try my computer again"))
         assertTrue(Privacy.reads(ctx).first().summary.endsWith("Sent to your computer, which didn't write them; this phone did."))
         instr.runOnMainSync { sheet.finish() }

@@ -188,10 +188,10 @@ class LinkTest {
 
     @Test fun thePhoneWritesWhenTheComputerCant() {
         for ((failure, why) in listOf(
-            Link.Failure("unreachable") to "Your computer didn't answer, so this phone wrote these.",
-            Link.Failure("limit") to "Your computer has reached its limit for now, so this phone wrote these.",
-            Link.Failure("no_texts") to "Your computer couldn't write these, so this phone did.",
-            IllegalStateException("keystore") to "Your computer couldn't write these, so this phone did.",
+            Link.Failure("unreachable") to "Your computer didn't answer. This phone wrote these instead.",
+            Link.Failure("limit") to "Your computer has reached its limit for now. This phone wrote these instead.",
+            Link.Failure("no_texts") to "Your computer couldn't write this one. This phone wrote these instead.",
+            IllegalStateException("keystore") to "Your computer couldn't write this one. This phone wrote these instead.",
         )) {
             val engine = Computer(Phone) { _, _ -> throw failure }
             assertEquals(listOf("from the phone"), draft(engine))
@@ -205,7 +205,18 @@ class LinkTest {
         val started = System.currentTimeMillis()
         assertEquals(listOf("from the phone"), draft(engine))
         assertTrue(System.currentTimeMillis() - started < 2_000)
-        assertEquals("Your computer didn't answer, so this phone wrote these.", engine.why)
+        assertEquals("Your computer didn't answer. This phone wrote these instead.", engine.why)
+    }
+
+    /** When the phone can't write either, the reason never claims it did. */
+    @Test fun aPhoneThatCantWriteIsNotSaidToHaveWritten() {
+        val cant = object : DraftEngine {
+            override suspend fun drafts(conversation: String, guide: String, status: (String) -> Unit): List<String> = throw PlainError("can't")
+            override suspend fun ask(prompt: String, maxTokens: Int) = ""
+        }
+        val engine = Computer(cant) { _, _ -> throw Link.Failure("not_paired") }
+        assertThrows(PlainError::class.java) { draft(engine) }
+        assertEquals("Your computer doesn't know this phone any more. Pair again on the main screen.", engine.why)
     }
 
     @Test fun wordingNeverNamesAModelOrANumber() {
