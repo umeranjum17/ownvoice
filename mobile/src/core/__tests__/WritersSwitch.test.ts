@@ -1,5 +1,5 @@
 import { withPhoneFallback, Writer } from '../writers';
-import { CACHE_MS, chatgptEnabled, Flag, SwitchStore, verify } from '../switch';
+import { CACHE_MS, chatgptEnabled, Flag, SwitchState, SwitchStore, verify } from '../switch';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
@@ -44,4 +44,18 @@ test('remote switch vectors: valid, signature, app, rollback, version; failures 
   expect(await chatgptEnabled(store, async () => ({ ok: true, json: async () => signed({ ...base, seq: 4, chatgpt: 'on' }) } as Response), 100 + 2 * CACHE_MS, publicKey)).toBe(true);
   expect(state).toEqual({ seq: 4, chatgpt: 'on', fetchedAt: 100 + 2 * CACHE_MS });
   expect(await chatgptEnabled({ get: async () => null, set: async () => {} }, async () => { throw Error(); }, 100, publicKey)).toBe(true);
+});
+
+test.each([4, 3])('a delayed sequence %i cannot overwrite a newer off flag', async oldSeq => {
+  const publicKey = b64(await ed.getPublicKeyAsync(privateKey));
+  let state: SwitchState = { seq: 3, chatgpt: 'on', fetchedAt: 0 };
+  const store: SwitchStore = { get: async () => state, set: async value => { state = value; } };
+  let resolveSlow!: (response: Response) => void;
+  const slowResponse = new Promise<Response>(resolve => { resolveSlow = resolve; });
+  const slow = chatgptEnabled(store, async () => slowResponse, CACHE_MS + 1, publicKey);
+  const fast = chatgptEnabled(store, async () => ({ ok: true, json: async () => signed({ v: 1, app: 'ownvoice', seq: 5, chatgpt: 'off' }) } as Response), CACHE_MS + 2, publicKey);
+  expect(await fast).toBe(false);
+  resolveSlow({ ok: true, json: async () => signed({ v: 1, app: 'ownvoice', seq: oldSeq, chatgpt: 'on' }) } as Response);
+  expect(await slow).toBe(false);
+  expect(state).toEqual({ seq: 5, chatgpt: 'off', fetchedAt: CACHE_MS + 2 });
 });
