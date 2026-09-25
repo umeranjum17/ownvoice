@@ -1,47 +1,107 @@
 package dev.ownvoice.app
 
 import android.app.Activity
+import android.content.ComponentName
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import android.text.InputType
+import android.text.Layout
 import android.view.Gravity
 import android.view.View
 import android.widget.EditText
 import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
+import com.google.android.material.materialswitch.MaterialSwitch
+import dev.ownvoice.app.Onboarding.Step
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
+/** Which setup step comes next, kept apart from the screens so it can be tested on its own. */
+object Onboarding {
+    enum class Step { WELCOME, PERMISSION, TRY, APPS, DONE }
+
+    /** The apps "Where should I help?" offers, as (package, name), when they are on the phone. Swapped by the on-device test. */
+    var OFFERED = listOf(
+        "com.twitter.android" to "X",
+        "com.linkedin.android" to "LinkedIn",
+        "com.reddit.frontpage" to "Reddit",
+        "com.Slack" to "Slack",
+        "com.whatsapp" to "WhatsApp",
+        "com.google.android.gm" to "Gmail",
+    )
+
+    /** The offered apps that are on this phone, in the list's order. */
+    fun offered(installed: (String) -> Boolean) = OFFERED.filter { installed(it.first) }
+
+    /** Where setup opens: the welcome the first time, or straight to the permission from the home switch later. */
+    fun first(setUp: Boolean) = if (setUp) Step.PERMISSION else Step.WELCOME
+
+    /**
+     * The step after [step]. [on] is whether Ownvoice is switched on (at the permission step, off means
+     * "Not now"), [setUp] whether setup was finished before, and [apps] whether any offered app is on the phone.
+     */
+    fun next(step: Step, on: Boolean, setUp: Boolean, apps: Boolean): Step = when (step) {
+        Step.WELCOME -> if (on) Step.TRY else Step.PERMISSION
+        Step.PERMISSION -> when {
+            setUp -> Step.DONE
+            on -> Step.TRY
+            apps -> Step.APPS
+            else -> Step.DONE
+        }
+        Step.TRY -> if (apps) Step.APPS else Step.DONE
+        Step.APPS, Step.DONE -> Step.DONE
+    }
+}
+
 /**
- * Setting up, in three steps: welcome (and the one-time download), the permission explained kindly, and
- * "Try it" on a practice chat. The permission step is also the disclosure and consent Google Play asks
- * for before an accessibility service is switched on: nothing is turned on until the user taps
- * "Turn it on in Settings" and switches Ownvoice on there themselves.
+ * The first run: a one-line welcome (which starts the one-time download), the permission explained kindly,
+ * "Try it" on a practice chat ending in a first inserted draft, and "Where should I help?". The permission
+ * step is also the disclosure and consent Google Play asks for before an accessibility service is switched
+ * on: nothing is turned on until the user switches Ownvoice on in the phone's settings themselves.
  */
 class SetupActivity : Activity() {
     private val scope = MainScope()
-    private var step = 1
+    private var download: Job? = null
+    private var ready = false
+    private var setUpBefore = false
+    private var step = Step.WELCOME
+    private var inserted = false
+    private lateinit var offered: List<Pair<String, String>>
+    private val chosen = mutableMapOf<String, Boolean>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // From the home switch after setup, go straight to the permission.
-        step = savedInstanceState?.getInt("step") ?: if (Privacy.setUp(this)) 2 else 1
+        setUpBefore = Privacy.setUp(this)
+        offered = Onboarding.offered { packageManager.getLaunchIntentForPackage(it) != null }
+        step = savedInstanceState?.getString("step")?.let(Step::valueOf) ?: Onboarding.first(setUpBefore)
+        inserted = savedInstanceState?.getBoolean("inserted") ?: false
         show()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        outState.putInt("step", step)
+        outState.putString("step", step.name)
+        outState.putBoolean("inserted", inserted)
+    }
+
+    // The service brings this screen back to the front once it's switched on.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
     }
 
     override fun onResume() {
         super.onResume()
-        // Once Ownvoice is on, setup is done even if "Try it" is skipped with Back.
-        if (step == 2 && OwnvoiceService.instance != null) Privacy.setSetUp(this).also { go(3) }
-        OwnvoiceService.practice = step == 3
+        OwnvoiceService.comeBack = false
+        getReady()
+        if (step == Step.PERMISSION && OwnvoiceService.instance != null) next()
+        OwnvoiceService.practice = step == Step.TRY
     }
 
     override fun onPause() {
@@ -50,19 +110,30 @@ class SetupActivity : Activity() {
     }
 
     override fun onDestroy() {
+        OwnvoiceService.inserted = null
+        // Leaving with Back counts as done too, so setup doesn't open again by itself; the home switch reopens it.
+        if (isFinishing) Privacy.setSetUp(this)
         scope.cancel()
         super.onDestroy()
     }
 
-    private fun go(to: Int) {
-        step = to
-        OwnvoiceService.practice = step == 3
-        show()
+    /** Runs the one-time download quietly while setup shows (Ownvoice must be in front for it); the home card shows any problem. */
+    private fun getReady() {
+        if (ready || download?.isActive == true) return
+        download = scope.launch {
+            try {
+                OwnvoiceService.engine.ensureReady({})
+                ready = true
+            } catch (_: PlainError) {
+            }
+        }
     }
 
-    private fun done() {
-        Privacy.setSetUp(this)
-        finish()
+    private fun next() {
+        step = Onboarding.next(step, OwnvoiceService.instance != null, setUpBefore, offered.isNotEmpty())
+        if (step == Step.DONE) return finish()
+        OwnvoiceService.practice = step == Step.TRY
+        show()
     }
 
     private fun show() {
@@ -70,16 +141,11 @@ class SetupActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(px(18), px(16), px(18), px(28))
         }
-        column.addView(LinearLayout(this).apply {
-            (1..3).forEach { i ->
-                addView(View(context).apply { background = rounded(if (i <= step) primary else containerHighest, 2f) },
-                    LinearLayout.LayoutParams(0, px(4), 1f).apply { marginEnd = if (i < 3) px(6) else 0 })
-            }
-        })
         when (step) {
-            1 -> welcome(column)
-            2 -> permission(column)
-            else -> practice(column)
+            Step.WELCOME -> welcome(column)
+            Step.PERMISSION -> permission(column)
+            Step.TRY -> practice(column)
+            else -> apps(column)
         }
         setContentView(FrameLayout(this).apply {
             fitsSystemWindows = true
@@ -87,64 +153,91 @@ class SetupActivity : Activity() {
         })
     }
 
-    private fun title(column: LinearLayout, title: String, subtitle: String) {
-        column.add(text(title, Type.HEADLINE).apply { gravity = Gravity.CENTER }, top = 20f)
-        column.add(text(subtitle, Type.BODY_LARGE, muted).apply { gravity = Gravity.CENTER; setPadding(px(8), 0, px(8), 0) }, top = 8f, bottom = 20f)
-    }
+    /** A centred title and, if given, a plain subtitle under it, which is returned. */
+    private fun title(column: LinearLayout, title: String, subtitle: String?) =
+        column.add(text(title, Type.HEADLINE).apply { gravity = Gravity.CENTER; breakStrategy = Layout.BREAK_STRATEGY_BALANCED }, top = 20f, bottom = if (subtitle == null) 20f else 0f).let {
+            subtitle?.let { column.add(text(it, Type.BODY_LARGE, muted).apply { gravity = Gravity.CENTER; breakStrategy = Layout.BREAK_STRATEGY_BALANCED; setPadding(px(8), 0, px(8), 0) }, top = 8f, bottom = 20f) }
+        }
 
     private fun spacer(column: LinearLayout) = column.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
 
     private fun welcome(column: LinearLayout) {
-        // The bubble itself, as it will look in other apps.
-        column.addView(badge(R.drawable.ic_pen, primary, onPrimary).apply { (layoutParams as LinearLayout.LayoutParams).topMargin = px(40) })
-        title(column, "Meet Ownvoice", "Your writing helper. Tap its bubble in your chats for reply ideas, or to polish what you wrote.")
-        val getReady = item(icon(R.drawable.ic_check, primary), "Getting Ownvoice ready", "One-time download, about a minute")
-        column.add(group().apply {
-            row(item(icon(R.drawable.ic_chat, primary), "Reply ideas in your chats", "Pick one, change it if you like, send it"))
-            row(item(icon(R.drawable.ic_pen, primary), "Polish what you wrote", "Clearer and shorter, still in your words"))
-            row(getReady)
-        })
-        getReady(getReady)
         spacer(column)
-        column.add(filled("Get started") { go(2) }, top = 24f)
-    }
-
-    /** Runs the one-time download while the welcome shows (Ownvoice is in front, which the phone requires). */
-    private fun getReady(row: View) {
-        scope.launch {
-            try {
-                OwnvoiceService.engine.ensureReady({ row.subtitle(it) })
-                row.title("Ownvoice is ready")
-                row.subtitle("All set")
-            } catch (e: PlainError) {
-                row.subtitle(e.message.orEmpty() + " Tap to try again.")
-                row.setOnClickListener { row.setOnClickListener(null); row.subtitle("One-time download, about a minute"); getReady(row) }
-            }
-        }
+        // The bubble itself, as it will look in other apps.
+        column.addView(badge(R.drawable.ic_pen, primary, onPrimary))
+        title(column, "Write replies that sound like you.", null)
+        spacer(column)
+        column.add(filled("Continue") { next() }, top = 24f)
     }
 
     private fun permission(column: LinearLayout) {
-        column.addView(badge(R.drawable.ic_hand, primaryContainer, onPrimaryContainer).apply { (layoutParams as LinearLayout.LayoutParams).topMargin = px(24) })
         title(column, "Let Ownvoice see your chats, only when you tap",
             "Android calls this “accessibility”. It’s the only way a helper can read a chat and fill in a message box for you.")
         column.add(group().apply {
             row(item(icon(R.drawable.ic_hand, primary), "Reads only when you tap the bubble", "Never in the background"))
             row(item(icon(R.drawable.ic_lock, primary), "Stays on this phone", "Nothing is sent anywhere"))
-            row(item(icon(R.drawable.ic_chat, primary), "Never sends for you", "You always press Send yourself"))
+            row(item(icon(R.drawable.ic_chat, primary), "You always press Send", "Ownvoice never sends for you"))
         })
-        column.add(text("In Settings, tap Ownvoice and switch it on. You can switch it off any time.", Type.BODY).apply {
+        column.add(text("On the next screen, tap Ownvoice, then switch on “Use Ownvoice”:", Type.BODY).apply { gravity = Gravity.CENTER; breakStrategy = Layout.BREAK_STRATEGY_BALANCED }, top = 18f, bottom = 8f)
+        column.add(switchHint())
+        column.add(text("Android then asks to allow “full control”. It asks that of every helper like this one. Tap Allow.", Type.BODY).apply {
             gravity = Gravity.CENTER
-        }, top = 14f)
+            breakStrategy = Layout.BREAK_STRATEGY_BALANCED
+        }, top = 10f)
         spacer(column)
-        column.add(filled("Turn it on in Settings") {
-            startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-        }, top = 20f)
-        column.add(ghost("Not now") { done() }, top = 6f, width = -2).apply { (layoutParams as LinearLayout.LayoutParams).gravity = Gravity.CENTER_HORIZONTAL }
+        column.add(filled("Turn on") { openSwitch() }, top = 20f)
+        // Apps installed from a download rather than a store have the switch greyed out until the user allows it in App info.
+        val greyed = text("In App info, tap ⋮ at the top, then “Allow restricted settings”. Then come back and tap Turn on.", Type.BODY).apply {
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+        }
+        column.add(actions(
+            ghost("Not now") { next() },
+            ghost("Switch greyed out?") {
+                greyed.visibility = View.VISIBLE
+                startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+            },
+        ).apply { gravity = Gravity.CENTER }, top = 6f)
+        column.add(greyed, top = 4f)
+    }
+
+    /** A small copy of the phone's own row and switch, the switch flipping on and off, so the user knows what to look for. */
+    private fun switchHint() = group().apply {
+        importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        val switch = MaterialSwitch(context).apply { isClickable = false; isFocusable = false }
+        val app = item(null, "Ownvoice", "Off", chevron())
+        row(app)
+        row(item(null, "Use Ownvoice", end = switch))
+        switch.postDelayed(object : Runnable {
+            override fun run() {
+                if (!switch.isAttachedToWindow) return
+                switch.isChecked = !switch.isChecked
+                app.subtitle(if (switch.isChecked) "On" else "Off")
+                switch.postDelayed(this, 1_400)
+            }
+        }, 1_400)
+    }
+
+    /** Opens the phone's accessibility settings, as close to Ownvoice's own switch as the phone allows. */
+    private fun openSwitch() {
+        val me = ComponentName(this, OwnvoiceService::class.java).flattenToString()
+        OwnvoiceService.comeBack = true
+        // Android lets only its own apps open Ownvoice's page, so open the list, with Ownvoice's row
+        // highlighted on phones whose settings support it.
+        startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+            .putExtra(":settings:fragment_args_key", me)
+            .putExtra(":settings:show_fragment_args", Bundle().apply { putString(":settings:fragment_args_key", me) }))
     }
 
     private fun practice(column: LinearLayout) {
         val on = OwnvoiceService.instance != null
-        title(column, "Try it", if (on) "Tap the message box, then tap the round bubble on the right." else "Turn Ownvoice on first, then come back here to try it.")
+        val done = "That’s it. In your apps, read it over and press Send yourself."
+        val line = title(column, "Try it", when {
+            inserted -> done
+            on -> "Tap the round bubble on the right, then Insert."
+            else -> "Turn Ownvoice on first, then come back here to try it."
+        })!!
+        lateinit var field: EditText
         column.add(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(px(16), px(16), px(16), px(16))
@@ -153,7 +246,7 @@ class SetupActivity : Activity() {
             listOf("Are we still on for Saturday?", "I can bring the tent if you bring the stove.").forEach {
                 add(text(it).apply { background = rounded(containerHighest, 18f); setPadding(px(14), px(10), px(14), px(10)) }, bottom = 8f, width = -2)
             }
-            add(EditText(context).apply {
+            field = add(EditText(context).apply {
                 hint = "Message"
                 setTextAppearance(Type.BODY_LARGE.style)
                 setTextColor(onSurface)
@@ -163,8 +256,47 @@ class SetupActivity : Activity() {
                 setPadding(px(16), px(12), px(16), px(12))
             }, top = 8f).apply { (layoutParams as LinearLayout.LayoutParams).marginEnd = px(34) }
         })
+        // Focused without the keyboard, so one tap on the bubble is enough.
+        field.requestFocus()
         column.add(text("It’s only practice: nothing here goes to anyone.", Type.BODY).apply { gravity = Gravity.CENTER }, top = 12f)
         spacer(column)
-        column.add(filled("Done") { done() }, top = 20f)
+        val end = column.add(FrameLayout(this), top = 20f)
+        fun finished() {
+            line.text = done
+            end.removeAllViews()
+            end.addView(filled("Continue") { next() }, FrameLayout.LayoutParams(-1, -2))
+        }
+        if (inserted) finished()
+        else end.addView(ghost("Skip") { next() }, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL))
+        // The first draft inserted into the practice chat ends the step.
+        OwnvoiceService.inserted = {
+            if (step == Step.TRY && !inserted) {
+                inserted = true
+                finished()
+            }
+        }
+    }
+
+    private fun apps(column: LinearLayout) {
+        title(column, "Where should I help?", "The bubble shows only in these apps. You can change this any time.")
+        column.add(group().apply {
+            offered.forEach { (app, name) ->
+                val icon = ImageView(context).apply {
+                    setImageDrawable(runCatching { packageManager.getApplicationIcon(app) }.getOrNull())
+                    layoutParams = LinearLayout.LayoutParams(px(40), px(40))
+                }
+                val switch = MaterialSwitch(context).apply {
+                    contentDescription = name
+                    isChecked = chosen[app] ?: true
+                    setOnCheckedChangeListener { _, on -> chosen[app] = on }
+                }
+                row(item(icon, name, end = switch) { switch.toggle() })
+            }
+        })
+        spacer(column)
+        column.add(filled("Done") {
+            offered.forEach { (app, _) -> Privacy.setAllowed(this, app, chosen[app] ?: true) }
+            next()
+        }, top = 20f)
     }
 }
