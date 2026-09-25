@@ -13,11 +13,16 @@ export default function Panel() {
     const progress = Native.addListener('onModelProgress', ({ fraction }) => { if (!ready) setNote(`Getting Ownvoice ready… ${Math.round(fraction * 100)}%`); });
     void Native.capture().then(async value => {
       setCapture(value);
-      if (value) setDrafts(await phoneWriter.write({ conversation: value.conversation, written: value.written, typed: value.typed }, state => {
+      if (!value) {
+        ready = true;
+        setNote('No screen to read. Close and try again.');
+        return;
+      }
+      setDrafts(await phoneWriter.write({ conversation: value.conversation, written: value.written, typed: value.typed }, state => {
         ready = state === 'writing';
         setNote(ready ? 'Writing…' : 'Getting Ownvoice ready…');
       }));
-    }).catch(error => setNote(error instanceof Error ? error.message : 'Try again in a moment.'));
+    }).catch(error => { ready = true; setNote(error instanceof Error ? error.message : 'Try again in a moment.'); });
     return () => progress.remove();
   }, []);
   const close = () => { void Native.closePanel().catch(() => {}); };
@@ -27,7 +32,7 @@ export default function Panel() {
       <View style={styles.handle} />
       <Text style={styles.title}>{capture?.typed.trim() ? 'Polish your message' : 'Suggested replies'}</Text>
       <Text style={styles.note}>{drafts.length ? 'Pick one to put in your message box. You send it yourself.' : note}</Text>
-      {!capture?.hasField && <Text style={styles.note}>Tap into the message box first to use Insert, or copy one.</Text>}
+      {capture && !capture.hasField && <Text style={styles.note}>Tap into the message box first to use Insert, or copy one.</Text>}
       <ScrollView>{drafts.map(draft => <View key={draft} style={styles.card}>
         <Text style={styles.draft}>{draft}</Text>
         <View style={styles.actions}>
