@@ -1,0 +1,19 @@
+#!/bin/sh
+# A stand-in for the claude CLI in tests: prints canned stream-json chosen by FAKE_CLAUDE.
+# FAKE_CLAUDE_ARGS, when set, gets the arguments and the text on stdin.
+if [ -n "$FAKE_CLAUDE_ARGS" ]; then
+  { printf '%s\n' "$@"; echo "--- stdin"; cat; } > "$FAKE_CLAUDE_ARGS"
+else
+  cat > /dev/null
+fi
+init='{"type":"system","subtype":"init","model":"claude-sonnet-5","tools":[],"apiKeySource":"none"}'
+result() { echo "$init"; printf '{"type":"result","subtype":"success","is_error":%s,"result":%s}\n' "$1" "$2"; }
+case "$FAKE_CLAUDE" in
+  fenced) result false '"```json\n{\"drafts\":[\"Fenced one\",\"Fenced two\",\"Fenced three\"]}\n```"' ;;
+  prose)  result false '"I can'"'"'t help with that."' ;;
+  invent) result false '"{\"drafts\":[\"We built something similar and hit the same wall.\",\"Which conflicts bit you first, edits or deletes?\",\"Our team went with CRDTs early.\"]}"' ;;
+  limit)  result true '"You'"'"'ve hit your limit · resets 3pm"' ;;
+  fail)   echo "$init"; exit 1 ;;
+  slow)   sleep 30 ;;
+  *)      result false '"{\"drafts\":[\"First draft\\nwith a second line\",\"Second draft\",\"Third draft\"]}"' ;;
+esac
