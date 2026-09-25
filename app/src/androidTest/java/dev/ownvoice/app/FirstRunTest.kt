@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.provider.Settings
+import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
@@ -36,6 +37,7 @@ class FirstRunTest {
     private val prefs = ctx.getSharedPreferences("privacy", Context.MODE_PRIVATE)
     // The phone owner's own switches, read log and setup state, put back afterwards.
     private val before = prefs.all.toMap()
+    private val wasOn = Settings.Secure.getString(ctx.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES).orEmpty().contains("dev.ownvoice.app/")
     private var taps = 0
     /** Every text setup showed or held hidden, checked for technical words at the end. */
     private val seen = mutableSetOf<String>()
@@ -46,7 +48,8 @@ class FirstRunTest {
         prefs.edit().clear().apply {
             before.forEach { (k, v) -> if (v is Boolean) putBoolean(k, v) else putString(k, v.toString()) }
         }.commit()
-        if (OwnvoiceService.instance == null) InsertFlowTest.enableService()
+        if (wasOn && OwnvoiceService.instance == null) InsertFlowTest.enableService()
+        if (!wasOn && OwnvoiceService.instance != null) InsertFlowTest.disableService()
         instr.runOnMainSync { OwnvoiceService.instance?.updateBubble() }
     }
 
@@ -105,7 +108,9 @@ class FirstRunTest {
         val banned = Regex("(?i)gemini|gemma|\\bnano\\b|aicore|ml ?kit|\\bllm\\b|\\bmodel\\b|/100|/10\\b|judge|slop|characters|\\bprompt|\\btokens?\\b|on-device")
         assertTrue(seen.toString(), seen.size > 20 && "Switch greyed out?" in seen && seen.any { it.startsWith("In App info") })
         assertEquals("Technical words in setup", emptyList<String>(), seen.filter { banned.containsMatchIn(it) })
-        tap(setup, "Done")
+        assertTrue("Done" in texts(setup))
+        // Back keeps what the screen showed, just like Done.
+        instr.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
         waitUntil("setup to close") { setup.isDestroyed }
         assertTrue(Privacy.allowed(ctx, ctx.packageName))
         assertTrue(Privacy.setUp(ctx))

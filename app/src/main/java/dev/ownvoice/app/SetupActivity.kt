@@ -112,7 +112,11 @@ class SetupActivity : Activity() {
     override fun onDestroy() {
         OwnvoiceService.inserted = null
         // Leaving with Back counts as done too, so setup doesn't open again by itself; the home switch reopens it.
-        if (isFinishing) Privacy.setSetUp(this)
+        if (isFinishing) {
+            // What "Where should I help?" showed is what the user gets, whether they tap Done or Back.
+            if (step == Step.APPS) offered.forEach { (app, _) -> Privacy.setAllowed(this, app, chosen[app] ?: true) }
+            Privacy.setSetUp(this)
+        }
         scope.cancel()
         super.onDestroy()
     }
@@ -294,9 +298,6 @@ class SetupActivity : Activity() {
             }
         })
         spacer(column)
-        column.add(filled("Done") {
-            offered.forEach { (app, _) -> Privacy.setAllowed(this, app, chosen[app] ?: true) }
-            next()
-        }, top = 20f)
+        column.add(filled("Done") { finish() }, top = 20f)
     }
 }
