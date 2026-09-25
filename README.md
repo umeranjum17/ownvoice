@@ -1,6 +1,6 @@
 # Ownvoice
 
-The installed Android app described below remains the Kotlin build until its [Expo React Native successor](mobile/README.md) reaches parity. The Expo app is still a scaffold, not yet a replacement for the flows below.
+The installed Android app described below remains the Kotlin build. Its [Expo React Native successor](mobile/README.md) is not yet a replacement; see its README for current capabilities and setup.
 
 Ownvoice is a local-first, open-source writing booster for Android. A small bubble sits over your apps. Tap it and Ownvoice reads the conversation on screen and drafts two or three short replies with the language model on your phone (Gemini Nano, through ML Kit GenAI). Tap Insert and the draft goes into the text field you were typing in. You read it over and you send it.
 
@@ -70,7 +70,7 @@ The bubble is an accessibility overlay, so it needs no draw-over-other-apps perm
 
 ## Build and install
 
-These commands build the existing Android app. For the Expo scaffold's checks, see [mobile/README.md](mobile/README.md).
+These commands build the existing Android app. For the Expo app's build and checks, see [mobile/README.md](mobile/README.md).
 
 Needs JDK 17 or newer and the Android SDK (API 36).
 

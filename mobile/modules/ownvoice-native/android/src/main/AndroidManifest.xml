@@ -1,0 +1,27 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+  </queries>
+  <application>
+    <!-- The drafts panel: a see-through React Native screen, so Ownvoice is the app in front while the phone's model runs. -->
+    <activity
+        android:name="dev.ownvoice.bridge.PanelActivity"
+        android:excludeFromRecents="true"
+        android:exported="false"
+        android:taskAffinity="dev.ownvoice.drafts"
+        android:theme="@style/OwnvoicePanel" />
+    <service
+        android:name="dev.ownvoice.bridge.OwnvoiceService"
+        android:exported="false"
+        android:label="Ownvoice"
+        android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+      <intent-filter>
+        <action android:name="android.accessibilityservice.AccessibilityService" />
+      </intent-filter>
+      <meta-data android:name="android.accessibilityservice" android:resource="@xml/ownvoice_service" />
+    </service>
+  </application>
+</manifest>
