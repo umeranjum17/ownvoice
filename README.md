@@ -46,15 +46,21 @@ Ownvoice reads the screen only when you tap its bubble. What it reads stays on t
 
 - **Reads only on request.** Ownvoice reads the screen only when you tap its bubble, never in the background. It reads the visible text and the field you're typing in, and keeps that in memory only until your next tap.
 - **Every read is logged where you can see it.** **What Ownvoice read** on the main screen lists each tap: the app, the time, what it did ("Suggested replies", "Polished your message" or "Nothing to help with") and what it looked at ("Read the chat on screen and your message"), never any of the text. The list stays on the phone and each entry is deleted after 30 days. **Wipe everything** clears the list, whatever the last tap read, and Your voice.
-- **Per app.** The bubble works only in apps switched on under **Where the bubble shows**. X, LinkedIn, Gmail and WhatsApp start on; every other app, Signal included, starts off. In an app that's off, the bubble doesn't show and nothing is read.
+- **Per app.** The bubble works only in apps switched on under **Where the bubble shows**. Setup's **Where should I help?** switches on the ones picked there from X, LinkedIn, Reddit, Slack, WhatsApp and Gmail. Without it, X, LinkedIn, Gmail and WhatsApp start on; every other app, Signal included, starts off. In an app that's off, the bubble doesn't show and nothing is read.
 - **Pause.** **Pause for now** on the main screen hides the bubble everywhere until you switch it back.
 - **Never sends.** Ownvoice changes a text field only when you tap Insert. It never taps Send, posts or acts for you.
 - **Nothing you write leaves the phone.** Drafting runs on the phone's own model. Ownvoice has no server and no network code. Like other ML Kit libraries, ML Kit may send Google anonymous usage metrics such as API name and latency. See [ML Kit's data disclosure](https://developers.google.com/ml-kit/android-data-disclosure). Your screen text and drafts are not part of those metrics.
 
 ## Use it
 
-1. Install the app and open **Ownvoice**. Setup has three steps. **Meet Ownvoice** starts the one-time download of Gemini Nano. The next step explains the accessibility permission and its three promises (reads only when you tap, stays on this phone, never sends for you); it is also the prominent disclosure Google Play asks for, and nothing is switched on until you tap **Turn it on in Settings** and switch Ownvoice on there. **Try it** gives you a practice chat for the bubble. The main screen's card says **Ready to help** once the download is done.
-2. Under **Where the bubble shows**, switch on the apps you want it in. X, LinkedIn, Gmail and WhatsApp are on to start.
+1. Install the app and open **Ownvoice**. Setup takes four taps and one stop in the phone's settings:
+   - **Write replies that sound like you.** → **Continue**. This quietly starts the one-time download of Gemini Nano; the main screen's card says **Ready to help** once it's done, or what went wrong.
+   - The accessibility permission and its three promises (reads only when you tap, stays on this phone, you always press Send). It is also the prominent disclosure Google Play asks for. **Turn on** opens the phone's accessibility list with Ownvoice's row highlighted where the phone supports it (Android lets only system apps open a service's own page), and a small copy of the row and its switch shows what to flip. Nothing is switched on until the user does it there. Once the service connects, setup comes back to the front by itself. **Switch greyed out?** covers apps installed from a download, where Android 13 and later grey the switch out until **Allow restricted settings** in App info.
+   - **Try it**: a practice chat with the bubble already there and the message box already focused. Tap the bubble, then **Insert**: that's the first inserted draft, 4 taps after opening the app (**Continue**, **Turn on**, the bubble, **Insert**) plus the phone's own settings (tap Ownvoice, flip the switch, **Allow**).
+   - **Where should I help?** lists only the apps on the phone from X, LinkedIn, Reddit, Slack, WhatsApp and Gmail, all switched on to start. **Done** or Back saves them as shown. If none of them is on the phone, this step is skipped.
+
+   Setup never asks anything else: the full app list, Your voice and What Ownvoice read live on the main screen.
+2. To add or remove apps later, use **Where the bubble shows** on the main screen.
 3. In one of those apps, tap into the message box, then tap the round bubble with a pen at the right edge of the screen, halfway down. The drafts panel opens over the app. If you've already written something in the box, the panel shows better versions of it instead.
 4. Tap **Insert** to put a draft in the message box, or **Copy** to copy it. Then send it yourself.
 
@@ -73,11 +79,13 @@ Gemini Nano through ML Kit needs a supported phone (for example recent Pixel, Sa
 
 ## Test
 
-The phrase rules, the parsing of the judge's answers and the one-sentence verdict, the per-app defaults, the 30-day log, the voice profile import and never-say matching, and the plain-words check (`PlainWordsTest`, which checks the error messages, check names, verdicts, marked-phrase reasons, read log and string resources for model names, "/100", "judge", "slop", "nano", "AICore", "characters" and similar) have plain JVM unit tests:
+The setup steps and the installed-app list (`OnboardingTest`), the phrase rules, the parsing of the judge's answers and the one-sentence verdict, the per-app defaults, the 30-day log, the voice profile import and never-say matching, and the plain-words check (`PlainWordsTest`, which checks the error messages, check names, verdicts, marked-phrase reasons, read log, the offered app names and string resources for model names, "/100", "judge", "slop", "nano", "AICore", "characters" and similar) have plain JVM unit tests:
 
 ```sh
 ./gradlew :app:testDebugUnitTest
 ```
+
+`FirstRunTest` runs the whole first run on a device or emulator with a stand-in for the model: welcome, the permission (the test flips the switch the user would), setup coming back to the front by itself, the practice chat ending in an inserted draft in 4 taps, and "Where should I help?" offering only installed apps. It checks every text setup shows for technical words, and puts the phone's own Ownvoice settings back afterwards.
 
 `InsertFlowTest` runs on a real device or emulator. It swaps in a stub engine, so it doesn't need the model. It opens Ownvoice's own test screen (in the debug build only) and taps through bubble → drafts panel → Insert. It checks that a multi-line draft lands exactly in a native `EditText`, a web `textarea` and a web `contenteditable`, and that the one-sentence verdict fills in after the drafts show, with "Why?" giving the reasons in plain words. It checks compose boost too: your own text is scored, three versions follow with meaning checks, and Insert replaces your text with a multi-line version in a native field and a web `textarea`. It checks the privacy controls: with the app switched off or Ownvoice paused, the bubble hides and a tap reads and logs nothing; a tap is logged with what it did and no message text, and Wipe everything clears the log. It checks Your voice: an imported never-say phrase is highlighted in a draft, and the draft reads "Doesn't sound like you". It also covers the rewrite screen: Replace returns the rewrite, and a rewrite with a new number gets a warning. The test turns Ownvoice's accessibility service on by itself, and switches the bubble on for Ownvoice's own screens while it runs.
 

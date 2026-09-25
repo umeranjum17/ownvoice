@@ -60,18 +60,27 @@ class InsertFlowTest {
 
         private val ctx get() = instr.targetContext
 
-        /** Turns the service on without turning off any other enabled service. */
-        private fun enableService() {
-            val me = "dev.ownvoice.app/dev.ownvoice.app.OwnvoiceService"
-            // Keep accessibility services running while this test talks to the shell.
+        /** Runs [cmd] in the shell, keeping accessibility services running while this test talks to it. */
+        fun sh(cmd: String): String {
             val shell = instr.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
-            fun sh(cmd: String) = ParcelFileDescriptor.AutoCloseInputStream(shell.executeShellCommand(cmd)).bufferedReader().readText().trim()
+            return ParcelFileDescriptor.AutoCloseInputStream(shell.executeShellCommand(cmd)).bufferedReader().readText().trim()
+        }
+
+        /** Turns the service off, leaving any other enabled service on. */
+        fun disableService() {
             val others = sh("settings get secure enabled_accessibility_services").split(":").filter { it.isNotEmpty() && it != "null" && !it.startsWith("dev.ownvoice.app/") }
-            // Starting the test restarted this process, and Android does not rebind a service it saw die
-            // until the setting changes, so switch it off and on.
             sh(if (others.isEmpty()) "settings delete secure enabled_accessibility_services" else "settings put secure enabled_accessibility_services " + others.joinToString(":"))
+            waitUntil("Ownvoice service to stop") { OwnvoiceService.instance == null }
+            // Starting the test restarted this process, and Android does not rebind a service it saw die
+            // until the setting changes, so give it a moment before switching it on again.
             Thread.sleep(1_000)
-            sh("settings put secure enabled_accessibility_services " + (others + me).joinToString(":"))
+        }
+
+        /** Turns the service on without turning off any other enabled service, as the user's switch does. */
+        fun enableService() {
+            disableService()
+            val others = sh("settings get secure enabled_accessibility_services").split(":").filter { it.isNotEmpty() && it != "null" }
+            sh("settings put secure enabled_accessibility_services " + (others + "dev.ownvoice.app/dev.ownvoice.app.OwnvoiceService").joinToString(":"))
             sh("settings put secure accessibility_enabled 1")
             waitUntil("Ownvoice service to connect") { OwnvoiceService.instance != null }
         }

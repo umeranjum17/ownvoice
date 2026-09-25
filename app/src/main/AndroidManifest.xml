@@ -27,9 +27,11 @@
             </intent-filter>
         </activity>
 
+        <!-- The keyboard stays down on the practice chat, so its bubble and buttons show; its field has focus for the bubble. -->
         <activity
             android:name=".SetupActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:windowSoftInputMode="stateAlwaysHidden|adjustResize" />
 
         <activity
             android:name=".AppsActivity"

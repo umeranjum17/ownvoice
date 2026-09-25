@@ -36,6 +36,12 @@ class OwnvoiceService : AccessibilityService() {
         var practice = false
             set(value) { field = value; instance?.updateBubble() }
 
+        /** Set while setup waits for the user to switch Ownvoice on, so setup comes back to the front once they have. */
+        var comeBack = false
+
+        /** Called once a draft is inserted, for the setup's practice chat. */
+        var inserted: (() -> Unit)? = null
+
         private const val TIP = "Tap for reply ideas, or to polish what you wrote."
     }
 
@@ -115,6 +121,11 @@ class OwnvoiceService : AccessibilityService() {
         restoreBubble.run()
         instance = this
         updateBubble()
+        if (comeBack) {
+            comeBack = false
+            startActivity(Intent(this, SetupActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -219,7 +230,10 @@ class OwnvoiceService : AccessibilityService() {
         val text = pending
         pending = null
         insertVerified = message != null
-        if (message != null) return say(message)
+        if (message != null) {
+            inserted?.invoke()
+            return say(message)
+        }
         if (text != null) {
             getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
         }

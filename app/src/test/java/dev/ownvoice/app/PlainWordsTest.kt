@@ -61,6 +61,9 @@ class PlainWordsTest {
         assertPlain(strings)
     }
 
+    /** The app names "Where should I help?" offers; the setup screens' own texts are checked on the device by FirstRunTest. */
+    @Test fun offeredApps() = assertPlain(Onboarding.OFFERED.map { it.second })
+
     @Test fun catchesATechnicalWord() {
         for (bad in listOf("Scored by the judge", "Slop: clean (10/100)", "The on-device model is ready (nano-v3).", "117 characters on screen", "Update AICore", "Gemini Nano", "Gemma"))
             assertEquals(bad, true, banned.containsMatchIn(bad))
