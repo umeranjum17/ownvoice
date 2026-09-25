@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Dark mode: the marks around Dot turn coral so they show. -->
+    <color name="ownvoice_mascot_body">#FF8A73</color>
+    <color name="ownvoice_mascot_ink">#4E140B</color>
+    <color name="ownvoice_mascot_blush">#E0504A</color>
+    <color name="ownvoice_mascot_warn">#FFB95C</color>
+    <color name="ownvoice_mascot_shade">#EE6F58</color>
+    <color name="ownvoice_mascot_mark">#FF8A73</color>
+    <color name="ownvoice_mascot_wood">#F5DEC4</color>
+    <color name="ownvoice_mascot_shine">#FFFFFF</color>
+</resources>

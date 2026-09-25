@@ -1,60 +1,56 @@
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import Native, { Capture } from '../../modules/ownvoice-native';
+import { words } from '../core/words';
+import { Button } from '../ui/Button';
+import { Card } from '../ui/Card';
+import { Sheet } from '../ui/Sheet';
+import { Progress } from '../ui/Progress';
+import { space, type, useTheme } from '../ui/theme';
 import { phoneWriter } from './phoneWriter';
 
 export default function Panel() {
+  const t = useTheme();
   const [capture, setCapture] = useState<Capture | null>(null);
   const [inserting, setInserting] = useState(false);
   const [drafts, setDrafts] = useState<string[]>([]);
   const [note, setNote] = useState('Writing…');
+  const [fraction, setFraction] = useState<number | null>(null);
   useEffect(() => {
     let ready = false;
-    const progress = Native.addListener('onModelProgress', ({ fraction }) => { if (!ready) setNote(`Getting Ownvoice ready… ${Math.round(fraction * 100)}%`); });
+    const progress = Native.addListener('onModelProgress', ({ fraction }) => { if (!ready) setFraction(fraction); });
     void Native.capture().then(async value => {
       setCapture(value);
       if (!value) {
         ready = true;
+        setFraction(null);
         setNote('No screen to read. Close and try again.');
         return;
       }
       setDrafts(await phoneWriter.write({ conversation: value.conversation, written: value.written, typed: value.typed }, state => {
         ready = state === 'writing';
-        setNote(ready ? 'Writing…' : 'Getting Ownvoice ready…');
+        setNote(ready ? 'Writing…' : words.gettingReady);
+        if (ready) setFraction(null);
       }));
-    }).catch(error => { ready = true; setNote(error instanceof Error ? error.message : 'Try again in a moment.'); });
+      setFraction(null);
+    }).catch(error => { ready = true; setFraction(null); setNote(error instanceof Error ? error.message : 'Try again in a moment.'); });
     return () => progress.remove();
   }, []);
   const close = () => { void Native.closePanel().catch(() => {}); };
-  return <View style={styles.scrim}>
-    <Pressable accessibilityLabel="Close" style={styles.outside} onPress={close} />
-    <View style={styles.sheet}>
-      <View style={styles.handle} />
-      <Text style={styles.title}>{capture?.typed.trim() ? 'Polish your message' : 'Suggested replies'}</Text>
-      <Text style={styles.note}>{drafts.length ? 'Pick one to put in your message box. You send it yourself.' : note}</Text>
-      {capture && !capture.hasField && <Text style={styles.note}>Tap into the message box first to use Insert, or copy one.</Text>}
-      <ScrollView>{drafts.map(draft => <View key={draft} style={styles.card}>
-        <Text style={styles.draft}>{draft}</Text>
-        <View style={styles.actions}>
-          <Pressable disabled={!capture?.hasField || inserting} onPress={() => { setInserting(true); void Native.insert(draft).catch(() => setInserting(false)); }}><Text style={[styles.action, (!capture?.hasField || inserting) && styles.disabled]}>Insert</Text></Pressable>
-          <Pressable disabled={inserting} onPress={() => { void Native.copy(draft).catch(() => {}); }}><Text style={styles.action}>Copy</Text></Pressable>
+  return <Sheet
+    title={capture?.typed.trim() ? 'Polish your message' : 'Suggested replies'}
+    note={drafts.length ? 'Pick one to put in your message box. You send it yourself.' : note}
+    onClose={close}>
+    {fraction != null && <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View>}
+    {capture && !capture.hasField && <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>Tap into the message box first to use Insert, or copy one.</Text>}
+    {drafts.map(draft => <View key={draft} style={{ marginBottom: space.m }}>
+      <Card variant="outlined">
+        <Text style={[type.words, { color: t.text }]}>{draft}</Text>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: space.s, marginTop: space.m }}>
+          <Button kind="filled" label="Insert" disabled={!capture?.hasField || inserting} onPress={() => { setInserting(true); void Native.insert(draft).catch(() => setInserting(false)); }} />
+          <Button kind="text" label="Copy" disabled={inserting} onPress={() => { void Native.copy(draft).catch(() => {}); }} />
         </View>
-      </View>)}</ScrollView>
-      <Pressable accessibilityRole="button" onPress={close} style={styles.close}><Text>Close</Text></Pressable>
-    </View>
-  </View>;
+      </Card>
+    </View>)}
+  </Sheet>;
 }
-const styles = StyleSheet.create({
-  scrim: { flex: 1, justifyContent: 'flex-end', backgroundColor: '#66000000' },
-  outside: { flex: 1 },
-  sheet: { maxHeight: '78%', backgroundColor: '#fffaf7', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 20, paddingBottom: 28 },
-  handle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 4, backgroundColor: '#c8c1bc', marginBottom: 18 },
-  title: { fontSize: 21, fontWeight: '700', color: '#201a18' },
-  note: { fontSize: 14, color: '#625b57', marginTop: 8 },
-  card: { backgroundColor: 'white', borderRadius: 16, padding: 16, marginTop: 14, borderWidth: 1, borderColor: '#e8e1dc' },
-  draft: { color: '#201a18', fontSize: 16, lineHeight: 23 },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 12 },
-  action: { color: '#9b3525', fontWeight: '700', padding: 8 },
-  disabled: { color: '#aaa' },
-  close: { alignSelf: 'flex-end', padding: 12 },
-});

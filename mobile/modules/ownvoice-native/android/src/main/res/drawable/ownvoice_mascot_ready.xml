@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp"
+    android:viewportWidth="120" android:viewportHeight="120">
+    <path android:pathData="M86 94 L100 84"
+        android:strokeColor="@color/ownvoice_mascot_shade"
+        android:strokeWidth="10.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M60 14 C69 31 98 48 98 77 A38 38 0 0 1 22 77 C22 48 51 31 60 14 Z"
+        android:fillColor="@color/ownvoice_mascot_body"
+        android:strokeColor="@color/ownvoice_mascot_body"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M40 50 Q33 60 32.5 70"
+        android:strokeColor="@color/ownvoice_mascot_shine"
+        android:strokeWidth="4.2"
+        android:strokeAlpha="0.55"
+        android:strokeLineCap="round" />
+    <path android:pathData="M34.50,84.50a6.00,3.40 0,1 0,12.00,0a6.00,3.40 0,1 0,-12.00,0Z"
+        android:fillColor="@color/ownvoice_mascot_blush"
+        android:fillAlpha="0.90" />
+    <path android:pathData="M73.50,84.50a6.00,3.40 0,1 0,12.00,0a6.00,3.40 0,1 0,-12.00,0Z"
+        android:fillColor="@color/ownvoice_mascot_blush"
+        android:fillAlpha="0.90" />
+    <path android:pathData="M42.40,76.00a4.60,6.20 0,1 0,9.20,0a4.60,6.20 0,1 0,-9.20,0Z"
+        android:fillColor="@color/ownvoice_mascot_ink" />
+    <path android:pathData="M43.97,73.64a1.56,1.56 0,1 0,3.12,0a1.56,1.56 0,1 0,-3.12,0Z"
+        android:fillColor="@color/ownvoice_mascot_shine" />
+    <path android:pathData="M68.40,76.00a4.60,6.20 0,1 0,9.20,0a4.60,6.20 0,1 0,-9.20,0Z"
+        android:fillColor="@color/ownvoice_mascot_ink" />
+    <path android:pathData="M69.97,73.64a1.56,1.56 0,1 0,3.12,0a1.56,1.56 0,1 0,-3.12,0Z"
+        android:fillColor="@color/ownvoice_mascot_shine" />
+    <path android:pathData="M53.00 84.00 C54.50 93.50 65.50 93.50 67.00 84.00 Z"
+        android:fillColor="@color/ownvoice_mascot_ink"
+        android:strokeColor="@color/ownvoice_mascot_ink"
+        android:strokeWidth="1.6"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M56.60 89.20 Q60.00 87.00 63.40 89.20 Q60.00 91.40 56.60 89.20 Z"
+        android:fillColor="@color/ownvoice_mascot_blush" />
+    <group android:rotation="10.00" android:pivotX="96.00" android:pivotY="76.00">
+        <path android:pathData="M88.50,62.00h15.00a4.50,4.50 0,0 1,4.50,4.50v19.00a4.50,4.50 0,0 1,-4.50,4.50h-15.00a4.50,4.50 0,0 1,-4.50,-4.50v-19.00a4.50,4.50 0,0 1,4.50,-4.50Z"
+            android:fillColor="@color/ownvoice_mascot_shine"
+            android:strokeColor="@color/ownvoice_mascot_ink"
+            android:strokeWidth="2.6" />
+        <path android:pathData="M89 70.0 L103 70.0"
+            android:strokeColor="@color/ownvoice_mascot_ink"
+            android:strokeWidth="2.4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path android:pathData="M89 76.5 L103 76.5"
+            android:strokeColor="@color/ownvoice_mascot_ink"
+            android:strokeWidth="2.4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path android:pathData="M89 83.0 L98 83.0"
+            android:strokeColor="@color/ownvoice_mascot_ink"
+            android:strokeWidth="2.4"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+    <path android:pathData="M102.78 43.11 L101.95 38.38"
+        android:strokeColor="@color/ownvoice_mascot_mark"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M107.50 43.94 L110.50 38.74"
+        android:strokeColor="@color/ownvoice_mascot_mark"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M110.58 47.61 L115.09 45.96"
+        android:strokeColor="@color/ownvoice_mascot_mark"
+        android:strokeWidth="2.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

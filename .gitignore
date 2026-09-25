@@ -7,3 +7,4 @@ local.properties
 mobile/node_modules/
 mobile/.expo/
 mobile/android/
+.home/
