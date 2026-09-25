@@ -24,6 +24,7 @@ import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLEngine
 import javax.net.ssl.SSLException
+import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.X509ExtendedKeyManager
 import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
@@ -116,6 +117,11 @@ object Link {
         override fun chooseServerAlias(keyType: String?, issuers: Array<out Principal>?, socket: Socket?): String? = null
     }
 
+    /** Whether [e] is the computer turning this phone's key down, not a dropped or reset connection. */
+    fun refused(e: java.io.IOException): Boolean =
+        e is SSLHandshakeException || e is SSLException && generateSequence<Throwable>(e) { it.cause }
+            .any { Regex("(?i)bad_certificate|certificate_required").containsMatchIn(it.message.orEmpty()) }
+
     /**
      * Posts [body] to the first of [addrs] where the computer with [pin] answers, trying each in turn. Returns the
      * answer and the address that gave it. Throws [Failure] with the computer's error code, "not_paired" when it
@@ -137,7 +143,7 @@ object Link {
             } catch (e: java.io.IOException) {
                 conn.disconnect()
                 // With TLS 1.3 the computer turns down a key it doesn't know with an alert after showing its own.
-                if (trust.met && e is SSLException) throw Failure("not_paired")
+                if (trust.met && refused(e)) throw Failure("not_paired")
                 continue // the next address
             }
             // Connected: a failure now is final, so a slow computer is never asked twice.
@@ -146,7 +152,7 @@ object Link {
                 conn.responseCode
             } catch (e: java.io.IOException) {
                 conn.disconnect()
-                throw Failure(if (e is SSLException) "not_paired" else "unreachable")
+                throw Failure(if (refused(e)) "not_paired" else "unreachable")
             }
             val text = (if (status < 400) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
             conn.disconnect()

@@ -4,6 +4,7 @@ import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
@@ -132,6 +133,19 @@ class LinkTest {
         val addr = computer(refusePhone = true)
         val e = assertThrows(Link.Failure::class.java) { Link.post(listOf(addr), "/v1/hello", JSONObject(), phone, computerPin, 5_000) }
         assertEquals("not_paired", e.code)
+    }
+
+    @Test fun onlyACertificateAlertMeansNotPaired() {
+        for (e in listOf(
+            javax.net.ssl.SSLHandshakeException("Received fatal alert: bad_certificate"),
+            javax.net.ssl.SSLException("Read error: ssl=0x7b: Failure in SSL library, error:10000412:SSL routines:OPENSSL_internal:SSLV3_ALERT_BAD_CERTIFICATE"),
+            javax.net.ssl.SSLException("Read error", java.io.IOException("TLSV13_ALERT_CERTIFICATE_REQUIRED")),
+        )) assertTrue(e.toString(), Link.refused(e))
+        for (e in listOf(
+            javax.net.ssl.SSLException("Read error: ssl=0x7b: I/O error during system call, Connection reset by peer"),
+            java.net.SocketException("Connection reset"),
+            java.io.EOFException(),
+        )) assertFalse(e.toString(), Link.refused(e))
     }
 
     @Test fun aComputerThatStopsMidRequestDidntAnswer() {
