@@ -10,13 +10,26 @@ class PrivacyTest {
     private val day = 24L * 60 * 60 * 1000
 
     @Test fun defaultListIsOnAndEverythingElseOff() {
-        for (app in listOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp")) assertTrue(app, Privacy.allowed(app, null))
+        for (app in listOf("com.twitter.android", "com.linkedin.android", "com.Slack", "com.google.android.gm", "com.whatsapp")) assertTrue(app, Privacy.allowed(app, null))
+        assertTrue(Onboarding.offered { it == "com.Slack" }.any { it.first == "com.Slack" })
+        assertFalse(Privacy.mayGoToComputer("com.Slack", null))
         for (app in listOf("org.thoughtcrime.securesms", "com.android.chrome", "dev.ownvoice.app")) assertFalse(app, Privacy.allowed(app, null))
     }
 
     @Test fun userChoiceWins() {
         assertTrue(Privacy.allowed("org.thoughtcrime.securesms", true))
         assertFalse(Privacy.allowed("com.whatsapp", false))
+    }
+
+    @Test fun onlyXLinkedInAndRedditMayGoToTheComputerAtFirst() {
+        for (app in listOf("com.twitter.android", "com.linkedin.android", "com.reddit.frontpage")) {
+            assertTrue(app, Privacy.mayGoToComputer(app, null))
+        }
+        for (app in listOf("com.Slack", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b", "org.thoughtcrime.securesms", "com.discord", "dev.ownvoice.app")) {
+            assertFalse(app, Privacy.mayGoToComputer(app, null))
+        }
+        assertTrue(Privacy.mayGoToComputer("com.google.android.gm", true))
+        assertFalse(Privacy.mayGoToComputer("com.twitter.android", false))
     }
 
     @Test fun readsOlderThan30DaysAreDropped() {

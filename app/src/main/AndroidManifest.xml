@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Only to reach the person's own paired computer, when they pair one. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Lists the apps with a launcher icon for the per-app switches. -->
     <queries>
         <intent>
@@ -37,6 +40,16 @@
             android:name=".AppsActivity"
             android:exported="false"
             android:label="Where the bubble shows" />
+
+        <activity
+            android:name=".ComputerActivity"
+            android:exported="false"
+            android:label="Your computer" />
+
+        <activity
+            android:name=".PairActivity"
+            android:exported="false"
+            android:label="Pair with my computer" />
 
         <activity
             android:name=".ReadsActivity"

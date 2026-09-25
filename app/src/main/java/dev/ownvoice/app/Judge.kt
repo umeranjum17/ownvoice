@@ -42,6 +42,12 @@ object Judge {
     const val GENERAL = "A bit general"
 
     /** Footer of every "Why?" note. */
+    /** Added to [quickChecks] when the person's computer wrote the draft and this phone checked it. */
+    const val CROSS_CHECK = " Your computer wrote this and this phone checked it, so the check isn't marking its own work."
+
+    /** What the "Why?" note adds about who checked whose work: this phone always checks. */
+    fun checkedBy(writer: Writer) = if (writer == Writer.COMPUTER) CROSS_CHECK else ""
+
     fun quickChecks(who: String?) = "These are quick checks to help you choose." + (who?.let { " You know $it best." } ?: "")
 
     /**

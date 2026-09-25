@@ -19,6 +19,11 @@ class JudgeTest {
         NEXT_STEP: concern - no meeting time
     """.trimIndent()
 
+    @Test fun theWhyNoteSaysWhenAnotherWriterWasChecked() {
+        assertEquals("", Judge.checkedBy(Writer.PHONE))
+        assertTrue("Your computer wrote this" in Judge.checkedBy(Writer.COMPUTER) && "this phone checked it" in Judge.checkedBy(Writer.COMPUTER))
+    }
+
     @Test fun readsTheJudgesLines() {
         val s = Judge.scoreDraft("Saturday works. I'll bring my stove.", answer, message = true)
         assertEquals(3, s.generic)

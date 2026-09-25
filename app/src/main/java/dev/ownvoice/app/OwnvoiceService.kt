@@ -47,9 +47,9 @@ class OwnvoiceService : AccessibilityService() {
 
     /**
      * What the bubble tap read: the visible text, the part of it written on screen outside fields and
-     * button labels, and the field being typed in, if any.
+     * button labels, the field being typed in, if any, and the app and time of the read.
      */
-    class Capture(val conversation: String, val written: String, val input: AccessibilityNodeInfo?) {
+    class Capture(val conversation: String, val written: String, val input: AccessibilityNodeInfo?, val app: String = "", val at: Long = 0) {
         val typed: String = input?.takeUnless { it.isShowingHintText }?.text?.toString().orEmpty()
         val mode get() = Judge.mode(typed, written)
     }
@@ -163,9 +163,9 @@ class OwnvoiceService : AccessibilityService() {
         val lines = mutableListOf<String>()
         val written = mutableListOf<String>()
         root?.let { visibleText(it, field, lines, written) }
-        val read = Capture(lines.joinToString("\n"), written.joinToString("\n"), field)
+        val read = Capture(lines.joinToString("\n"), written.joinToString("\n"), field, app, System.currentTimeMillis())
         val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
-        Privacy.record(this, Privacy.Read(System.currentTimeMillis(), app, label, Privacy.summary(read.mode, read.conversation, read.typed)))
+        Privacy.record(this, Privacy.Read(read.at, app, label, Privacy.summary(read.mode, read.conversation, read.typed)))
         if (lines.isEmpty() && field == null) {
             return say("No text on this screen.")
         }

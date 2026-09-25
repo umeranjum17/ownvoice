@@ -16,6 +16,11 @@ import kotlinx.coroutines.launch
 
 /** The drafts panel: a translucent sheet over the app the user was in. */
 class DraftActivity : Activity() {
+    companion object {
+        /** Set when the person asked for this reply to be written on their computer. */
+        const val ON_COMPUTER = "on_computer"
+    }
+
     private val scope = MainScope()
     private lateinit var sheet: Sheet
     private var who: String? = null
@@ -32,6 +37,10 @@ class DraftActivity : Activity() {
 
     /** Meaning check of each text on show, in line with [scores]; only improved versions get one. */
     val meanings = mutableListOf<Judge.Check?>()
+
+    /** Who wrote the drafts on show, read by the on-device test. */
+    var writer = Writer.PHONE
+        private set
 
     /** One text on show: the text, its highlighted view, its one-line verdict, its "Why?" link and, for an improved version, its meaning check. */
     private class Row(val text: String, val shown: TextView, val verdict: TextView?, val why: TextView?, val meaning: TextView?)
@@ -84,6 +93,8 @@ class DraftActivity : Activity() {
         val waiting = List(if (mode == Judge.Mode.COMPOSE) 2 else 3) { sheet.body.add(placeholder(), bottom = 10f) }
         scope.launch {
             val started = SystemClock.elapsedRealtime()
+            val anyway = intent.getBooleanExtra(ON_COMPUTER, false)
+            var engine: DraftEngine? = null
             try {
                 if (mode == Judge.Mode.COMPOSE) {
                     val versions = boost(capture.typed, Voice.guide(voice, post))
@@ -92,17 +103,40 @@ class DraftActivity : Activity() {
                     waiting.forEach(sheet.body::removeView)
                     show(true, capture.conversation, capture.typed, versions.map { it.first }, voice, post)
                 } else {
-                    drafts = OwnvoiceService.engine.drafts(capture.conversation, Voice.guide(voice, post = false)) { sheet.note.text = it }
-                    Log.i(OwnvoiceService.TAG, "drafts=${drafts.size} in ${SystemClock.elapsedRealtime() - started} ms")
+                    engine = Computer.pick(this@DraftActivity, capture.app, anyway, OwnvoiceService.engine)
+                    if (engine is Computer) Privacy.noteWriter(this@DraftActivity, capture.at, "Tried your computer for replies.")
+                    drafts = engine.drafts(capture.conversation, Voice.guide(voice, post = false)) { sheet.note.text = it }
+                    writer = (engine as? Computer)?.wrote ?: Writer.PHONE
+                    Log.i(OwnvoiceService.TAG, "drafts=${drafts.size} by $writer in ${SystemClock.elapsedRealtime() - started} ms")
                     waiting.forEach(sheet.body::removeView)
                     show(capture.input != null, capture.conversation, null, null, voice, post)
+                    offerComputer(capture, engine, anyway)
                 }
             } catch (e: PlainError) {
                 Log.w(OwnvoiceService.TAG, "draft failed after ${SystemClock.elapsedRealtime() - started} ms: ${e.message}")
                 waiting.forEach(sheet.body::removeView)
                 sheet.note.text = e.message
+                // The phone can't write, but the computer may: say why it didn't, and still offer it.
+                engine?.let { offerComputer(capture, it, anyway) }
             }
         }
+    }
+
+    /**
+     * When the computer could write but didn't: a button to send this one there anyway (for an app that
+     * stays on the phone), or to try again after it failed. Either opens the panel afresh.
+     */
+    private fun offerComputer(capture: OwnvoiceService.Capture, engine: DraftEngine, anyway: Boolean) {
+        val why = (engine as? Computer)?.why
+        val label = when {
+            why != null -> {
+                sheet.note.text = why + " " + sheet.note.text
+                "Try my computer again"
+            }
+            engine !is Computer && Computer.wanted(this, capture.app, anyway = true) -> "Write this one on my computer"
+            else -> return
+        }
+        sheet.body.addView(ghost(label) { intent.putExtra(ON_COMPUTER, true); recreate() }, 0, LinearLayout.LayoutParams(-2, -2))
     }
 
     /** Compose boost: each style's version of what the user wrote, as (label, text). Never a new post. */
@@ -124,7 +158,9 @@ class DraftActivity : Activity() {
         }
         val rows = mutableListOf<Row>()
         if (original != null && drafts.isNotEmpty()) rows += yours(original, voice, post)
-        drafts.forEachIndexed { i, draft -> rows += row(labels?.get(i), draft, compose = original != null, canInsert, voice, post) }
+        // Once a computer is paired, each reply says where it was written.
+        val caption = writer.caption.takeIf { original == null && Link.computer(this) != null }
+        drafts.forEachIndexed { i, draft -> rows += row(labels?.get(i), draft, compose = original != null, canInsert, voice, post, caption) }
         scores.clear()
         meanings.clear()
         repeat(rows.size) { scores += null; meanings += null }
@@ -140,10 +176,11 @@ class DraftActivity : Activity() {
         return Row(text, shown, verdict, null, null)
     }
 
-    private fun row(label: String?, text: String, compose: Boolean, canInsert: Boolean, voice: Voice.Rules, post: Boolean): Row {
+    private fun row(label: String?, text: String, compose: Boolean, canInsert: Boolean, voice: Voice.Rules, post: Boolean, caption: String? = null): Row {
         val card = sheet.body.add(card(), bottom = 10f)
         if (label != null) card.add(label(label), bottom = 6f)
         val shown = card.add(words(highlight(text, Slop.hits(text, voice, post))))
+        if (caption != null) card.add(text(caption, Type.BODY), top = 4f)
         // A version of the user's own text shows its meaning check; a reply shows its verdict.
         // "Why?" sits beside that line, which wraps first, so it stays whole at large display sizes.
         val beside = card.add(actions(), top = 10f)
@@ -192,7 +229,7 @@ class DraftActivity : Activity() {
         }) +
             (s.quality + s.reach).map { reason(it.ok, it.name, if (it.ok) null else it.reason) }
         content.add(reasons(rows))
-        content.add(text(Judge.quickChecks(who), Type.BODY).apply { setPadding(px(8), 0, px(8), 0) }, top = 12f)
+        content.add(text(Judge.quickChecks(who) + if (version) "" else Judge.checkedBy(writer), Type.BODY).apply { setPadding(px(8), 0, px(8), 0) }, top = 12f)
         sheet.cover(if (version) "Why this version" else "Why this reply", content)
     }
 

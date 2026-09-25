@@ -30,10 +30,11 @@ class MainActivity : Activity() {
     private lateinit var apps: View
     private lateinit var voice: View
     private lateinit var reads: View
+    private lateinit var computer: View
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val page = page("Ownvoice", "Your writing helper. It stays on this phone.", Type.HEADLINE_LARGE)
+        val page = page("Ownvoice", if (Link.computer(this) == null) "Your writing helper. It stays on this phone." else "Your writing helper.", Type.HEADLINE_LARGE)
         headline = text("", Type.HEADLINE_SMALL)
         detail = text("", Type.BODY)
         power = MaterialSwitch(this).apply { contentDescription = "Ownvoice on or off" }
@@ -57,7 +58,10 @@ class MainActivity : Activity() {
         apps = item(icon(R.drawable.ic_apps), "Where the bubble shows", "", chevron()) { open(AppsActivity::class.java) }
         voice = item(icon(R.drawable.ic_voice), "Your voice", "", chevron()) { open(VoiceActivity::class.java) }
         reads = item(icon(R.drawable.ic_eye), "What Ownvoice read", "", chevron()) { open(ReadsActivity::class.java) }
-        page.add(group().apply { row(apps); row(voice); row(reads) }, bottom = 14f)
+        computer = item(icon(R.drawable.ic_computer), "", "", chevron()) {
+            open(if (Link.computer(this) == null) PairActivity::class.java else ComputerActivity::class.java)
+        }
+        page.add(group().apply { row(apps); row(voice); row(computer); row(reads) }, bottom = 14f)
         pause = MaterialSwitch(this).apply { contentDescription = "Pause for now" }
         page.add(group().apply {
             row(item(icon(R.drawable.ic_pause), "Pause for now", "Hides the bubble everywhere", pause) { pause.toggle() })
@@ -75,6 +79,13 @@ class MainActivity : Activity() {
         val never = Voice.rules(this).never.size
         voice.subtitle(if (never == 0) "Add phrases you never say" else if (never == 1) "1 phrase you never say" else "$never phrases you never say")
         val week = Privacy.reads(this).count { System.currentTimeMillis() - it.time < 7L * 24 * 60 * 60 * 1000 }
+        val paired = Link.computer(this) != null
+        computer.title(if (paired) "Your computer" else "Use my computer")
+        computer.subtitle(when {
+            !paired -> "Better replies, written on your computer"
+            Link.computerWrites(this) -> "Writes your replies when it's on"
+            else -> "Off. This phone writes your replies"
+        })
         reads.subtitle(when (week) { 0 -> "Nothing this week"; 1 -> "Once this week"; else -> "$week times this week" })
         if (!ready) checkModel()
         showStatus()

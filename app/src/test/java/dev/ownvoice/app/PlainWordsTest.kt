@@ -64,6 +64,12 @@ class PlainWordsTest {
     /** The app names "Where should I help?" offers; the setup screens' own texts are checked on the device by FirstRunTest. */
     @Test fun offeredApps() = assertPlain(Onboarding.OFFERED.map { it.second })
 
+    /** What the phone says about the computer link: where a reply was written, why the computer didn't, and who checked it. */
+    @Test fun computerWords() = assertPlain(
+        listOf("unreachable", "timeout", "limit", "busy", "not_paired", "failed", "no_texts").map(Computer::reason) +
+            Writer.entries.map { it.caption } + Writer.entries.map(Judge::checkedBy).filter { it.isNotEmpty() },
+    )
+
     @Test fun catchesATechnicalWord() {
         for (bad in listOf("Scored by the judge", "Slop: clean (10/100)", "The on-device model is ready (nano-v3).", "117 characters on screen", "Update AICore", "Gemini Nano", "Gemma"))
             assertEquals(bad, true, banned.containsMatchIn(bad))
