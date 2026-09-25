@@ -11,7 +11,8 @@ function body(text: string) {
   const lines = text.trim().split(/\r?\n/);
   const first = lines[0]?.trim() ?? '';
   if (/^(?:(?:okay|sure)[,!.]?\s*)?(?:here (?:are|is)|these are|below are)\b/i.test(first) &&
-    (/\b(?:versions?|options?|drafts?)\b/i.test(first) || first.endsWith(':'))) {
+    (/\b(?:versions?|options?|drafts?)\b/i.test(first) || first.endsWith(':')) ||
+    /^here(?:'s| is) (?:a|the|your) reply\s*:/i.test(first)) {
     const colon = first.indexOf(':');
     lines[0] = colon < 0 ? '' : first.slice(colon + 1).trim();
   }
@@ -40,7 +41,9 @@ export function cleanDrafts(candidates: string[], limit = count) {
   const drafts: string[] = [];
   for (const candidate of candidates) {
     for (const part of parts(candidate)) {
-      const draft = clean(part).replace(/^\s*(?:draft|option|version)\s*[1-3][.):]\s*/i, '')
+      const standalone = (candidates.length > 1 || limit === 1) && [...part.matchAll(numbered)].length === 1;
+      const draft = clean(standalone ? part.replace(/^\s*[1-3][.):]\s+/, '') : part)
+        .replace(/^\s*(?:draft|option|version)\s*[1-3][.):]\s*/i, '')
         .replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
         .replace(/^'([\s\S]*)'$/, '$1').replace(/^‘([\s\S]*)’$/, '$1').trim();
       const key = draft.toLowerCase().replace(/\s+/g, ' ');
@@ -60,7 +63,13 @@ function prompt({ conversation, typed, guide }: DraftRequest) {
 
 async function fallback(promptText: string, drafts: string[]) {
   for (let version = drafts.length; version < count; version++) {
-    const text = await Native.ask(`phone-draft-${Date.now()}-${version}`, `${promptText}\n\nReturn a different version from the other replies: ${version + 1}. Return only one message, with no preamble, quotes, or numbering.`, { maxTokens: 120 });
+    let text: string;
+    try {
+      text = await Native.ask(`phone-draft-${Date.now()}-${version}`, `${promptText}\n\nReturn a different version from the other replies: ${version + 1}. Return only one message, with no preamble, quotes, or numbering.`, { maxTokens: 120 });
+    } catch (error) {
+      if (!drafts.length) throw error;
+      break;
+    }
     const [draft] = cleanDrafts([text], 1);
     if (draft && !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === draft.toLowerCase().replace(/\s+/g, ' '))) drafts.push(draft);
   }
