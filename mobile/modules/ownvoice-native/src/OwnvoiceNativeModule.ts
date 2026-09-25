@@ -26,6 +26,6 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   modelStatus(): Promise<ModelStatus>;
   downloadModel(): Promise<void>;
   ask(id: string, prompt: string, options: { maxTokens: number }): Promise<string>;
-  drafts(prompt: string, options: { candidates: number; maxTokens: number; temperature: number; topK: number }): Promise<string[]>;
+  drafts(prompt: string, options: { candidates: number; maxTokens: number }): Promise<string[]>;
 }
 export default requireNativeModule<OwnvoiceNativeModule>('OwnvoiceNative');

@@ -85,7 +85,7 @@ export const phoneWriter = {
       }
       onState('writing');
       const promptText = prompt(request);
-      const drafts = cleanDrafts(await Native.drafts(promptText, { candidates: count, maxTokens: 120, temperature: 0.9, topK: 40 }));
+      const drafts = cleanDrafts(await Native.drafts(promptText, { candidates: count, maxTokens: 120 }));
       const result = drafts.length === count ? drafts : await fallback(promptText, drafts);
       if (!result.length) throw new Error('-107');
       return result;

@@ -18,6 +18,7 @@ test('gets the model ready and returns drafts for the message in the field', asy
   expect(native.downloadModel).toHaveBeenCalled();
   expect(native.drafts.mock.calls[0][0]).toContain('hello');
   expect(native.drafts.mock.calls[0][0]).toContain('one short natural version');
+  expect(native.drafts.mock.calls[0][1]).toEqual({ candidates: 3, maxTokens: 120 });
 });
 
 test('whitespace in the field selects a reply to the conversation', async () => {

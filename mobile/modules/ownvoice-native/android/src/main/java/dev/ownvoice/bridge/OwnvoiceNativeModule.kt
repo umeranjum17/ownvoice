@@ -88,9 +88,7 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("drafts") Coroutine { prompt: String, options: Map<String, Any?> ->
       try {
         PhoneModel.drafts(prompt, (options["candidates"] as? Number)?.toInt() ?: 3,
-          (options["maxTokens"] as? Number)?.toInt() ?: 120,
-          (options["temperature"] as? Number)?.toDouble() ?: 0.9,
-          (options["topK"] as? Number)?.toInt() ?: 40)
+          (options["maxTokens"] as? Number)?.toInt() ?: 120)
       } catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
     }
   }

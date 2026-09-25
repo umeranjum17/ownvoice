@@ -70,10 +70,10 @@ internal object PhoneModel {
     return text.toString().trim().ifEmpty { throw IllegalStateException("Empty answer") }
   }
 
-  suspend fun drafts(prompt: String, candidates: Int, maxTokens: Int, temperature: Double, topK: Int): List<String> {
+  suspend fun drafts(prompt: String, candidates: Int, maxTokens: Int): List<String> {
     val request = generateContentRequest(TextPart(prompt)) {
-      this.temperature = temperature.toFloat()
-      this.topK = topK
+      temperature = 0.9f
+      topK = 40
       candidateCount = candidates
       maxOutputTokens = maxTokens
     }
