@@ -5,7 +5,6 @@ import android.os.Build
 import android.provider.Settings
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import android.security.keystore.StrongBoxUnavailableException
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.InetSocketAddress
@@ -16,6 +15,7 @@ import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.Principal
 import java.security.PrivateKey
+import java.security.ProviderException
 import java.security.cert.CertificateException
 import java.security.cert.X509Certificate
 import java.security.spec.ECGenParameterSpec
@@ -173,7 +173,7 @@ object Link {
         try {
             gen.initialize(spec(strongBox = Build.VERSION.SDK_INT >= 28))
             gen.generateKeyPair()
-        } catch (e: StrongBoxUnavailableException) {
+        } catch (e: ProviderException) { // StrongBoxUnavailableException, on phones without StrongBox
             gen.initialize(spec(strongBox = false))
             gen.generateKeyPair()
         }

@@ -3,6 +3,7 @@ package dev.ownvoice.app
 import android.app.Activity
 import android.content.Intent
 import android.text.format.DateUtils
+import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.RadioButton
@@ -25,13 +26,13 @@ fun Activity.showComputer(box: LinearLayout, apps: List<Pair<String, String>>) {
         box.addView(Button(this).apply { text = "Use my computer"; setOnClickListener { startActivity(Intent(context, PairActivity::class.java)) } })
         return
     }
-    val onComputer = RadioButton(this).apply { text = "My computer (this phone fills in when it's off)"; id = 1 }
-    val onPhone = RadioButton(this).apply { text = "This phone only"; id = 2 }
+    val onComputer = RadioButton(this).apply { text = "My computer (this phone fills in when it's off)"; id = View.generateViewId() }
+    val onPhone = RadioButton(this).apply { text = "This phone only"; id = View.generateViewId() }
     box.addView(RadioGroup(this).apply {
         addView(onComputer)
         addView(onPhone)
-        check(if (Link.computerWrites(context)) 1 else 2)
-        setOnCheckedChangeListener { _, id -> Link.setComputerWrites(context, id == 1) }
+        check(if (Link.computerWrites(context)) onComputer.id else onPhone.id)
+        setOnCheckedChangeListener { _, id -> Link.setComputerWrites(context, id == onComputer.id) }
     })
     val seen = if (computer.seen == 0L) "" else " Last answered " + DateUtils.getRelativeTimeSpanString(computer.seen).toString().replaceFirstChar { it.lowercase() } + "."
     text("Your computer (${computer.name}) writes while ownvoice-link runs on it.$seen " +
