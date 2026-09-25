@@ -8,16 +8,16 @@ type Events = {
   onInserted: (event: { ok: boolean; newlinesLost: boolean }) => void;
 };
 declare class OwnvoiceNativeModule extends NativeModule<Events> {
-  serviceState(): ServiceState;
-  openAccessibilitySettings(): void;
-  setBubbleRules(rules: { paused: boolean; on: string[]; off: string[]; defaults: string[] }): void;
-  setPractice(on: boolean): void;
-  say(message: string, ms?: number): void;
-  capture(): Capture | null;
-  forget(): void;
-  takeTapFacts(): TapFact[];
+  serviceState(): Promise<ServiceState>;
+  openAccessibilitySettings(): Promise<void>;
+  setBubbleRules(rules: { paused: boolean; on: string[]; off: string[]; defaults: string[] }): Promise<void>;
+  setPractice(on: boolean): Promise<void>;
+  say(message: string, ms?: number): Promise<void>;
+  capture(): Promise<Capture | null>;
+  forget(): Promise<void>;
+  takeTapFacts(): Promise<TapFact[]>;
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;
-  closePanel(): void;
-  debugTree(): string;
+  closePanel(): Promise<void>;
+  debugTree(): Promise<string>;
 }
 export default requireNativeModule<OwnvoiceNativeModule>('OwnvoiceNative');

@@ -1,25 +1,27 @@
-import React from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Native from '../../modules/ownvoice-native';
+import Native, { Capture } from '../../modules/ownvoice-native';
 import { stubDrafts } from './stubWriter';
 
 export default function Panel() {
-  const capture = Native.capture();
+  const [capture, setCapture] = useState<Capture | null>(null);
+  useEffect(() => { void Native.capture().then(setCapture).catch(() => {}); }, []);
   const drafts = stubDrafts(capture?.typed ?? '');
+  const close = () => { void Native.closePanel().catch(() => {}); };
   return <View style={styles.scrim}>
-    <Pressable accessibilityLabel="Close" style={styles.outside} onPress={() => Native.closePanel()} />
+    <Pressable accessibilityLabel="Close" style={styles.outside} onPress={close} />
     <View style={styles.sheet}>
       <View style={styles.handle} />
       <Text style={styles.title}>{capture?.typed ? 'Polish your message' : 'Suggested replies'}</Text>
       <Text style={styles.note}>Pick one to put in your message box. You send it yourself.</Text>
       {!capture?.hasField && <Text style={styles.note}>Tap into the message box first to use Insert, or copy one.</Text>}
-      <ScrollView>{drafts.map((draft, i) => <View key={draft} style={styles.card}>
+      <ScrollView>{drafts.map(draft => <View key={draft} style={styles.card}>
         <Text style={styles.draft}>{draft}</Text>
         <View style={styles.actions}>
-          <Pressable disabled={!capture?.hasField} onPress={() => { void Native.insert(draft); }}><Text style={[styles.action, !capture?.hasField && styles.disabled]}>Insert</Text></Pressable>
+          <Pressable disabled={!capture?.hasField} onPress={() => { void Native.insert(draft).catch(() => Native.say("Couldn't insert. Copied, paste it.")); }}><Text style={[styles.action, !capture?.hasField && styles.disabled]}>Insert</Text></Pressable>
         </View>
       </View>)}</ScrollView>
-      <Pressable accessibilityRole="button" onPress={() => Native.closePanel()} style={styles.close}><Text>Close</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={close} style={styles.close}><Text>Close</Text></Pressable>
     </View>
   </View>;
 }
