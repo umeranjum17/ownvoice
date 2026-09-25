@@ -1,6 +1,6 @@
 import { AccessibilityInfo, Appearance, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
 import { Sheet } from '../Sheet';
 import { Card } from '../Card';
 import { Button } from '../Button';
@@ -13,6 +13,7 @@ import { Row } from '../Row';
 import { ReasonRow } from '../ReasonRow';
 import { Progress } from '../Progress';
 import { Dot } from '../Dot';
+import { useReducedMotion } from '../theme';
 
 jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
 
@@ -48,6 +49,13 @@ const cases: [string, () => React.ReactElement][] = [
   ['progress', () => <Progress fraction={0.42} />],
   ['dot-idle', () => <Dot mood="idle" size={40} />],
 ];
+
+test('a failed motion query still settles the UI', async () => {
+  jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockRejectedValueOnce(new Error('Unavailable'));
+  const { result } = await renderHook(useReducedMotion);
+  await act(async () => { await Promise.resolve(); });
+  expect(result.current).toBe(false);
+});
 
 describe.each(['light', 'dark'] as const)('ui components (%s)', scheme => {
   beforeEach(() => { Appearance.setColorScheme(scheme); });
