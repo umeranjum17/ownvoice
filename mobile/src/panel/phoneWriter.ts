@@ -1,19 +1,78 @@
 import Native from '../../modules/ownvoice-native';
+import { clean } from '../core/judge';
 import { message } from '../core/nano';
 import type { DraftRequest, Writer } from '../core/writers';
 
+const count = 3;
+const numbered = /(?:^|\s)(?:(?:draft|option|version)\s*)?([1-3])[.):]\s+/gi;
+
+function body(text: string) {
+  const lines = text.trim().split(/\r?\n/);
+  const first = lines[0]?.trim() ?? '';
+  if (/^(?:(?:okay|sure)[,!.]?\s*)?(?:here (?:are|is)|these are|below are)\b/i.test(first) &&
+    (/\b(?:versions?|options?|drafts?)\b/i.test(first) || first.endsWith(':'))) {
+    const colon = first.indexOf(':');
+    lines[0] = colon < 0 ? '' : first.slice(colon + 1).trim();
+  }
+  return lines.join('\n').trim();
+}
+
+function parts(text: string) {
+  const value = body(text);
+  const markers: { start: number; end: number }[] = [];
+  for (const match of value.matchAll(numbered)) markers.push({ start: match.index! + match[0].search(/\S/), end: match.index! + match[0].length });
+  if (markers.length > 1 && value.slice(0, markers[0].start).trim() === '' && value.slice(markers[0].start).startsWith('1')) {
+    return markers.map((marker, index) => value.slice(marker.end, markers[index + 1]?.start ?? value.length));
+  }
+  const lines = value.split(/\r?\n/);
+  const list = lines.map((line, index) => ({ line, index })).filter(({ line }) => /^\s*[-*•]\s+/.test(line));
+  if (list.length > 1) return list.map(({ line }, index) => [line.replace(/^\s*[-*•]\s+/, ''), ...lines.slice(list[index].index + 1, list[index + 1]?.index ?? lines.length)].join('\n'));
+  return [value];
+}
+
+export function cleanDrafts(candidates: string[], limit = count) {
+  const drafts: string[] = [];
+  for (const candidate of candidates) {
+    for (const part of parts(candidate)) {
+      const draft = clean(part).replace(/^\s*(?:(?:draft|option|version)\s*)?[1-3][.):]\s*/i, '')
+        .replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
+        .replace(/^'([\s\S]*)'$/, '$1').replace(/^‘([\s\S]*)’$/, '$1').trim();
+      const key = draft.toLowerCase().replace(/\s+/g, ' ');
+      if (draft && !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === key)) drafts.push(draft);
+      if (drafts.length === limit) return drafts;
+    }
+  }
+  return drafts;
+}
+
+function prompt({ conversation, typed, guide }: DraftRequest) {
+  const rules = guide ? ` Follow their rules: ${guide}` : '';
+  return typed.trim()
+    ? `Improve this message someone wrote on their phone. Return exactly one short natural version, in the same language and tone. Do not give alternatives.${rules} Output only the message text.\n\nTheir message:\n${typed}`
+    : `You help someone reply in a chat.\nWrite exactly one short, natural reply to the latest message, in the conversation's language and tone. Use only the facts shown; don't invent details or give alternatives.${rules} Output only the reply text.\n\nConversation:\n${conversation.slice(-3000)}`;
+}
+
+async function fallback(promptText: string) {
+  const drafts: string[] = [];
+  for (let version = 0; version < count; version++) {
+    const text = await Native.ask(`phone-draft-${Date.now()}-${version}`, `${promptText}\n\nReturn a different version from the other replies: ${version + 1}. Return only one message, with no preamble, quotes, or numbering.`, { maxTokens: 120 });
+    const [draft] = cleanDrafts([text], 1);
+    if (draft && !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === draft.toLowerCase().replace(/\s+/g, ' '))) drafts.push(draft);
+  }
+  return drafts;
+}
+
 export const phoneWriter = {
-  async write({ conversation, typed, guide }: DraftRequest, onState: (state: 'downloading' | 'writing') => void = () => {}) {
+  async write(request: DraftRequest, onState: (state: 'downloading' | 'writing') => void = () => {}) {
     try {
       if (await Native.modelStatus() !== 'available') {
         onState('downloading');
         await Native.downloadModel();
       }
       onState('writing');
-      const prompt = typed.trim()
-        ? `Improve this message someone wrote on their phone. Return one short natural version, in the same language and tone. ${guide ? `Follow their rules: ${guide} ` : ''}Output only the message text, without a preamble or numbering.\n\nTheir message:\n${typed}`
-        : `You help someone reply in a chat. Below is the text visible on their screen; it may include app labels.\nWrite one short, natural reply they could send next, in the conversation's language and tone. ${guide ? `Follow their rules: ${guide} ` : ''}Output only the reply text.\n\nScreen:\n${conversation.slice(-3000)}`;
-      return await Native.drafts(prompt, { candidates: 3, maxTokens: 120, temperature: 0.9, topK: 40 });
+      const promptText = prompt(request);
+      const drafts = cleanDrafts(await Native.drafts(promptText, { candidates: count, maxTokens: 120, temperature: 0.9, topK: 40 }));
+      return drafts.length === count ? drafts : await fallback(promptText);
     } catch (error) {
       const code = Number(String(error).match(/(?:^|\D)(-?\d{1,3})(?:\D|$)/)?.[1]);
       throw new Error(message(Number.isFinite(code) ? code : -107));

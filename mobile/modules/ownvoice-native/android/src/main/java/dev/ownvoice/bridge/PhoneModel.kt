@@ -3,6 +3,7 @@ package dev.ownvoice.bridge
 import com.google.mlkit.genai.common.DownloadStatus
 import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.common.GenAiException
+import android.util.Log
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.prompt.generateContentRequest
@@ -13,11 +14,15 @@ import kotlinx.coroutines.launch
 internal object PhoneModel {
   private val model by lazy { Generation.getClient() }
 
-  suspend fun status(): String = when (model.checkStatus()) {
-    FeatureStatus.AVAILABLE -> "available"
-    FeatureStatus.DOWNLOADABLE -> "downloadable"
-    FeatureStatus.DOWNLOADING -> "downloading"
-    else -> "unavailable"
+  suspend fun status(): String {
+    val state = when (model.checkStatus()) {
+      FeatureStatus.AVAILABLE -> "available"
+      FeatureStatus.DOWNLOADABLE -> "downloadable"
+      FeatureStatus.DOWNLOADING -> "downloading"
+      else -> "unavailable"
+    }
+    Log.i(OwnvoiceService.TAG, "model status $state")
+    return state
   }
 
   suspend fun download(progress: (Float) -> Unit) {

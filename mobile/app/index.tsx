@@ -7,7 +7,7 @@ import type { TapFact } from '../modules/ownvoice-native';
 type Rules = { paused: boolean; on: string[]; off: string[] };
 const native = () => require('../modules/ownvoice-native').default;
 export default function Home() {
-  const [text, setText] = useState('Write a reply here');
+  const [text, setText] = useState('');
   const [rules, setRules] = useState<Rules | null>(null);
   const [activity, setActivity] = useState(0);
   const [apps, setApps] = useState<{ app: string; label: string }[] | null>(null);
@@ -46,7 +46,12 @@ export default function Home() {
   return <View style={{ flex: 1, justifyContent: 'center', padding: 24, gap: 16 }}>
     <Text style={{ fontSize: 28, fontWeight: '700' }}>Ownvoice</Text>
     <Text>{words.home}</Text>
-    <TextInput accessibilityLabel="Ownvoice test message" value={text} onChangeText={setText} multiline style={{ minHeight: 96, borderWidth: 1, borderRadius: 12, padding: 12 }} />
+    <View style={{ alignSelf: 'flex-start', maxWidth: '92%', padding: 12, borderRadius: 16, backgroundColor: '#eee8e4' }}>
+      <Text style={{ fontWeight: '700' }}>Sam</Text>
+      <Text>Are we still on for Saturday?</Text>
+      <Text>I can bring the tent if you bring the stove.</Text>
+    </View>
+    <TextInput accessibilityLabel="Message" placeholder="Message" value={text} onChangeText={setText} multiline style={{ minHeight: 56, borderWidth: 1, borderRadius: 12, padding: 12 }} />
     <Button title="Turn on accessibility" onPress={() => { void native().openAccessibilitySettings().catch(() => {}); }} />
     <Button disabled={!rules} title="Where the bubble shows" onPress={() => { void native().launcherApps().then(setApps).catch(() => {}); }} />
     <Button disabled={!rules} title={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change(current => ({ ...current, paused: !current.paused })); }} />
