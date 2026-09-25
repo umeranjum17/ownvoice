@@ -90,6 +90,41 @@ class ComputerFlowTest {
         instr.runOnMainSync { again.finish() }
     }
 
+    /** On a phone whose own model can't write, an app that stays on the phone still offers the computer. */
+    @Test fun phoneThatCantWriteStillOffersTheComputer() {
+        step("on")
+        OwnvoiceService.engine = CantWrite
+        instr.runOnMainSync { Privacy.setMayGoToComputer(ctx, ctx.packageName, false) }
+        val sheet = openPanel()
+        waitUntil("the offer") { texts(sheet).contains("Write this one on my computer") }
+        assertTrue(texts(sheet).contains(CantWrite.SAYS))
+        val monitor = instr.addMonitor(DraftActivity::class.java.name, null, false)
+        tap(sheet, "Write this one on my computer")
+        val again = monitor.waitForActivityWithTimeout(5_000) as DraftActivity
+        instr.removeMonitor(monitor)
+        waitUntil("computer drafts", 20_000) { again.drafts.isNotEmpty() }
+        assertEquals(FAKE, again.drafts)
+        instr.runOnMainSync { again.finish() }
+    }
+
+    /** With the helper stopped and a phone that can't write either, the panel still says why the computer didn't. */
+    @Test fun computerFailureShowsItsReasonWhenThePhoneCantWrite() {
+        step("off")
+        OwnvoiceService.engine = CantWrite
+        instr.runOnMainSync { Privacy.setMayGoToComputer(ctx, ctx.packageName, true) }
+        val sheet = openPanel()
+        waitUntil("the offer", 20_000) { texts(sheet).contains("Try my computer again") }
+        assertTrue(texts(sheet).any { it.startsWith("Your computer didn't answer") && it.endsWith(CantWrite.SAYS) })
+        instr.runOnMainSync { sheet.finish() }
+    }
+
+    /** A phone engine that can't write, like a phone without its own model. */
+    private object CantWrite : DraftEngine {
+        const val SAYS = "This phone can't write here."
+        override suspend fun drafts(conversation: String, guide: String, status: (String) -> Unit): List<String> = throw PlainError(SAYS)
+        override suspend fun ask(prompt: String, maxTokens: Int): String = throw PlainError(SAYS)
+    }
+
     /** With the helper stopped, the phone writes, says why in plain words, and offers to try again. */
     @Test fun phoneWritesWhenTheComputerIsOff() {
         step("off")

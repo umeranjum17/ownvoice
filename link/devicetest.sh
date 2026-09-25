@@ -45,12 +45,12 @@ echo "== computer on"
 "$work/ownvoice-link" --listen "$listen" > "$work/serve.out" 2>&1 &
 pid=$!
 sleep 1
-run 2 -e step on
+run 3 -e step on
 kill "$pid"; wait "$pid" 2>/dev/null || true; pid=
 echo "helper log:"; cat "$work/serve.out"
 
 echo "== computer off"
-run 1 -e step off
+run 2 -e step off
 
 echo "== forget"
 run 1 -e step forget

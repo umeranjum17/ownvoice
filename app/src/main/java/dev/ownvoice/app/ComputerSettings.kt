@@ -34,7 +34,11 @@ fun Activity.showComputer(box: LinearLayout, apps: List<Pair<String, String>>) {
         check(if (Link.computerWrites(context)) onComputer.id else onPhone.id)
         setOnCheckedChangeListener { _, id -> Link.setComputerWrites(context, id == onComputer.id) }
     })
-    val seen = if (computer.seen == 0L) "" else " Last answered " + DateUtils.getRelativeTimeSpanString(computer.seen).toString().replaceFirstChar { it.lowercase() } + "."
+    val seen = when {
+        computer.seen == 0L -> ""
+        System.currentTimeMillis() - computer.seen < DateUtils.MINUTE_IN_MILLIS -> " Last answered just now."
+        else -> " Last answered " + DateUtils.getRelativeTimeSpanString(computer.seen).toString().replaceFirstChar { it.lowercase() } + "."
+    }
     text("Your computer (${computer.name}) writes while ownvoice-link runs on it.$seen " +
         "It uses the account you signed in to there; this phone never holds that login. Drafts are still checked on this phone.")
     text("Apps that may go to your computer", 16f, pad / 2)

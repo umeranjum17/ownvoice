@@ -87,6 +87,8 @@ class DraftActivity : Activity() {
         status.text = "Reading done."
         scope.launch {
             val started = SystemClock.elapsedRealtime()
+            val anyway = intent.getBooleanExtra(ON_COMPUTER, false)
+            var engine: DraftEngine? = null
             try {
                 if (mode == Judge.Mode.COMPOSE) {
                     val versions = boost(capture.typed, Voice.guide(voice, post))
@@ -94,8 +96,7 @@ class DraftActivity : Activity() {
                     Log.i(OwnvoiceService.TAG, "boosts=${drafts.size} in ${SystemClock.elapsedRealtime() - started} ms")
                     show(true, capture.conversation, capture.typed, versions.map { it.first }, voice, post)
                 } else {
-                    val anyway = intent.getBooleanExtra(ON_COMPUTER, false)
-                    val engine = Computer.pick(this@DraftActivity, capture.app, anyway, OwnvoiceService.engine)
+                    engine = Computer.pick(this@DraftActivity, capture.app, anyway, OwnvoiceService.engine)
                     drafts = engine.drafts(capture.conversation, Voice.guide(voice, post = false)) { status.text = it }
                     writer = (engine as? Computer)?.wrote ?: Writer.PHONE
                     Log.i(OwnvoiceService.TAG, "drafts=${drafts.size} by $writer in ${SystemClock.elapsedRealtime() - started} ms")
@@ -107,6 +108,8 @@ class DraftActivity : Activity() {
             } catch (e: PlainError) {
                 Log.w(OwnvoiceService.TAG, "draft failed after ${SystemClock.elapsedRealtime() - started} ms: ${e.message}")
                 status.text = e.message
+                // The phone can't write, but the computer may: say why it didn't, and still offer it.
+                engine?.let { offerComputer(capture, it, anyway) }
             }
         }
     }
