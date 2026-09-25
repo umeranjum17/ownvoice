@@ -6,7 +6,9 @@ import com.google.mlkit.genai.common.GenAiException
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.prompt.generateContentRequest
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 internal object PhoneModel {
   private val model by lazy { Generation.getClient() }
@@ -21,19 +23,30 @@ internal object PhoneModel {
   suspend fun download(progress: (Float) -> Unit) {
     when (model.checkStatus()) {
       FeatureStatus.AVAILABLE -> return
-      FeatureStatus.UNAVAILABLE -> throw IllegalStateException("model:16")
+      FeatureStatus.UNAVAILABLE -> throw UnsupportedOperationException()
       else -> Unit
     }
-    var total = 0L
-    model.download().collect { state ->
-      when (state) {
-        is DownloadStatus.DownloadStarted -> total = state.bytesToDownload
-        is DownloadStatus.DownloadProgress -> if (total > 0) progress(state.totalBytesDownloaded.toFloat() / total)
-        is DownloadStatus.DownloadFailed -> throw state.e
-        DownloadStatus.DownloadCompleted -> progress(1f)
+    coroutineScope {
+      val download = launch {
+        var total = 0L
+        model.download().collect { state ->
+          when (state) {
+            is DownloadStatus.DownloadStarted -> total = state.bytesToDownload
+            is DownloadStatus.DownloadProgress -> if (total > 0) progress(state.totalBytesDownloaded.toFloat() / total)
+            is DownloadStatus.DownloadFailed -> throw state.e
+            DownloadStatus.DownloadCompleted -> progress(1f)
+          }
+        }
       }
+      while (true) {
+        when (model.checkStatus()) {
+          FeatureStatus.AVAILABLE -> break
+          FeatureStatus.UNAVAILABLE -> throw UnsupportedOperationException()
+          else -> delay(1000)
+        }
+      }
+      download.cancel()
     }
-    while (model.checkStatus() != FeatureStatus.AVAILABLE) delay(1000)
   }
 
   suspend fun ask(prompt: String, maxTokens: Int, partial: (String) -> Unit): String {
@@ -49,7 +62,7 @@ internal object PhoneModel {
         partial(delta)
       }
     }
-    return text.toString().trim()
+    return text.toString().trim().ifEmpty { throw IllegalStateException("Empty answer") }
   }
 
   suspend fun drafts(prompt: String, candidates: Int, maxTokens: Int, temperature: Double, topK: Int): List<String> {
@@ -66,8 +79,12 @@ internal object PhoneModel {
         .filter { it.isNotEmpty() && it !in result }
         .forEach(result::add)
     }
-    return result.take(candidates)
+    return result.take(candidates).ifEmpty { throw IllegalStateException("Empty drafts") }
   }
 
-  fun errorCode(error: Throwable): Int = (error as? GenAiException)?.errorCode ?: -107
+  fun errorCode(error: Throwable): Int = when (error) {
+    is GenAiException -> error.errorCode
+    is UnsupportedOperationException -> 16
+    else -> -107
+  }
 }
