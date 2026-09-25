@@ -23,9 +23,10 @@ test('whitespace in the field selects a reply to the conversation', async () => 
   native.modelStatus.mockResolvedValue('available');
   native.drafts.mockResolvedValue(['See you there.']);
   const states: string[] = [];
-  await expect(phoneWriter.write({ conversation: 'See you at noon?', written: '', typed: '   ' }, state => states.push(state))).resolves.toEqual(['See you there.']);
+  const conversation = 'Earlier chat.\n' + 'x'.repeat(3000) + '\nSee you at noon?';
+  await expect(phoneWriter.write({ conversation, written: 'See you at noon?', typed: '   ' }, state => states.push(state))).resolves.toEqual(['See you there.']);
   expect(states).toEqual(['writing']);
-  expect(native.drafts.mock.calls.at(-1)?.[0]).toContain('See you at noon?');
+  expect(native.drafts.mock.calls.at(-1)?.[0]).toContain('Screen:\n' + conversation.slice(-3000));
   expect(native.drafts.mock.calls.at(-1)?.[0]).not.toContain('Improve this message');
 });
 
