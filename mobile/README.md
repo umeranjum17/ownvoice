@@ -18,8 +18,8 @@ npm test -- --ci
 | VoiceTest (voice-fixture.md) | 9 | 10 |
 | PrivacyTest | 6 | 6 |
 | OnboardingTest | 4 | 4 |
-| RewriteTest (fm/ov-rewrite) | 9 | 13 |
+| RewriteTest (fm/ov-rewrite) | 9 | 14 |
 | PlainWordsTest | 7 | 7 |
-| **Total** | **59** | **64** |
+| **Total** | **59** | **65** |
 
-59 Kotlin cases were ported; five additional Jest regressions bring the current suite to 64 cases. The mobile Jest suite passes locally. No Gradle build or phone install was run for this slice; no installed tool configuration was changed.
+59 Kotlin cases were ported; six additional Jest regressions bring the current suite to 65 cases. The mobile Jest suite passes locally. No Gradle build or phone install was run for this slice; no installed tool configuration was changed.
