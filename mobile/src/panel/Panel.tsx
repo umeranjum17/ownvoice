@@ -9,10 +9,11 @@ export default function Panel() {
   const [drafts, setDrafts] = useState<string[]>([]);
   const [note, setNote] = useState('Writing…');
   useEffect(() => {
-    const progress = Native.addListener('onModelProgress', ({ fraction }) => setNote(`Getting Ownvoice ready… ${Math.round(fraction * 100)}%`));
+    let ready = false;
+    const progress = Native.addListener('onModelProgress', ({ fraction }) => { if (!ready) setNote(`Getting Ownvoice ready… ${Math.round(fraction * 100)}%`); });
     void Native.capture().then(async value => {
       setCapture(value);
-      if (value) setDrafts(await phoneWriter.write({ conversation: value.conversation, written: value.written, typed: value.typed }));
+      if (value) setDrafts(await phoneWriter.write({ conversation: value.conversation, written: value.written, typed: value.typed }, () => { ready = true; setNote('Writing…'); }));
     }).catch(error => setNote(error instanceof Error ? error.message : 'Try again in a moment.'));
     return () => progress.remove();
   }, []);

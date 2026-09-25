@@ -12,11 +12,9 @@ export default function Home() {
   const [activity, setActivity] = useState(0);
   const [apps, setApps] = useState<{ app: string; label: string }[] | null>(null);
   const [search, setSearch] = useState('');
-  const [practice, setPractice] = useState(false);
   const pending = useRef(Promise.resolve());
   useEffect(() => {
     void native().bubbleRules().then(setRules).catch(() => {});
-    void native().practice().then(setPractice).catch(() => {});
   }, []);
   const change = (update: (current: Rules) => Rules) => {
     pending.current = pending.current.then(async () => {
@@ -49,7 +47,6 @@ export default function Home() {
     <Text style={{ fontSize: 28, fontWeight: '700' }}>Ownvoice</Text>
     <Text>{words.home}</Text>
     <TextInput accessibilityLabel="Ownvoice test message" value={text} onChangeText={setText} multiline style={{ minHeight: 96, borderWidth: 1, borderRadius: 12, padding: 12 }} />
-    <Button title={practice ? 'Finish practice' : 'Practice in Ownvoice'} onPress={() => { const next = !practice; setPractice(next); void native().setPractice(next).catch(() => {}); }} />
     <Button title="Turn on accessibility" onPress={() => { void native().openAccessibilitySettings().catch(() => {}); }} />
     <Button disabled={!rules} title="Where the bubble shows" onPress={() => { void native().launcherApps().then(setApps).catch(() => {}); }} />
     <Button disabled={!rules} title={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change(current => ({ ...current, paused: !current.paused })); }} />

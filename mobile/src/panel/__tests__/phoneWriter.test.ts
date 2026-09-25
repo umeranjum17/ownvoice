@@ -11,9 +11,12 @@ test('gets the model ready and returns drafts for the message in the field', asy
   native.modelStatus.mockResolvedValue('downloadable');
   native.downloadModel.mockResolvedValue();
   native.drafts.mockResolvedValue(['First', 'Second']);
-  await expect(phoneWriter.write({ conversation: '', written: '', typed: 'hello', guide: '' })).resolves.toEqual(['First', 'Second']);
+  const ready = jest.fn();
+  native.drafts.mockImplementation(async () => { expect(ready).toHaveBeenCalledTimes(1); return ['First', 'Second']; });
+  await expect(phoneWriter.write({ conversation: '', written: '', typed: 'hello', guide: '' }, ready)).resolves.toEqual(['First', 'Second']);
   expect(native.downloadModel).toHaveBeenCalled();
   expect(native.drafts.mock.calls[0][0]).toContain('hello');
+  expect(native.drafts.mock.calls[0][0]).toContain('one short natural version');
 });
 
 test('turns native error codes into the app words', async () => {
