@@ -29,7 +29,6 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var onApps: Set<String> = emptySet()
     @Volatile var offApps: Set<String> = emptySet()
     val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
-    @Volatile var defaults: Set<String> = DEFAULT_ON
     @Volatile var paused = false
     @Volatile var practice = false
     @Volatile var panelIsOpen = false
@@ -55,7 +54,7 @@ class OwnvoiceService : AccessibilityService() {
     set(value) { panelIsOpen = value; updateBubble() }
 
   private fun px(dp: Int) = (dp * resources.displayMetrics.density).toInt()
-  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in defaults) || (practice && app == packageName))
+  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON) || (practice && app == packageName))
   private val night get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
   private fun colour(id: Int, fallback: Int) = if (android.os.Build.VERSION.SDK_INT >= 31) getColor(id) else fallback
 
@@ -65,7 +64,6 @@ class OwnvoiceService : AccessibilityService() {
     practice = prefs.getBoolean("practice", false)
     onApps = prefs.getStringSet("on", emptySet()).orEmpty()
     offApps = prefs.getStringSet("off", emptySet()).orEmpty()
-    defaults = prefs.getStringSet("defaults", DEFAULT_ON).orEmpty()
     wm = getSystemService(WindowManager::class.java)
     bubble = TextView(this).apply {
       gravity = Gravity.CENTER
@@ -117,10 +115,10 @@ class OwnvoiceService : AccessibilityService() {
     }
   }
 
-  fun setRules(pausedNow: Boolean, on: Set<String>, off: Set<String>, defaultApps: Set<String>) {
-    paused = pausedNow; onApps = on; offApps = off; defaults = defaultApps
+  fun setRules(pausedNow: Boolean, on: Set<String>, off: Set<String>) {
+    paused = pausedNow; onApps = on; offApps = off
     if (capture != null && !allowed(capture?.app)) forget()
-    prefs.edit().putBoolean("paused", pausedNow).putStringSet("on", on).putStringSet("off", off).putStringSet("defaults", defaultApps).apply()
+    prefs.edit().putBoolean("paused", pausedNow).putStringSet("on", on).putStringSet("off", off).apply()
     updateBubble()
   }
 
@@ -167,14 +165,22 @@ class OwnvoiceService : AccessibilityService() {
   fun drainFacts(): List<TapFact> = synchronized(facts) { facts.toList().also { facts.clear() } }
 
   fun insert(text: String, done: (Boolean, Boolean) -> Unit) {
-    if (inserting) return done(false, false)
+    if (inserting) {
+      getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
+      say("Couldn't insert. Copied, paste it.")
+      onInserted?.invoke(false, false)
+      return done(false, false)
+    }
     inserting = true
-    val field = captured()?.input ?: return finishInsert(text, false, false, done)
+    val reading = captured()
+    val field = reading?.input ?: return finishInsert(text, false, false, done)
     val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
     fun attempt(left: Int) {
+      if (captured() !== reading) return finishInsert(text, false, false, done)
       field.refresh()
       if (field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
         fun verify(left: Int) {
+          if (captured() !== reading) return finishInsert(text, false, false, done)
           field.refresh()
           val got = field.text?.toString()
           val newlinesLost = '\n' in text && got == text.replace("\n", "")

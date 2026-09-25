@@ -36,17 +36,15 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("bubbleRules") {
       val prefs = context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE)
       mapOf("paused" to prefs.getBoolean("paused", false), "on" to prefs.getStringSet("on", emptySet()).orEmpty().toList(),
-        "off" to prefs.getStringSet("off", emptySet()).orEmpty().toList(),
-        "defaults" to prefs.getStringSet("defaults", OwnvoiceService.DEFAULT_ON).orEmpty().toList())
+        "off" to prefs.getStringSet("off", emptySet()).orEmpty().toList())
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("setBubbleRules") { rules: Map<String, Any?> ->
       val paused = rules["paused"] as? Boolean ?: false
       val on = (rules["on"] as? List<String>).orEmpty()
       val off = (rules["off"] as? List<String>).orEmpty()
-      val defaults = (rules["defaults"] as? List<String>) ?: OwnvoiceService.DEFAULT_ON.toList()
       context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit()
-        .putBoolean("paused", paused).putStringSet("on", on.toSet()).putStringSet("off", off.toSet()).putStringSet("defaults", defaults.toSet()).apply()
-      OwnvoiceService.instance?.setRules(paused, on.toSet(), off.toSet(), defaults.toSet())
+        .putBoolean("paused", paused).putStringSet("on", on.toSet()).putStringSet("off", off.toSet()).apply()
+      OwnvoiceService.instance?.setRules(paused, on.toSet(), off.toSet())
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("setPractice") { on: Boolean ->
       OwnvoiceService.practice = on

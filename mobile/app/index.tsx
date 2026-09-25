@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Button, ScrollView, Text, TextInput, View } from 'react-native';
 import { words } from '../src/core/words';
+import { DEFAULT_ON } from '../src/core/privacy';
 import type { TapFact } from '../modules/ownvoice-native';
 
-type Rules = { paused: boolean; on: string[]; off: string[]; defaults: string[] };
+type Rules = { paused: boolean; on: string[]; off: string[] };
 const native = () => require('../modules/ownvoice-native').default;
 export default function Home() {
   const [text, setText] = useState('Write a reply here');
@@ -13,7 +14,7 @@ export default function Home() {
   const [search, setSearch] = useState('');
   useEffect(() => { void native().bubbleRules().then(setRules).catch(() => {}); }, []);
   const change = (next: Rules) => { void native().setBubbleRules(next).then(() => setRules(next)).catch(() => {}); };
-  const enabled = (app: string) => !!rules && (rules.on.includes(app) || (!rules.off.includes(app) && rules.defaults.includes(app)));
+  const enabled = (app: string) => !!rules && (rules.on.includes(app) || (!rules.off.includes(app) && DEFAULT_ON.has(app)));
   const toggle = (app: string) => {
     if (!rules) return;
     const on = rules.on.filter(value => value !== app);
