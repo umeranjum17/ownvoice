@@ -1,3 +1,4 @@
+export const CHATGPT_TERMS = 'Uses your ChatGPT plan. OpenAI may change this at any time.';
 export const words = {
   writeFirst:'Write a line or two first, and Ownvoice will help you polish it.',
   quickChecks:'These are quick checks to help you choose.',
@@ -12,4 +13,5 @@ export const words = {
   failed:'Something went wrong. Try again.',
   home:'Your writing helper. It stays on this phone.',
   permission:'On the next screen, tap Ownvoice, then switch on “Use Ownvoice”:',
+
 } as const;
