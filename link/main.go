@@ -54,9 +54,10 @@ func main() {
 
 	switch cmd {
 	case "serve", "pair":
-		addrs := []string{*listen}
-		if *listen == "" {
-			addrs = homeAddrs("7441")
+		addrs := homeAddrs("7441")
+		if *listen != "" {
+			check(privateListen(*listen))
+			addrs = []string{*listen}
 		}
 		serve(h, addrs, cmd == "pair", *showText)
 	case "phones":
@@ -110,6 +111,19 @@ func homeAddrs(port string) []string {
 	return out
 }
 
+func privateListen(addr string) error {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return err
+	}
+	ip := net.ParseIP(host)
+	_, tailnet, _ := net.ParseCIDR("100.64.0.0/10")
+	if ip == nil || !(ip.IsPrivate() || ip.IsLoopback() || tailnet.Contains(ip)) || port == "" {
+		return fmt.Errorf("--listen needs a private, tailnet or loopback IP and port")
+	}
+	return nil
+}
+
 func virtual(name string) bool {
 	for _, p := range []string{"docker", "br-", "veth", "virbr", "lxc", "lxd", "podman", "cni", "flannel", "vmnet", "vboxnet"} {
 		if strings.HasPrefix(name, p) {
@@ -121,7 +135,7 @@ func virtual(name string) bool {
 
 func serve(h *Helper, addrs []string, pairing, showText bool) {
 	if _, err := exec.LookPath("claude"); err == nil {
-		h.engines["claude"] = Claude(45 * time.Second)
+		h.engine = Claude(45 * time.Second)
 	} else {
 		fmt.Println("claude isn't installed here, so this computer can't write drafts yet. Install Claude Code and sign in first.")
 	}

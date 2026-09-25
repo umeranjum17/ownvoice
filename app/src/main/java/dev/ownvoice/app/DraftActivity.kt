@@ -104,11 +104,10 @@ class DraftActivity : Activity() {
                     show(true, capture.conversation, capture.typed, versions.map { it.first }, voice, post)
                 } else {
                     engine = Computer.pick(this@DraftActivity, capture.app, anyway, OwnvoiceService.engine)
+                    if (engine is Computer) Privacy.noteWriter(this@DraftActivity, capture.at, "Tried your computer for replies.")
                     drafts = engine.drafts(capture.conversation, Voice.guide(voice, post = false)) { sheet.note.text = it }
                     writer = (engine as? Computer)?.wrote ?: Writer.PHONE
                     Log.i(OwnvoiceService.TAG, "drafts=${drafts.size} by $writer in ${SystemClock.elapsedRealtime() - started} ms")
-                    if (engine is Computer) Privacy.noteWriter(this@DraftActivity, capture.at,
-                        if (writer == Writer.COMPUTER) "Sent to your computer, which wrote the replies." else "Sent to your computer, which didn't write them; this phone did.")
                     waiting.forEach(sheet.body::removeView)
                     show(capture.input != null, capture.conversation, null, null, voice, post)
                     offerComputer(capture, engine, anyway)

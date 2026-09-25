@@ -63,7 +63,7 @@ class ComputerFlowTest {
         assertEquals(FAKE, sheet.drafts)
         assertEquals(Writer.COMPUTER, sheet.writer)
         assertTrue(texts(sheet).count { it == Writer.COMPUTER.caption } == 3)
-        assertTrue(Privacy.reads(ctx).first().summary.endsWith("Sent to your computer, which wrote the replies."))
+        assertTrue(Privacy.reads(ctx).first().summary.endsWith("Tried your computer for replies."))
         waitUntil("scores", 20_000) { sheet.scores.all { it != null } }
         instr.waitForIdleSync()
         tap(sheet, "Why?")
@@ -121,6 +121,7 @@ class ComputerFlowTest {
         val sheet = openPanel()
         waitUntil("the offer", 20_000) { texts(sheet).contains("Try my computer again") }
         assertTrue(texts(sheet).toString(), texts(sheet).contains("Your computer didn't answer. " + CantWrite.SAYS))
+        assertTrue(Privacy.reads(ctx).first().summary.endsWith("Tried your computer for replies."))
         instr.runOnMainSync { sheet.finish() }
     }
 
@@ -142,7 +143,7 @@ class ComputerFlowTest {
         val all = texts(sheet)
         assertTrue(all.toString(), all.any { it.startsWith("Your computer didn't answer. This phone wrote these instead.") })
         assertTrue(all.contains(Writer.PHONE.caption) && all.contains("Try my computer again"))
-        assertTrue(Privacy.reads(ctx).first().summary.endsWith("Sent to your computer, which didn't write them; this phone did."))
+        assertTrue(Privacy.reads(ctx).first().summary.endsWith("Tried your computer for replies."))
         instr.runOnMainSync { sheet.finish() }
     }
 

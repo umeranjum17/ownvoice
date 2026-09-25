@@ -66,7 +66,7 @@ func newRig(t *testing.T, dir string) *rig {
 	r := &rig{h: h}
 	h.logf = func(f string, a ...any) { r.mu.Lock(); fmt.Fprintf(&r.log, f+"\n", a...); r.mu.Unlock() }
 	h.confirm = func(string, string) bool { return true }
-	h.engines["claude"] = Claude(2 * time.Second)
+	h.engine = Claude(2 * time.Second)
 	l, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -131,6 +131,19 @@ func paired(t *testing.T, r *rig) *tls.Certificate {
 	return key
 }
 
+func TestPrivateListen(t *testing.T) {
+	for _, addr := range []string{"127.0.0.1:7441", "[::1]:7441", "192.168.1.4:7441", "100.100.1.2:7441"} {
+		if err := privateListen(addr); err != nil {
+			t.Errorf("%s: %v", addr, err)
+		}
+	}
+	for _, addr := range []string{"0.0.0.0:7441", "[::]:7441", "8.8.8.8:7441", "example.com:7441", "127.0.0.1", "127.0.0.1:"} {
+		if err := privateListen(addr); err == nil {
+			t.Errorf("accepted %s", addr)
+		}
+	}
+}
+
 func TestTwoWordsMatchTheApps(t *testing.T) {
 	// The same pin and words as the app's LinkTest.
 	if got := Fingerprint("3g18llpqJj8rEqB7+nnaZ/g/cTfh9uP0BQf2nNRfKA8="); got != "water branch" {
@@ -191,7 +204,7 @@ func TestPairingCodeIsCheckedBurntAndConfirmed(t *testing.T) {
 		t.Fatalf("unpaired hello: %d", status)
 	}
 	status, body, _ := call(r.addr, key, r.h.Pin, "/v1/pair", `{"code":"`+code+`","name":"Mine"}`)
-	if status != 200 || body["computer"] == "" || fmt.Sprint(body["engines"]) != "[claude]" {
+	if status != 200 || body["computer"] == "" {
 		t.Fatalf("right code: %d %v", status, body)
 	}
 	if want := "Mine " + Fingerprint(pin(key.Certificate[0])); asked != want {
@@ -262,6 +275,45 @@ func TestRefusedAtTheComputerIsNotPaired(t *testing.T) {
 	}
 }
 
+func TestFailedPairSaveDoesNotAuthorize(t *testing.T) {
+	dir := t.TempDir()
+	r := newRig(t, dir)
+	if err := os.Mkdir(filepath.Join(dir, "phones.json.tmp"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	code, _ := r.h.OpenPairing()
+	key := phoneKey(t)
+	status, _, err := call(r.addr, key, r.h.Pin, "/v1/pair", `{"code":"`+code+`","name":"Mine"}`)
+	if err != nil || status != 500 || len(r.h.Phones()) != 0 {
+		t.Fatalf("failed pairing: %d %v %v", status, err, r.h.Phones())
+	}
+	if _, _, err := call(r.addr, key, r.h.Pin, "/v1/hello", `{}`); err == nil {
+		t.Fatal("failed pairing authorized a phone")
+	}
+	if <-r.h.Paired != "" {
+		t.Fatal("failed pairing reported success")
+	}
+}
+
+func TestFailedUnpairSaveKeepsAuthorization(t *testing.T) {
+	dir := t.TempDir()
+	r := newRig(t, dir)
+	key := paired(t, r)
+	if err := os.Mkdir(filepath.Join(dir, "phones.json.tmp"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if n, err := r.h.Unpair("Test phone"); err == nil || n != 0 {
+		t.Fatalf("unpair: %d %v", n, err)
+	}
+	if status, _, err := call(r.addr, key, r.h.Pin, "/v1/hello", `{}`); status != 200 || err != nil {
+		t.Fatalf("memory lost phone: %d %v", status, err)
+	}
+	again, err := Open(dir)
+	if err != nil || len(again.Phones()) != 1 {
+		t.Fatalf("disk lost phone: %v %v", again, err)
+	}
+}
+
 func TestAtMostThreePhones(t *testing.T) {
 	r := newRig(t, t.TempDir())
 	for i := 0; i < maxPhones; i++ {
@@ -308,7 +360,7 @@ func TestOnlyTextInTextsOut(t *testing.T) {
 		}
 	}
 	status, body, _ := call(r.addr, key, r.h.Pin, "/v1/hello", `{}`)
-	if status != 200 || fmt.Sprint(body["engines"]) != "[claude]" {
+	if status != 200 || body["computer"] == "" {
 		t.Fatalf("hello: %d %v", status, body)
 	}
 }
@@ -316,7 +368,7 @@ func TestOnlyTextInTextsOut(t *testing.T) {
 func write(t *testing.T, r *rig, key *tls.Certificate, mode, screen, guide string) (int, map[string]any) {
 	t.Helper()
 	t.Setenv("FAKE_CLAUDE", mode)
-	b, _ := json.Marshal(WriteRequest{Kind: "reply", Engine: "claude", Screen: screen, Guide: guide})
+	b, _ := json.Marshal(WriteRequest{Kind: "reply", Screen: screen, Guide: guide})
 	status, body, err := call(r.addr, key, r.h.Pin, "/v1/write", string(b))
 	if err != nil {
 		t.Fatal(err)
@@ -347,7 +399,7 @@ func TestWriteMapsWhatTheCLIPrints(t *testing.T) {
 		if status != c.status || got != c.want {
 			t.Errorf("mode %q: %d %q, want %d %q", c.mode, status, got, c.status, c.want)
 		}
-		if status == 200 && (body["model"] != "claude-sonnet-5" || body["engine"] != "claude") {
+		if status == 200 && (body["model"] != "claude-sonnet-5") {
 			t.Errorf("mode %q: %v", c.mode, body)
 		}
 	}
@@ -369,7 +421,11 @@ func TestInventedExperienceIsDroppedUnlessTheWriterSaidIt(t *testing.T) {
 	if got := fmt.Sprint(body["texts"]); got != "[Which conflicts bit you first, edits or deletes?]" {
 		t.Fatalf("kept %s", got)
 	}
-	_, body = write(t, r, key, "invent", "Ana: offline sync is harder than it looks", "How they write: we built a sync engine; our team is two people.")
+	_, body = write(t, r, key, "invent", "Ana: offline sync is harder than it looks", "Never say: we built; our team.")
+	if got := fmt.Sprint(body["texts"]); got != "[Which conflicts bit you first, edits or deletes?]" {
+		t.Fatalf("prohibitions authorized a claim: %s", got)
+	}
+	_, body = write(t, r, key, "invent", "Ana: offline sync is harder than it looks", "How they write: we built a sync engine; our team is two people. Never say: a cliché.")
 	if n := len(body["texts"].([]any)); n != 3 {
 		t.Fatalf("the writer's own note allows their experience, kept %d: %v", n, body)
 	}
@@ -397,7 +453,7 @@ func TestTheLogNeverHoldsText(t *testing.T) {
 	write(t, r, key, "", "CANARY-screen-7f3a", "CANARY-guide-9b1c")
 	write(t, r, key, "prose", "CANARY-screen-7f3a", "CANARY-guide-9b1c")
 	log := r.logged()
-	if !strings.Contains(log, "write \"Test phone\" kind=reply engine=claude") {
+	if !strings.Contains(log, "write \"Test phone\" kind=reply") {
 		t.Fatalf("no request line:\n%s", log)
 	}
 	for _, leak := range []string{"CANARY", "First draft", "Second draft"} {
@@ -413,11 +469,11 @@ func TestOneWriteAtATimePerPhone(t *testing.T) {
 	t.Setenv("FAKE_CLAUDE", "slow")
 	first := make(chan int)
 	go func() {
-		s, _, _ := call(r.addr, key, r.h.Pin, "/v1/write", `{"kind":"reply","engine":"claude","screen":"hi"}`)
+		s, _, _ := call(r.addr, key, r.h.Pin, "/v1/write", `{"kind":"reply","screen":"hi"}`)
 		first <- s
 	}()
 	time.Sleep(300 * time.Millisecond)
-	status, body, _ := call(r.addr, key, r.h.Pin, "/v1/write", `{"kind":"reply","engine":"claude","screen":"hi"}`)
+	status, body, _ := call(r.addr, key, r.h.Pin, "/v1/write", `{"kind":"reply","screen":"hi"}`)
 	if status != 409 || body["error"] != "busy" {
 		t.Fatalf("second write: %d %v", status, body)
 	}

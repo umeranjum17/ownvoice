@@ -25,7 +25,7 @@ What changes on the phone:
 - **Apps that can use it**: X, LinkedIn and Reddit start on. Slack, Gmail, WhatsApp and every other app start off, so their screens stay on the phone. In an app that's off, the replies panel offers **Write this one on my computer**.
 - Once a computer is paired, every reply says **Written on your computer** or **Written on this phone**. When the phone writes instead, the panel says why in plain words ("Your computer didn't answer. This phone wrote these instead.") and offers **Try my computer again**.
 - Replies are always checked on the phone. For a reply your computer wrote, that's a different model from the one that wrote it, and **Why?** says "this phone checked it, so the check isn't marking its own work".
-- **What Ownvoice read** notes when a read was sent to your computer.
+- **What Ownvoice read** notes when it tried your computer, including when the connection failed and the phone wrote instead.
 
 ### How the link works, and what it refuses
 
@@ -34,7 +34,7 @@ What changes on the phone:
 - **Its own words, never yours.** Drafts that claim experience you never mentioned ("we built", "our team", "I shipped") are dropped unless your Your voice note says it. The prompt forbids them too.
 - **Pinned mutual TLS.** Each side has one key and pins the other's. The phone's key is made in the Android Keystore and can't be copied off the phone. Outside the pairing window, a key that isn't paired is refused before any request is read. Pairing codes work once, for 5 minutes, and close after 5 wrong tries. The computer asks you to confirm every pairing, and it pairs at most 3 phones.
 - **What it keeps.** `~/.config/ownvoice-link/` (0700) holds its key, its certificate and the paired phones' names, key hashes and dates. Its log is one line per request with counts and times, never any text.
-- **Who can reach it.** Only while `ownvoice-link` runs, and only on this computer's private home-network and tailnet addresses. Someone on the same Wi-Fi can see the port is open, but without a paired key they can't get past the handshake.
+- **Who can reach it.** Only while `ownvoice-link` runs, and only on this computer's private home-network and tailnet addresses (or loopback with `--listen`). Public and wildcard `--listen` addresses are refused. Someone on the same Wi-Fi can see the port is open, but without a paired key they can't get past the handshake.
 - **Lost phone.** Run `ownvoice-link unpair "<phone name>"`. On the phone, **Forget this computer** deletes its key.
 - **Pair only your own phone.** The helper writes with your own Claude account, which is for you alone. Anthropic's terms allow using your own signed-in Claude Code this way; they don't allow sharing your account, so never pair someone else's phone, and never run a helper for other people.
 

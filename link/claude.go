@@ -58,6 +58,10 @@ var ownExperience = regexp.MustCompile(`(?i)\b(?:(?:we|i)(?:'ve|'d|’ve|’d| h
 
 // keepOwnExperience drops drafts that claim experience the writer never mentioned in their own rules or note.
 func keepOwnExperience(texts []string, guide string) []string {
+	guide, _, _ = strings.Cut(guide, " Never say:")
+	if strings.HasPrefix(guide, "Never say:") {
+		guide = ""
+	}
 	own := strings.ToLower(strings.ReplaceAll(guide, "’", "'"))
 	var kept []string
 	for _, t := range texts {

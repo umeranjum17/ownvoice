@@ -1,6 +1,8 @@
 package dev.ownvoice.app
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.os.Bundle
 import android.view.Gravity
 import android.view.View
@@ -28,7 +30,12 @@ class PairActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val page = page("Use my computer", "Scan the code your computer shows. To show it, run ownvoice-link pair on your computer.")
+        val page = page("Use my computer", "On your computer, start the Ownvoice helper, then scan the code it shows.")
+        page.add(label("Type this on your computer"), bottom = 6f)
+        page.add(ghost("ownvoice-link pair") {
+            getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Computer command", "ownvoice-link pair"))
+            status.text = "Copied. Paste this on your computer."
+        }, bottom = 16f)
         page.add(badge(R.drawable.ic_computer, primaryContainer, onPrimaryContainer), top = 8f, bottom = 24f)
         words = page.add(text("", Type.HEADLINE_SMALL).apply { gravity = Gravity.CENTER; visibility = View.GONE }, bottom = 12f)
         status = page.add(text("", Type.BODY_LARGE).apply { setPadding(px(8), 0, px(8), 0) }, bottom = 20f)
@@ -61,7 +68,7 @@ class PairActivity : Activity() {
                 words.visibility = View.GONE
                 scan.text = "Done"
                 scan.setOnClickListener { finish() }
-                "All set. Your computer writes your replies while ownvoice-link runs on it. When it doesn't, this phone writes them."
+                "All set. Your computer writes your replies while the Ownvoice helper is open. When it isn't, this phone writes them."
             } catch (e: PlainError) {
                 words.visibility = View.GONE
                 scan.text = "Scan the code again"

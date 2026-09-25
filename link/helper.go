@@ -44,12 +44,12 @@ type Phone struct {
 // Engine writes drafts: it gets the helper's own system prompt and the phone's text, and returns texts and the model id.
 type Engine func(ctx context.Context, system, input string) (texts []string, model string, err error)
 
-// Helper is the whole computer side: its key, the paired phones, the pairing window and the engines.
+// Helper is the whole computer side: its key, the paired phones, the pairing window and the writer.
 type Helper struct {
 	dir     string
 	cert    tls.Certificate
 	Pin     string
-	engines map[string]Engine
+	engine Engine
 	logf    func(format string, args ...any)
 	// confirm asks the person at the computer whether to pair a phone; tests replace it.
 	confirm func(name, fingerprint string) bool
@@ -78,7 +78,7 @@ func Open(dir string) (*Helper, error) {
 	}
 	h := &Helper{
 		dir: dir, cert: cert, Pin: pin(cert.Certificate[0]),
-		engines: map[string]Engine{}, logf: log.Printf,
+		logf: log.Printf,
 		phones: map[string]*Phone{}, busy: map[string]bool{}, Paired: make(chan string, 1),
 	}
 	b, err := os.ReadFile(filepath.Join(dir, "phones.json"))
@@ -264,17 +264,12 @@ func (h *Helper) paired(next func(http.ResponseWriter, *http.Request, string, *P
 }
 
 type about struct {
-	Computer string   `json:"computer"`
-	Engines  []string `json:"engines"`
+	Computer string `json:"computer"`
 }
 
 func (h *Helper) about() about {
 	name, _ := os.Hostname()
-	a := about{Computer: name, Engines: []string{}}
-	for e := range h.engines {
-		a.Engines = append(a.Engines, e)
-	}
-	return a
+	return about{Computer: name}
 }
 
 func (h *Helper) pair(w http.ResponseWriter, r *http.Request) {
@@ -316,10 +311,19 @@ func (h *Helper) pair(w http.ResponseWriter, r *http.Request) {
 	}
 	h.mu.Lock()
 	now := time.Now()
+	previous, existed := h.phones[p]
 	h.phones[p] = &Phone{Name: req.Name, Paired: now, Seen: now}
 	err := h.save()
+	if err != nil {
+		if existed {
+			h.phones[p] = previous
+		} else {
+			delete(h.phones, p)
+		}
+	}
 	h.mu.Unlock()
 	if err != nil {
+		h.done("")
 		fail(w, http.StatusInternalServerError, "failed", "couldn't save the pairing")
 		return
 	}
@@ -349,14 +353,12 @@ func (h *Helper) hello(w http.ResponseWriter, r *http.Request, p string, phone *
 // WriteRequest is everything a phone may send: data, never instructions. The prompt, model and flags are the helper's.
 type WriteRequest struct {
 	Kind   string `json:"kind"`
-	Engine string `json:"engine"`
 	Screen string `json:"screen"`
 	Guide  string `json:"guide"`
 }
 
 type written struct {
 	Texts  []string `json:"texts"`
-	Engine string   `json:"engine"`
 	Model  string   `json:"model"`
 	Ms     int64    `json:"ms"`
 }
@@ -367,9 +369,8 @@ func (h *Helper) write(w http.ResponseWriter, r *http.Request, p string, phone *
 		fail(w, http.StatusBadRequest, "bad_request", "only text in, drafts out")
 		return
 	}
-	engine := h.engines[req.Engine]
-	if engine == nil {
-		fail(w, http.StatusBadRequest, "no_engine", "that engine isn't available on this computer")
+	if h.engine == nil {
+		fail(w, http.StatusBadGateway, "failed", "the writer isn't available on this computer")
 		return
 	}
 	h.mu.Lock()
@@ -383,7 +384,7 @@ func (h *Helper) write(w http.ResponseWriter, r *http.Request, p string, phone *
 	defer func() { h.mu.Lock(); delete(h.busy, p); h.mu.Unlock() }()
 
 	started := time.Now()
-	texts, model, err := engine(r.Context(), replySystem, replyInput(req.Screen, req.Guide))
+	texts, model, err := h.engine(r.Context(), replySystem, replyInput(req.Screen, req.Guide))
 	if err == nil {
 		texts = keepOwnExperience(texts, req.Guide)
 		if len(texts) == 0 {
@@ -392,9 +393,9 @@ func (h *Helper) write(w http.ResponseWriter, r *http.Request, p string, phone *
 	}
 	ms := time.Since(started).Milliseconds()
 	h.seen(p)
-	// One line per request and never any text: who, what, which engine, how many, how long, how much.
-	h.logf("write %q kind=%s engine=%s model=%s texts=%d ms=%d screen=%d guide=%d err=%v",
-		phone.Name, req.Kind, req.Engine, model, len(texts), ms, len(req.Screen), len(req.Guide), errCode(err))
+	// One line per request and never any text: who, what, how many, how long, how much.
+	h.logf("write %q kind=%s model=%s texts=%d ms=%d screen=%d guide=%d err=%v",
+		phone.Name, req.Kind, model, len(texts), ms, len(req.Screen), len(req.Guide), errCode(err))
 	if err != nil {
 		var ee *EngineError
 		if errors.As(err, &ee) {
@@ -404,7 +405,7 @@ func (h *Helper) write(w http.ResponseWriter, r *http.Request, p string, phone *
 		}
 		return
 	}
-	reply(w, http.StatusOK, written{texts, req.Engine, model, ms})
+	reply(w, http.StatusOK, written{texts, model, ms})
 }
 
 func (h *Helper) seen(p string) {
@@ -444,15 +445,21 @@ func (h *Helper) Phones() map[string]Phone {
 func (h *Helper) Unpair(name string) (int, error) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
-	n := 0
+	removed := map[string]*Phone{}
 	for p, ph := range h.phones {
 		if ph.Name == name || Fingerprint(p) == name {
+			removed[p] = ph
 			delete(h.phones, p)
-			n++
 		}
 	}
-	if n == 0 {
+	if len(removed) == 0 {
 		return 0, nil
 	}
-	return n, h.save()
+	if err := h.save(); err != nil {
+		for p, ph := range removed {
+			h.phones[p] = ph
+		}
+		return 0, err
+	}
+	return len(removed), nil
 }

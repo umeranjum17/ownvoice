@@ -214,9 +214,9 @@ object Link {
         } catch (e: Failure) {
             throw PlainError(
                 when (e.code) {
-                    "unreachable" -> "Your computer didn't answer. Check ownvoice-link pair is still showing its code, and that this phone is on the same Wi-Fi or network."
+                    "unreachable" -> "Your computer didn't answer. Check its pairing code is still showing, and that this phone is on the same Wi-Fi or network."
                     "refused" -> "Not paired: it was turned down on your computer."
-                    else -> "Not paired: the code was wrong or ran out. Run ownvoice-link pair again."
+                    else -> "Not paired: the code was wrong or ran out. Start pairing on your computer again."
                 }
             )
         }
@@ -243,7 +243,7 @@ object Link {
     /** Reply drafts from the paired computer. Throws [Failure]. */
     fun write(context: Context, screen: String, guide: String, readMs: Int): List<String> {
         val computer = computer(context) ?: throw Failure("not_paired")
-        val body = JSONObject().put("kind", "reply").put("engine", "claude").put("screen", screen.takeLast(MAX_SCREEN)).put("guide", guide.take(MAX_GUIDE))
+        val body = JSONObject().put("kind", "reply").put("screen", screen.takeLast(MAX_SCREEN)).put("guide", guide.take(MAX_GUIDE))
         val (answer, addr) = post(computer.addrs, "/v1/write", body, phoneKey(), computer.pin, readMs)
         // The address that answered goes first next time.
         prefs(context).edit().putString("addrs", (listOf(addr) + computer.addrs).distinct().joinToString("\n"))

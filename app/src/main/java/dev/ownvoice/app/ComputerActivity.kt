@@ -15,7 +15,7 @@ class ComputerActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val computer = Link.computer(this) ?: return finish()
-        val page = page("Your computer", "It writes your replies while ownvoice-link runs on it. When it doesn't, this phone writes them.")
+        val page = page("Your computer", "It writes your replies while the Ownvoice helper is open. When it isn't, this phone writes them.")
         val seen = if (computer.seen == 0L) "Paired with ${computer.name}"
         else "Last answered " + DateUtils.getRelativeTimeSpanString(computer.seen).toString().lowerFirst()
         val writes = MaterialSwitch(this).apply {
