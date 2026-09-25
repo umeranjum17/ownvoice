@@ -52,11 +52,21 @@ const expectBubble = (visible, label) => {
   if (bubbleVisible() !== visible) throw new Error(`Bubble visibility did not match ${label}.`);
 };
 
-tap(Math.round(width / 2), Math.round(height * .60));
-await wait(700);
+const chooseApp = async (name) => {
+  tap(Math.round(width / 2), Math.round(height * .61));
+  await wait(400);
+  tap(Math.round(width / 2), Math.round(height * .19));
+  type(name);
+  await wait(400);
+  tap(Math.round(width / 2), Math.round(height * .28));
+  await wait(400);
+  adb('shell', 'input', 'keyevent', '4');
+  tap(Math.round(width / 2), Math.round(height * .91));
+  await wait(700);
+};
+await chooseApp('new');
 expectBubble(true, 'test app enabled');
-tap(Math.round(width / 2), Math.round(height * .66));
-await wait(700);
+await chooseApp('Chrome');
 
 // A focused input keeps its owning app in front when the accessibility overlay is tapped.
 tap(Math.round(width / 2), Math.round(height * .47));
@@ -72,16 +82,15 @@ snap('rn-inserted');
 // The home controls verify that pause and per-app off rules hide the overlay.
 adb('shell', 'input', 'keyevent', '4'); // Dismiss the keyboard so all controls are reachable.
 await wait(400);
-tap(Math.round(width / 2), Math.round(height * .68)); // Pause.
+tap(Math.round(width / 2), Math.round(height * .67)); // Pause.
 await wait(700);
 expectBubble(false, 'paused');
-tap(Math.round(width / 2), Math.round(height * .68)); // Resume.
+tap(Math.round(width / 2), Math.round(height * .67)); // Resume.
 await wait(700);
 expectBubble(true, 'resumed');
-tap(Math.round(width / 2), Math.round(height * .60)); // Turn this app off.
-await wait(700);
+await chooseApp('new');
 expectBubble(false, 'app turned off');
-tap(Math.round(width / 2), Math.round(height * .60)); // Turn it back on.
+await chooseApp('new');
 await wait(700);
 expectBubble(true, 'app turned back on');
 

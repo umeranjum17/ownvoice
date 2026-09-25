@@ -10,6 +10,7 @@ type Events = {
 declare class OwnvoiceNativeModule extends NativeModule<Events> {
   serviceState(): Promise<ServiceState>;
   openAccessibilitySettings(): Promise<void>;
+  launcherApps(): Promise<{ app: string; label: string }[]>;
   bubbleRules(): Promise<{ paused: boolean; on: string[]; off: string[]; defaults: string[] }>;
   setBubbleRules(rules: { paused: boolean; on: string[]; off: string[]; defaults: string[] }): Promise<void>;
   setPractice(on: boolean): Promise<void>;
@@ -17,6 +18,7 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   capture(): Promise<Capture | null>;
   forget(): Promise<void>;
   takeTapFacts(): Promise<TapFact[]>;
+  copy(text: string): Promise<void>;
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;
   closePanel(): Promise<void>;
   debugTree(): Promise<string>;

@@ -5,6 +5,7 @@ import { stubDrafts } from './stubWriter';
 
 export default function Panel() {
   const [capture, setCapture] = useState<Capture | null>(null);
+  const [inserting, setInserting] = useState(false);
   useEffect(() => { void Native.capture().then(setCapture).catch(() => {}); }, []);
   const drafts = stubDrafts(capture?.typed ?? '');
   const close = () => { void Native.closePanel().catch(() => {}); };
@@ -18,7 +19,8 @@ export default function Panel() {
       <ScrollView>{drafts.map(draft => <View key={draft} style={styles.card}>
         <Text style={styles.draft}>{draft}</Text>
         <View style={styles.actions}>
-          <Pressable disabled={!capture?.hasField} onPress={() => { void Native.insert(draft).catch(() => Native.say("Couldn't insert. Copied, paste it.")); }}><Text style={[styles.action, !capture?.hasField && styles.disabled]}>Insert</Text></Pressable>
+          <Pressable disabled={!capture?.hasField || inserting} onPress={() => { setInserting(true); void Native.insert(draft).catch(() => setInserting(false)); }}><Text style={[styles.action, (!capture?.hasField || inserting) && styles.disabled]}>Insert</Text></Pressable>
+          <Pressable disabled={inserting} onPress={() => { void Native.copy(draft).catch(() => {}); }}><Text style={styles.action}>Copy</Text></Pressable>
         </View>
       </View>)}</ScrollView>
       <Pressable accessibilityRole="button" onPress={close} style={styles.close}><Text>Close</Text></Pressable>

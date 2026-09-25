@@ -26,6 +26,13 @@ class OwnvoiceNativeModule : Module() {
       val me = ComponentName(context, OwnvoiceService::class.java).flattenToString()
       context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(":settings:fragment_args_key", me))
     }.runOnQueue(Queues.MAIN)
+    AsyncFunction("launcherApps") {
+      val pm = context.packageManager
+      pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+        .map { mapOf("app" to it.activityInfo.packageName, "label" to it.loadLabel(pm).toString()) }
+        .distinctBy { it["app"] }
+        .sortedBy { it["label"]?.lowercase() }
+    }.runOnQueue(Queues.MAIN)
     AsyncFunction("bubbleRules") {
       val prefs = context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE)
       mapOf("paused" to prefs.getBoolean("paused", false), "on" to prefs.getStringSet("on", emptySet()).orEmpty().toList(),
@@ -56,6 +63,11 @@ class OwnvoiceNativeModule : Module() {
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("forget") { OwnvoiceService.instance?.forget() }.runOnQueue(Queues.MAIN)
     AsyncFunction("debugTree") { OwnvoiceService.instance?.debugTree() ?: "{}" }.runOnQueue(Queues.MAIN)
+    AsyncFunction("copy") { text: String ->
+      context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
+      OwnvoiceService.instance?.say("Copied.")
+      PanelActivity.current?.finish()
+    }.runOnQueue(Queues.MAIN)
     AsyncFunction("insert") { text: String, promise: Promise ->
       val service = OwnvoiceService.instance
       PanelActivity.current?.finish()

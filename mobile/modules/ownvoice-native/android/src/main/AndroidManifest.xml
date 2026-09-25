@@ -1,4 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+  </queries>
   <application>
     <!-- The drafts panel: a see-through React Native screen, so Ownvoice is the app in front while the phone's model runs. -->
     <activity

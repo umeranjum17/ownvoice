@@ -47,6 +47,7 @@ class OwnvoiceService : AccessibilityService() {
   private lateinit var bubble: TextView
   private lateinit var params: WindowManager.LayoutParams
   private var capture: Capture? = null
+  private var inserting = false
   private var resting = true
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
   var panelOpen: Boolean
@@ -166,6 +167,8 @@ class OwnvoiceService : AccessibilityService() {
   fun drainFacts(): List<TapFact> = synchronized(facts) { facts.toList().also { facts.clear() } }
 
   fun insert(text: String, done: (Boolean, Boolean) -> Unit) {
+    if (inserting) return done(false, false)
+    inserting = true
     val field = captured()?.input ?: return finishInsert(text, false, false, done)
     val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
     fun attempt(left: Int) {
@@ -189,6 +192,7 @@ class OwnvoiceService : AccessibilityService() {
     if (ok) say(if (newlinesLost) "Inserted. Check it looks right before sending." else "Inserted. Send it yourself.")
     else { getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text)); say("Couldn't insert. Copied, paste it.") }
     forget()
+    inserting = false
     onInserted?.invoke(ok, newlinesLost)
     done(ok, newlinesLost)
   }
