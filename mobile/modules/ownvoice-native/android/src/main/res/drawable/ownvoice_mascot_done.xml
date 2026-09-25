@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp" android:height="48dp"
+    android:viewportWidth="120" android:viewportHeight="120">
+    <path android:pathData="M60 14 C69 31 98 48 98 77 A38 38 0 0 1 22 77 C22 48 51 31 60 14 Z"
+        android:fillColor="@color/ownvoice_mascot_body"
+        android:strokeColor="@color/ownvoice_mascot_body"
+        android:strokeWidth="5"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M40 50 Q33 60 32.5 70"
+        android:strokeColor="@color/ownvoice_mascot_shine"
+        android:strokeWidth="4.2"
+        android:strokeAlpha="0.55"
+        android:strokeLineCap="round" />
+    <path android:pathData="M34.50,84.50a6.00,3.40 0,1 0,12.00,0a6.00,3.40 0,1 0,-12.00,0Z"
+        android:fillColor="@color/ownvoice_mascot_blush"
+        android:fillAlpha="0.90" />
+    <path android:pathData="M73.50,84.50a6.00,3.40 0,1 0,12.00,0a6.00,3.40 0,1 0,-12.00,0Z"
+        android:fillColor="@color/ownvoice_mascot_blush"
+        android:fillAlpha="0.90" />
+    <path android:pathData="M42.00 78.50 Q47.00 71.50 52.00 78.50"
+        android:strokeColor="@color/ownvoice_mascot_ink"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round" />
+    <path android:pathData="M68.00 78.50 Q73.00 71.50 78.00 78.50"
+        android:strokeColor="@color/ownvoice_mascot_ink"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round" />
+    <path android:pathData="M52.50 84.50 Q60.00 92.50 67.50 84.50"
+        android:strokeColor="@color/ownvoice_mascot_ink"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path android:pathData="M94 26 Q96.24 31.759999999999998 102 34 Q96.24 36.24 94 42 Q91.76 36.24 86 34 Q91.76 31.759999999999998 94 26 Z"
+        android:fillColor="@color/ownvoice_mascot_mark" />
+    <path android:pathData="M24 41.4 Q25.288 44.712 28.6 46 Q25.288 47.288 24 50.6 Q22.712 47.288 19.4 46 Q22.712 44.712 24 41.4 Z"
+        android:fillColor="@color/ownvoice_mascot_mark" />
+</vector>

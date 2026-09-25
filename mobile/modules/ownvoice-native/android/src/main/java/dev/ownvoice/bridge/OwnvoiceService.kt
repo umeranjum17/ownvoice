@@ -6,15 +6,19 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.PixelFormat
+import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.LayerDrawable
+import android.graphics.drawable.InsetDrawable
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -56,7 +60,8 @@ class OwnvoiceService : AccessibilityService() {
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
   var panelOpen: Boolean
     get() = panelIsOpen
-    set(value) { panelIsOpen = value; updateBubble() }
+    // When the panel opens, put idle back (the bubble is hidden then), so closing it never leaves the tap mood on the bubble.
+    set(value) { panelIsOpen = value; if (value) main.post(restoreBubble); updateBubble() }
 
   private fun px(dp: Int) = (dp * resources.displayMetrics.density).toInt()
   private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON))
@@ -76,8 +81,7 @@ class OwnvoiceService : AccessibilityService() {
       contentDescription = "Ownvoice"
       setOnClickListener {
         val shouldRead = resting || text.toString() == TIP
-        restoreBubble.run()
-        if (shouldRead) readScreen()
+        if (shouldRead) { showMood(R.drawable.ownvoice_mascot_listening); readScreen() } else restoreBubble.run()
       }
     }
     params = WindowManager.LayoutParams(px(52), px(52), WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
@@ -132,8 +136,7 @@ class OwnvoiceService : AccessibilityService() {
     ?: windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }?.root
 
   fun readScreen() {
-    val app = currentApp() ?: return updateBubble()
-    if (!allowed(app)) return updateBubble()
+    val app = currentApp()?.takeIf(::allowed) ?: run { restoreBubble.run(); updateBubble(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written) }
@@ -218,17 +221,41 @@ class OwnvoiceService : AccessibilityService() {
     bubble.text = message; bubble.contentDescription = message
     bubble.setTextColor(colour(if (night) android.R.color.system_neutral1_800 else android.R.color.system_neutral1_50, if (night) 0xff303030.toInt() else Color.WHITE))
     bubble.background = GradientDrawable().apply { cornerRadius = px(24).toFloat(); setColor(colour(if (night) android.R.color.system_neutral1_100 else android.R.color.system_neutral1_800, if (night) 0xffe6e1e5.toInt() else 0xff313033.toInt())) }
+    bubble.outlineProvider = ViewOutlineProvider.BACKGROUND
+    bubble.elevation = px(3).toFloat()
+    bubble.setCompoundDrawablesRelative(moodDrawable(message), null, null, null)
+    bubble.compoundDrawablePadding = px(8)
     bubble.setPadding(px(18), px(10), px(18), px(10)); params.width = WindowManager.LayoutParams.WRAP_CONTENT; params.height = WindowManager.LayoutParams.WRAP_CONTENT
     wm.updateViewLayout(bubble, params); notes.postDelayed(restoreBubble, forMs)
   }
+
+  /** A 20 dp mood at the start of the pill: done for inserted and copied, check for look-before-sending. */
+  private fun moodDrawable(message: String) = when (message) {
+    "Inserted. Send it yourself.", "Copied." -> R.drawable.ownvoice_mascot_done
+    "Inserted. Check it looks right before sending.", "Couldn't insert. Copied, paste it.", "No text on this screen." -> R.drawable.ownvoice_mascot_check
+    else -> null
+  }?.let { getDrawable(it)!!.apply { setBounds(0, 0, px(20), px(20)) } }
   private val restoreBubble = Runnable {
     if (!::bubble.isInitialized) return@Runnable
     notes.removeCallbacksAndMessages(null); resting = true
     bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE; bubble.text = ""; bubble.contentDescription = "Ownvoice"
-    bubble.background = LayerDrawable(arrayOf(
-      GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(colour(if (night) android.R.color.system_accent1_200 else android.R.color.system_accent1_600, 0xffff8a73.toInt())) },
-      getDrawable(R.drawable.ic_ownvoice_pen)!!.mutate().apply { setTint(colour(if (night) android.R.color.system_accent1_800 else android.R.color.system_accent1_0, Color.WHITE)) },
-    )).apply { setLayerGravity(1, Gravity.CENTER); setLayerSize(1, px(24), px(24)) }
+    bubble.setCompoundDrawablesRelative(null, null, null, null)
+    showMood(if (Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) R.drawable.ownvoice_mascot_idle_still else R.drawable.ownvoice_mascot_idle)
     bubble.setPadding(0, 0, 0, 0); params.width = px(52); params.height = px(52); wm.updateViewLayout(bubble, params)
+  }
+
+  /** Dot on the bubble, centred in the 52 dp tap target, with a small oval shadow. */
+  private fun showMood(res: Int) {
+    if (!::bubble.isInitialized) return
+    val dot = getDrawable(res)!!
+    bubble.background = InsetDrawable(dot, px(2))
+    bubble.outlineProvider = dotOutline
+    bubble.elevation = px(3).toFloat()
+    (dot as? AnimatedVectorDrawable)?.start()
+  }
+
+  /** The shadow follows Dot's body, not the 52 dp window. */
+  private val dotOutline = object : ViewOutlineProvider() {
+    override fun getOutline(view: View, outline: Outline) = outline.setOval(px(6), px(6), view.width - px(6), view.height - px(6))
   }
 }
