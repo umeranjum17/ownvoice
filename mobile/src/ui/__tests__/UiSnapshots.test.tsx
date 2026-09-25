@@ -1,4 +1,5 @@
 import { AccessibilityInfo, Appearance, Text } from 'react-native';
+import { Color } from 'expo-router';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, renderHook } from '@testing-library/react-native';
 import { Sheet } from '../Sheet';
@@ -13,7 +14,7 @@ import { Row } from '../Row';
 import { ReasonRow } from '../ReasonRow';
 import { Progress } from '../Progress';
 import { Dot } from '../Dot';
-import { useReducedMotion } from '../theme';
+import { useReducedMotion, useTheme } from '../theme';
 
 jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
 
@@ -55,6 +56,22 @@ test('a failed motion query still settles the UI', async () => {
   const { result } = await renderHook(useReducedMotion);
   await act(async () => { await Promise.resolve(); });
   expect(result.current).toBe(false);
+});
+
+test('a rerender reads the current phone palette without a scheme change', async () => {
+  const android = Color.android as unknown as { dynamic: Record<string, string> };
+  const original = android.dynamic;
+  let primary = '#123456';
+  android.dynamic = new Proxy(original, { get: (target, key) => key === 'primary' ? primary : Reflect.get(target, key) });
+  try {
+    const { result, rerender } = await renderHook(useTheme);
+    expect(result.current.primary).toBe('#123456');
+    primary = '#654321';
+    await rerender(undefined);
+    expect(result.current.primary).toBe('#654321');
+  } finally {
+    android.dynamic = original;
+  }
 });
 
 describe.each(['light', 'dark'] as const)('ui components (%s)', scheme => {

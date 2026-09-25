@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AccessibilityInfo, useColorScheme, type TextStyle } from 'react-native';
 import { Color } from 'expo-router';
 
@@ -29,29 +29,26 @@ export type Theme = ReturnType<typeof useTheme>;
 /** The palette for the phone's current scheme. Read it in render, never at module scope. */
 export function useTheme() {
   const scheme = useColorScheme() ?? 'light';
-  return useMemo(() => {
-    // The native module answers hex strings ("#RRGGBB"), one snapshot per scheme read.
-    const d = Color.android.dynamic as unknown as Record<string, string>;
-    return {
-      scheme,
-      scrim: '#00000066' as const,
-      sheet: d.surfaceContainerLow,
-      card: d.surface,
-      cardLine: d.outlineVariant,
-      yours: d.surfaceContainerHighest,
-      group: d.surfaceContainer,
-      text: d.onSurface,
-      muted: d.onSurfaceVariant,
-      primary: d.primary,
-      onPrimary: d.onPrimary,
-      mark: d.tertiaryContainer,
-      onMark: d.onTertiaryContainer,
-      outline: d.outline,
-      attention: scheme === 'dark' ? ATTENTION.dark : ATTENTION.light,
-      line: d.outlineVariant,
-      handle: d.onSurfaceVariant,
-    };
-  }, [scheme]);
+  const d = Color.android.dynamic as unknown as Record<string, string>;
+  return {
+    scheme,
+    scrim: '#00000066' as const,
+    sheet: d.surfaceContainerLow,
+    card: d.surface,
+    cardLine: d.outlineVariant,
+    yours: d.surfaceContainerHighest,
+    group: d.surfaceContainer,
+    text: d.onSurface,
+    muted: d.onSurfaceVariant,
+    primary: d.primary,
+    onPrimary: d.onPrimary,
+    mark: d.tertiaryContainer,
+    onMark: d.onTertiaryContainer,
+    outline: d.outline,
+    attention: scheme === 'dark' ? ATTENTION.dark : ATTENTION.light,
+    line: d.outlineVariant,
+    handle: d.onSurfaceVariant,
+  };
 }
 
 /** True when the phone asked for less motion, false when not, null until the phone answered.
