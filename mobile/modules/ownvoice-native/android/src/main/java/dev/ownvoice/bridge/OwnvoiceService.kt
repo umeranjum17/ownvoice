@@ -29,6 +29,7 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var offApps: Set<String> = emptySet()
     val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
     @Volatile var paused = false
+    @Volatile var practice = false
     @Volatile var panelIsOpen = false
     @Volatile var onInserted: ((Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
@@ -53,13 +54,14 @@ class OwnvoiceService : AccessibilityService() {
     set(value) { panelIsOpen = value; updateBubble() }
 
   private fun px(dp: Int) = (dp * resources.displayMetrics.density).toInt()
-  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON))
+  private fun allowed(app: String?) = app != null && !paused && (app == packageName && practice || app in onApps || (app !in offApps && app in DEFAULT_ON))
   private val night get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
   private fun colour(id: Int, fallback: Int) = if (android.os.Build.VERSION.SDK_INT >= 31) getColor(id) else fallback
 
   override fun onServiceConnected() {
     super.onServiceConnected()
     paused = prefs.getBoolean("paused", false)
+    practice = prefs.getBoolean("practice", false)
     onApps = prefs.getStringSet("on", emptySet()).orEmpty()
     offApps = prefs.getStringSet("off", emptySet()).orEmpty()
     wm = getSystemService(WindowManager::class.java)
@@ -112,6 +114,12 @@ class OwnvoiceService : AccessibilityService() {
       prefs.edit().putBoolean("tipShown", true).apply()
       say(TIP, 6000)
     }
+  }
+
+  fun setPractice(enabled: Boolean) {
+    check(prefs.edit().putBoolean("practice", enabled).commit())
+    practice = enabled
+    updateBubble()
   }
 
   fun setRules(pausedNow: Boolean, on: Set<String>, off: Set<String>) {

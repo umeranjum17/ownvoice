@@ -7,6 +7,7 @@ import android.content.Intent
 import android.provider.Settings
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.functions.Queues
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 
@@ -14,7 +15,7 @@ class OwnvoiceNativeModule : Module() {
   private val context get() = appContext.reactContext!!
   override fun definition() = ModuleDefinition {
     Name("OwnvoiceNative")
-    Events("onServiceChange", "onInserted")
+    Events("onServiceChange", "onInserted", "onModelProgress", "onModelPartial")
     OnCreate {
       OwnvoiceService.onInserted = { ok, newlinesLost -> sendEvent("onInserted", mapOf("ok" to ok, "newlinesLost" to newlinesLost)) }
       OwnvoiceService.onServiceChange = { state -> sendEvent("onServiceChange", mapOf("state" to state)) }
@@ -38,6 +39,9 @@ class OwnvoiceNativeModule : Module() {
       mapOf("paused" to prefs.getBoolean("paused", false), "on" to prefs.getStringSet("on", emptySet()).orEmpty().toList(),
         "off" to prefs.getStringSet("off", emptySet()).orEmpty().toList())
     }.runOnQueue(Queues.MAIN)
+    AsyncFunction("practice") { OwnvoiceService.practice }.runOnQueue(Queues.MAIN)
+    AsyncFunction("setPractice") { enabled: Boolean -> OwnvoiceService.instance?.setPractice(enabled)
+      ?: context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().putBoolean("practice", enabled).commit() }.runOnQueue(Queues.MAIN)
     AsyncFunction("setBubbleRules") { rules: Map<String, Any?> ->
       val paused = rules["paused"] as? Boolean ?: false
       val on = (rules["on"] as? List<String>).orEmpty()
@@ -72,6 +76,26 @@ class OwnvoiceNativeModule : Module() {
       service.insert(text) { ok, newlinesLost -> promise.resolve(mapOf("ok" to ok, "newlinesLost" to newlinesLost)) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("closePanel") { PanelActivity.current?.finish() }.runOnQueue(Queues.MAIN)
+    AsyncFunction("modelStatus") Coroutine { -> PhoneModel.status() }
+    AsyncFunction("downloadModel") Coroutine { ->
+      try { PhoneModel.download { fraction -> sendEvent("onModelProgress", mapOf("fraction" to fraction)) } }
+      catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
+    }
+    AsyncFunction("ask") Coroutine { id: String, prompt: String, options: Map<String, Any?> ->
+      try {
+        PhoneModel.ask(prompt, (options["maxTokens"] as? Number)?.toInt() ?: 256) { text ->
+          sendEvent("onModelPartial", mapOf("id" to id, "text" to text))
+        }
+      } catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
+    }
+    AsyncFunction("drafts") Coroutine { prompt: String, options: Map<String, Any?> ->
+      try {
+        PhoneModel.drafts(prompt, (options["candidates"] as? Number)?.toInt() ?: 3,
+          (options["maxTokens"] as? Number)?.toInt() ?: 120,
+          (options["temperature"] as? Number)?.toDouble() ?: 0.9,
+          (options["topK"] as? Number)?.toInt() ?: 40)
+      } catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
+    }
   }
 
   private fun state(): String {
