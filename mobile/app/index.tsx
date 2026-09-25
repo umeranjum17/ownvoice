@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button, ScrollView, Text, TextInput, View } from 'react-native';
 import { words } from '../src/core/words';
 import { DEFAULT_ON } from '../src/core/privacy';
@@ -12,15 +12,24 @@ export default function Home() {
   const [activity, setActivity] = useState(0);
   const [apps, setApps] = useState<{ app: string; label: string }[] | null>(null);
   const [search, setSearch] = useState('');
+  const pending = useRef(Promise.resolve());
   useEffect(() => { void native().bubbleRules().then(setRules).catch(() => {}); }, []);
-  const change = (next: Rules) => { void native().setBubbleRules(next).then(() => setRules(next)).catch(() => {}); };
-  const enabled = (app: string) => !!rules && (rules.on.includes(app) || (!rules.off.includes(app) && DEFAULT_ON.has(app)));
+  const change = (update: (current: Rules) => Rules) => {
+    pending.current = pending.current.then(async () => {
+      const next = update(await native().bubbleRules());
+      await native().setBubbleRules(next);
+      setRules(next);
+    }).catch(() => {});
+  };
+  const enabled = (app: string, current = rules) => !!current && (current.on.includes(app) || (!current.off.includes(app) && DEFAULT_ON.has(app)));
   const toggle = (app: string) => {
     if (!rules) return;
-    const on = rules.on.filter(value => value !== app);
-    const off = rules.off.filter(value => value !== app);
-    if (enabled(app)) off.push(app); else on.push(app);
-    change({ ...rules, on, off });
+    change(current => {
+      const on = current.on.filter(value => value !== app);
+      const off = current.off.filter(value => value !== app);
+      if (enabled(app, current)) off.push(app); else on.push(app);
+      return { ...current, on, off };
+    });
   };
   if (apps) return <View style={{ flex: 1, padding: 24, gap: 16 }}>
     <Text style={{ fontSize: 24, fontWeight: '700' }}>Where the bubble shows</Text>
@@ -38,7 +47,7 @@ export default function Home() {
     <TextInput accessibilityLabel="Ownvoice test message" value={text} onChangeText={setText} multiline style={{ minHeight: 96, borderWidth: 1, borderRadius: 12, padding: 12 }} />
     <Button title="Turn on accessibility" onPress={() => { void native().openAccessibilitySettings().catch(() => {}); }} />
     <Button disabled={!rules} title="Where the bubble shows" onPress={() => { void native().launcherApps().then(setApps).catch(() => {}); }} />
-    <Button disabled={!rules} title={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change({ ...rules, paused: !rules.paused }); }} />
+    <Button disabled={!rules} title={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change(current => ({ ...current, paused: !current.paused })); }} />
     <Button title={`Recent activity: ${activity}`} onPress={() => { void native().takeTapFacts().then((facts: TapFact[]) => setActivity(activity + facts.length)).catch(() => {}); }} />
     <Button title="Clear last screen" onPress={() => { void native().forget().catch(() => {}); }} />
   </View>;
