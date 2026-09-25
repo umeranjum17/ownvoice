@@ -20,6 +20,15 @@ test('accepts CRLF events split across chunks and a final unterminated completio
   expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ method: 'POST', headers: { Authorization: 'Bearer fixture-access', 'Content-Type': 'application/json', 'chatgpt-account-id': 'fixture-account', originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' } }));
 });
 
+test('accepts bare-CR data lines and event boundaries across chunks', async () => {
+  const first = `event: response.output_text.delta\r${event({ type: 'response.output_text.delta', delta: '{"versions":[' })}\r\r`;
+  const second = event({ type: 'response.output_text.delta', delta: '"A","B","C"]}' });
+  const complete = event({ type: 'response.completed' });
+  const deltas: string[] = [];
+  await expect(streamResponses('C2 prompt', text => deltas.push(text), fetcher(body(first.slice(0, -1), first.slice(-1) + second + '\r\r' + complete)))).resolves.toEqual(['A', 'B', 'C']);
+  expect(deltas).toEqual(['{"versions":[', '"A","B","C"]}']);
+});
+
 test.each([
   ['missing completion', event({ type: 'response.output_text.delta', delta: '{"versions":["A","B","C"]}' }) + '\n\n'],
   ['truncated JSON', event({ type: 'response.output_text.delta', delta: '{"versions":["A","B","C"' }) + '\n\n' + event({ type: 'response.completed' })],

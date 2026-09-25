@@ -1,9 +1,8 @@
 export type DraftRequest = { conversation: string; written: string; typed: string; guide?: string };
 export interface Writer { write(request: DraftRequest): Promise<string[]> }
-export type PhoneWriter = Writer;
 export type Choice = { drafts: string[]; reason?: string };
 
-export async function withPhoneFallback(primary: Writer, phone: PhoneWriter, request: DraftRequest): Promise<Choice> {
+export async function withPhoneFallback(primary: Writer, phone: Writer, request: DraftRequest): Promise<Choice> {
   try {
     const drafts = await primary.write(request);
     if (drafts.length !== 3 || drafts.some(draft => !draft.trim())) throw new Error('empty');

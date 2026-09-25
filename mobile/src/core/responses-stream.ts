@@ -2,7 +2,7 @@ export async function readDraftStream(body: ReadableStream<Uint8Array>, onText?:
   const reader = body.getReader(), decoder = new TextDecoder();
   let pending = '', text = '', completed = false;
   const consume = (event: string) => {
-    const data = event.split(/\r?\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
+    const data = event.split(/\r\n|\r|\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
     if (!data || data === '[DONE]') return;
     const item = JSON.parse(data);
     if (item.type === 'response.failed' || item.type === 'response.incomplete') throw new Error('ChatGPT could not answer.');
@@ -15,7 +15,7 @@ export async function readDraftStream(body: ReadableStream<Uint8Array>, onText?:
   while (true) {
     const { value, done } = await reader.read();
     pending += decoder.decode(value, { stream: !done });
-    const events = pending.split(/\r?\n\r?\n/);
+    const events = pending.split(/(?:\r\n|\r|\n){2}/);
     pending = events.pop() ?? '';
     for (const event of events) consume(event);
     if (done) break;
