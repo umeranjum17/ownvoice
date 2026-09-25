@@ -116,9 +116,9 @@ class OwnvoiceService : AccessibilityService() {
   }
 
   fun setRules(pausedNow: Boolean, on: Set<String>, off: Set<String>) {
+    check(prefs.edit().putBoolean("paused", pausedNow).putStringSet("on", on).putStringSet("off", off).commit())
     paused = pausedNow; onApps = on; offApps = off
     if (capture != null && !allowed(capture?.app)) forget()
-    prefs.edit().putBoolean("paused", pausedNow).putStringSet("on", on).putStringSet("off", off).apply()
     updateBubble()
   }
 
@@ -228,10 +228,10 @@ class OwnvoiceService : AccessibilityService() {
   }
   fun debugTree(): String {
     val root = appRoot() ?: return "{}"
-    if (!allowed(root.packageName?.toString())) return "{}"
+    if (!allowed(root.packageName?.toString()) || !root.isVisibleToUser) return "{}"
     fun walk(node: AccessibilityNodeInfo): org.json.JSONObject {
       val out = org.json.JSONObject().put("text", node.text?.toString() ?: node.contentDescription?.toString() ?: "").put("editable", node.isEditable).put("focused", node.isFocused)
-      val children = JSONArray(); for (i in 0 until node.childCount) node.getChild(i)?.let { children.put(walk(it)) }; out.put("children", children)
+      val children = JSONArray(); for (i in 0 until node.childCount) node.getChild(i)?.takeIf { it.isVisibleToUser }?.let { children.put(walk(it)) }; out.put("children", children)
       return out
     }
     return walk(root).toString()

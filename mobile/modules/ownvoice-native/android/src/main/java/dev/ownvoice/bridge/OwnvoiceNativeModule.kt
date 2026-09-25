@@ -42,9 +42,10 @@ class OwnvoiceNativeModule : Module() {
       val paused = rules["paused"] as? Boolean ?: false
       val on = (rules["on"] as? List<String>).orEmpty()
       val off = (rules["off"] as? List<String>).orEmpty()
-      context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit()
-        .putBoolean("paused", paused).putStringSet("on", on.toSet()).putStringSet("off", off.toSet()).apply()
-      OwnvoiceService.instance?.setRules(paused, on.toSet(), off.toSet())
+      val service = OwnvoiceService.instance
+      if (service != null) service.setRules(paused, on.toSet(), off.toSet())
+      else check(context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit()
+        .putBoolean("paused", paused).putStringSet("on", on.toSet()).putStringSet("off", off.toSet()).commit())
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("say") { message: String, ms: Int? -> OwnvoiceService.instance?.say(message, (ms ?: 4000).toLong()) }.runOnQueue(Queues.MAIN)
     AsyncFunction("serviceState") { state() }.runOnQueue(Queues.MAIN)
