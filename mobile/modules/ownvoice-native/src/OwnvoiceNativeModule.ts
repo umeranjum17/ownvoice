@@ -13,7 +13,6 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   launcherApps(): Promise<{ app: string; label: string }[]>;
   bubbleRules(): Promise<{ paused: boolean; on: string[]; off: string[] }>;
   setBubbleRules(rules: { paused: boolean; on: string[]; off: string[] }): Promise<void>;
-  setPractice(on: boolean): Promise<void>;
   say(message: string, ms?: number): Promise<void>;
   capture(): Promise<Capture | null>;
   forget(): Promise<void>;

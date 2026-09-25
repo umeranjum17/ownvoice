@@ -30,7 +30,6 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var offApps: Set<String> = emptySet()
     val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
     @Volatile var paused = false
-    @Volatile var practice = false
     @Volatile var panelIsOpen = false
     @Volatile var onInserted: ((Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
@@ -47,6 +46,7 @@ class OwnvoiceService : AccessibilityService() {
   private lateinit var params: WindowManager.LayoutParams
   private var capture: Capture? = null
   private var inserting = false
+  private var pendingInsert: (() -> Unit)? = null
   private var resting = true
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
   var panelOpen: Boolean
@@ -54,14 +54,13 @@ class OwnvoiceService : AccessibilityService() {
     set(value) { panelIsOpen = value; updateBubble() }
 
   private fun px(dp: Int) = (dp * resources.displayMetrics.density).toInt()
-  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON) || (practice && app == packageName))
+  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON))
   private val night get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
   private fun colour(id: Int, fallback: Int) = if (android.os.Build.VERSION.SDK_INT >= 31) getColor(id) else fallback
 
   override fun onServiceConnected() {
     super.onServiceConnected()
     paused = prefs.getBoolean("paused", false)
-    practice = prefs.getBoolean("practice", false)
     onApps = prefs.getStringSet("on", emptySet()).orEmpty()
     offApps = prefs.getStringSet("off", emptySet()).orEmpty()
     wm = getSystemService(WindowManager::class.java)
@@ -95,6 +94,7 @@ class OwnvoiceService : AccessibilityService() {
   override fun onInterrupt() {}
   override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); if (::bubble.isInitialized && resting) restoreBubble.run() }
   override fun onDestroy() {
+    pendingInsert?.invoke()
     forget()
     instance = null
     onServiceChange?.invoke("off")
@@ -172,6 +172,7 @@ class OwnvoiceService : AccessibilityService() {
       return done(false, false)
     }
     inserting = true
+    pendingInsert = { finishInsert(text, false, false, done) }
     val reading = captured()
     val field = reading?.input ?: return finishInsert(text, false, false, done)
     val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
@@ -199,6 +200,7 @@ class OwnvoiceService : AccessibilityService() {
     else { getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text)); say("Couldn't insert. Copied, paste it.") }
     forget()
     inserting = false
+    pendingInsert = null
     onInserted?.invoke(ok, newlinesLost)
     done(ok, newlinesLost)
   }

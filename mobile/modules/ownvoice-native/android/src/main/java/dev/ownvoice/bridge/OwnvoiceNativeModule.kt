@@ -46,11 +46,6 @@ class OwnvoiceNativeModule : Module() {
         .putBoolean("paused", paused).putStringSet("on", on.toSet()).putStringSet("off", off.toSet()).apply()
       OwnvoiceService.instance?.setRules(paused, on.toSet(), off.toSet())
     }.runOnQueue(Queues.MAIN)
-    AsyncFunction("setPractice") { on: Boolean ->
-      OwnvoiceService.practice = on
-      context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().putBoolean("practice", on).apply()
-      OwnvoiceService.instance?.updateBubble()
-    }.runOnQueue(Queues.MAIN)
     AsyncFunction("say") { message: String, ms: Int? -> OwnvoiceService.instance?.say(message, (ms ?: 4000).toLong()) }.runOnQueue(Queues.MAIN)
     AsyncFunction("serviceState") { state() }.runOnQueue(Queues.MAIN)
     AsyncFunction("capture") {

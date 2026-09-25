@@ -41,6 +41,30 @@ await wait(1500);
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
 const tap = (x, y) => adb('shell', 'input', 'tap', String(x), String(y));
 const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
+const visibleLine = (label, state = '') => {
+  const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
+  const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: image, encoding: 'utf8' });
+  const lines = new Map();
+  for (const row of tsv.split('\n').slice(1)) {
+    const columns = row.split('\t');
+    if (columns.length < 12 || !columns[11].trim()) continue;
+    const key = columns.slice(0, 5).join(':');
+    const line = lines.get(key) ?? { words: [], left: Infinity, top: Infinity, right: 0, bottom: 0 };
+    line.words.push(columns[11]);
+    line.left = Math.min(line.left, Number(columns[6]));
+    line.top = Math.min(line.top, Number(columns[7]));
+    line.right = Math.max(line.right, Number(columns[6]) + Number(columns[8]));
+    line.bottom = Math.max(line.bottom, Number(columns[7]) + Number(columns[9]));
+    lines.set(key, line);
+  }
+  const line = [...lines.values()].find(item => {
+    const text = item.words.join(' ').toLowerCase();
+    return text.includes(label.toLowerCase()) && text.includes(state.toLowerCase());
+  });
+  if (!line) throw new Error(`Could not find visible ${label} ${state}.`);
+  return [Math.round((line.left + line.right) / 2), Math.round((line.top + line.bottom) / 2)];
+};
+const tapText = (label, state) => tap(...visibleLine(label, state));
 const bubble = () => tap(width - Math.round(90 * width / 1080), Math.round(height * .53));
 const bubbleVisible = () => {
   const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
@@ -52,45 +76,51 @@ const expectBubble = (visible, label) => {
   if (bubbleVisible() !== visible) throw new Error(`Bubble visibility did not match ${label}.`);
 };
 
-const chooseApp = async (name) => {
-  tap(Math.round(width / 2), Math.round(height * .61));
+const chooseApp = async (search, label, prior) => {
+  tapText('Where the bubble shows');
   await wait(400);
-  tap(Math.round(width / 2), Math.round(height * .19));
-  type(name);
+  visibleLine('Find an app');
+  tapText('Find an app');
+  type(search);
   await wait(400);
-  tap(Math.round(width / 2), Math.round(height * .28));
+  tapText(label, prior);
   await wait(400);
+  visibleLine(label, prior === 'Off' ? 'On' : 'Off');
   adb('shell', 'input', 'keyevent', '4');
-  tap(Math.round(width / 2), Math.round(height * .91));
+  tapText('Back');
   await wait(700);
+  visibleLine('Pause for now');
 };
-await chooseApp('new');
+await chooseApp('new', 'Ownvoice', 'Off');
 expectBubble(true, 'test app enabled');
-await chooseApp('Chrome');
+await chooseApp('Chrome', 'Chrome', 'Off');
 
 // A focused input keeps its owning app in front when the accessibility overlay is tapped.
 tap(Math.round(width / 2), Math.round(height * .47));
 await wait(500);
 type('React multiline draft');
-await wait(500);
+await wait(6500);
 bubble();
 await wait(1200);
-tap(width - Math.round(170 * width / 1080), Math.round(height * .74));
+visibleLine('Polish your message');
+tapText('Insert');
 await wait(1800);
 snap('rn-inserted');
 
 // The home controls verify that pause and per-app off rules hide the overlay.
 adb('shell', 'input', 'keyevent', '4'); // Dismiss the keyboard so all controls are reachable.
 await wait(400);
-tap(Math.round(width / 2), Math.round(height * .67)); // Pause.
+tapText('Pause for now');
 await wait(700);
+visibleLine('Resume');
 expectBubble(false, 'paused');
-tap(Math.round(width / 2), Math.round(height * .67)); // Resume.
+tapText('Resume');
 await wait(700);
+visibleLine('Pause for now');
 expectBubble(true, 'resumed');
-await chooseApp('new');
+await chooseApp('new', 'Ownvoice', 'On');
 expectBubble(false, 'app turned off');
-await chooseApp('new');
+await chooseApp('new', 'Ownvoice', 'Off');
 await wait(700);
 expectBubble(true, 'app turned back on');
 
@@ -104,12 +134,13 @@ const insertWebField = async (name, y) => {
   tap(Math.round(width / 2), y);
   await wait(500);
   type(`${name} multiline draft`);
-  await wait(500);
+  await wait(4500);
   if (name === 'contenteditable') snap('chrome-bubble');
   bubble();
   await wait(1200);
+  visibleLine('Polish your message');
   if (name === 'contenteditable') snap('chrome-panel');
-  tap(width - Math.round(170 * width / 1080), Math.round(height * .74));
+  tapText('Insert');
   await wait(1800);
   if (name === 'contenteditable') snap('chrome-inserted');
 };
