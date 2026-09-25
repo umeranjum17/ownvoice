@@ -33,6 +33,8 @@ function parts(text: string, polishing: boolean) {
     if (bullets.length > 1 && !lines.slice(0, bullets[0].index).join('').trim())
       return bullets.map(({ line, index }, i) => [line.replace(/^\s*[-*•]\s+/, ''), ...lines.slice(index + 1, bullets[i + 1]?.index ?? lines.length)].join('\n'));
   }
+  if (explicit && [...value.matchAll(numbered)].length === 1)
+    return [value.replace(/^\s*[1-3][.):]\s+/, '')];
   return [value];
 }
 
@@ -40,9 +42,7 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
   const drafts: string[] = [];
   for (const candidate of candidates) {
     for (const part of parts(candidate, polishing)) {
-      const standalone = !polishing && (candidates.length > 1 || limit === 1) && [...part.matchAll(numbered)].length === 1;
-      const unnumbered = standalone ? part.replace(/^\s*[1-3][.):]\s+/, '') : part;
-      const draft = unnumbered.trim().replace(/^(?:draft|option|version)\s*[1-3][.):]\s*/i, '')
+      const draft = part.trim().replace(/^(?:draft|option|version)\s*[1-3][.):]\s*/i, '')
         .replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
         .replace(/^'([\s\S]*)'$/, '$1').replace(/^‘([\s\S]*)’$/, '$1').trim();
       const key = draft.toLowerCase().replace(/\s+/g, ' ');

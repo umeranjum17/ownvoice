@@ -7,6 +7,7 @@ import android.util.Log
 import com.google.mlkit.genai.prompt.Generation
 import com.google.mlkit.genai.prompt.TextPart
 import com.google.mlkit.genai.prompt.generateContentRequest
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -77,11 +78,22 @@ internal object PhoneModel {
       candidateCount = candidates
       maxOutputTokens = maxTokens
     }
+    return collectDrafts(candidates) {
+      model.generateContent(request).candidates.map { it.text }
+    }
+  }
+
+  internal suspend fun collectDrafts(candidates: Int, generate: suspend () -> List<String>): List<String> {
     val result = mutableListOf<String>()
     repeat(2) {
-      if (result.size < candidates) model.generateContent(request).candidates
-        .map { it.text.trim().removeSurrounding("\"") }
-        .forEach { if (it.isNotEmpty() && it !in result) result.add(it) }
+      if (result.size < candidates) {
+        val batch = try { generate() } catch (error: Throwable) {
+          if (result.isEmpty() || error is CancellationException) throw error
+          return result.take(candidates)
+        }
+        batch.map { it.trim().removeSurrounding("\"") }
+          .forEach { if (it.isNotEmpty() && it !in result) result.add(it) }
+      }
     }
     return result.take(candidates)
   }
