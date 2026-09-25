@@ -93,6 +93,9 @@ class JudgeTest {
         val general = Judge.scoreDraft("Yep, still on!", "GENERIC: 9\nSPECIFICITY: 1\nSPECIFIC: concern - no details", message = true)
         assertEquals(Judge.Verdict(false, "Could be more specific"), Judge.verdict(general))
         assertEquals(Judge.Verdict(false, "A bit general"), Judge.verdict(Judge.scoreDraft("Yep, still on!", "GENERIC: 9\nSPECIFICITY: 1", message = true)))
+        // A post's reach reasons stay in the "Why?" note.
+        val post = Judge.scoreDraft("Shipped the tent fix today, see https://example.com", "GENERIC: 1\nSPECIFICITY: 9\nHOOK: concern - weak opener", message = false)
+        assertEquals(Judge.Verdict(true, "Sounds natural"), Judge.verdict(post))
     }
 
     @Test fun whoIsTheOnePersonInAChat() {

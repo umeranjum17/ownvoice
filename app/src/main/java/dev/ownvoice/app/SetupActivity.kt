@@ -11,7 +11,6 @@ import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ScrollView
-import android.widget.TextView
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -25,7 +24,6 @@ import kotlinx.coroutines.launch
 class SetupActivity : Activity() {
     private val scope = MainScope()
     private var step = 1
-    private var ready: TextView? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -139,7 +137,6 @@ class SetupActivity : Activity() {
         }, top = 14f)
         spacer(column)
         column.add(filled("Turn it on in Settings") {
-            Privacy.consent(this)
             startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
         }, top = 20f)
         column.add(ghost("Not now") { done() }, top = 6f, width = -2).apply { (layoutParams as LinearLayout.LayoutParams).gravity = Gravity.CENTER_HORIZONTAL }

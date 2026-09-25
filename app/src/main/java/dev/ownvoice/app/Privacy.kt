@@ -63,11 +63,6 @@ object Privacy {
         prefs(context).edit().putBoolean("setUp", true).commit()
     }
 
-    /** Records when the user agreed, on the permission step, to let Ownvoice read the screen on a tap. */
-    fun consent(context: Context) {
-        prefs(context).edit().putLong("consentedAt", System.currentTimeMillis()).commit()
-    }
-
     /** True once: the first time the bubble shows, it says what it does. */
     fun firstBubble(context: Context): Boolean {
         if (prefs(context).getBoolean("bubbleTip", false)) return false

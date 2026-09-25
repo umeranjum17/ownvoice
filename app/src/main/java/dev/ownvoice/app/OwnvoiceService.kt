@@ -94,7 +94,11 @@ class OwnvoiceService : AccessibilityService() {
             gravity = Gravity.CENTER
             textSize = 14f
             maxWidth = px(260)
-            setOnClickListener { if (resting) readScreen() else restoreBubble.run() }
+            setOnClickListener {
+                val read = resting || text.toString() == TIP
+                restoreBubble.run()
+                if (read) readScreen()
+            }
         }
         val size = (BUBBLE_DP * resources.displayMetrics.density).toInt()
         // Not focusable, so the app underneath keeps its keyboard and focused field.

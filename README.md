@@ -73,7 +73,7 @@ Gemini Nano through ML Kit needs a supported phone (for example recent Pixel, Sa
 
 ## Test
 
-The phrase rules, the parsing of the judge's answers and the one-sentence verdict, the per-app defaults, the 30-day log, the voice profile import and never-say matching, and the plain-words check (`PlainWordsTest`, which scans every user-facing string for model names, "/100", "judge", "slop", "nano", "AICore", "characters" and similar) have plain JVM unit tests:
+The phrase rules, the parsing of the judge's answers and the one-sentence verdict, the per-app defaults, the 30-day log, the voice profile import and never-say matching, and the plain-words check (`PlainWordsTest`, which checks the error messages, check names, verdicts, marked-phrase reasons, read log and string resources for model names, "/100", "judge", "slop", "nano", "AICore", "characters" and similar) have plain JVM unit tests:
 
 ```sh
 ./gradlew :app:testDebugUnitTest

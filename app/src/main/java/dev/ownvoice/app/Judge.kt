@@ -59,7 +59,7 @@ object Judge {
      * thing worth a look otherwise, and "A bit stock: 2 phrases you could say more simply" for stock phrasing.
      */
     fun verdict(s: Scores): Verdict {
-        val concern = (s.quality + s.reach).firstOrNull { !it.ok }
+        val concern = (s.quality + if (s.message) s.reach else emptyList()).firstOrNull { !it.ok }
         val lead = Slop.words(s.slop)
         if (!Slop.natural(s.slop)) return when {
             s.hits.size == 1 -> Verdict(false, lead, ": a phrase you could say more simply")

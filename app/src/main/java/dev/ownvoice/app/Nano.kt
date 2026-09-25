@@ -101,7 +101,10 @@ object Nano : DraftEngine {
     }
 
     /** Plain words for the user; the details go to the log. */
-    fun explain(e: GenAiException): String = when (e.errorCode) {
+    fun explain(e: GenAiException): String = message(e.errorCode)
+        .also { Log.w(OwnvoiceService.TAG, "model error ${e.errorCode}: ${e.message}") }
+
+    fun message(errorCode: Int): String = when (errorCode) {
         ErrorCode.BUSY -> "Your phone is busy. Try again in a moment."
         ErrorCode.PER_APP_BATTERY_USE_QUOTA_EXCEEDED -> "Ownvoice needs a short break. Try again in a little while."
         ErrorCode.BACKGROUND_USE_BLOCKED -> "Open Ownvoice again and try once more."
@@ -110,11 +113,11 @@ object Nano : DraftEngine {
         ErrorCode.NOT_SUPPORTED, ErrorCode.NOT_AVAILABLE, ErrorCode.AICORE_INCOMPATIBLE -> UNSUPPORTED
         ErrorCode.NEEDS_SYSTEM_UPDATE -> "Your phone needs an update first. Open Settings › System updates, then try again."
         else -> "Something went wrong. Try again."
-    }.also { Log.w(OwnvoiceService.TAG, "model error ${e.errorCode}: ${e.message}") }
+    }
 
     const val GETTING_READY = "Getting Ownvoice ready… this happens once."
 
-    private const val UNSUPPORTED = "Sorry, Ownvoice doesn't work on this phone yet."
+    const val UNSUPPORTED = "Sorry, Ownvoice doesn't work on this phone yet."
 
     private fun prompt(conversation: String, guide: String) = buildString {
         append("You help someone reply in a chat. Below is the text visible on their screen; it may include app labels.\n")
