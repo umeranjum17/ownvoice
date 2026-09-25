@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { performance } from 'node:perf_hooks';
 import { memoryStore, portableEngine, claims } from '@byokit/accounts';
-import { rewritePrompt, versions } from '../src/core/judge';
+import { rewritePrompt } from '../src/core/judge';
+import { readDraftStream } from '../src/core/responses-stream';
 
 async function main() {
 const authPath = process.argv[2] ?? '../.live-proof-home/.codex/auth.json';
@@ -23,24 +24,8 @@ const response = await fetch('https://chatgpt.com/backend-api/codex/responses', 
   body: JSON.stringify({ model: 'gpt-6-sol', instructions: 'Return the requested three rewrite versions as JSON.', input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
 });
 if (!response.ok || !response.body) throw new Error(`The streamed call failed (${response.status}): ${await response.text()}; no token was refreshed.`);
-const reader = response.body.getReader(), decoder = new TextDecoder();
-let pending = '', text = '', firstTextMs: number | undefined;
-while (true) {
-  const { value, done } = await reader.read();
-  pending += decoder.decode(value, { stream: !done });
-  const events = pending.split('\n\n'); pending = events.pop() ?? '';
-  for (const event of events) for (const line of event.split('\n')) {
-    if (!line.startsWith('data:')) continue;
-    const data = line.slice(5).trim(); if (!data || data === '[DONE]') continue;
-    const item = JSON.parse(data);
-    const delta = item.type === 'response.output_text.delta' ? item.delta : undefined;
-    if (typeof delta === 'string') { firstTextMs ??= performance.now() - started; text += delta; }
-    if (item.type === 'response.failed') throw new Error('The streamed answer failed.');
-  }
-  if (done) break;
-}
-const drafts = versions(text);
-if (drafts.length !== 3) throw new Error(`Expected three versions; got ${drafts.length}.`);
+let firstTextMs: number | undefined;
+const drafts = await readDraftStream(response.body, () => { firstTextMs ??= performance.now() - started; });
 console.log(JSON.stringify({ firstTextMs: Math.round(firstTextMs ?? -1), totalMs: Math.round(performance.now() - started), drafts }, null, 2));
 }
 void main().catch(error => { console.error(error instanceof Error ? error.message : 'Live proof failed.'); process.exitCode = 1; });
