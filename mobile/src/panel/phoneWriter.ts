@@ -6,6 +6,11 @@ const count = 3;
 const numbered = /(?:^|\s)(?:(?:draft|option|version)\s*)?([1-3])[.):]\s+/gi;
 const labelled = /(?:^|\s)(?:draft|option|version)\s*[1-3][.):]\s*/gi;
 
+function unquote(text: string) {
+  return text.replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
+    .replace(/^'([\s\S]*)'$/, '$1').replace(/^‘([\s\S]*)’$/, '$1').trim();
+}
+
 function body(text: string, polishing: boolean) {
   const lines = text.trim().split(/\r?\n/);
   const first = lines[0]?.trim() ?? '';
@@ -18,9 +23,10 @@ function body(text: string, polishing: boolean) {
 }
 
 function parts(text: string, polishing: boolean) {
-  const value = body(text, polishing);
+  const input = unquote(text.trim());
+  const value = body(input, polishing);
   if (polishing) return [value];
-  const explicit = /\b(?:versions?|options?|drafts?)\b/i.test(text.split(/\r?\n/, 1)[0]) && value !== text.trim();
+  const explicit = /\b(?:versions?|options?|drafts?)\b/i.test(input.split(/\r?\n/, 1)[0]) && value !== input;
   const pattern = explicit ? numbered : labelled;
   const markers: { start: number; end: number }[] = [];
   for (const match of value.matchAll(pattern)) markers.push({ start: match.index! + match[0].search(/\S/), end: match.index! + match[0].length });
@@ -42,9 +48,7 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
   const drafts: string[] = [];
   for (const candidate of candidates) {
     for (const part of parts(candidate, polishing)) {
-      const draft = part.trim().replace(/^(?:draft|option|version)\s*[1-3][.):]\s*/i, '')
-        .replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
-        .replace(/^'([\s\S]*)'$/, '$1').replace(/^‘([\s\S]*)’$/, '$1').trim();
+      const draft = unquote(body(unquote(part.trim().replace(/^(?:draft|option|version)\s*[1-3][.):]\s*/i, '')), polishing));
       const key = draft.toLowerCase().replace(/\s+/g, ' ');
       if (draft && !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === key)) drafts.push(draft);
       if (drafts.length === limit) return drafts;

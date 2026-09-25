@@ -47,6 +47,8 @@ test('keeps a numbered or bulleted message intact unless explicitly labelled as 
   expect(cleanDrafts(['Version 1: Sounds good.', 'Option 2: See you there.', 'Draft 3: I can bring it.'])).toEqual(['Sounds good.', 'See you there.', 'I can bring it.']);
   expect(cleanDrafts(['Here are two versions:\n1. Sounds good.'])).toEqual(['Sounds good.']);
   expect(cleanDrafts(['1. Bring the tent\n- Bring the stove', 'See you there.'])).toEqual(['1. Bring the tent\n- Bring the stove', 'See you there.']);
+  expect(cleanDrafts(['1. Sounds good.', 'See you there.'])).toEqual(['1. Sounds good.', 'See you there.']);
+  expect(cleanDrafts(['1. Sounds good.'], 1)).toEqual(['1. Sounds good.']);
   expect(cleanDrafts(["1. I'll bring the tent. 2. You bring the stove."], 1)).toEqual(["1. I'll bring the tent. 2. You bring the stove."]);
   expect(cleanDrafts(["Here's a reply: ‘Sounds good!’", "Here's the reply:\nSee you there."])).toEqual(['Sounds good!', 'See you there.']);
   expect(cleanDrafts(["Here is the plan:\nI'll bring the tent."])).toEqual(["Here is the plan:\nI'll bring the tent."]);
@@ -127,6 +129,26 @@ test('fails clearly when neither native nor streamed generation returns a usable
   native.modelStatus.mockResolvedValue('available');
   native.drafts.mockResolvedValue(['Here are three versions:']);
   native.ask.mockResolvedValue('Here is the reply:');
+  await expect(phoneWriter.write({ conversation: 'Sam: Are we still on?', written: '', typed: '' })).rejects.toThrow(words.failed);
+  expect(native.ask).toHaveBeenCalledTimes(3);
+});
+
+test('skips quoted introductions and fills the gap with a streamed message', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue(['“Here are three versions:”', '1. Bring the tent\n- Bring the stove']);
+  native.ask.mockResolvedValueOnce('“Here are three versions:”')
+    .mockResolvedValueOnce('See you there.');
+  await expect(phoneWriter.write({ conversation: 'Sam: What should we bring?', written: '', typed: '' })).resolves.toEqual([
+    '1. Bring the tent\n- Bring the stove', 'See you there.',
+  ]);
+  expect(native.ask).toHaveBeenCalledTimes(2);
+});
+
+test('reports failure when only quoted introductions are returned', async () => {
+  expect(cleanDrafts(['Version 1: “Here are three versions:”'])).toEqual([]);
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue(['“Here are three versions:”']);
+  native.ask.mockResolvedValue('“Here is the reply:”');
   await expect(phoneWriter.write({ conversation: 'Sam: Are we still on?', written: '', typed: '' })).rejects.toThrow(words.failed);
   expect(native.ask).toHaveBeenCalledTimes(3);
 });
