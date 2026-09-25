@@ -37,14 +37,29 @@ test('cleans preambles, numbering and quotes into one draft per card', () => {
   ]);
 });
 
-test('falls back to one streamed call per draft when candidates cannot be split', async () => {
-  native.modelStatus.mockResolvedValue('available');
-  native.drafts.mockResolvedValue(['Only one reply.']);
-  native.ask.mockResolvedValueOnce('Here\'s the reply:\n"Sounds good!"')
-    .mockResolvedValueOnce('"I can bring it."').mockResolvedValueOnce('‘See you then!’');
-  await expect(phoneWriter.write({ conversation: 'Sam: Are we still on?\nI can bring the tent.', written: '', typed: '' })).resolves.toEqual([
-    'Sounds good!', 'I can bring it.', 'See you then!',
+test('keeps a numbered or bulleted message intact unless explicitly labelled as alternatives', () => {
+  expect(cleanDrafts(["1. I'll bring the tent. 2. You bring the stove.", '- Bring the tent\n- Bring the stove'])).toEqual([
+    "1. I'll bring the tent. 2. You bring the stove.", '- Bring the tent\n- Bring the stove',
   ]);
+  expect(cleanDrafts(['Version 1: See you there. Version 2: Sounds good.'])).toEqual(['See you there.', 'Sounds good.']);
+  expect(cleanDrafts(['Here are two options:\n- See you there.\n- Sounds good.'])).toEqual(['See you there.', 'Sounds good.']);
+});
+
+test('keeps clean native drafts while filling missing slots with streamed replies', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue(['"Sounds good!"', 'I can bring it.']);
+  native.ask.mockResolvedValueOnce('Sounds good!');
+  await expect(phoneWriter.write({ conversation: 'Sam: Are we still on?', written: '', typed: '' })).resolves.toEqual([
+    'Sounds good!', 'I can bring it.',
+  ]);
+  expect(native.ask).toHaveBeenCalledTimes(1);
+});
+
+test('fails clearly when neither native nor streamed generation returns a usable draft', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  native.drafts.mockResolvedValue(['Here are three versions:']);
+  native.ask.mockResolvedValue('Here is the reply:');
+  await expect(phoneWriter.write({ conversation: 'Sam: Are we still on?', written: '', typed: '' })).rejects.toThrow(words.failed);
   expect(native.ask).toHaveBeenCalledTimes(3);
 });
 
