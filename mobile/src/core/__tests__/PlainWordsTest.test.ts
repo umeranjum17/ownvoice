@@ -1,5 +1,5 @@
 import {ERROR_CODES,message} from '../nano';
-import {words} from '../words';
+import {words,CHATGPT_TERMS} from '../words';
 import {offeredApps} from '../onboarding';
 import React from 'react';
 const renderToStaticMarkup: (element:React.ReactElement)=>string = require('react-dom/server').renderToStaticMarkup;
@@ -7,6 +7,7 @@ import Home from '../../../app/index';
 import * as Slop from '../slop';
 import * as Judge from '../judge';
 import * as Privacy from '../privacy';
+import {CHATGPT_OFF} from '../switch';
 const banned=/(?:(?:gemini|gemma|\bnano\b|aicore|ml ?kit|\bllm\b|\bmodel\b|\/100|\/10\b|judge|slop|characters|\bprompt|\btokens?\b|on-device|gpt-\d|codex|openai api|responses))/i;
 const assertPlain=(shown:string[])=>{expect(shown.length).toBeGreaterThan(0);expect(shown.filter(x=>banned.test(x))).toEqual([]);};
 test('errorMessages',()=>{const msgs=[...ERROR_CODES,-1].map(message);assertPlain([...msgs,words.unsupported,words.gettingReady]);});
@@ -15,4 +16,5 @@ test('markedPhrases',()=>{const text="Here's a reply: Great post! Let's delve in
 test('readLog',()=>{const shown=(['REPLY','COMPOSE','EMPTY'] as Judge.Mode[]).flatMap(mode=>[['',''],['chat',''],['','hi'],['chat','hi']].map(([c,t])=>Privacy.summary(mode,c,t))).concat(['Reply drafts. 117 characters on screen, 0 in your field.','Compose boost. 0 characters on screen, 12 in your field.','Nothing to work on. 0 characters on screen, 0 in your field.'].map(Privacy.plain));assertPlain(shown);});
 test('displayedHomeCopy',()=>{const html=renderToStaticMarkup(React.createElement(Home));expect(html).toContain(words.home);assertPlain([html,...Object.values(words)]);});
 test('offeredApps',()=>{assertPlain(offeredApps(()=>true).map(x=>x[1]));});
+test('switchMessage',()=>assertPlain([CHATGPT_OFF,CHATGPT_TERMS]));
 test('catchesATechnicalWord',()=>{for(const bad of ['Scored by the judge','Slop: clean (10/100)','The on-device model is ready (nano-v3).','117 characters on screen','Update AICore','Gemini Nano','Gemma'])expect(banned.test(bad)).toBe(true);for(const fine of ['Sounds natural and answers Sam','Getting Ownvoice ready… this happens once.','A bit stock'])expect(banned.test(fine)).toBe(false);});
