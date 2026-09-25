@@ -126,7 +126,7 @@ The helper's tests run with a fake `claude` (`link/testdata/bin/claude`) under a
 cd link && go test ./...
 ```
 
-`ComputerFlowTest` checks the link on a real device against the real helper running that fake `claude`, through `adb reverse`: it pairs with the phone's Keystore key, checks that computer drafts show "Written on your computer" and insert with their newlines, that an app that's off stays on the phone until you ask, and that with the helper stopped the phone writes and says why. Then it deletes the test pairing. Install both APKs as above, then run `link/devicetest.sh`. `LISTEN=<address>:7441 link/devicetest.sh` checks the phone reaches the computer over the network instead.
+`ComputerFlowTest` checks the link on a real device against the real helper running that fake `claude`, through `adb reverse`: it pairs with the phone's Keystore key, checks that computer drafts show "Written on your computer" and insert with their newlines, that an app that's off stays on the phone until you ask, and that with the helper stopped the phone writes and says why. Then it deletes the test pairing, which replaces any pairing the phone had, so pair your computer again afterwards. Install both APKs as above, then run `link/devicetest.sh`. `LISTEN=<address>:7441 link/devicetest.sh` checks the phone reaches the computer over the network instead.
 
 To try Ownvoice by hand on the debug build's test screen, switch Ownvoice on in its own app list, then run `adb shell am start -n dev.ownvoice.app/.TestScreenActivity`.
 
