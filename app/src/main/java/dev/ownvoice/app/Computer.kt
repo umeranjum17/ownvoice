@@ -50,7 +50,7 @@ class Computer(
 
     override suspend fun ask(prompt: String, maxTokens: Int) = fallback.ask(prompt, maxTokens)
 
-    override suspend fun ensureReady(status: (String) -> Unit) = fallback.ensureReady(status)
+    override suspend fun ensureReady(status: (String) -> Unit, progress: (Float) -> Unit) = fallback.ensureReady(status, progress)
 
     companion object {
         /** Why the computer didn't write, for the drafts panel. */

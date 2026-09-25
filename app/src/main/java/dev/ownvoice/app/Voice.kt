@@ -83,7 +83,7 @@ object Voice {
     fun broken(hits: List<Slop.Hit>, text: String, rules: Rules) = buildList {
         hits.filter { it.reason == NEVER_SAY }.map { "“" + text.substring(it.start, it.end) + "”" }.distinctBy { it.lowercase() }
             .takeIf { it.isNotEmpty() }?.let { add("says " + it.joinToString() + " from your never-say list") }
-        if (rules.noDashes && hits.any { it.reason == "em dash" }) add("has an em dash")
+        if (rules.noDashes && hits.any { it.reason == Slop.LONG_DASH }) add("has a long dash (—)")
         if (hits.any { it.reason == ENDS_ON_QUESTION }) add("ends on a question")
     }
 

@@ -10,6 +10,7 @@ import androidx.test.platform.app.InstrumentationRegistry
 import dev.ownvoice.app.InsertFlowTest.Companion.Stub
 import dev.ownvoice.app.InsertFlowTest.Companion.waitUntil
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Assume.assumeTrue
@@ -62,10 +63,12 @@ class ComputerFlowTest {
         assertEquals(FAKE, sheet.drafts)
         assertEquals(Writer.COMPUTER, sheet.writer)
         assertTrue(texts(sheet).count { it == Writer.COMPUTER.caption } == 3)
-        assertTrue(Privacy.reads(ctx).first().summary.endsWith("Sent to your computer, which wrote the drafts."))
+        assertTrue(Privacy.reads(ctx).first().summary.endsWith("Sent to your computer, which wrote the replies."))
         waitUntil("scores", 20_000) { sheet.scores.all { it != null } }
-        tap(sheet, texts(sheet).first { it.startsWith("Slop: ") })
-        assertTrue(texts(sheet).any { it.startsWith("Slop: ") && Judge.CROSS_CHECK in it })
+        instr.waitForIdleSync()
+        tap(sheet, "Why?")
+        // The phone checked a reply the computer wrote, and the note says so.
+        assertTrue(texts(sheet).toString(), texts(sheet).any { Judge.CROSS_CHECK.trim() in it })
         insertFirst(sheet)
         waitUntil("insert") { OwnvoiceService.instance?.insertVerified != null }
         assertEquals(FAKE[0], screen.edit.text.toString())
@@ -79,7 +82,7 @@ class ComputerFlowTest {
         waitUntil("drafts") { sheet.drafts.isNotEmpty() }
         assertEquals(Writer.PHONE, sheet.writer)
         assertEquals(listOf(InsertFlowTest.DRAFT), sheet.drafts)
-        assertTrue(Privacy.reads(ctx).first().summary.endsWith("in your field."))
+        assertFalse(Privacy.reads(ctx).first().summary.contains("computer"))
         val monitor = instr.addMonitor(DraftActivity::class.java.name, null, false)
         tap(sheet, texts(sheet).first { it.startsWith("Write this one on my computer") })
         val again = monitor.waitForActivityWithTimeout(5_000) as DraftActivity

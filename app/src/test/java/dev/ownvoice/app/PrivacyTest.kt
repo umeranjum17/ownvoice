@@ -22,9 +22,7 @@ class PrivacyTest {
     @Test fun onlyXLinkedInAndRedditMayGoToTheComputerAtFirst() {
         for (app in listOf("com.twitter.android", "com.linkedin.android", "com.reddit.frontpage")) {
             assertTrue(app, Privacy.mayGoToComputer(app, null))
-            assertTrue(app, Privacy.allowed(app, null))
         }
-        assertTrue(Privacy.allowed("com.Slack", null))
         for (app in listOf("com.Slack", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b", "org.thoughtcrime.securesms", "com.discord", "dev.ownvoice.app")) {
             assertFalse(app, Privacy.mayGoToComputer(app, null))
         }
@@ -38,12 +36,17 @@ class PrivacyTest {
         assertEquals(listOf(now - 30 * day + 1, now - day, now), Privacy.keep(reads, now).map { it.time })
     }
 
-    @Test fun summaryHasModeAndCountsButNoText() {
+    @Test fun summarySaysWhatItDidButNeverTheText() {
         val chat = "Sam: Are we still on for Saturday?\nSam: I can bring the tent."
-        assertEquals("Reply drafts. ${chat.length} characters on screen, 0 in your field.", Privacy.summary(Judge.Mode.REPLY, chat, ""))
-        val boost = Privacy.summary(Judge.Mode.COMPOSE, chat, "Saturday works")
-        assertEquals("Compose boost. ${chat.length} characters on screen, 14 in your field.", boost)
-        assertEquals("Nothing to work on. 0 characters on screen, 0 in your field.", Privacy.summary(Judge.Mode.EMPTY, "", ""))
+        assertEquals("Suggested replies. Read the chat on screen.", Privacy.summary(Judge.Mode.REPLY, chat, ""))
+        assertEquals("Polished your message. Read the chat on screen and your message.", Privacy.summary(Judge.Mode.COMPOSE, chat, "Saturday works"))
+        assertEquals("Nothing to help with. Nothing was on screen.", Privacy.summary(Judge.Mode.EMPTY, "", ""))
+    }
+
+    @Test fun oldEntriesReadInPlainWords() {
+        assertEquals("Polished your message. Read your message.", Privacy.plain("Compose boost. 0 characters on screen, 14 in your field."))
+        assertEquals("Suggested replies. Read the chat on screen.", Privacy.plain("Reply drafts. 117 characters on screen, 0 in your field."))
+        assertEquals("Suggested replies. Read the chat on screen.", Privacy.plain("Suggested replies. Read the chat on screen."))
     }
 
     @Test fun readSurvivesEncodingAndTabsCannotBreakIt() {

@@ -3,108 +3,92 @@ package dev.ownvoice.app
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
-import android.provider.Settings
-import android.widget.Button
-import android.widget.FrameLayout
+import android.view.Gravity
+import android.view.View
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.Switch
 import android.widget.TextView
+import com.google.android.material.materialswitch.MaterialSwitch
+import com.google.android.material.progressindicator.LinearProgressIndicator
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-/** The on/off switch (Android's accessibility setting), the on-device model's state, and the privacy controls. */
+/** Home: whether Ownvoice is on and ready, then plain rows for where it works, your voice, what it read and pause. */
 class MainActivity : Activity() {
     private val scope = MainScope()
-    private lateinit var service: TextView
-    private lateinit var model: TextView
-    private lateinit var pause: Switch
-    private lateinit var reads: Button
-    private lateinit var voice: Button
-    private lateinit var apps: LinearLayout
-    private lateinit var computer: LinearLayout
+    private var check: Job? = null
+    private var ready = false
+    private var problem: String? = null
+    private lateinit var status: LinearLayout
+    private lateinit var headline: TextView
+    private lateinit var detail: TextView
+    private lateinit var power: MaterialSwitch
+    private lateinit var bar: LinearProgressIndicator
+    private lateinit var retry: TextView
+    private lateinit var pause: MaterialSwitch
+    private lateinit var apps: View
+    private lateinit var voice: View
+    private lateinit var reads: View
+    private lateinit var computer: View
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (16 * resources.displayMetrics.density).toInt()
-        service = TextView(this).apply { textSize = 16f }
-        model = TextView(this).apply { textSize = 16f; setPadding(0, pad, 0, 0) }
-        pause = Switch(this).apply { text = "Pause: hide the bubble everywhere"; textSize = 16f; setPadding(0, pad, 0, 0) }
-        reads = Button(this).apply { setOnClickListener { startActivity(Intent(context, ReadsActivity::class.java)) } }
-        voice = Button(this).apply { setOnClickListener { startActivity(Intent(context, VoiceActivity::class.java)) } }
-        apps = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        computer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        setContentView(FrameLayout(this).apply { fitsSystemWindows = true; addView(ScrollView(context).apply { addView(LinearLayout(context).apply {
+        val page = page("Ownvoice", if (Link.computer(this) == null) "Your writing helper. It stays on this phone." else "Your writing helper.", Type.HEADLINE_LARGE)
+        headline = text("", Type.HEADLINE_SMALL)
+        detail = text("", Type.BODY)
+        power = MaterialSwitch(this).apply { contentDescription = "Ownvoice on or off" }
+        bar = LinearProgressIndicator(this).apply { isIndeterminate = true; visibility = View.GONE }
+        retry = ghost("Try again") { checkModel() }
+        status = page.add(LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-            addView(TextView(context).apply { text = "Ownvoice"; textSize = 24f })
-            addView(TextView(context).apply {
-                textSize = 16f
-                setPadding(0, pad / 2, 0, pad / 2)
-                text = "Ownvoice reads the screen only when you tap its bubble. What it reads stays on this phone, " +
-                    "unless you pair your own computer to write drafts. It never sends a message for you."
+            setPadding(px(24), px(20), px(20), px(16))
+            addView(LinearLayout(context).apply {
+                gravity = Gravity.CENTER_VERTICAL
+                addView(LinearLayout(context).apply {
+                    orientation = LinearLayout.VERTICAL
+                    addView(headline)
+                    addView(detail)
+                }, LinearLayout.LayoutParams(0, -2, 1f))
+                addView(power)
             })
-            addView(TextView(context).apply {
-                textSize = 14f
-                text = "Tap the Ownvoice bubble in any app switched on below to get reply drafts, " +
-                    "or better versions of what you have already written. " +
-                    "It changes a text field only when you tap Insert.\n\n" +
-                    "To rewrite text without the bubble, select it in any app and choose Ownvoice in the selection menu."
-            })
-            addView(service)
-            addView(Button(context).apply {
-                text = "Turn Ownvoice on or off"
-                setOnClickListener { startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)) }
-            })
-            addView(model)
-            addView(Button(context).apply {
-                text = "Check or download the model"
-                setOnClickListener { checkModel() }
-            })
-            addView(pause)
-            addView(voice)
-            addView(reads)
-            addView(computer)
-            addView(TextView(context).apply { text = "Apps where the bubble works"; textSize = 18f; setPadding(0, pad, 0, 0) })
-            addView(TextView(context).apply { text = "In apps that are off, the bubble doesn't show and nothing is read."; textSize = 14f })
-            addView(apps)
-        }) }) })
+            add(bar, top = 12f)
+            add(retry, width = -2)
+        }, bottom = 18f)
+        apps = item(icon(R.drawable.ic_apps), "Where the bubble shows", "", chevron()) { open(AppsActivity::class.java) }
+        voice = item(icon(R.drawable.ic_voice), "Your voice", "", chevron()) { open(VoiceActivity::class.java) }
+        reads = item(icon(R.drawable.ic_eye), "What Ownvoice read", "", chevron()) { open(ReadsActivity::class.java) }
+        computer = item(icon(R.drawable.ic_computer), "", "", chevron()) {
+            open(if (Link.computer(this) == null) PairActivity::class.java else ComputerActivity::class.java)
+        }
+        page.add(group().apply { row(apps); row(voice); row(computer); row(reads) }, bottom = 14f)
+        pause = MaterialSwitch(this).apply { contentDescription = "Pause for now" }
+        page.add(group().apply {
+            row(item(icon(R.drawable.ic_pause), "Pause for now", "Hides the bubble everywhere", pause) { pause.toggle() })
+            row(item(icon(R.drawable.ic_pen), "Rewrite any text", "Select text in any app, then choose Ownvoice"))
+        })
+        if (savedInstanceState == null && !Privacy.setUp(this) && OwnvoiceService.instance == null) open(SetupActivity::class.java)
     }
 
     override fun onResume() {
         super.onResume()
-        service.text = if (OwnvoiceService.instance != null) "Ownvoice is on." else "Ownvoice is off."
         pause.setOnCheckedChangeListener(null)
         pause.isChecked = Privacy.paused(this)
-        pause.setOnCheckedChangeListener { _, on -> Privacy.setPaused(this, on) }
-        voice.text = "Your voice (${Voice.rules(this).never.size} never-say phrases)"
-        reads.text = "What was read (${Privacy.reads(this).size} in the last 30 days)"
-        showApps()
-        showComputer()
-    }
-
-    private fun showComputer() = showComputer(computer, launcherApps().filter { Privacy.allowed(this, it.first) })
-
-    /** Every app with a launcher icon, as (package, label). */
-    private fun launcherApps() = packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-        .map { it.activityInfo.packageName to it.loadLabel(packageManager).toString() }
-        .distinctBy { it.first }
-
-    /** Every app with a launcher icon, switched-on ones first. */
-    private fun showApps() {
-        apps.removeAllViews()
-        launcherApps()
-            .sortedWith(compareBy({ !Privacy.allowed(this, it.first) }, { it.second.lowercase() }))
-            .forEach { (app, label) ->
-                apps.addView(Switch(this).apply {
-                    text = label
-                    textSize = 16f
-                    setPadding(0, (8 * dp).toInt(), 0, (8 * dp).toInt())
-                    isChecked = Privacy.allowed(context, app)
-                    setOnCheckedChangeListener { _, on -> Privacy.setAllowed(context, app, on); showComputer() }
-                })
-            }
+        pause.setOnCheckedChangeListener { _, on -> Privacy.setPaused(this, on); showStatus() }
+        apps.subtitle(appsLine())
+        val never = Voice.rules(this).never.size
+        voice.subtitle(if (never == 0) "Add phrases you never say" else if (never == 1) "1 phrase you never say" else "$never phrases you never say")
+        val week = Privacy.reads(this).count { System.currentTimeMillis() - it.time < 7L * 24 * 60 * 60 * 1000 }
+        val paired = Link.computer(this) != null
+        computer.title(if (paired) "Your computer" else "Use my computer")
+        computer.subtitle(when {
+            !paired -> "Better replies, written on your computer"
+            Link.computerWrites(this) -> "Writes your replies when it's on"
+            else -> "Off. This phone writes your replies"
+        })
+        reads.subtitle(when (week) { 0 -> "Nothing this week"; 1 -> "Once this week"; else -> "$week times this week" })
+        if (!ready) checkModel()
+        showStatus()
     }
 
     override fun onDestroy() {
@@ -112,15 +96,66 @@ class MainActivity : Activity() {
         super.onDestroy()
     }
 
-    private fun checkModel() {
-        scope.launch {
-            model.text = "Checking the on-device model…"
-            model.text = try {
-                Nano.ensureReady { model.text = it }
-                "The on-device model is ready (${Nano.modelName()})."
-            } catch (e: PlainError) {
-                e.message
+    private fun open(activity: Class<out Activity>) = startActivity(Intent(this, activity))
+
+    /** The apps the bubble shows in, as "WhatsApp, Gmail and 2 more". */
+    private fun appsLine(): String {
+        val on = AppsActivity.launcherApps(this).filter { Privacy.allowed(this, it.first) }.map { it.second }
+        return when (on.size) {
+            0 -> "No apps yet"
+            1 -> on[0]
+            2 -> "${on[0]} and ${on[1]}"
+            3 -> "${on[0]}, ${on[1]} and ${on[2]}"
+            else -> "${on[0]}, ${on[1]} and ${on.size - 2} more"
+        }
+    }
+
+    /** The big card: off, getting ready, not ready, paused, or ready to help. */
+    private fun showStatus() {
+        val on = OwnvoiceService.instance != null
+        val paused = Privacy.paused(this)
+        val green = on && !paused && problem == null
+        status.background = rounded(if (green) primaryContainer else container, 28f)
+        headline.setTextColor(if (green) onPrimaryContainer else onSurface)
+        detail.setTextColor(if (green) onPrimaryContainer else muted)
+        power.setOnCheckedChangeListener(null)
+        power.isChecked = on
+        power.setOnCheckedChangeListener { _, want ->
+            if (want) open(SetupActivity::class.java).also { power.isChecked = false }
+            else {
+                OwnvoiceService.instance?.disableSelf()
+                power.postDelayed({ showStatus() }, 400)
             }
+        }
+        headline.text = when {
+            !on -> "Ownvoice is off"
+            problem != null -> "Not ready yet"
+            !ready -> "Getting ready…"
+            paused -> "Paused"
+            else -> "Ready to help"
+        }
+        detail.text = when {
+            !on -> "Turn it on to use the bubble"
+            problem != null -> problem
+            !ready -> Nano.GETTING_READY
+            paused -> "The bubble is hidden everywhere"
+            else -> "Tap the bubble in your chats"
+        }
+        bar.visibility = if (on && !ready && problem == null) View.VISIBLE else View.GONE
+        retry.visibility = if (problem != null) View.VISIBLE else View.GONE
+    }
+
+    private fun checkModel() {
+        if (check?.isActive == true) return
+        problem = null
+        check = scope.launch {
+            try {
+                OwnvoiceService.engine.ensureReady({}, { bar.setProgressCompat((it * 100).toInt(), true) })
+                ready = true
+            } catch (e: PlainError) {
+                problem = e.message
+            }
+            showStatus()
         }
     }
 }

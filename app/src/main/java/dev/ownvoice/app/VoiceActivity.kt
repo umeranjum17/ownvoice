@@ -8,12 +8,9 @@ import android.text.InputFilter
 import android.text.InputType
 import android.util.Log
 import android.view.View
-import android.widget.Button
 import android.widget.EditText
-import android.widget.FrameLayout
 import android.widget.LinearLayout
-import android.widget.ScrollView
-import android.widget.Switch
+import com.google.android.material.materialswitch.MaterialSwitch
 import android.widget.TextView
 
 /**
@@ -21,12 +18,13 @@ import android.widget.TextView
  * a markdown voice profile from the file picker or a share, and shows what it found before adding it.
  */
 class VoiceActivity : Activity() {
-    private lateinit var dashes: Switch
-    private lateinit var endings: Switch
+    private lateinit var dashes: MaterialSwitch
+    private lateinit var endings: MaterialSwitch
     private lateinit var note: EditText
     private lateinit var never: EditText
     private lateinit var found: TextView
     private lateinit var confirm: LinearLayout
+    private lateinit var box: LinearLayout
 
     /** What the last import found, waiting for the user to add it; read by the on-device test. */
     var pending: Voice.Found? = null
@@ -34,48 +32,48 @@ class VoiceActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (16 * dp).toInt()
-        dashes = Switch(this).apply { text = "No em dashes"; textSize = 16f; setPadding(0, pad / 2, 0, pad / 2) }
-        endings = Switch(this).apply { text = "End posts on a statement, not a question (questions are fine in replies)"; textSize = 16f; setPadding(0, pad / 2, 0, pad / 2) }
-        note = EditText(this).apply {
-            hint = "For example: short sentences, lowercase, blunt"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
-            filters = arrayOf(InputFilter.LengthFilter(300))
-        }
-        never = EditText(this).apply {
-            hint = "One phrase per line"
-            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
-            minLines = 3
-        }
-        found = TextView(this).apply { textSize = 15f; setPadding(0, pad / 2, 0, 0) }
+        dashes = MaterialSwitch(this).apply { contentDescription = "No long dashes" }
+        endings = MaterialSwitch(this).apply { contentDescription = "End posts on a statement" }
+        note = field("For example: short sentences, lowercase, blunt", InputType.TYPE_TEXT_FLAG_CAP_SENTENCES).apply { filters = arrayOf(InputFilter.LengthFilter(300)) }
+        never = field("One phrase per line", 0).apply { minLines = 3 }
+        found = text("")
         confirm = LinearLayout(this).apply {
             visibility = View.GONE
-            addView(Button(context).apply { text = "Add these"; setOnClickListener { add() } })
-            addView(Button(context).apply { text = "Cancel"; setOnClickListener { dismiss() } })
+            addView(filled("Add these") { add() })
+            addView(ghost("Cancel") { dismiss() })
         }
-        setContentView(FrameLayout(this).apply { fitsSystemWindows = true; addView(ScrollView(context).apply { addView(LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-            addView(TextView(context).apply { text = "Your voice"; textSize = 24f })
-            addView(TextView(context).apply {
-                textSize = 14f
-                text = "Phrases you never say and how you like to write. Ownvoice highlights them in drafts, checks them under " +
-                    "“Sounds like you”, and asks the model to follow them. They stay on this phone; Wipe everything under What was read deletes them."
-            })
-            addView(Button(context).apply { text = "Import a voice profile (markdown file)"; setOnClickListener { pick() } })
-            addView(found)
-            addView(confirm)
-            addView(dashes)
-            addView(endings)
-            addView(TextView(context).apply { text = "How I write"; textSize = 18f; setPadding(0, pad, 0, 0) })
-            addView(note)
-            addView(TextView(context).apply { text = "Never say"; textSize = 18f; setPadding(0, pad, 0, 0) })
-            addView(TextView(context).apply { text = "One phrase per line. Any case; whole words only."; textSize = 14f })
-            addView(never)
-        }) }) })
+        val page = page("Your voice", "Phrases you never say and how you like to write. Ownvoice follows these when it writes, " +
+            "and points out when a draft breaks them. They stay on this phone.")
+        page.add(actions(ghost("Import from a file") { pick() }))
+        // What an import found, on a tinted card like the user's own text elsewhere.
+        box = page.add(card(filled = true).apply {
+            visibility = View.GONE
+            add(found)
+            add(confirm, top = 10f)
+        }, top = 4f)
+        page.add(group().apply {
+            row(item(null, "No long dashes (—)", "Ownvoice won't use them", dashes) { dashes.toggle() })
+            row(item(null, "End posts on a statement", "Questions are still fine in replies", endings) { endings.toggle() })
+        }, top = 12f)
+        page.add(label("How I write").apply { setPadding(px(8), 0, 0, 0) }, top = 24f, bottom = 8f)
+        page.add(card(filled = true).apply { setPadding(px(16), px(14), px(16), px(14)); add(note) })
+        page.add(label("Never say").apply { setPadding(px(8), 0, 0, 0) }, top = 24f, bottom = 4f)
+        page.add(text("One phrase per line. Any capitals; whole words only.", Type.BODY).apply { setPadding(px(8), 0, 0, 0) }, bottom = 8f)
+        page.add(card(filled = true).apply { setPadding(px(16), px(14), px(16), px(14)); add(never) })
+        page.add(text("Wipe everything, under What Ownvoice read, deletes these too.", Type.BODY).apply { setPadding(px(8), 0, px(8), 0) }, top = 12f)
         dashes.setOnCheckedChangeListener { _, _ -> save() }
         endings.setOnCheckedChangeListener { _, _ -> save() }
         if (savedInstanceState == null) shared(intent)
+    }
+
+    private fun field(hint: String, flags: Int) = EditText(this).apply {
+        this.hint = hint
+        setTextAppearance(Type.BODY_LARGE.style)
+        setTextColor(onSurface)
+        setHintTextColor(muted)
+        background = null
+        setPadding(0, 0, 0, 0)
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or flags
     }
 
     override fun onResume() {
@@ -127,18 +125,18 @@ class VoiceActivity : Activity() {
             Log.w(OwnvoiceService.TAG, "voice import failed: $e")
             null
         }
-        if (text == null) return run { found.text = "Couldn't read that file." }
+        if (text == null) return run { box.visibility = View.VISIBLE; found.text = "Couldn't open that file." }
         preview(text)
     }
 
     /** Shows what [markdown] would add, for the user to confirm with Add these. */
     fun preview(markdown: String) {
+        box.visibility = View.VISIBLE
         val f = Voice.parse(markdown)
         pending = f
-        val rules = listOfNotNull("No em dashes".takeIf { f.noDashes }, "End posts on a statement, not a question".takeIf { f.statementEndings })
+        val rules = listOfNotNull("No long dashes (—)".takeIf { f.noDashes }, "End posts on a statement, not a question".takeIf { f.statementEndings })
         if (f.never.isEmpty() && rules.isEmpty()) {
-            found.text = "Nothing to import. Ownvoice looks for bullets under a heading with “Never say” in it, a ban on em dashes, " +
-                "and posts ending on “statements, not questions”."
+            found.text = "Couldn't find any phrases in that file."
             pending = null
             confirm.visibility = View.GONE
             return
@@ -147,8 +145,8 @@ class VoiceActivity : Activity() {
             append("Found in the file:\n")
             if (f.never.isNotEmpty()) append("Never say (${f.never.size}): ").append(f.never.joinToString(", ") { "“$it”" }).append('\n')
             rules.forEach { append("Rule: ").append(it).append('\n') }
-            if (f.skipped > 0) append(if (f.skipped == 1) "Skipped 1 never-say note that reads as advice, not a phrase.\n"
-                else "Skipped ${f.skipped} never-say notes that read as advice, not phrases.\n")
+            if (f.skipped > 0) append(if (f.skipped == 1) "Left out 1 note that reads as advice, not a phrase.\n"
+                else "Left out ${f.skipped} notes that read as advice, not phrases.\n")
             append("Nothing else in the file is kept. Add these to Your voice?")
         }
         confirm.visibility = View.VISIBLE
@@ -165,7 +163,7 @@ class VoiceActivity : Activity() {
 
     private fun dismiss() {
         pending = null
-        found.text = ""
+        box.visibility = View.GONE
         confirm.visibility = View.GONE
     }
 

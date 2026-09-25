@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Only to reach the person's own paired computer, when they pair one. -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -14,6 +15,8 @@
 
     <application
         android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
+        tools:targetApi="33"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Ownvoice">
@@ -27,6 +30,22 @@
             </intent-filter>
         </activity>
 
+        <!-- The keyboard stays down on the practice chat, so its bubble and buttons show; its field has focus for the bubble. -->
+        <activity
+            android:name=".SetupActivity"
+            android:exported="false"
+            android:windowSoftInputMode="stateAlwaysHidden|adjustResize" />
+
+        <activity
+            android:name=".AppsActivity"
+            android:exported="false"
+            android:label="Where the bubble shows" />
+
+        <activity
+            android:name=".ComputerActivity"
+            android:exported="false"
+            android:label="Your computer" />
+
         <activity
             android:name=".PairActivity"
             android:exported="false"
@@ -35,7 +54,7 @@
         <activity
             android:name=".ReadsActivity"
             android:exported="false"
-            android:label="What was read" />
+            android:label="What Ownvoice read" />
 
         <!-- Exported for "Share" of a markdown voice profile; an import only shows what it found until the user adds it. -->
         <activity
@@ -55,13 +74,13 @@
             android:excludeFromRecents="true"
             android:exported="false"
             android:taskAffinity="dev.ownvoice.app.drafts"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+            android:theme="@style/Ownvoice.Sheet" />
 
         <activity
             android:name=".RewriteActivity"
             android:excludeFromRecents="true"
             android:exported="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar">
+            android:theme="@style/Ownvoice.Sheet">
             <intent-filter>
                 <action android:name="android.intent.action.PROCESS_TEXT" />
                 <category android:name="android.intent.category.DEFAULT" />

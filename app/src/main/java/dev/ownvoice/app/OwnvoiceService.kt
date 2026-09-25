@@ -4,8 +4,10 @@ import android.accessibilityservice.AccessibilityService
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.LayerDrawable
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.os.Handler
@@ -29,6 +31,18 @@ class OwnvoiceService : AccessibilityService() {
         private const val BUBBLE_DP = 52
         @Volatile var instance: OwnvoiceService? = null
         var engine: DraftEngine = Nano
+
+        /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. */
+        var practice = false
+            set(value) { field = value; instance?.updateBubble() }
+
+        /** Set while setup waits for the user to switch Ownvoice on, so setup comes back to the front once they have. */
+        var comeBack = false
+
+        /** Called once a draft is inserted, for the setup's practice chat. */
+        var inserted: (() -> Unit)? = null
+
+        private const val TIP = "Tap for reply ideas, or to polish what you wrote."
     }
 
     /**
@@ -46,6 +60,7 @@ class OwnvoiceService : AccessibilityService() {
     private lateinit var bubble: TextView
     private lateinit var bubbleParams: WindowManager.LayoutParams
     private var pending: String? = null
+    private var resting = true
 
     var capture: Capture? = null
         private set
@@ -64,8 +79,12 @@ class OwnvoiceService : AccessibilityService() {
     /** Shows the bubble only over an app switched on in Ownvoice, never while paused or while the panel shows. */
     fun updateBubble() {
         if (!::bubble.isInitialized) return
-        bubble.visibility = if (!panelOpen && Privacy.on(this, currentApp())) View.VISIBLE else View.GONE
+        val show = !panelOpen && on(currentApp())
+        bubble.visibility = if (show) View.VISIBLE else View.GONE
+        if (show && Privacy.firstBubble(this)) say(TIP, 6_000)
     }
+
+    private fun on(app: String?) = Privacy.on(this, app) || (practice && app == packageName && !Privacy.paused(this))
 
     /** Drops whatever the last tap read, for Wipe everything. */
     fun forget() {
@@ -76,13 +95,16 @@ class OwnvoiceService : AccessibilityService() {
 
     override fun onServiceConnected() {
         wm = getSystemService(WindowManager::class.java)
+        // A small circle in the phone's own accent colour with a pen; a note on it becomes a dark pill, like a snackbar.
         bubble = TextView(this).apply {
-            text = "OV"
-            textSize = 16f
             gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply { cornerRadius = BUBBLE_DP / 2 * resources.displayMetrics.density; setColor(0xFF2E5BFF.toInt()) }
-            setOnClickListener { if (text == "OV") readScreen() else restoreBubble.run() }
+            textSize = 14f
+            maxWidth = px(260)
+            setOnClickListener {
+                val read = resting || text.toString() == TIP
+                restoreBubble.run()
+                if (read) readScreen()
+            }
         }
         val size = (BUBBLE_DP * resources.displayMetrics.density).toInt()
         // Not focusable, so the app underneath keeps its keyboard and focused field.
@@ -91,11 +113,19 @@ class OwnvoiceService : AccessibilityService() {
             WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT,
-        ).also { it.gravity = Gravity.END or Gravity.CENTER_VERTICAL }
+        ).also {
+            it.gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            it.x = px(8)
+        }
         wm.addView(bubble, bubbleParams)
         restoreBubble.run()
         instance = this
         updateBubble()
+        if (comeBack) {
+            comeBack = false
+            startActivity(Intent(this, SetupActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP))
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -104,6 +134,12 @@ class OwnvoiceService : AccessibilityService() {
     }
 
     override fun onInterrupt() {}
+
+    // Redraw the bubble in the new colours when the phone switches between light and dark.
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (::bubble.isInitialized && resting) restoreBubble.run()
+    }
 
     override fun onDestroy() {
         instance = null
@@ -121,7 +157,7 @@ class OwnvoiceService : AccessibilityService() {
     fun readScreen() {
         // Nothing is read in an app that is switched off, or while paused.
         val app = currentApp()
-        if (app == null || !Privacy.on(this, app)) return updateBubble()
+        if (app == null || !on(app)) return updateBubble()
         val field = focusedField()
         val root = field?.window?.root ?: appRoot()
         val lines = mutableListOf<String>()
@@ -180,7 +216,7 @@ class OwnvoiceService : AccessibilityService() {
             // Chrome reports a contenteditable's text without its line breaks, so they can't be read back.
             '\n' in want && got == want.replace("\n", "") -> {
                 Log.i(TAG, "insert verified except newlines, which this field doesn't expose")
-                finishInsert("Inserted. Check line breaks.")
+                finishInsert("Inserted. Check it looks right before sending.")
             }
             final -> {
                 Log.w(TAG, "insert mismatch: wanted ${want.length} chars (${want.count { it == '\n' }} newlines), field has ${got?.length} (${got?.count { it == '\n' }} newlines)")
@@ -194,7 +230,10 @@ class OwnvoiceService : AccessibilityService() {
         val text = pending
         pending = null
         insertVerified = message != null
-        if (message != null) return say(message)
+        if (message != null) {
+            inserted?.invoke()
+            return say(message)
+        }
         if (text != null) {
             getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
         }
@@ -205,30 +244,52 @@ class OwnvoiceService : AccessibilityService() {
      * Shows a short result on the bubble itself for a few seconds. Toasts don't work here: Android
      * drops a background app's toasts when its notifications are off, which is the default.
      */
-    fun say(message: String) {
+    fun say(message: String, forMs: Long = 4_000) {
         if (!::bubble.isInitialized) return
         Log.i(TAG, "bubble: $message")
         notes.removeCallbacksAndMessages(null)
+        resting = false
         bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
         bubble.text = message
         bubble.contentDescription = message
-        val pad = (16 * resources.displayMetrics.density).toInt()
-        bubble.setPadding(pad, 0, pad, 0)
+        // Like a snackbar: the inverse of the phone's light or dark surface.
+        bubble.setTextColor(system(if (night) android.R.color.system_neutral1_800 else android.R.color.system_neutral1_50, if (night) 0xFF303030.toInt() else Color.WHITE))
+        bubble.background = GradientDrawable().apply {
+            cornerRadius = 24 * dp
+            setColor(system(if (night) android.R.color.system_neutral1_100 else android.R.color.system_neutral1_800, if (night) 0xFFE6E1E5.toInt() else 0xFF313033.toInt()))
+        }
+        bubble.setPadding(px(18), px(10), px(18), px(10))
         bubbleParams.width = WindowManager.LayoutParams.WRAP_CONTENT
+        bubbleParams.height = WindowManager.LayoutParams.WRAP_CONTENT
         wm.updateViewLayout(bubble, bubbleParams)
-        notes.postDelayed(restoreBubble, 4_000)
+        notes.postDelayed(restoreBubble, forMs)
     }
+
+    private val night get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+
+    /** A colour of the phone's own palette (Android 12 and later), or [fallback] before that. */
+    private fun system(id: Int, fallback: Int) = if (android.os.Build.VERSION.SDK_INT >= 31) getColor(id) else fallback
 
     /** Latest text on the bubble, read by the on-device test. */
     val bubbleText: CharSequence get() = bubble.text
 
     private val restoreBubble = Runnable {
         notes.removeCallbacksAndMessages(null)
+        resting = true
         bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE
-        bubble.text = "OV"
-        bubble.contentDescription = "Ownvoice: draft a reply or improve your text"
+        bubble.text = ""
+        bubble.contentDescription = "Ownvoice"
+        bubble.background = LayerDrawable(arrayOf(
+            // The phone's primary colour, as its own buttons use it in light and dark mode.
+            GradientDrawable().apply { shape = GradientDrawable.OVAL; setColor(system(if (night) android.R.color.system_accent1_200 else android.R.color.system_accent1_600, 0xFF6750A4.toInt())) },
+            getDrawable(R.drawable.ic_pen)!!.mutate().apply { setTint(system(if (night) android.R.color.system_accent1_800 else android.R.color.system_accent1_0, Color.WHITE)) },
+        )).apply {
+            setLayerGravity(1, Gravity.CENTER)
+            setLayerSize(1, px(24), px(24))
+        }
         bubble.setPadding(0, 0, 0, 0)
-        bubbleParams.width = (BUBBLE_DP * resources.displayMetrics.density).toInt()
+        bubbleParams.width = px(BUBBLE_DP)
+        bubbleParams.height = px(BUBBLE_DP)
         wm.updateViewLayout(bubble, bubbleParams)
     }
 

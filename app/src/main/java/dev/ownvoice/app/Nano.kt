@@ -20,8 +20,8 @@ interface DraftEngine {
     /** One steady answer (temperature 0) to [prompt], for judging and rewriting. */
     suspend fun ask(prompt: String, maxTokens: Int): String
 
-    /** Makes sure the model is on the phone, reporting any download through [status]. */
-    suspend fun ensureReady(status: (String) -> Unit) {}
+    /** Makes sure the model is on the phone, reporting any download through [status] and [progress] (0 to 1). */
+    suspend fun ensureReady(status: (String) -> Unit, progress: (Float) -> Unit = {}) {}
 }
 
 /** A failure with a message meant for the user as is. */
@@ -33,7 +33,7 @@ object Nano : DraftEngine {
 
     override suspend fun drafts(conversation: String, guide: String, status: (String) -> Unit): List<String> {
         ensureReady(status)
-        status("Drafting on this phone…")
+        status("Writing…")
         val request = generateContentRequest(TextPart(prompt(conversation, guide))) {
             temperature = 0.9f
             topK = 40
@@ -52,7 +52,7 @@ object Nano : DraftEngine {
     }
 
     override suspend fun ask(prompt: String, maxTokens: Int): String {
-        ensureReady {}
+        ensureReady({})
         val request = generateContentRequest(TextPart(prompt)) {
             temperature = 0f
             topK = 1
@@ -62,22 +62,23 @@ object Nano : DraftEngine {
     }
 
     /** Checks the model and, if needed, downloads it while reporting progress. */
-    override suspend fun ensureReady(status: (String) -> Unit) = plain {
+    override suspend fun ensureReady(status: (String) -> Unit, progress: (Float) -> Unit) = plain {
         val state = model.checkStatus()
         Log.i(OwnvoiceService.TAG, "model status $state")
         when (state) {
             FeatureStatus.AVAILABLE -> return@plain
             FeatureStatus.UNAVAILABLE -> throw PlainError(UNSUPPORTED)
         }
-        status("Downloading the on-device model…")
+        status(GETTING_READY)
         coroutineScope {
             val download = launch {
+                var total = 0L
                 model.download().collect {
                     when (it) {
-                        is DownloadStatus.DownloadStarted -> status("Downloading the on-device model (${mb(it.bytesToDownload)} MB)…")
-                        is DownloadStatus.DownloadProgress -> status("Downloading the on-device model: ${mb(it.totalBytesDownloaded)} MB so far…")
-                        is DownloadStatus.DownloadFailed -> throw PlainError("The model download failed: ${explain(it.e)}")
-                        DownloadStatus.DownloadCompleted -> status("Model downloaded.")
+                        is DownloadStatus.DownloadStarted -> total = it.bytesToDownload
+                        is DownloadStatus.DownloadProgress -> if (total > 0) progress(it.totalBytesDownloaded.toFloat() / total)
+                        is DownloadStatus.DownloadFailed -> throw PlainError("Couldn't finish getting Ownvoice ready. ${explain(it.e)}")
+                        DownloadStatus.DownloadCompleted -> status("All set.")
                     }
                 }
             }
@@ -93,28 +94,30 @@ object Nano : DraftEngine {
         }
     }
 
-    suspend fun modelName(): String = plain { model.getBaseModelName() }
-
     private suspend fun <T> plain(block: suspend () -> T): T = try {
         block()
     } catch (e: GenAiException) {
         throw PlainError(explain(e))
     }
 
-    fun explain(e: GenAiException): String = when (e.errorCode) {
-        ErrorCode.BUSY -> "The on-device model is busy. Try again in a moment."
-        ErrorCode.PER_APP_BATTERY_USE_QUOTA_EXCEEDED -> "Ownvoice has used up the phone's on-device AI quota for now. Try again later."
-        ErrorCode.BACKGROUND_USE_BLOCKED -> "Android only lets the on-device model run for the app in front."
-        ErrorCode.NOT_ENOUGH_DISK_SPACE -> "Not enough free storage to download the on-device model."
-        ErrorCode.REQUEST_TOO_LARGE -> "The conversation is too long for the on-device model."
+    /** Plain words for the user; the details go to the log. */
+    fun explain(e: GenAiException): String = message(e.errorCode)
+        .also { Log.w(OwnvoiceService.TAG, "model error ${e.errorCode}: ${e.message}") }
+
+    fun message(errorCode: Int): String = when (errorCode) {
+        ErrorCode.BUSY -> "Your phone is busy. Try again in a moment."
+        ErrorCode.PER_APP_BATTERY_USE_QUOTA_EXCEEDED -> "Ownvoice needs a short break. Try again in a little while."
+        ErrorCode.BACKGROUND_USE_BLOCKED -> "Open Ownvoice again and try once more."
+        ErrorCode.NOT_ENOUGH_DISK_SPACE -> "Your phone needs a bit more free space to get Ownvoice ready."
+        ErrorCode.REQUEST_TOO_LARGE -> "That chat is too long. Scroll to the latest messages and tap again."
         ErrorCode.NOT_SUPPORTED, ErrorCode.NOT_AVAILABLE, ErrorCode.AICORE_INCOMPATIBLE -> UNSUPPORTED
-        ErrorCode.NEEDS_SYSTEM_UPDATE -> "Update Android System and AICore, then try again."
-        else -> e.message ?: "The on-device model failed (error ${e.errorCode})."
+        ErrorCode.NEEDS_SYSTEM_UPDATE -> "Your phone needs an update first. Open Settings › System updates, then try again."
+        else -> "Something went wrong. Try again."
     }
 
-    private fun mb(bytes: Long) = bytes / 1_000_000
+    const val GETTING_READY = "Getting Ownvoice ready… this happens once."
 
-    private const val UNSUPPORTED = "This phone can't run Gemini Nano on device yet, so Ownvoice can't draft here."
+    const val UNSUPPORTED = "Sorry, Ownvoice doesn't work on this phone yet."
 
     private fun prompt(conversation: String, guide: String) = buildString {
         append("You help someone reply in a chat. Below is the text visible on their screen; it may include app labels.\n")

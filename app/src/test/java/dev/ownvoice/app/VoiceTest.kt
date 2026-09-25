@@ -62,10 +62,10 @@ class VoiceTest {
     @Test fun rulesDecideSoundsLikeYou() {
         val answer = "GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass - fine\nFITS: pass\nCLAIMS: pass"
         val scores = Judge.scoreDraft("Let's circle the wagons — who's in?", answer, message = false, voice, post = true)
-        val check = scores.quality.single { it.name == "Sounds like you" }
+        val check = scores.quality.single { it.name == "Doesn't sound like you" }
         assertFalse(check.ok)
-        assertEquals("Breaks your rules: says “circle the wagons” from your never-say list; has an em dash; ends on a question.", check.reason)
-        assertEquals(listOf("Specific", "Clear", "Sounds like you", "Fits the thread", "Claims"), scores.quality.map { it.name })
+        assertEquals("Breaks your rules: says “circle the wagons” from your never-say list; has a long dash (—); ends on a question.", check.reason)
+        assertEquals(listOf("Says something real", "One clear point", "Doesn't sound like you", "Fits the conversation", "Doesn't make anything up"), scores.quality.map { it.name })
         assertTrue(Judge.scoreDraft("Saturday works.", answer, message = false, voice, post = true).quality.single { it.name == "Sounds like you" }.ok)
     }
 

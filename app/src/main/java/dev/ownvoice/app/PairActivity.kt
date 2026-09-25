@@ -2,11 +2,10 @@ package dev.ownvoice.app
 
 import android.app.Activity
 import android.os.Bundle
-import android.widget.Button
-import android.widget.FrameLayout
-import android.widget.LinearLayout
-import android.widget.ScrollView
+import android.view.Gravity
+import android.view.View
 import android.widget.TextView
+import com.google.android.material.button.MaterialButton
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
@@ -24,26 +23,17 @@ import kotlinx.coroutines.withContext
 class PairActivity : Activity() {
     private val scope = MainScope()
     private lateinit var status: TextView
-    private lateinit var scan: Button
+    private lateinit var words: TextView
+    private lateinit var scan: MaterialButton
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val pad = (16 * dp).toInt()
-        status = TextView(this).apply { textSize = 16f; setPadding(0, pad, 0, 0) }
-        scan = Button(this).apply { text = "Scan the code again"; setOnClickListener { scan() } }
-        setContentView(FrameLayout(this).apply { fitsSystemWindows = true; addView(ScrollView(context).apply { addView(LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(pad, pad, pad, pad)
-            addView(TextView(context).apply { text = "Use my computer"; textSize = 24f })
-            addView(TextView(context).apply {
-                textSize = 16f
-                setPadding(0, pad / 2, 0, pad / 2)
-                text = "Scan the code your computer shows. To show it, run ownvoice-link pair on your computer.\n\n" +
-                    "Use only your own computer: it writes with your own account there."
-            })
-            addView(status)
-            addView(scan)
-        }) }) })
+        val page = page("Use my computer", "Scan the code your computer shows. To show it, run ownvoice-link pair on your computer.")
+        page.add(badge(R.drawable.ic_computer, primaryContainer, onPrimaryContainer), top = 8f, bottom = 24f)
+        words = page.add(text("", Type.HEADLINE_SMALL).apply { gravity = Gravity.CENTER; visibility = View.GONE }, bottom = 12f)
+        status = page.add(text("", Type.BODY_LARGE).apply { setPadding(px(8), 0, px(8), 0) }, bottom = 20f)
+        scan = page.add(filled("Scan the code") { scan() }, width = -2)
+        page.add(text("Use only your own computer: it writes with your own account there.", Type.BODY).apply { setPadding(px(8), 0, px(8), 0) }, top = 24f)
         if (savedInstanceState == null) scan()
     }
 
@@ -64,16 +54,22 @@ class PairActivity : Activity() {
         scope.launch {
             status.text = try {
                 Link.parse(qr)
-                val check = withContext(Dispatchers.IO) { Link.fingerprint(Link.phoneKey().pin) }
-                status.text = "Does your computer show the same two words?\n\n$check\n\nIf it does, answer y on your computer."
+                words.text = withContext(Dispatchers.IO) { Link.fingerprint(Link.phoneKey().pin) }
+                words.visibility = View.VISIBLE
+                status.text = "Does your computer show these same two words? If it does, answer y on your computer."
                 withContext(Dispatchers.IO) { Link.pair(this@PairActivity, qr) }
+                words.visibility = View.GONE
                 scan.text = "Done"
                 scan.setOnClickListener { finish() }
-                "Done. Your computer writes your drafts now, whenever ownvoice-link is running on it. When it isn't, this phone writes them."
+                "All set. Your computer writes your replies while ownvoice-link runs on it. When it doesn't, this phone writes them."
             } catch (e: PlainError) {
+                words.visibility = View.GONE
+                scan.text = "Scan the code again"
                 e.message
             } catch (e: Exception) {
-                "Couldn't pair: something went wrong on this phone. Try again."
+                words.visibility = View.GONE
+                scan.text = "Scan the code again"
+                "Couldn't pair. Try again."
             }
             scan.isEnabled = true
         }
