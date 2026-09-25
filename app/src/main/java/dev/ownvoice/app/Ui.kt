@@ -120,15 +120,10 @@ fun Context.ghost(label: String, click: () -> Unit) = MaterialButton(this, null,
     setOnClickListener { click() }
 }
 
-/** A row of buttons; anything added with [push] sits at the far end. */
+/** A row of buttons. */
 fun Context.actions(vararg views: View) = LinearLayout(this).apply {
     gravity = Gravity.CENTER_VERTICAL
     views.forEach { addView(it, LinearLayout.LayoutParams(-2, -2).apply { marginEnd = px(8) }) }
-}
-
-fun LinearLayout.push(view: View) {
-    addView(View(context), LinearLayout.LayoutParams(0, 1, 1f))
-    addView(view)
 }
 
 fun Context.icon(res: Int, tint: Int = muted, size: Int = 24) = ImageView(this).apply {

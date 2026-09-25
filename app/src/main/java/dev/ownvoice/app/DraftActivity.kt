@@ -145,10 +145,12 @@ class DraftActivity : Activity() {
         if (label != null) card.add(label(label), bottom = 6f)
         val shown = card.add(words(highlight(text, Slop.hits(text, voice, post))))
         // A version of the user's own text shows its meaning check; a reply shows its verdict.
-        val line = card.add(verdictLine(), top = 10f)
-        val why = ghost("Why?") {}.apply { visibility = View.INVISIBLE }
+        // "Why?" sits beside that line, which wraps first, so it stays whole at large display sizes.
+        val beside = card.add(actions(), top = 10f)
+        val line = verdictLine().also { beside.addView(it, LinearLayout.LayoutParams(0, -2, 1f)) }
+        val why = ghost("Why?") {}.apply { visibility = View.INVISIBLE }.also { beside.addView(it) }
         val act = if (compose) "Use this" else "Insert"
-        card.add(actions(filled(act) { insert(text) }.apply { isEnabled = canInsert; alpha = if (canInsert) 1f else 0.4f }, ghost("Copy") { copy(text) }).apply { push(why) }, top = 8f)
+        card.add(actions(filled(act) { insert(text) }.apply { isEnabled = canInsert; alpha = if (canInsert) 1f else 0.4f }, ghost("Copy") { copy(text) }), top = 8f)
         return Row(text, shown, if (compose) null else line, why, if (compose) line else null)
     }
 

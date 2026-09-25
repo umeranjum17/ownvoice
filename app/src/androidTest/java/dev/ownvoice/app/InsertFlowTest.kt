@@ -151,6 +151,14 @@ class InsertFlowTest {
         waitUntil("scores") { sheet.scores.single() != null }
         instr.waitForIdleSync()
         assertTrue(texts(sheet).toString(), texts(sheet).any { it.endsWith("Might make something up") })
+        val link = views(sheet).first { it.text.toString() == "Why?" }
+        instr.runOnMainSync {
+            val card = link.parent.parent as View
+            val at = IntArray(2).also(link::getLocationOnScreen)
+            val box = IntArray(2).also(card::getLocationOnScreen)
+            assertTrue("Why? must show whole: ${link.width} wide, needs ${link.paint.measureText("Why?")}", link.width >= link.paint.measureText("Why?") + link.totalPaddingLeft + link.totalPaddingRight)
+            assertTrue("Why? must lie inside its card", at[0] >= box[0] && at[0] + link.width <= box[0] + card.width)
+        }
         tap(sheet, "Why?")
         val why = texts(sheet)
         assertTrue(why.toString(), "Why this reply" in why && "Sounds natural" in why && "Answers Sam" in why && Judge.quickChecks("Sam") in why)
