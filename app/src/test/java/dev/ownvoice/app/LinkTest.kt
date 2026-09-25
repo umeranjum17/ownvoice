@@ -9,6 +9,7 @@ import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.net.InetAddress
+import java.net.ServerSocket
 import java.security.KeyFactory
 import java.security.KeyStore
 import java.security.PrivateKey
@@ -19,7 +20,6 @@ import java.util.Base64
 import kotlin.concurrent.thread
 import javax.net.ssl.KeyManagerFactory
 import javax.net.ssl.SSLContext
-import javax.net.ssl.SSLServerSocket
 import javax.net.ssl.SSLSocket
 import javax.net.ssl.X509TrustManager
 
@@ -53,7 +53,7 @@ class LinkTest {
         }
     }
 
-    private var server: SSLServerSocket? = null
+    private var server: ServerSocket? = null
 
     @After fun stop() {
         server?.close()
@@ -61,9 +61,11 @@ class LinkTest {
 
     /**
      * A stand-in computer holding the test computer key and requiring a client key. /v1/hello answers with the
-     * pin of the key the phone showed; anything else answers the helper's limit error.
+     * pin of the key the phone showed; anything else answers the helper's limit error. [refusePhone] turns the
+     * phone's key down with an alert, as the helper does outside a pairing window; [hangUp] reads the request
+     * and closes without answering, as a helper that was stopped mid-write does.
      */
-    private fun computer(refusePhone: Boolean = false): String {
+    private fun computer(refusePhone: Boolean = false, hangUp: Boolean = false): String {
         val store = KeyStore.getInstance("PKCS12").apply { load(null); setKeyEntry("k", key("computer"), CharArray(0), arrayOf(cert("computer"))) }
         val keys = KeyManagerFactory.getInstance("SunX509").apply { init(store, CharArray(0)) }
         val anyPhone = object : X509TrustManager {
@@ -74,13 +76,15 @@ class LinkTest {
             override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
         }
         val ctx = SSLContext.getInstance("TLSv1.3").apply { init(keys.keyManagers, arrayOf(anyPhone), null) }
-        val s = ctx.serverSocketFactory.createServerSocket(0, 5, InetAddress.getLoopbackAddress()) as SSLServerSocket
-        s.needClientAuth = true
+        val s = ServerSocket(0, 5, InetAddress.getLoopbackAddress())
         thread(isDaemon = true) {
             while (!s.isClosed) {
-                val c = runCatching { s.accept() as SSLSocket }.getOrNull() ?: break
+                val raw = runCatching { s.accept() }.getOrNull() ?: break
+                val c = ctx.socketFactory.createSocket(raw, null, raw.port, false) as SSLSocket
+                c.useClientMode = false
+                c.needClientAuth = true
                 runCatching {
-                    c.use {
+                    run {
                         val input = c.inputStream.bufferedReader()
                         val path = input.readLine().split(" ")[1]
                         var length = 0
@@ -90,13 +94,18 @@ class LinkTest {
                             if (line.lowercase().startsWith("content-length:")) length = line.substringAfter(':').trim().toInt()
                         }
                         repeat(length) { input.read() }
+                        if (hangUp) return@runCatching
                         val (status, body) = if (path == "/v1/hello") {
                             "200 OK" to JSONObject().put("computer", "test").put("phone", Link.pin(c.session.peerCertificates[0] as X509Certificate)).toString()
                         } else "502 Bad Gateway" to """{"error":"limit","message":"x"}"""
                         c.outputStream.write("HTTP/1.1 $status\r\nContent-Type: application/json\r\nContent-Length: ${body.length}\r\nConnection: close\r\n\r\n$body".toByteArray())
                         c.outputStream.flush()
                     }
+                }.onFailure {
+                    // The alert is out; read what the phone already sent so the close is clean, not a reset.
+                    runCatching { raw.soTimeout = 2_000; while (raw.getInputStream().read() >= 0) Unit }
                 }
+                raw.close()
             }
         }
         server = s
@@ -123,6 +132,12 @@ class LinkTest {
         val addr = computer(refusePhone = true)
         val e = assertThrows(Link.Failure::class.java) { Link.post(listOf(addr), "/v1/hello", JSONObject(), phone, computerPin, 5_000) }
         assertEquals("not_paired", e.code)
+    }
+
+    @Test fun aComputerThatStopsMidRequestDidntAnswer() {
+        val addr = computer(hangUp = true)
+        val e = assertThrows(Link.Failure::class.java) { Link.post(listOf(addr), "/v1/hello", JSONObject(), phone, computerPin, 5_000) }
+        assertEquals("unreachable", e.code)
     }
 
     @Test fun neverSayPhrasesAreKeptWholeWithinTheComputersLimit() {

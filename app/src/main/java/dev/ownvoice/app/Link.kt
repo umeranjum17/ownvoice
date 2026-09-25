@@ -23,6 +23,7 @@ import java.util.Base64
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLEngine
+import javax.net.ssl.SSLException
 import javax.net.ssl.X509ExtendedKeyManager
 import javax.net.ssl.X509TrustManager
 import javax.security.auth.x500.X500Principal
@@ -135,8 +136,8 @@ object Link {
                 conn.connect()
             } catch (e: java.io.IOException) {
                 conn.disconnect()
-                // With TLS 1.3 the computer turns down a key it doesn't know only after showing its own, as an alert or a reset.
-                if (trust.met) throw Failure("not_paired")
+                // With TLS 1.3 the computer turns down a key it doesn't know with an alert after showing its own.
+                if (trust.met && e is SSLException) throw Failure("not_paired")
                 continue // the next address
             }
             // Connected: a failure now is final, so a slow computer is never asked twice.
@@ -145,7 +146,7 @@ object Link {
                 conn.responseCode
             } catch (e: java.io.IOException) {
                 conn.disconnect()
-                throw Failure(if (e is java.net.SocketTimeoutException) "unreachable" else "not_paired")
+                throw Failure(if (e is SSLException) "not_paired" else "unreachable")
             }
             val text = (if (status < 400) conn.inputStream else conn.errorStream)?.bufferedReader()?.use { it.readText() }.orEmpty()
             conn.disconnect()
