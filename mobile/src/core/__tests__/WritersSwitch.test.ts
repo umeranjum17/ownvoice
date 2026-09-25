@@ -2,10 +2,27 @@ import { withPhoneFallback, Writer } from '../writers';
 import { CACHE_MS, chatgptEnabled, Flag, SwitchState, SwitchStore, verify } from '../switch';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
+import { randomBytes } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
 const privateKey = Uint8Array.from({ length: 32 }, (_, i) => i + 1);
 const b64 = (b: Uint8Array) => btoa(String.fromCharCode(...b));
 async function signed(payload: Flag['payload']): Promise<Flag> { return { payload, sig: b64(await ed.signAsync(new TextEncoder().encode(JSON.stringify(payload)), privateKey)) }; }
+
+test('offline signing command emits a verifiable off flag', async () => {
+  const directory = mkdtempSync(join(process.cwd(), '.sign-test-'));
+  try {
+    const privateKey = randomBytes(32);
+    const keyPath = join(directory, 'key');
+    writeFileSync(keyPath, privateKey.toString('hex'));
+    const output = execFileSync(process.execPath, ['--disable-warning=MODULE_TYPELESS_PACKAGE_JSON', '--experimental-strip-types', 'scripts/sign-switch.ts', keyPath, 'off'], { env: { ...process.env, SWITCH_SEQ: '7' }, encoding: 'utf8' });
+    const flag = JSON.parse(output) as Flag;
+    expect(flag.payload).toEqual({ v: 1, app: 'ownvoice', seq: 7, chatgpt: 'off' });
+    expect(await verify(flag, b64(ed.getPublicKey(Uint8Array.from(privateKey))), 6)).toBe(true);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
 
 test('phone fallback reports a readable reason and preserves the primary on success', async () => {
   const req = { conversation: '', written: '', typed: '' };
