@@ -136,8 +136,7 @@ class OwnvoiceService : AccessibilityService() {
     ?: windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }?.root
 
   fun readScreen() {
-    val app = currentApp() ?: return updateBubble()
-    if (!allowed(app)) return updateBubble()
+    val app = currentApp()?.takeIf(::allowed) ?: run { restoreBubble.run(); updateBubble(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written) }
