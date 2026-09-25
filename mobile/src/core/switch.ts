@@ -21,7 +21,8 @@ export async function chatgptEnabled(store: SwitchStore, fetcher: typeof fetch =
     const response = await fetcher(SWITCH_URL, { method: 'GET', signal: AbortSignal.timeout(3000) });
     if (!response.ok) return prior?.chatgpt !== 'off';
     const flag = await response.json() as Flag;
-    if (await verify(flag, publicKey, prior?.seq ?? 0)) await store.set({ seq: flag.payload.seq, chatgpt: flag.payload.chatgpt, fetchedAt: now });
+    const same = prior && flag?.payload?.seq === prior.seq && flag.payload.chatgpt === prior.chatgpt;
+    if (await verify(flag, publicKey, (prior?.seq ?? 0) - (same ? 1 : 0))) await store.set({ seq: flag.payload.seq, chatgpt: flag.payload.chatgpt, fetchedAt: now });
   } catch { /* Keep the last verified choice. */ }
   return (await store.get())?.chatgpt !== 'off';
 }

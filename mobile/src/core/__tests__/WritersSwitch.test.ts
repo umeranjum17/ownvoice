@@ -1,5 +1,5 @@
 import { withPhoneFallback, Writer } from '../writers';
-import { chatgptEnabled, Flag, SwitchStore, verify } from '../switch';
+import { CACHE_MS, chatgptEnabled, Flag, SwitchStore, verify } from '../switch';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
@@ -31,6 +31,17 @@ test('remote switch vectors: valid, signature, app, rollback, version; failures 
   const fetcher = jest.fn(async () => ({ ok: true, json: async () => valid } as Response));
   expect(await chatgptEnabled(store, fetcher, 100, publicKey)).toBe(false);
   expect(state).toEqual({ seq: 3, chatgpt: 'off', fetchedAt: 100 });
-  expect(await chatgptEnabled(store, async () => { throw Error(); }, 101, publicKey)).toBe(false);
+  expect(await chatgptEnabled(store, fetcher, 100 + CACHE_MS, publicKey)).toBe(false);
+  expect(state).toEqual({ seq: 3, chatgpt: 'off', fetchedAt: 100 + CACHE_MS });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(await chatgptEnabled(store, fetcher, 101 + CACHE_MS, publicKey)).toBe(false);
+  expect(fetcher).toHaveBeenCalledTimes(2);
+  const changed = await signed({ ...base, chatgpt: 'on' });
+  const changedFetcher = jest.fn(async () => ({ ok: true, json: async () => changed } as Response));
+  expect(await chatgptEnabled(store, changedFetcher, 100 + 2 * CACHE_MS, publicKey)).toBe(false);
+  expect(state).toEqual({ seq: 3, chatgpt: 'off', fetchedAt: 100 + CACHE_MS });
+  expect(await chatgptEnabled(store, async () => { throw Error(); }, 100 + 2 * CACHE_MS, publicKey)).toBe(false);
+  expect(await chatgptEnabled(store, async () => ({ ok: true, json: async () => signed({ ...base, seq: 4, chatgpt: 'on' }) } as Response), 100 + 2 * CACHE_MS, publicKey)).toBe(true);
+  expect(state).toEqual({ seq: 4, chatgpt: 'on', fetchedAt: 100 + 2 * CACHE_MS });
   expect(await chatgptEnabled({ get: async () => null, set: async () => {} }, async () => { throw Error(); }, 100, publicKey)).toBe(true);
 });
