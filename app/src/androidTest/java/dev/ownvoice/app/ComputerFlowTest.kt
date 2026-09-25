@@ -69,6 +69,9 @@ class ComputerFlowTest {
         tap(sheet, "Why?")
         // The phone checked a reply the computer wrote, and the note says so.
         assertTrue(texts(sheet).toString(), texts(sheet).any { Judge.CROSS_CHECK.trim() in it })
+        // Back closes the note and shows the replies again.
+        @Suppress("DEPRECATION")
+        instr.runOnMainSync { sheet.onBackPressed() }
         insertFirst(sheet)
         waitUntil("insert") { OwnvoiceService.instance?.insertVerified != null }
         assertEquals(FAKE[0], screen.edit.text.toString())
