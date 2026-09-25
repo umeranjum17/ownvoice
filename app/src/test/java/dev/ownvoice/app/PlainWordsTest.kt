@@ -61,13 +61,8 @@ class PlainWordsTest {
         assertPlain(strings)
     }
 
-    /** Every text in the first run, read from its source so a new line is checked too. */
-    @Test fun setupScreens() {
-        val source = File("src/main/java/dev/ownvoice/app/SetupActivity.kt").readText()
-        val literals = Regex("\"((?:[^\"\\\\\\n]|\\\\.)*)\"").findAll(source).map { it.groupValues[1] }.toList()
-        assertTrue(literals.toString(), "Write replies that sound like you." in literals && "Where should I help?" in literals)
-        assertPlain(literals + Onboarding.OFFERED.map { it.second })
-    }
+    /** The app names "Where should I help?" offers; the setup screens' own texts are checked on the device by FirstRunTest. */
+    @Test fun offeredApps() = assertPlain(Onboarding.OFFERED.map { it.second })
 
     @Test fun catchesATechnicalWord() {
         for (bad in listOf("Scored by the judge", "Slop: clean (10/100)", "The on-device model is ready (nano-v3).", "117 characters on screen", "Update AICore", "Gemini Nano", "Gemma"))

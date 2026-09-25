@@ -37,6 +37,8 @@ class FirstRunTest {
     // The phone owner's own switches, read log and setup state, put back afterwards.
     private val before = prefs.all.toMap()
     private var taps = 0
+    /** Every text setup showed or held hidden, checked for technical words at the end. */
+    private val seen = mutableSetOf<String>()
 
     @After
     fun restore() {
@@ -99,6 +101,10 @@ class FirstRunTest {
         assertTrue(texts(setup).toString(), "Practice" in texts(setup) && "Nowhere" !in texts(setup))
         assertTrue(views(setup).filterIsInstance<MaterialSwitch>().single().isChecked)
         assertFalse(Privacy.allowed(ctx, ctx.packageName))
+        // Same list as PlainWordsTest: no technical word may reach the user.
+        val banned = Regex("(?i)gemini|gemma|\\bnano\\b|aicore|ml ?kit|\\bllm\\b|\\bmodel\\b|/100|/10\\b|judge|slop|characters|\\bprompt|\\btokens?\\b|on-device")
+        assertTrue(seen.toString(), seen.size > 20 && "Switch greyed out?" in seen && seen.any { it.startsWith("In App info") })
+        assertEquals("Technical words in setup", emptyList<String>(), seen.filter { banned.containsMatchIn(it) })
         tap(setup, "Done")
         waitUntil("setup to close") { setup.isDestroyed }
         assertTrue(Privacy.allowed(ctx, ctx.packageName))
@@ -131,6 +137,13 @@ class FirstRunTest {
 
     private fun texts(activity: Activity): List<String> {
         instr.waitForIdleSync()
+        if (activity is SetupActivity) instr.runOnMainSync {
+            fun walk(v: View) {
+                if (v is TextView) seen += listOf(v.text, v.hint, v.contentDescription).filterNotNull().map { it.toString() }
+                if (v is ViewGroup) for (i in 0 until v.childCount) walk(v.getChildAt(i))
+            }
+            walk(activity.window.decorView)
+        }
         return views(activity).filterIsInstance<TextView>().filter { it !is EditText && it.text.isNotEmpty() }.map { it.text.toString() }
     }
 
