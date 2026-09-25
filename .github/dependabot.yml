@@ -1,0 +1,13 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 1
+    allow:
+      - dependency-name: "@byokit/*"
+    groups:
+      byokit:
+        patterns:
+          - "@byokit/*"
