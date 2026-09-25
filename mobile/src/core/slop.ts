@@ -97,5 +97,5 @@ export function addedNumbers(original: string, rewrite: string): string[] {
   const key = (s: string) => s.replace(/,(?=\d{3}(?!\d))/g, '').replace(/:/g, '.');
   const have = new Set(nums(original).map(key));
   const seen = new Set<string>();
-  return nums(rewrite).filter(n => !have.has(key(n)) && !seen.has(key(n)) && !!seen.add(key(n)));
+  return nums(rewrite).filter(n => { const normalized = key(n); if (have.has(normalized) || seen.has(normalized)) return false; seen.add(normalized); return true; });
 }

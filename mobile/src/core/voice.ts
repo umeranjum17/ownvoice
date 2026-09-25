@@ -10,7 +10,7 @@ export function parse(markdown: string): Found {
   const b=line.match(bullet)?.[1]; if(!b) continue; const qs=[...b.matchAll(quoted)].map(m=>m[1]||m[2]||m[3]);
   const plain=b.replace(/[*_`]/g,'').trim().replace(/[.,;:!]+$/,'').trim(); if(qs.length) never.push(...qs); else if(plain && plain.split(/\s+/).length<=5) never.push(plain); else skipped++;
  }
- const dash=/(?:\b(?:no|zero|never|avoid|ban(?:ned)?|don't|without|cut)\b[^\n]{0,40}\bem[- ]?dash|em[- ]?dash(?:es)?\b[^\n]{0,20}\b(?:banned|never))/i;
+ const dash=/(?:\b(?:no|zero|never|avoid|ban(?:ned)?|don'?t|without|cut)\b[^\n]{0,40}\bem[- ]?dash|em[- ]?dash(?:es)?\b[^\n]{0,20}\b(?:banned|never))/i;
  return {never:dedupe(never.map(x=>x.trim())),noDashes:dash.test(markdown),statementEndings:/statements?,? not questions|end (?:posts |each post )?(?:on|with) (?:a )?statements?/i.test(markdown),skipped};
 }
 export const merge=(rules:Rules, found:Found):Rules=>({...rules,never:dedupe([...rules.never,...found.never]),noDashes:rules.noDashes||found.noDashes,statementEndings:rules.statementEndings||found.statementEndings});

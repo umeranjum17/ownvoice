@@ -13,4 +13,3 @@ export const words = {
   home:'Your writing helper. It stays on this phone.',
   permission:'On the next screen, tap Ownvoice, then switch on “Use Ownvoice”:',
 } as const;
-export const offeredApps=['X','LinkedIn','Reddit','Slack','WhatsApp','Gmail'] as const;

@@ -9,5 +9,3 @@ export function next(step:Step,on:boolean,setup:boolean,apps:boolean):Step {
  if(step==='TRY')return apps?'APPS':'DONE';
  return 'DONE';
 }
-export function previous(step:Step):Step { return step==='DONE'?'APPS':step==='APPS'?'TRY':step==='TRY'?'PERMISSION':'WELCOME'; }
-export function finish(step:Step):{step:Step;setUp:true}{return {step,setUp:true};}
