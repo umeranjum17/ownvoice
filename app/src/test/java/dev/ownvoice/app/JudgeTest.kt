@@ -19,6 +19,13 @@ class JudgeTest {
         NEXT_STEP: concern - no meeting time
     """.trimIndent()
 
+    @Test fun theScoreNoteSaysWhetherTheScorerWroteIt() {
+        assertEquals(Judge.SAME_MODEL, Judge.scoredBy(Writer.PHONE))
+        assertEquals(Judge.CROSS_CHECK, Judge.scoredBy(Writer.COMPUTER))
+        assertTrue("different model" in Judge.CROSS_CHECK && "your computer" in Judge.CROSS_CHECK)
+        assertTrue("slop detail carries the note", slopDetail(emptyList(), "x", 1, 9, 10, Judge.CROSS_CHECK).endsWith(Judge.CROSS_CHECK))
+    }
+
     @Test fun readsTheJudgesLines() {
         val s = Judge.scoreDraft("Saturday works. I'll bring my stove.", answer, message = true)
         assertEquals(3, s.generic)

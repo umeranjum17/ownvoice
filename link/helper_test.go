@@ -17,12 +17,26 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 )
+
+// TestMain runs every test under a throwaway HOME, so no test can touch the person's own tools or sign-ins.
+func TestMain(m *testing.M) {
+	home, err := os.MkdirTemp("", "ownvoice-link-home-")
+	if err != nil {
+		panic(err)
+	}
+	os.Setenv("HOME", home)
+	os.Unsetenv("XDG_CONFIG_HOME")
+	code := m.Run()
+	os.RemoveAll(home)
+	os.Exit(code)
+}
 
 type rig struct {
 	h    *Helper
@@ -42,6 +56,9 @@ func newRig(t *testing.T, dir string) *rig {
 	t.Helper()
 	bin, _ := filepath.Abs("testdata/bin")
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	if found, _ := exec.LookPath("claude"); found != filepath.Join(bin, "claude") {
+		t.Fatalf("tests must run the fake claude, found %q", found)
+	}
 	h, err := Open(dir)
 	if err != nil {
 		t.Fatal(err)
@@ -112,6 +129,20 @@ func paired(t *testing.T, r *rig) *tls.Certificate {
 		t.Fatalf("pair: %d %v", status, err)
 	}
 	return key
+}
+
+func TestTwoWordsMatchTheApps(t *testing.T) {
+	// The same pin and words as the app's LinkTest.
+	if got := Fingerprint("3g18llpqJj8rEqB7+nnaZ/g/cTfh9uP0BQf2nNRfKA8="); got != "water branch" {
+		t.Fatal(got)
+	}
+	seen := map[string]bool{}
+	for _, w := range words {
+		seen[w] = true
+	}
+	if len(seen) != 256 {
+		t.Fatalf("%d distinct words", len(seen))
+	}
 }
 
 func TestNoClientKeyFailsTheHandshake(t *testing.T) {
@@ -344,7 +375,7 @@ func TestThePromptIsTheHelpersAndToolFree(t *testing.T) {
 	b, _ := os.ReadFile(args)
 	got := string(b)
 	for _, want := range []string{"-p\n", "--model\nsonnet\n", "--safe-mode\n", "--tools\n\n", "--no-session-persistence\n", "--strict-mcp-config\n",
-		"--output-format\nstream-json\n", "Never invent their experience", "--- stdin\nScreen:\n/exec rm -rf ~\n", "No em dashes."} {
+		"--output-format\nstream-json\n", "--disable-slash-commands\n", "Never invent their experience", "--- stdin\nScreen:\n/exec rm -rf ~\n", "No em dashes."} {
 		if !strings.Contains(got, want) {
 			t.Errorf("claude call lacks %q:\n%s", want, got)
 		}

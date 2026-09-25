@@ -11,7 +11,6 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	"errors"
@@ -133,14 +132,40 @@ func pin(der []byte) string {
 	return base64.StdEncoding.EncodeToString(h[:])
 }
 
-// Fingerprint is the short form of a pin that the phone shows too, so the person can compare them.
+// Fingerprint is two plain words taken from a pin, which the phone shows too, so the person can check
+// they are pairing the phone in their hand. The word list is the same as the app's Link.WORDS.
 func Fingerprint(p string) string {
 	b, _ := base64.StdEncoding.DecodeString(p)
-	if len(b) < 4 {
+	if len(b) < 2 {
 		return "?"
 	}
-	x := hex.EncodeToString(b[:4])
-	return x[:4] + "-" + x[4:]
+	return words[b[0]] + " " + words[b[1]]
+}
+
+var words = [256]string{
+	"apple", "arrow", "autumn", "bamboo", "banana", "basket", "beach", "berry", "bicycle", "blanket", "bloom",
+	"boat", "bottle", "branch", "bread", "breeze", "brick", "bridge", "brook", "brush", "bubble", "bucket",
+	"butter", "button", "cabin", "cactus", "camel", "candle", "canoe", "canyon", "carpet", "carrot", "castle",
+	"cedar", "chalk", "cherry", "chess", "cliff", "clock", "cloud", "clover", "coast", "cocoa", "comet",
+	"copper", "coral", "cotton", "cradle", "crane", "crayon", "creek", "cricket", "crown", "crystal", "cup",
+	"daisy", "dawn", "desert", "diamond", "dolphin", "donkey", "dragon", "drum", "eagle", "earth", "echo",
+	"elbow", "ember", "engine", "falcon", "feather", "fern", "ferry", "field", "fig", "flag", "flame", "flute",
+	"forest", "fossil", "fountain", "fox", "frost", "garden", "garlic", "giant", "ginger", "glacier", "glove",
+	"goat", "gold", "grape", "grass", "guitar", "hammer", "harbor", "harp", "hazel", "helmet", "hill", "honey",
+	"horizon", "horse", "island", "ivory", "jacket", "jasmine", "jelly", "jungle", "kettle", "kite", "koala",
+	"ladder", "lagoon", "lake", "lamp", "lantern", "lemon", "lily", "lion", "lizard", "lotus", "magnet", "mango",
+	"maple", "marble", "meadow", "melon", "meteor", "mint", "mirror", "mitten", "moon", "moss", "mountain",
+	"mushroom", "needle", "nest", "night", "noodle", "oak", "ocean", "olive", "onion", "orange", "orbit",
+	"otter", "owl", "paddle", "palm", "panda", "paper", "parrot", "peach", "peanut", "pearl", "pebble", "pencil",
+	"pepper", "piano", "pillow", "pine", "planet", "plum", "pocket", "pond", "poppy", "potato", "puzzle",
+	"quartz", "quilt", "rabbit", "radio", "rain", "raven", "reef", "ribbon", "river", "robin", "rocket", "rose",
+	"saddle", "sail", "salmon", "sand", "saturn", "shell", "silver", "sky", "sled", "snow", "sock", "spark",
+	"spider", "spoon", "spring", "squash", "star", "stone", "storm", "straw", "sugar", "summer", "sun", "swan",
+	"table", "tiger", "toast", "tomato", "torch", "tower", "train", "tulip", "tunnel", "turtle", "umbrella",
+	"valley", "velvet", "violet", "volcano", "wagon", "walnut", "water", "whale", "wheat", "whistle", "willow",
+	"window", "winter", "wolf", "wool", "yarn", "zebra", "acorn", "anchor", "badger", "beacon", "birch", "bison",
+	"cobalt", "compass", "dune", "elm", "fiddle", "galaxy", "geyser", "gravel", "heron", "iris", "juniper",
+	"kayak", "lava", "lemur", "linen", "lynx", "yogurt",
 }
 
 // OpenPairing starts a pairing window and returns its one-time code.

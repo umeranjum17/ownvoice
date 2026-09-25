@@ -24,14 +24,15 @@ import (
 
 const usage = `ownvoice-link: your computer writes Ownvoice drafts for your own phone.
 
-  ownvoice-link                 serve paired phones until Ctrl-C
-  ownvoice-link pair            show a code for your phone to scan, confirm, then exit
+  ownvoice-link pair            show a code for your phone to scan, then exit
+  ownvoice-link                 write drafts for your paired phone until Ctrl-C
   ownvoice-link phones          list paired phones
-  ownvoice-link unpair <name>   forget a phone (by name or key code)
+  ownvoice-link unpair <name>   forget a phone (by name or its two words)
 
 Flags for serving and pairing:
   --listen host:port            listen only here (default: this computer's home-network
                                 and tailnet addresses, port 7441)
+  --show-text                   pair: also print the code as text, for tests
 `
 
 func main() {
@@ -43,6 +44,7 @@ func main() {
 	fs := flag.NewFlagSet(cmd, flag.ExitOnError)
 	fs.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 	listen := fs.String("listen", "", "")
+	showText := fs.Bool("show-text", false, "")
 	fs.Parse(args)
 
 	base, err := os.UserConfigDir()
@@ -56,14 +58,14 @@ func main() {
 		if *listen == "" {
 			addrs = homeAddrs("7441")
 		}
-		serve(h, addrs, cmd == "pair")
+		serve(h, addrs, cmd == "pair", *showText)
 	case "phones":
 		phones := h.Phones()
 		if len(phones) == 0 {
 			fmt.Println("No phones are paired. Run: ownvoice-link pair")
 		}
 		for p, ph := range phones {
-			fmt.Printf("%s  key %s  paired %s  last seen %s\n", ph.Name, Fingerprint(p), ph.Paired.Format("2006-01-02"), ph.Seen.Format("2006-01-02 15:04"))
+			fmt.Printf("%s  (%s)  paired %s  last seen %s\n", ph.Name, Fingerprint(p), ph.Paired.Format("2006-01-02"), ph.Seen.Format("2006-01-02 15:04"))
 		}
 	case "unpair":
 		if fs.NArg() != 1 {
@@ -117,7 +119,7 @@ func virtual(name string) bool {
 	return false
 }
 
-func serve(h *Helper, addrs []string, pairing bool) {
+func serve(h *Helper, addrs []string, pairing, showText bool) {
 	if _, err := exec.LookPath("claude"); err == nil {
 		h.engines["claude"] = Claude(45 * time.Second)
 	} else {
@@ -143,7 +145,11 @@ func serve(h *Helper, addrs []string, pairing bool) {
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, os.Interrupt)
 	if !pairing {
-		fmt.Printf("Ownvoice link is on at %s. %d phone(s) paired. Ctrl-C to stop.\n", strings.Join(bound, ", "), len(h.Phones()))
+		if len(h.Phones()) == 0 {
+			fmt.Println("No phone is paired yet. Stop this with Ctrl-C and run: ownvoice-link pair")
+		} else {
+			fmt.Println("Ownvoice link is on: your phone's drafts are written here until you press Ctrl-C.")
+		}
 		<-stop
 		srv.Close()
 		return
@@ -153,20 +159,21 @@ func serve(h *Helper, addrs []string, pairing bool) {
 	payload, _ := json.Marshal(map[string]any{"v": 1, "pin": h.Pin, "code": code, "addrs": bound})
 	in := bufio.NewReader(os.Stdin)
 	h.confirm = func(name, fp string) bool {
-		fmt.Printf("\nPair %q (key %s)? Only pair your own phone. [y/N] ", name, fp)
+		fmt.Printf("\n%q wants to pair. Your phone shows two words: are they \"%s\"?\nOnly pair your own phone. Pair it? [y/N] ", name, fp)
 		line, _ := in.ReadString('\n')
 		line = strings.ToLower(strings.TrimSpace(line))
 		return line == "y" || line == "yes"
 	}
-	fmt.Println("In Ownvoice on your phone, tap \"Pair with my computer\" and scan this code. It works once, for 5 minutes.")
+	fmt.Println("In Ownvoice on your phone, tap \"Use my computer\" and scan this code. It works once, for 5 minutes.")
 	qrterminal.GenerateHalfBlock(string(payload), qrterminal.L, os.Stdout)
-	fmt.Println(string(payload))
-	fmt.Printf("Listening on %s.\n", strings.Join(bound, ", "))
+	if showText {
+		fmt.Println(string(payload))
+	}
 	ok := false
 	select {
 	case name := <-h.Paired:
 		if ok = name != ""; ok {
-			fmt.Printf("Paired %q. Now run ownvoice-link whenever you want this computer to write.\n", name)
+			fmt.Printf("Paired %q. From now on, run ownvoice-link whenever you want this computer to write your drafts.\n", name)
 		} else {
 			fmt.Println("Not paired. Run ownvoice-link pair to try again.")
 		}

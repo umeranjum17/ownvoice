@@ -23,6 +23,7 @@ class MainActivity : Activity() {
     private lateinit var reads: Button
     private lateinit var voice: Button
     private lateinit var apps: LinearLayout
+    private lateinit var computer: LinearLayout
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,6 +34,7 @@ class MainActivity : Activity() {
         reads = Button(this).apply { setOnClickListener { startActivity(Intent(context, ReadsActivity::class.java)) } }
         voice = Button(this).apply { setOnClickListener { startActivity(Intent(context, VoiceActivity::class.java)) } }
         apps = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        computer = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         setContentView(FrameLayout(this).apply { fitsSystemWindows = true; addView(ScrollView(context).apply { addView(LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad, pad, pad)
@@ -40,7 +42,8 @@ class MainActivity : Activity() {
             addView(TextView(context).apply {
                 textSize = 16f
                 setPadding(0, pad / 2, 0, pad / 2)
-                text = "Ownvoice reads the screen only when you tap its bubble. What it reads stays on this phone, and it never sends anything."
+                text = "Ownvoice reads the screen only when you tap its bubble. What it reads stays on this phone, " +
+                    "unless you pair your own computer to write drafts. It never sends a message for you."
             })
             addView(TextView(context).apply {
                 textSize = 14f
@@ -62,6 +65,7 @@ class MainActivity : Activity() {
             addView(pause)
             addView(voice)
             addView(reads)
+            addView(computer)
             addView(TextView(context).apply { text = "Apps where the bubble works"; textSize = 18f; setPadding(0, pad, 0, 0) })
             addView(TextView(context).apply { text = "In apps that are off, the bubble doesn't show and nothing is read."; textSize = 14f })
             addView(apps)
@@ -77,15 +81,20 @@ class MainActivity : Activity() {
         voice.text = "Your voice (${Voice.rules(this).never.size} never-say phrases)"
         reads.text = "What was read (${Privacy.reads(this).size} in the last 30 days)"
         showApps()
+        showComputer()
     }
+
+    private fun showComputer() = showComputer(computer, launcherApps().filter { Privacy.allowed(this, it.first) })
+
+    /** Every app with a launcher icon, as (package, label). */
+    private fun launcherApps() = packageManager.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+        .map { it.activityInfo.packageName to it.loadLabel(packageManager).toString() }
+        .distinctBy { it.first }
 
     /** Every app with a launcher icon, switched-on ones first. */
     private fun showApps() {
         apps.removeAllViews()
-        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        packageManager.queryIntentActivities(launcher, 0)
-            .map { it.activityInfo.packageName to it.loadLabel(packageManager).toString() }
-            .distinctBy { it.first }
+        launcherApps()
             .sortedWith(compareBy({ !Privacy.allowed(this, it.first) }, { it.second.lowercase() }))
             .forEach { (app, label) ->
                 apps.addView(Switch(this).apply {
@@ -93,7 +102,7 @@ class MainActivity : Activity() {
                     textSize = 16f
                     setPadding(0, (8 * dp).toInt(), 0, (8 * dp).toInt())
                     isChecked = Privacy.allowed(context, app)
-                    setOnCheckedChangeListener { _, on -> Privacy.setAllowed(context, app, on) }
+                    setOnCheckedChangeListener { _, on -> Privacy.setAllowed(context, app, on); showComputer() }
                 })
             }
     }

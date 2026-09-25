@@ -19,6 +19,18 @@ class PrivacyTest {
         assertFalse(Privacy.allowed("com.whatsapp", false))
     }
 
+    @Test fun onlyXLinkedInRedditAndSlackMayGoToTheComputerAtFirst() {
+        for (app in listOf("com.twitter.android", "com.linkedin.android", "com.reddit.frontpage", "com.Slack")) {
+            assertTrue(app, Privacy.mayGoToComputer(app, null))
+            assertTrue(app, Privacy.allowed(app, null))
+        }
+        for (app in listOf("com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b", "org.thoughtcrime.securesms", "com.discord", "dev.ownvoice.app")) {
+            assertFalse(app, Privacy.mayGoToComputer(app, null))
+        }
+        assertTrue(Privacy.mayGoToComputer("com.google.android.gm", true))
+        assertFalse(Privacy.mayGoToComputer("com.twitter.android", false))
+    }
+
     @Test fun readsOlderThan30DaysAreDropped() {
         val now = 100 * day
         val reads = listOf(0L, now - 31 * day, now - 30 * day, now - 30 * day + 1, now - day, now).map { Privacy.Read(it, "a", "A", "s") }

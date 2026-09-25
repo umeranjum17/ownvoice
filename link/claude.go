@@ -87,7 +87,7 @@ func Claude(timeout time.Duration) Engine {
 		}
 		defer os.RemoveAll(dir)
 		cmd := exec.CommandContext(ctx, "claude", "-p", "--model", "sonnet",
-			"--safe-mode", "--tools", "", "--no-session-persistence", "--strict-mcp-config",
+			"--safe-mode", "--tools", "", "--no-session-persistence", "--strict-mcp-config", "--disable-slash-commands",
 			"--system-prompt", system, "--output-format", "stream-json", "--verbose")
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(), "MAX_THINKING_TOKENS=0")

@@ -99,11 +99,11 @@ fun flags(checks: List<Judge.Check>) = when (val n = checks.count { !it.ok }) {
     else -> "$n flags"
 }
 
-fun slopDetail(hits: List<Slop.Hit>, text: String, generic: Int?, specific: Int?, score: Int) = buildString {
+fun slopDetail(hits: List<Slop.Hit>, text: String, generic: Int?, specific: Int?, score: Int, scoredBy: String = Judge.SAME_MODEL) = buildString {
     append("Slop: ").append(Slop.words(score)).append(" (").append(score).append("/100). How generic and templated it reads, not who wrote it.\n")
     if (hits.isEmpty()) append("No template phrases found.\n")
     hits.forEach { append("• “").append(text.substring(it.start, it.end).trim()).append("”: ").append(it.reason).append('\n') }
     if (generic != null && specific != null) append("Judge: generic $generic/10, specific $specific/10.\n")
     else append("The judge didn't answer, so this is phrase rules only.\n")
-    append(Judge.SAME_MODEL)
+    append(scoredBy)
 }

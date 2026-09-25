@@ -14,6 +14,10 @@ object Judge {
     }
 
     const val SAME_MODEL = "Scored by the same on-device model that wrote it, which tends to like its own writing."
+    const val CROSS_CHECK = "Written on your computer and scored on this phone by a different model, so the score has no reason to favour it."
+
+    /** Who scored a draft compared with who wrote it: the phone always scores. */
+    fun scoredBy(writer: Writer) = if (writer == Writer.COMPUTER) CROSS_CHECK else SAME_MODEL
 
     private val QUALITY = listOf(
         "SPECIFIC" to "Specific", "CLEAR" to "Clear", "VOICE" to "Sounds like you", "FITS" to "Fits the thread", "CLAIMS" to "Claims",

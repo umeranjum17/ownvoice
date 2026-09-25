@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
+    <!-- Only to reach the person's own paired computer, when they pair one. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- Lists the apps with a launcher icon for the per-app switches. -->
     <queries>
         <intent>
@@ -23,6 +26,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".PairActivity"
+            android:exported="false"
+            android:label="Pair with my computer" />
 
         <activity
             android:name=".ReadsActivity"

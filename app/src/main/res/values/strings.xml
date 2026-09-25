@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">Ownvoice</string>
-    <string name="service_description">Ownvoice shows a small bubble in the apps you switch on. Only when you tap it does Ownvoice read the conversation on screen and the text field you are typing in, to draft replies with the on-device model. It logs each read on the phone where you can see and wipe it, inserts a draft only when you tap Insert, and never sends anything. Nothing leaves your phone.</string>
+    <string name="service_description">Ownvoice shows a small bubble in the apps you switch on. Only when you tap it does Ownvoice read the conversation on screen and the text field you are typing in, to draft replies. It logs each read on the phone where you can see and wipe it, inserts a draft only when you tap Insert, and never sends a message for you. Nothing leaves your phone unless you pair your own computer to write drafts, and then only from the apps you allow.</string>
 </resources>

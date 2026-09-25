@@ -7,8 +7,13 @@ import android.content.Context
  * switches, and the log of what each bubble tap read (a summary, not the text), kept for 30 days.
  */
 object Privacy {
-    /** Apps where the bubble works until the user says otherwise: X, LinkedIn, Gmail and WhatsApp. Every other app starts off. */
-    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
+    /** Apps where the bubble works until the user says otherwise: X, LinkedIn, Reddit, Slack, Gmail and WhatsApp. Every other app starts off. */
+    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.reddit.frontpage", "com.Slack", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
+    /**
+     * Apps whose screen may go to the person's own computer once one is paired, until they say otherwise:
+     * X, LinkedIn, Reddit and Slack. Email, personal chats and every other app stay on the phone.
+     */
+    val COMPUTER_DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.reddit.frontpage", "com.Slack")
     const val KEEP_MS = 30L * 24 * 60 * 60 * 1000
 
     /** One bubble tap: when, in which app, and how much it read. */
@@ -25,6 +30,9 @@ object Privacy {
 
     /** Whether the bubble works in [app]: the user's own choice for it, or else the default list. */
     fun allowed(app: String, choice: Boolean?) = choice ?: (app in DEFAULT_ON)
+
+    /** Whether [app]'s screen may go to the person's own computer: their choice for it, or else the default list. */
+    fun mayGoToComputer(app: String, choice: Boolean?) = choice ?: (app in COMPUTER_DEFAULT_ON)
 
     /** The reads younger than 30 days at [now]. */
     fun keep(reads: List<Read>, now: Long) = reads.filter { now - it.time < KEEP_MS }
@@ -56,6 +64,13 @@ object Privacy {
         OwnvoiceService.instance?.updateBubble()
     }
 
+    fun mayGoToComputer(context: Context, app: String) =
+        prefs(context).let { mayGoToComputer(app, if (it.contains("computer:$app")) it.getBoolean("computer:$app", false) else null) }
+
+    fun setMayGoToComputer(context: Context, app: String, on: Boolean) {
+        prefs(context).edit().putBoolean("computer:$app", on).commit()
+    }
+
     /** Whether the bubble shows and may read in [app] right now. */
     fun on(context: Context, app: String?) = app != null && !paused(context) && allowed(context, app)
 
@@ -68,6 +83,12 @@ object Privacy {
     }
 
     fun record(context: Context, read: Read) = save(context, keep(reads(context, read.time) + read, read.time))
+
+    /** Adds who wrote the drafts to the read logged at [time], for example "Sent to your computer, which wrote the drafts." */
+    fun noteWriter(context: Context, time: Long, note: String) {
+        val all = reads(context)
+        if (all.any { it.time == time }) save(context, all.map { if (it.time == time) it.copy(summary = "${it.summary} $note") else it })
+    }
 
     /** Deletes the log, Your voice, and anything read or drafted that is still held in memory. */
     fun wipe(context: Context) {

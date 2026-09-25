@@ -61,7 +61,7 @@ class InsertFlowTest {
         private val ctx get() = instr.targetContext
 
         /** Turns the service on without turning off any other enabled service. */
-        private fun enableService() {
+        fun enableService() {
             val me = "dev.ownvoice.app/dev.ownvoice.app.OwnvoiceService"
             // Keep accessibility services running while this test talks to the shell.
             val shell = instr.getUiAutomation(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES)
