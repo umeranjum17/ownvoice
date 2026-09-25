@@ -2,6 +2,8 @@
 # Runs ComputerFlowTest on the phone adb sees, against the real helper running the fake claude from
 # testdata/bin under a throwaway HOME, reached through adb reverse. Install the debug app and its test
 # package first (see README). Leaves nothing behind: the helper stops, the pairing and its key are deleted.
+# LISTEN=host:port instead reaches the helper over the network, such as this computer's home-network or
+# tailnet address, to check the phone can reach it there.
 set -eu
 cd "$(dirname "$0")"
 work=$(mktemp -d)
@@ -12,7 +14,8 @@ go build -o "$work/ownvoice-link" .
 export HOME="$work/home" PATH="$PWD/testdata/bin:$PATH"
 unset XDG_CONFIG_HOME
 mkdir -p "$HOME"
-adb reverse tcp:7441 tcp:7441 >/dev/null
+listen=${LISTEN:-127.0.0.1:7441}
+[ -n "${LISTEN:-}" ] || adb reverse tcp:7441 tcp:7441 >/dev/null
 
 # Runs one step: the given number of tests must pass (the others skip) and none may fail.
 run() {
@@ -26,7 +29,7 @@ run() {
 
 echo "== pair"
 mkfifo "$work/answer"
-"$work/ownvoice-link" pair --listen 127.0.0.1:7441 --show-text < "$work/answer" > "$work/pair.out" &
+"$work/ownvoice-link" pair --listen "$listen" --show-text < "$work/answer" > "$work/pair.out" &
 pid=$!
 exec 3> "$work/answer"
 for _ in $(seq 50); do grep -q '"v":1}$' "$work/pair.out" && break; sleep 0.1; done
@@ -39,7 +42,7 @@ exec 3>&-
 grep -q 'Paired "' "$work/pair.out" || { cat "$work/pair.out"; exit 1; }
 
 echo "== computer on"
-"$work/ownvoice-link" --listen 127.0.0.1:7441 > "$work/serve.out" 2>&1 &
+"$work/ownvoice-link" --listen "$listen" > "$work/serve.out" 2>&1 &
 pid=$!
 sleep 1
 run 2 -e step on

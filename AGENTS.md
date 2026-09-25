@@ -11,6 +11,9 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - OnePlus phones show a "Continue installation" screen on every `adb install`. On the OnePlus 13, `adb shell input tap 540 1833` taps it once its buttons show (about 5 s in); tap only while `dumpsys window` shows `InstallGuideActivity` in focus, or the tap lands on whatever is underneath. The "Installed" page it leaves on top makes `am instrument` time out launching activities, so press Back first.
 - To hand the app a file on the phone (for example a voice profile for the share import), write it with `adb shell run-as dev.ownvoice.app` into the app's `files/` and share `file:///data/data/dev.ownvoice.app/files/...`. The app can't read a folder `adb shell` creates under `/sdcard/Android/data`.
 
+- The computer helper (`link/`) runs only the vendor CLIs; never read or send their credentials, and never accept anything but text-in/texts-out. Its tests use the fake `link/testdata/bin/claude` under a throwaway HOME; never run the real CLI in tests. `link/devicetest.sh` runs the on-device link test through `adb reverse`.
+- Nothing user-facing names a model, a vendor or a number for the link: say "your computer" and "this phone". Vendor and threat-model details belong in `README.md`.
+
 ## Maintaining this file
 
 Keep this file for knowledge useful to almost every future agent session in this project.

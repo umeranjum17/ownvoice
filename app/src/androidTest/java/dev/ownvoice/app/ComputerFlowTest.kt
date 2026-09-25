@@ -105,6 +105,27 @@ class ComputerFlowTest {
         instr.runOnMainSync { sheet.finish() }
     }
 
+    /**
+     * By hand only, against the real helper and the real writer on the computer: one reply on the test
+     * screen with the phone's own model left in place. Keeps the pairing; logs how long the drafts took.
+     */
+    @Test fun live() {
+        step("live")
+        OwnvoiceService.engine = Nano
+        instr.runOnMainSync { Privacy.setMayGoToComputer(ctx, ctx.packageName, true) }
+        try {
+            val started = System.currentTimeMillis()
+            val sheet = openPanel()
+            waitUntil("drafts", 60_000) { sheet.drafts.isNotEmpty() }
+            android.util.Log.i(OwnvoiceService.TAG, "live: ${sheet.drafts.size} drafts by ${sheet.writer} in ${System.currentTimeMillis() - started} ms")
+            assertEquals(Writer.COMPUTER, sheet.writer)
+            instr.runOnMainSync { sheet.finish() }
+        } finally {
+            instr.runOnMainSync { Privacy.setAllowed(ctx, ctx.packageName, false) }
+            ctx.getSharedPreferences("privacy", 0).edit().remove("computer:${ctx.packageName}").commit()
+        }
+    }
+
     /** Forgets the test pairing and its key, and puts the per-app choice back. */
     @Test fun forget() {
         step("forget")

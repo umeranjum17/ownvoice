@@ -47,7 +47,7 @@ class MainActivity : Activity() {
             })
             addView(TextView(context).apply {
                 textSize = 14f
-                text = "Tap the Ownvoice bubble in any app switched on below to get reply drafts from the model on this phone, " +
+                text = "Tap the Ownvoice bubble in any app switched on below to get reply drafts, " +
                     "or better versions of what you have already written. " +
                     "It changes a text field only when you tap Insert.\n\n" +
                     "To rewrite text without the bubble, select it in any app and choose Ownvoice in the selection menu."

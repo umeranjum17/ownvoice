@@ -2,7 +2,40 @@
 
 Ownvoice is a local-first, open-source writing booster for Android. A small bubble sits over your apps. Tap it and Ownvoice reads the conversation on screen and drafts two or three short replies with the language model on your phone (Gemini Nano, through ML Kit GenAI). Tap Insert and the draft goes into the text field you were typing in. You read it over and you send it.
 
+For better drafts, your own computer can write them instead: see [Use my computer](#use-my-computer).
+
 If you've already written something in the field, Ownvoice improves it instead of drafting a reply: see [Compose boost](#compose-boost). Each draft gets three separate scores, and you can rewrite any text you select, in any app, without turning on accessibility.
+
+## Use my computer
+
+The phone's model is quick but plain. If you use Claude on your computer, Ownvoice can have your computer write your reply drafts, with the account you already signed in to there. This phone writes them whenever the computer can't.
+
+1. On your computer, build the helper once (needs [Go](https://go.dev/dl/)): `cd link && go build -o ownvoice-link .`, and put `ownvoice-link` on your PATH. It uses the `claude` command, so [Claude Code](https://code.claude.com) must be installed and signed in there.
+2. Run `ownvoice-link pair`. It shows a code.
+3. In Ownvoice on your phone, tap **Use my computer** and scan the code. The phone shows two words. Check your computer shows the same two, and answer `y` there. Done.
+4. From then on, run `ownvoice-link` whenever you want your computer to write. It runs until you press Ctrl-C. It is never installed as a service.
+
+The phone reaches the computer on your home network or over [Tailscale](https://tailscale.com). If the phone says your computer didn't answer on your home network, your computer's firewall may be blocking port 7441; Tailscale usually works regardless.
+
+What changes on the phone:
+
+- **Who writes your drafts** on the main screen: your computer (this phone fills in when it's off) or this phone only.
+- **Apps that may go to your computer**: X, LinkedIn, Reddit and Slack start on. Gmail, WhatsApp and every other app start off, so their screens stay on the phone. In an app that's off, the drafts panel offers **Write this one on my computer**, with the number of characters it would send.
+- Every draft says **Written on your computer** or **Written on this phone**. When the phone writes instead, the panel says why in plain words ("Your computer didn't answer, so this phone wrote these.") and offers **Try my computer again**.
+- Drafts are always scored on the phone. A draft your computer wrote is scored by a different model from the one that wrote it, and the score details say so.
+- **What was read** notes when a read was sent to your computer.
+- **Forget this computer** deletes the pairing and this phone's key.
+
+### How the link works, and what it refuses
+
+- **Only text in, drafts out.** The helper answers three requests: pair, hello, and "here is the screen and the writer's rules, give me reply drafts". The prompt, the model (Claude Sonnet) and every flag are the helper's own. The phone sends data, never instructions, and the helper refuses unknown fields, other kinds of request, anything over 16 KB and a second request while one is running.
+- **Your own CLI, tool-free, and it never touches your sign-in.** The helper runs your unmodified, signed-in `claude -p` with `--safe-mode` (no CLAUDE.md, hooks, plugins, skills or MCP servers), `--tools ""` (no tools at all), `--no-session-persistence` (no saved session), `--strict-mcp-config` and `--disable-slash-commands`, in an empty temporary folder. The helper never opens `~/.claude`, `~/.codex` or any credential, and never sends one anywhere; tests prove it.
+- **Its own words, never yours.** Drafts that claim experience you never mentioned ("we built", "our team", "I shipped") are dropped unless your Your voice note says it. The prompt forbids them too.
+- **Pinned mutual TLS.** Each side has one key and pins the other's. The phone's key is made in the Android Keystore and can't be copied off the phone. Outside the pairing window, a key that isn't paired is refused before any request is read. Pairing codes work once, for 5 minutes, and close after 5 wrong tries. The computer asks you to confirm every pairing, and it pairs at most 3 phones.
+- **What it keeps.** `~/.config/ownvoice-link/` (0700) holds its key, its certificate and the paired phones' names, key hashes and dates. Its log is one line per request with counts and times, never any text.
+- **Who can reach it.** Only while `ownvoice-link` runs, and only on this computer's private home-network and tailnet addresses. Someone on the same Wi-Fi can see the port is open, but without a paired key they can't get past the handshake.
+- **Lost phone.** Run `ownvoice-link unpair "<phone name>"`. On the phone, **Forget this computer** deletes its key.
+- **Pair only your own phone.** The helper writes with your own Claude account, which is for you alone. Anthropic's terms allow using your own signed-in Claude Code this way; they don't allow sharing your account, so never pair someone else's phone, and never run a helper for other people.
 
 ## Scores
 
@@ -12,7 +45,7 @@ Every draft shows three chips. Tap one for its reasons. They are never blended i
 - **Quality** shows five checks from the on-device model: specific, clear, sounds like you, fits the thread, and claims. The claims check flags facts about you, numbers, plans or products that the conversation doesn't support.
 - **Reach** (public posts and threads) has no number yet, only reasons: whether the draft starts a conversation, its "not interested" risk, its hook, links, and its length. It stays in "learning" until a prediction can be checked against your own posts. In chats and email, **Response** takes its place: does the draft answer every question, and is the next step clear?
 
-The same on-device model writes and judges the drafts, and models tend to like their own writing, so each detail says so. Drafts show first, and the scores fill in after.
+When the phone writes, the same on-device model writes and judges the drafts, and models tend to like their own writing, so each detail says so. When your computer writes, the phone's model judges a draft it didn't write. Drafts show first, and the scores fill in after.
 
 ## Compose boost
 
@@ -38,20 +71,20 @@ To import a voice profile, tap **Import a voice profile** and pick a markdown fi
 
 ## Privacy
 
-Ownvoice reads the screen only when you tap its bubble. What it reads stays on this phone, and it never sends anything.
+Ownvoice reads the screen only when you tap its bubble. What it reads stays on this phone unless you pair your own computer to write drafts, and then only from the apps you allow. It never sends a message for you.
 
 - **Reads only on request.** Ownvoice reads the screen only when you tap its bubble, never in the background. It reads the visible text and the field you're typing in, and keeps that in memory only until your next tap.
 - **Every read is logged where you can see it.** **What was read** on the main screen, or in the drafts panel, lists each tap: the app, the time, what it did (reply drafts, compose boost or nothing to work on) and how many characters it read, never any of the text. The list stays on the phone and each entry is deleted after 30 days. **Wipe everything** clears the list, whatever the last tap read, and Your voice.
-- **Per app.** The bubble works only in apps switched on under **Apps where the bubble works**. X, LinkedIn, Gmail and WhatsApp start on; every other app, Signal included, starts off. In an app that's off, the bubble doesn't show and nothing is read.
+- **Per app.** The bubble works only in apps switched on under **Apps where the bubble works**. X, LinkedIn, Reddit, Slack, Gmail and WhatsApp start on; every other app, Signal included, starts off. In an app that's off, the bubble doesn't show and nothing is read.
 - **Pause.** The **Pause** switch on the main screen, or **Pause Ownvoice** in the drafts panel, hides the bubble everywhere until you switch it back.
 - **Never sends.** Ownvoice changes a text field only when you tap Insert. It never taps Send, posts or acts for you.
-- **Nothing you write leaves the phone.** Drafting runs on the phone's own model. Ownvoice has no server and no network code. Like other ML Kit libraries, ML Kit may send Google anonymous usage metrics such as API name and latency. See [ML Kit's data disclosure](https://developers.google.com/ml-kit/android-data-disclosure). Your screen text and drafts are not part of those metrics.
+- **Nothing leaves the phone unless you pair your own computer.** Then, when you tap the bubble in an app you allow under **Apps that may go to your computer**, the text on screen and your writing rules go to that computer, and from there to Claude, to write the drafts. Nothing else is ever sent, and Ownvoice has no server of its own. Without a paired computer, drafting runs only on the phone's own model. Like other ML Kit libraries, ML Kit may send Google anonymous usage metrics such as API name and latency. See [ML Kit's data disclosure](https://developers.google.com/ml-kit/android-data-disclosure). Your screen text and drafts are not part of those metrics.
 
 ## Use it
 
 1. Install the app, open **Ownvoice**, tap **Turn Ownvoice on or off** and switch Ownvoice on in Accessibility settings.
 2. Back in Ownvoice, tap **Check or download the model**. On first use the phone downloads Gemini Nano, and this screen shows when it is ready.
-3. Under **Apps where the bubble works**, check the apps you want it in. X, LinkedIn, Gmail and WhatsApp are on to start.
+3. Under **Apps where the bubble works**, check the apps you want it in. X, LinkedIn, Reddit, Slack, Gmail and WhatsApp are on to start.
 4. In one of those apps, tap into the message box, then tap the blue **OV** bubble at the right edge of the screen, halfway down. The drafts panel opens over the app. If you've already written something in the box, the panel shows better versions of it instead.
 5. Tap **Insert** to put a draft in the message box, or **Copy** to copy it. Then send it yourself.
 
@@ -86,6 +119,14 @@ adb shell am instrument -w dev.ownvoice.app.test/androidx.test.runner.AndroidJUn
 ```
 
 `./gradlew connectedDebugAndroidTest` works too, but it uninstalls the app afterwards.
+
+The helper's tests run with a fake `claude` (`link/testdata/bin/claude`) under a throwaway HOME, so they never touch your own sign-ins:
+
+```sh
+cd link && go test ./...
+```
+
+`ComputerFlowTest` checks the link on a real device against the real helper running that fake `claude`, through `adb reverse`: it pairs with the phone's Keystore key, checks that computer drafts show "Written on your computer" and insert with their newlines, that an app that's off stays on the phone until you ask, and that with the helper stopped the phone writes and says why. Then it deletes the test pairing. Install both APKs as above, then run `link/devicetest.sh`. `LISTEN=<address>:7441 link/devicetest.sh` checks the phone reaches the computer over the network instead.
 
 To try Ownvoice by hand on the debug build's test screen, switch Ownvoice on in its own app list, then run `adb shell am start -n dev.ownvoice.app/.TestScreenActivity`.
 
