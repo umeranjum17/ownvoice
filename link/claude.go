@@ -62,12 +62,22 @@ func keepOwnExperience(texts []string, guide string) []string {
 	if strings.HasPrefix(guide, "Never say:") {
 		guide = ""
 	}
-	own := strings.ToLower(strings.ReplaceAll(guide, "’", "'"))
+	normalize := func(s string) string {
+		s = strings.ToLower(strings.ReplaceAll(s, "’", "'"))
+		return strings.Join(strings.FieldsFunc(s, func(r rune) bool {
+			return r == '.' || r == ',' || r == ';' || r == ':' || r == '!' || r == '?' || r == '\n' || r == ' ' || r == '\t'
+		}), " ")
+	}
+	own := " " + normalize(guide) + " "
 	var kept []string
 	for _, t := range texts {
 		ok := true
-		for _, m := range ownExperience.FindAllString(t, -1) {
-			if !strings.Contains(own, strings.ToLower(strings.ReplaceAll(m, "’", "'"))) {
+		for _, match := range ownExperience.FindAllStringIndex(t, -1) {
+			end := len(t)
+			if n := strings.IndexAny(t[match[1]:], ".,;:!?\n"); n >= 0 {
+				end = match[1] + n
+			}
+			if normalize(t[match[1]:end]) == "" || !strings.Contains(own, " "+normalize(t[match[0]:end])+" ") {
 				ok = false
 				break
 			}

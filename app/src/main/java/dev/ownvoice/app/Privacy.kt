@@ -7,8 +7,8 @@ import android.content.Context
  * switches, and the log of what each bubble tap read (a summary, not the text), kept for 30 days.
  */
 object Privacy {
-    /** Apps where the bubble works until the user says otherwise: X, LinkedIn, Gmail and WhatsApp. Every other app starts off. */
-    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
+    /** Apps where the bubble works until the user says otherwise: X, LinkedIn, Slack, Gmail and WhatsApp. Every other app starts off. */
+    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.Slack", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
     /**
      * Apps whose screen may go to the person's own computer once one is paired, until they say otherwise:
      * X, LinkedIn and Reddit. Slack, email, personal chats and every other app stay on the phone.

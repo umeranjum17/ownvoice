@@ -426,8 +426,29 @@ func TestInventedExperienceIsDroppedUnlessTheWriterSaidIt(t *testing.T) {
 		t.Fatalf("prohibitions authorized a claim: %s", got)
 	}
 	_, body = write(t, r, key, "invent", "Ana: offline sync is harder than it looks", "How they write: we built a sync engine; our team is two people. Never say: a cliché.")
-	if n := len(body["texts"].([]any)); n != 3 {
-		t.Fatalf("the writer's own note allows their experience, kept %d: %v", n, body)
+	if got := fmt.Sprint(body["texts"]); got != "[Which conflicts bit you first, edits or deletes?]" {
+		t.Fatalf("a different object was authorized: %s", got)
+	}
+}
+
+func TestExperienceRequiresTheClaimInTheNote(t *testing.T) {
+	for _, c := range []struct {
+		note, claim string
+		allowed bool
+	}{
+		{"How they write: we built a sync engine.", "We built a sync engine.", true},
+		{"How they write: we built a sync engine.", "We built a spaceship.", false},
+		{"How they write: our team is two people.", "Our team is two people.", true},
+		{"How they write: our team is two people.", "Our team went with CRDTs early.", false},
+		{"How they write: I shipped a phone app.", "I shipped a phone app.", true},
+		{"How they write: I shipped a phone app.", "I shipped a browser extension.", false},
+		{"Never say: we built a spaceship.", "We built a spaceship.", false},
+		{"How they write: we built a sync engine. Never say: we built a spaceship.", "We built a spaceship.", false},
+	} {
+		got := keepOwnExperience([]string{c.claim}, c.note)
+		if (len(got) == 1) != c.allowed {
+			t.Errorf("note %q claim %q: kept %v", c.note, c.claim, got)
+		}
 	}
 }
 
