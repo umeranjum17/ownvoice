@@ -7,12 +7,8 @@ import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import android.util.Log
-import android.widget.LinearLayout
+import android.widget.TextView
 import android.widget.Toast
-import com.google.android.material.chip.Chip
-import com.google.android.material.chip.ChipDrawable
-import com.google.android.material.chip.ChipGroup
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -23,20 +19,15 @@ import kotlinx.coroutines.launch
  */
 class RewriteActivity : Activity() {
     private val scope = MainScope()
-    private var job: Job? = null
     private lateinit var sheet: Sheet
-    private lateinit var result: LinearLayout
-    private lateinit var tabs: ChipGroup
     private lateinit var original: String
     private var editable = false
 
-    /** The latest rewrite and its meaning check, read by the on-device test. */
-    var rewrite: String? = null
+    /** The versions on show once all have landed, with each one's meaning check and stock-phrasing score, read by the on-device test. */
+    var versions: List<String> = emptyList()
         private set
-    var meaning: Judge.Check? = null
-        private set
-    var slop: Judge.Scores? = null
-        private set
+    val meanings = mutableListOf<Judge.Check?>()
+    val slops = mutableListOf<Judge.Scores?>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,28 +35,16 @@ class RewriteActivity : Activity() {
         editable = intent.action == Intent.ACTION_PROCESS_TEXT && !intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)
         sheet = Sheet(this)
         sheet.title.text = "Make it better"
-        result = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
         if (original.isBlank()) {
             sheet.note.text = "Select some text first, then choose Ownvoice."
             return
         }
-        sheet.note.text = "Pick how you'd like it. You'll see it before anything changes."
-        val body = sheet.body
-        body.add(card(filled = true).apply {
+        sheet.note.text = "Writing…"
+        sheet.body.add(card(filled = true).apply {
             add(label("You selected"))
             add(text(highlight(original, Slop.hits(original, Voice.rules(context)))).apply { maxLines = 6 }, top = 6f)
-        }, bottom = 8f)
-        // One choice at a time, as Material filter chips.
-        tabs = body.add(ChipGroup(this).apply { isSingleSelection = true; isSelectionRequired = true }, bottom = 8f)
-        Judge.Rewrite.entries.forEach { how ->
-            tabs.addView(Chip(this).apply {
-                setChipDrawable(ChipDrawable.createFromAttributes(context, null, 0, com.google.android.material.R.style.Widget_Material3_Chip_Filter))
-                text = how.label
-                isCheckable = true
-                setOnClickListener { rewrite(how) }
-            })
-        }
-        body.add(result)
+        }, bottom = 10f)
+        rewrite()
     }
 
     override fun onStart() {
@@ -83,50 +62,63 @@ class RewriteActivity : Activity() {
         super.onDestroy()
     }
 
-    private fun rewrite(how: Judge.Rewrite) {
-        job?.cancel()
-        result.removeAllViews()
-        rewrite = null
-        meaning = null
-        slop = null
-        job = scope.launch {
+    /** One version on show: its text, meaning check and verdict lines. */
+    private class Shown(val text: String, val check: TextView, val verdict: TextView)
+
+    /** Shows each version as it lands, then checks each one's meaning and phrasing. */
+    private fun rewrite() = scope.launch {
+        val shown = mutableListOf<Shown>()
+        var waiting: View? = sheet.body.add(placeholder(), bottom = 10f)
+        val voice = Voice.rules(this@RewriteActivity)
+        val got = try {
+            OwnvoiceService.engine.ensureReady({ sheet.note.text = it })
             sheet.note.text = "Writing…"
-            val waiting = result.add(placeholder())
-            val text = try {
-                Judge.clean(OwnvoiceService.engine.ask(Judge.rewritePrompt(original, how.ask), 256))
-            } catch (e: PlainError) {
-                result.removeView(waiting)
-                sheet.note.text = e.message
-                return@launch
+            Judge.rewrite(OwnvoiceService.engine, original, "", Voice.guide(voice, post = false)) { v, text ->
+                sheet.body.removeView(waiting)
+                shown += version(v.label, text, voice)
+                waiting = if (v.ordinal < Judge.Version.entries.size - 1) sheet.body.add(placeholder(), bottom = 10f) else null
             }
-            result.removeView(waiting)
-            if (text.isEmpty()) return@launch run { sheet.note.text = "Couldn't rewrite that. Try again." }
-            sheet.note.text = if (editable) "Replace your text with it, or copy it." else "Copy it, then paste it where you like."
-            val hits = Slop.hits(text, Voice.rules(this@RewriteActivity))
-            val card = result.add(card())
-            card.add(words(highlight(text, hits)))
-            val check = card.add(verdictLine(), top = 10f)
-            val verdict = card.add(verdictLine().apply { visibility = View.GONE }, top = 6f)
-            val buttons = card.add(actions(), top = 8f)
-            if (editable) buttons.addView(filled("Replace") { replace(text) })
-            buttons.addView(if (editable) ghost("Copy") { copy(text) } else filled("Copy") { copy(text) })
-            if (editable) result.add(text("If the app doesn't take it, it's copied too. Just paste.", Type.BODY).apply { setPadding(px(8), 0, px(8), 0) }, top = 12f)
-            rewrite = text
+        } catch (e: PlainError) {
+            sheet.body.removeView(waiting)
+            sheet.note.text = e.message
+            return@launch
+        }
+        sheet.body.removeView(waiting)
+        if (got.isEmpty()) return@launch run { sheet.note.text = "Couldn't rewrite that. Try again." }
+        sheet.note.text = if (editable) "Replace your text with one, or copy it." else "Copy one, then paste it where you like."
+        if (editable) sheet.body.add(text("If the app doesn't take it, it's copied too. Just paste.", Type.BODY).apply { setPadding(px(8), 0, px(8), 0) }, top = 2f)
+        meanings.clear()
+        slops.clear()
+        repeat(shown.size) { meanings += null; slops += null }
+        versions = shown.map { it.text }
+        shown.forEachIndexed { i, one ->
             val answer = try {
-                OwnvoiceService.engine.ask(Judge.rewriteCheckPrompt(original, text), 80)
+                OwnvoiceService.engine.ask(Judge.rewriteCheckPrompt(original, one.text), 80)
             } catch (e: PlainError) {
                 Log.w(OwnvoiceService.TAG, "rewrite check failed: ${e.message}")
                 null
             }
             val lines = answer?.let(Judge::parse).orEmpty()
-            val scores = Judge.Scores(hits, Judge.number(lines["GENERIC"]), Judge.number(lines["SPECIFICITY"]), emptyList(), emptyList(), false)
-            val m = Judge.meaning(original, text, answer)
-            check.showMeaning(m, same = "Same meaning as yours")
-            verdict.visibility = View.VISIBLE
-            verdict.showVerdict(Judge.verdict(scores))
-            slop = scores
-            meaning = m
+            val scores = Judge.Scores(Slop.hits(one.text, voice), Judge.number(lines["GENERIC"]), Judge.number(lines["SPECIFICITY"]), emptyList(), emptyList(), false)
+            val m = Judge.meaning(original, one.text, answer)
+            one.check.showMeaning(m, same = "Same meaning as yours")
+            one.verdict.visibility = View.VISIBLE
+            one.verdict.showVerdict(Judge.verdict(scores))
+            slops[i] = scores
+            meanings[i] = m
         }
+    }
+
+    private fun version(label: String, text: String, voice: Voice.Rules): Shown {
+        val card = sheet.body.add(card(), bottom = 10f)
+        card.add(label(label), bottom = 6f)
+        card.add(words(highlight(text, Slop.hits(text, voice))))
+        val check = card.add(verdictLine(), top = 10f)
+        val verdict = card.add(verdictLine().apply { visibility = View.GONE }, top = 6f)
+        val buttons = card.add(actions(), top = 8f)
+        if (editable) buttons.addView(filled("Replace") { replace(text) })
+        buttons.addView(if (editable) ghost("Copy") { copy(text) } else filled("Copy") { copy(text) })
+        return Shown(text, check, verdict)
     }
 
     /**

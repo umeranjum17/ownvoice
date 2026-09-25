@@ -17,8 +17,8 @@ interface DraftEngine {
     /** Two or three varied reply drafts for what is on screen, following the user's rules in [guide] (may be empty). */
     suspend fun drafts(conversation: String, guide: String, status: (String) -> Unit): List<String>
 
-    /** One steady answer (temperature 0) to [prompt], for judging and rewriting. */
-    suspend fun ask(prompt: String, maxTokens: Int): String
+    /** One steady answer (temperature 0) to [prompt], for judging and rewriting; [partial] gets the answer so far as it is written. */
+    suspend fun ask(prompt: String, maxTokens: Int, partial: ((String) -> Unit)? = null): String
 
     /** Makes sure the model is on the phone, reporting any download through [status] and [progress] (0 to 1). */
     suspend fun ensureReady(status: (String) -> Unit, progress: (Float) -> Unit = {}) {}
@@ -51,14 +51,22 @@ object Nano : DraftEngine {
         return drafts.take(3)
     }
 
-    override suspend fun ask(prompt: String, maxTokens: Int): String {
+    override suspend fun ask(prompt: String, maxTokens: Int, partial: ((String) -> Unit)?): String {
         ensureReady({})
         val request = generateContentRequest(TextPart(prompt)) {
             temperature = 0f
             topK = 1
             maxOutputTokens = maxTokens
         }
-        return plain { model.generateContent(request) }.candidates.firstOrNull()?.text?.trim().orEmpty()
+        if (partial == null) return plain { model.generateContent(request) }.candidates.firstOrNull()?.text?.trim().orEmpty()
+        val answer = StringBuilder()
+        plain {
+            model.generateContentStream(request).collect { chunk ->
+                answer.append(chunk.candidates.firstOrNull()?.text.orEmpty())
+                partial(answer.toString())
+            }
+        }
+        return answer.toString().trim()
     }
 
     /** Checks the model and, if needed, downloads it while reporting progress. */

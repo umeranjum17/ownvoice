@@ -38,7 +38,7 @@ class PlainWordsTest {
         for (answer in listOf("MEANING: pass", "MEANING: concern - drops the date"))
             Judge.meaning("See you at 5", "See you then", answer)?.let { shown += listOf(it.name, it.reason) }
         Judge.meaning("See you then", "See you at 4", null)?.let { shown += listOf(it.name, it.reason) }
-        shown += Judge.Rewrite.entries.map { it.label } + Judge.Boost.entries.map { it.label }
+        shown += Judge.Version.entries.map { it.label }
         assertPlain(shown)
     }
 

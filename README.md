@@ -20,13 +20,21 @@ The same on-device model (Gemini Nano) writes and judges the drafts, and models 
 
 ## Compose boost
 
-Write your post, comment or message first, then tap the bubble. **Polish your message** shows your text with its sentence and its stock phrases highlighted. Below it are three versions of what you wrote: **Shorter**, **More like you**, and **Start with a detail**. Each version has a meaning check: "Same meaning", or "Check this: it leaves out “4”" when the version adds or drops a number, or when the model thinks it changes a claim. **Use this** replaces the text in the field with that version; **Copy** copies it.
+Write your post, comment or message first, then tap the bubble. **Polish your message** shows your text with its sentence and its stock phrases highlighted. Below it, each version of what you wrote shows as soon as it's written:
+
+- **Cleaned up**: spelling, grammar and punctuation fixed and stock phrases cut, nothing else changed.
+- **Shorter**: the same points in fewer words.
+- **Main point first**: a reply opens with the answer; a new post opens with its most concrete detail.
+
+Each version has a meaning check: "Same meaning", or "Check this: it leaves out “4”" when the version adds or drops a number, or when the model thinks it changes a claim. **Use this** replaces the text in the field with that version; **Copy** copies it.
+
+All three come from one request (`Judge.rewritePrompt`) that asks for `{"versions":[…]}` JSON with the screen as context only. The rules: keep every fact, number, name and promise and add none, keep the writer's casing and voice, and cut template phrasing ("excited to announce", "not just X, it's Y", flattery openers, hashtag lists, em dashes). `Judge.versions` reads the JSON as it streams in, so each version shows as soon as its text is complete. Any version the answer doesn't give (not JSON, or cut short) comes from its own request with the same wording (`Judge.versionPrompt`). In a blind comparison on 15 made-up rewrites, with a larger model writing, this prompt beat the earlier one-style-per-request prompts in 27 of 30 judgments; the earlier prompts often gave the text back unchanged or kept its stock phrases.
 
 Ownvoice never writes a post for you from nothing. If the field is empty and there's nothing on screen to reply to, it asks you to write a line or two first. If the field is empty and a conversation is on screen, it drafts replies as before.
 
 ## Rewrite selected text
 
-Select text in any app, open the selection menu (in Chrome it's under ⋮), and choose **Ownvoice**. Or share text to Ownvoice. Pick **Shorter**, **Simpler** or **Fix spelling**. You see the rewrite with "Same meaning as yours" or a "Check this" warning, and its sentence. **Replace** puts it back into the field if the app allows editing; **Copy** copies it. This needs no accessibility permission.
+Select text in any app, open the selection menu (in Chrome it's under ⋮), and choose **Ownvoice**. Or share text to Ownvoice. The same three versions as compose boost show as they're written (**Cleaned up**, **Shorter**, **Main point first**), each with "Same meaning as yours" or a "Check this" warning, and its sentence. **Replace** puts one back into the field if the app allows editing; **Copy** copies it. This needs no accessibility permission.
 
 Replace also copies the rewrite. Chrome drops the page's selection as soon as another screen opens, so it may ignore the rewrite or insert it at the cursor. Then paste it.
 
@@ -79,7 +87,7 @@ Gemini Nano through ML Kit needs a supported phone (for example recent Pixel, Sa
 
 ## Test
 
-The setup steps and the installed-app list (`OnboardingTest`), the phrase rules, the parsing of the judge's answers and the one-sentence verdict, the per-app defaults, the 30-day log, the voice profile import and never-say matching, and the plain-words check (`PlainWordsTest`, which checks the error messages, check names, verdicts, marked-phrase reasons, read log, the offered app names and string resources for model names, "/100", "judge", "slop", "nano", "AICore", "characters" and similar) have plain JVM unit tests:
+The setup steps and the installed-app list (`OnboardingTest`), the phrase rules, the parsing of the judge's answers and the one-sentence verdict, the rewrite prompt, its JSON reader and its fallback (`RewriteTest`), the per-app defaults, the 30-day log, the voice profile import and never-say matching, and the plain-words check (`PlainWordsTest`, which checks the error messages, check names, verdicts, marked-phrase reasons, read log, the offered app names and string resources for model names, "/100", "judge", "slop", "nano", "AICore", "characters" and similar) have plain JVM unit tests:
 
 ```sh
 ./gradlew :app:testDebugUnitTest
@@ -87,7 +95,7 @@ The setup steps and the installed-app list (`OnboardingTest`), the phrase rules,
 
 `FirstRunTest` runs the whole first run on a device or emulator with a stand-in for the model: welcome, the permission (the test flips the switch the user would), setup coming back to the front by itself, the practice chat ending in an inserted draft in 4 taps, and "Where should I help?" offering only installed apps. It checks every text setup shows for technical words, and puts the phone's own Ownvoice settings back afterwards.
 
-`InsertFlowTest` runs on a real device or emulator. It swaps in a stub engine, so it doesn't need the model. It opens Ownvoice's own test screen (in the debug build only) and taps through bubble → drafts panel → Insert. It checks that a multi-line draft lands exactly in a native `EditText`, a web `textarea` and a web `contenteditable`, and that the one-sentence verdict fills in after the drafts show, with "Why?" giving the reasons in plain words. It checks compose boost too: your own text is scored, three versions follow with meaning checks, and Insert replaces your text with a multi-line version in a native field and a web `textarea`. It checks the privacy controls: with the app switched off or Ownvoice paused, the bubble hides and a tap reads and logs nothing; a tap is logged with what it did and no message text, and Wipe everything clears the log. It checks Your voice: an imported never-say phrase is highlighted in a draft, and the draft reads "Doesn't sound like you". It also covers the rewrite screen: Replace returns the rewrite, and a rewrite with a new number gets a warning. The test turns Ownvoice's accessibility service on by itself, and switches the bubble on for Ownvoice's own screens while it runs.
+`InsertFlowTest` runs on a real device or emulator. It swaps in a stub engine, so it doesn't need the model. It opens Ownvoice's own test screen (in the debug build only) and taps through bubble → drafts panel → Insert. It checks that a multi-line draft lands exactly in a native `EditText`, a web `textarea` and a web `contenteditable`, and that the one-sentence verdict fills in after the drafts show, with "Why?" giving the reasons in plain words. It checks compose boost too: your own text is scored, three versions follow with meaning checks, and Insert replaces your text with a multi-line version in a native field and a web `textarea`. It checks the privacy controls: with the app switched off or Ownvoice paused, the bubble hides and a tap reads and logs nothing; a tap is logged with what it did and no message text, and Wipe everything clears the log. It checks Your voice: an imported never-say phrase is highlighted in a draft, and the draft reads "Doesn't sound like you". It also covers the rewrite screen: three versions show, Replace returns the chosen one, and a version with a new number gets a warning. The test turns Ownvoice's accessibility service on by itself, and switches the bubble on for Ownvoice's own screens while it runs.
 
 ```sh
 ./gradlew :app:assembleDebug :app:assembleDebugAndroidTest
@@ -97,6 +105,13 @@ adb shell am instrument -w dev.ownvoice.app.test/androidx.test.runner.AndroidJUn
 ```
 
 `./gradlew connectedDebugAndroidTest` works too, but it uninstalls the app afterwards.
+
+`PhoneRewriteRun` runs 15 made-up rewrites through the phone's own model and records how often its one request answers in the JSON shape. It's skipped unless asked for and the model is ready, so it needs a supported phone:
+
+```sh
+adb shell am instrument -w -e rewrites 1 -e class dev.ownvoice.app.PhoneRewriteRun dev.ownvoice.app.test/androidx.test.runner.AndroidJUnitRunner
+adb shell run-as dev.ownvoice.app cat files/rewrite-run.jsonl
+```
 
 To try Ownvoice by hand on the debug build's test screen, switch Ownvoice on in its own app list, then run `adb shell am start -n dev.ownvoice.app/.TestScreenActivity`.
 

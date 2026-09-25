@@ -128,17 +128,11 @@ object Judge {
         return Scores(hits, number(lines["GENERIC"]), number(lines["SPECIFICITY"]), quality, reach, message)
     }
 
-    enum class Rewrite(val label: String, val ask: String) {
-        TIGHTEN("Shorter", "Make it shorter and tighter. Cut filler, keep every point"),
-        PLAINER("Simpler", "Say it in plainer, simpler words"),
-        GRAMMAR("Fix spelling", "Fix only spelling, grammar and punctuation. Change nothing else"),
-    }
-
-    /** Compose boost: improved versions of what the user wrote in the field. */
-    enum class Boost(val label: String, val ask: String) {
-        TIGHTER("Shorter", "Make it tighter: cut filler and repeated words, keep every point"),
-        PLAINER("More like you", "Use plainer, everyday words, the way the writer talks, and keep their casing, slang and quirks"),
-        DETAIL("Start with a detail", "Start with the most specific, concrete detail already in the text. Don't invent details"),
+    /** The three versions of the user's own text, in the order the rewrite prompt asks for them. */
+    enum class Version(val label: String, val ask: String) {
+        LIGHT("Cleaned up", "Light touch: fix spelling, grammar and punctuation, and cut any template phrase listed below. Change nothing else; keep their casing and slang."),
+        TIGHTER("Shorter", "Tighter: the same points in fewer words, in their voice."),
+        FIRST("Main point first", "If it is a new post: open with the most concrete detail already in it. If it replies to someone: put the answer first, then the rest, reading naturally."),
     }
 
     /** What a bubble tap offers: better versions of the user's own text, replies to the screen, or neither. */
@@ -161,10 +155,90 @@ object Judge {
     // don't; misses chats of only one-to-three-word messages and scripts written without spaces.
     fun replying(written: String) = written.lines().any { it.trim().split(Regex("\\s+")).size >= 4 }
 
-    fun rewritePrompt(text: String, ask: String, guide: String = "") = buildString {
-        append("Rewrite the text below. ").append(ask).append(". Keep its meaning, facts, language and tone. ")
-        if (guide.isNotEmpty()) append("Follow the writer's rules: ").append(guide).append(' ')
-        append("Don't add anything new. Output only the rewritten text.\n\nText:\n").append(text)
+    private const val REWRITE_RULES = """Rules for every version:
+- Keep every fact, number, name, plan and promise; add none. Never add experience, results, promises, "we" or anything they didn't write. Don't answer anything they didn't answer.
+- Keep their stance and their voice: same language, same casing, no more formal than they wrote. A chat stays a chat.
+- Cut template phrasing: hype words ("game-changer", "excited to announce"), "in today's world", "not just X, it's Y" and "more than just", "I'd love to hear your thoughts", "let me know your thoughts", flattery openers ("Great post", "Great question"), hashtag lists, em dashes. If a sentence is only template, drop it."""
+
+    private fun rewriteInput(text: String, screen: String, guide: String) = buildString {
+        append("\n\nScreen (context only):\n").append(screen.takeLast(1500).ifBlank { "(none)" })
+        append("\n\nTheir text:\n").append(text)
+        if (guide.isNotEmpty()) append("\n\nTheir rules and note: ").append(guide)
+    }
+
+    /** One call for all three [Version]s of the user's own [text], as JSON; [screen] is what else is on screen, if anything. */
+    fun rewritePrompt(text: String, screen: String, guide: String = "") = buildString {
+        append("You improve a text someone wrote on their phone, before they send it. The screen is context only.\n")
+        append("Return 3 versions of THEIR text, in this order:\n")
+        Version.entries.forEachIndexed { i, v -> append(i + 1).append(". ").append(v.ask).append('\n') }
+        append(REWRITE_RULES)
+        append("\n- Each version must read naturally and be clearly different from the other two, unless the text is already fine: then version 1 may equal their text.")
+        append("\n- Follow their rules and note.\nOutput only JSON: {\"versions\":[\"...\",\"...\",\"...\"]}")
+        append(rewriteInput(text, screen, guide))
+    }
+
+    /** The same rewrite for one [Version] only, for when the model doesn't answer in JSON. */
+    fun versionPrompt(text: String, screen: String, version: Version, guide: String = "") = buildString {
+        append("You improve a text someone wrote on their phone, before they send it. The screen is context only.\n")
+        append("Return one version of THEIR text. ").append(version.ask).append('\n')
+        append(REWRITE_RULES)
+        append("\n- Follow their rules and note.\nOutput only the new version of their text.")
+        append(rewriteInput(text, screen, guide))
+    }
+
+    /**
+     * The finished strings of a {"versions":[...]} answer, even one still being written or cut short, so
+     * each can show as it lands; empty when the answer isn't that shape.
+     */
+    fun versions(answer: String): List<String> {
+        val list = Regex("\"versions\"\\s*:\\s*\\[|^\\s*(?:```\\w*\\s*)?\\[").find(answer) ?: return emptyList()
+        val out = mutableListOf<String>()
+        var i = list.range.last + 1
+        while (true) {
+            while (i < answer.length && (answer[i].isWhitespace() || answer[i] == ',')) i++
+            if (i >= answer.length || answer[i] != '"') return out
+            val s = StringBuilder()
+            i++
+            while (true) {
+                if (i >= answer.length) return out
+                val c = answer[i++]
+                if (c == '"') break
+                if (c != '\\') { s.append(c); continue }
+                if (i >= answer.length) return out
+                when (val e = answer[i++]) {
+                    'n' -> s.append('\n')
+                    't' -> s.append('\t')
+                    'r' -> {}
+                    'u' -> { if (i + 4 > answer.length) return out; s.append(answer.substring(i, i + 4).toInt(16).toChar()); i += 4 }
+                    else -> s.append(e)
+                }
+            }
+            clean(s.toString()).takeIf { it.isNotEmpty() }?.let { out += it }
+        }
+    }
+
+    /**
+     * Better versions of the user's [text]: one call for all three, each passed to [landed] as soon as the
+     * model has written it; any version that call didn't give comes from its own call.
+     */
+    suspend fun rewrite(engine: DraftEngine, text: String, screen: String, guide: String, landed: (Version, String) -> Unit): List<Pair<Version, String>> {
+        val got = mutableListOf<Pair<Version, String>>()
+        fun take(found: List<String>) = found.drop(got.size).take(Version.entries.size - got.size).forEach {
+            val v = Version.entries[got.size]
+            got += v to it
+            landed(v, it)
+        }
+        take(versions(engine.ask(rewritePrompt(text, screen, guide), 256) { take(versions(it)) }))
+        for (v in Version.entries.drop(got.size)) {
+            // Versions already on show stay if a later call fails.
+            val one = try {
+                clean(engine.ask(versionPrompt(text, screen, v, guide), 256))
+            } catch (e: PlainError) {
+                if (got.isEmpty()) throw e else break
+            }
+            if (one.isNotEmpty()) { got += v to one; landed(v, one) }
+        }
+        return got
     }
 
     fun rewriteCheckPrompt(original: String, rewrite: String) = buildString {

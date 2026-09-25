@@ -81,22 +81,23 @@ class DraftActivity : Activity() {
         }
         if (mode == Judge.Mode.EMPTY) return run { sheet.note.text = Judge.WRITE_FIRST }
         sheet.note.text = "Writing…"
-        val waiting = List(if (mode == Judge.Mode.COMPOSE) 2 else 3) { sheet.body.add(placeholder(), bottom = 10f) }
+        if (mode == Judge.Mode.COMPOSE) return compose(capture, voice, post)
+        val waiting = List(3) { sheet.body.add(placeholder(), bottom = 10f) }
         scope.launch {
             val started = SystemClock.elapsedRealtime()
             try {
-                if (mode == Judge.Mode.COMPOSE) {
-                    val versions = boost(capture.typed, Voice.guide(voice, post))
-                    drafts = versions.map { it.second }
-                    Log.i(OwnvoiceService.TAG, "boosts=${drafts.size} in ${SystemClock.elapsedRealtime() - started} ms")
-                    waiting.forEach(sheet.body::removeView)
-                    show(true, capture.conversation, capture.typed, versions.map { it.first }, voice, post)
-                } else {
-                    drafts = OwnvoiceService.engine.drafts(capture.conversation, Voice.guide(voice, post = false)) { sheet.note.text = it }
-                    Log.i(OwnvoiceService.TAG, "drafts=${drafts.size} in ${SystemClock.elapsedRealtime() - started} ms")
-                    waiting.forEach(sheet.body::removeView)
-                    show(capture.input != null, capture.conversation, null, null, voice, post)
+                val drafts = OwnvoiceService.engine.drafts(capture.conversation, Voice.guide(voice, post = false)) { sheet.note.text = it }
+                Log.i(OwnvoiceService.TAG, "drafts=${drafts.size} in ${SystemClock.elapsedRealtime() - started} ms")
+                waiting.forEach(sheet.body::removeView)
+                sheet.note.text = when {
+                    drafts.isEmpty() -> "Couldn't come up with replies this time. Try again."
+                    capture.input != null -> "Pick one to put in your message box. You send it yourself."
+                    else -> "Tap into the message box first to use Insert, or copy one."
                 }
+                val rows = drafts.map { row(null, it, compose = false, capture.input != null, voice, post) }
+                unscored(rows.size)
+                this@DraftActivity.drafts = drafts
+                score(rows, capture.conversation, null, voice, post)
             } catch (e: PlainError) {
                 Log.w(OwnvoiceService.TAG, "draft failed after ${SystemClock.elapsedRealtime() - started} ms: ${e.message}")
                 waiting.forEach(sheet.body::removeView)
@@ -105,30 +106,37 @@ class DraftActivity : Activity() {
         }
     }
 
-    /** Compose boost: each style's version of what the user wrote, as (label, text). Never a new post. */
-    private suspend fun boost(typed: String, guide: String): List<Pair<String, String>> {
-        OwnvoiceService.engine.ensureReady({ sheet.note.text = it })
-        return Judge.Boost.entries.mapNotNull { how ->
-            Judge.clean(OwnvoiceService.engine.ask(Judge.rewritePrompt(typed, how.ask, guide), 256)).takeIf { it.isNotEmpty() }?.let { how.label to it }
+    /**
+     * Compose boost: the user's own text first, then each better version of it as soon as it's written.
+     * Never a new post.
+     */
+    private fun compose(capture: OwnvoiceService.Capture, voice: Voice.Rules, post: Boolean) {
+        val typed = capture.typed
+        val rows = mutableListOf(yours(typed, voice, post))
+        var waiting: View? = sheet.body.add(placeholder(), bottom = 10f)
+        scope.launch {
+            val started = SystemClock.elapsedRealtime()
+            try {
+                OwnvoiceService.engine.ensureReady({ sheet.note.text = it })
+                sheet.note.text = "Writing…"
+                val versions = Judge.rewrite(OwnvoiceService.engine, typed, capture.conversation, Voice.guide(voice, post)) { v, text ->
+                    // The placeholder moves below each version that lands, until the last one.
+                    sheet.body.removeView(waiting)
+                    rows += row(v.label, text, compose = true, canInsert = true, voice, post)
+                    waiting = if (v.ordinal < Judge.Version.entries.size - 1) sheet.body.add(placeholder(), bottom = 10f) else null
+                }
+                sheet.body.removeView(waiting)
+                unscored(rows.size)
+                drafts = versions.map { it.second }
+                Log.i(OwnvoiceService.TAG, "versions=${drafts.size} in ${SystemClock.elapsedRealtime() - started} ms")
+                sheet.note.text = if (drafts.isEmpty()) "Couldn't polish that this time. Try again." else "Pick one to use instead of what you wrote. You send it yourself."
+                if (drafts.isNotEmpty()) score(rows, capture.conversation, typed, voice, post)
+            } catch (e: PlainError) {
+                Log.w(OwnvoiceService.TAG, "polish failed after ${SystemClock.elapsedRealtime() - started} ms: ${e.message}")
+                sheet.body.removeView(waiting)
+                sheet.note.text = e.message
+            }
         }
-    }
-
-    /** Shows the drafts, or in compose mode the user's [original] text and then its improved versions under their [labels]. */
-    private fun show(canInsert: Boolean, conversation: String, original: String?, labels: List<String>?, voice: Voice.Rules, post: Boolean) {
-        sheet.note.text = when {
-            drafts.isEmpty() && original != null -> "Couldn't polish that this time. Try again."
-            drafts.isEmpty() -> "Couldn't come up with replies this time. Try again."
-            original != null -> "Pick one to use instead of what you wrote. You send it yourself."
-            canInsert -> "Pick one to put in your message box. You send it yourself."
-            else -> "Tap into the message box first to use Insert, or copy one."
-        }
-        val rows = mutableListOf<Row>()
-        if (original != null && drafts.isNotEmpty()) rows += yours(original, voice, post)
-        drafts.forEachIndexed { i, draft -> rows += row(labels?.get(i), draft, compose = original != null, canInsert, voice, post) }
-        scores.clear()
-        meanings.clear()
-        repeat(rows.size) { scores += null; meanings += null }
-        scope.launch { score(rows, conversation, original, voice, post) }
     }
 
     /** The user's own text on a tinted card, with its highlights and verdict. */
@@ -152,6 +160,13 @@ class DraftActivity : Activity() {
         val act = if (compose) "Use this" else "Insert"
         card.add(actions(filled(act) { insert(text) }.apply { isEnabled = canInsert; alpha = if (canInsert) 1f else 0.4f }, ghost("Copy") { copy(text) }), top = 8f)
         return Row(text, shown, if (compose) null else line, why, if (compose) line else null)
+    }
+
+    /** Empties [scores] and [meanings] for [n] texts; before [drafts] is set, so the test never sees them short. */
+    private fun unscored(n: Int) {
+        scores.clear()
+        meanings.clear()
+        repeat(n) { scores += null; meanings += null }
     }
 
     /** Scores the texts one by one after they show, so scoring never delays them; versions of [original] also get a meaning check. */

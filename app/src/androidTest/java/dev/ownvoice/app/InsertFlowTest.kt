@@ -38,9 +38,11 @@ class InsertFlowTest {
         const val DRAFT = "Saturday works.\nI'll bring the stove.\n\nSee you at 9"
         /** What the user wrote before tapping the bubble, and the stub's improved versions of it. */
         const val OWN = "saturday works for me i think\nand i can bring the stove"
-        const val TIGHTER = "Saturday works.\nI'll bring the stove."
-        const val PLAINER = "saturday works for me\ni can bring the stove"
-        const val DETAIL = "The stove's coming with me at 9.\nSaturday works."
+        const val CLEANED = "saturday works for me, i think\nand i can bring the stove"
+        const val SHORTER = "Saturday works.\nI'll bring the stove."
+        const val FIRST = "The stove's coming with me at 9.\nSaturday works."
+        const val SELECTED = "i has went to the shop at 9"
+        val REWRITES = listOf("I went to the shop at 9.", "Went to the shop at 9.", "Went to the shop at 10.")
         private val instr = InstrumentationRegistry.getInstrumentation()
 
         @BeforeClass
@@ -96,16 +98,20 @@ class InsertFlowTest {
                 return drafts
             }
 
-            override suspend fun ask(prompt: String, maxTokens: Int): String {
+            override suspend fun ask(prompt: String, maxTokens: Int, partial: ((String) -> Unit)?): String {
+                if ("{\"versions\"" in prompt) {
+                    val versions = if (SELECTED in prompt) REWRITES else listOf(CLEANED, SHORTER, FIRST)
+                    val json = JSONObject().put("versions", JSONArray(versions)).toString()
+                    // The first version lands a second before the rest.
+                    partial?.invoke(json.substringBefore("\",\"") + "\",")
+                    delay(1000)
+                    return json
+                }
                 delay(1000)
                 return when {
                     prompt.startsWith("Below is the text") -> "MESSAGE"
                     prompt.startsWith("You check a reply") -> JUDGE
                     prompt.startsWith("Compare a rewrite") -> "GENERIC: 1\nSPECIFICITY: 8\nMEANING: pass - same meaning"
-                    Judge.Rewrite.GRAMMAR.ask in prompt -> "I went to the shop at 9."
-                    Judge.Boost.TIGHTER.ask in prompt -> TIGHTER
-                    Judge.Boost.PLAINER.ask in prompt -> PLAINER
-                    Judge.Boost.DETAIL.ask in prompt -> DETAIL
                     else -> "Went to the shop at 10."
                 }
             }
@@ -270,29 +276,28 @@ class InsertFlowTest {
         }
     }
 
+    /** Selected text gets three versions at once, each with its meaning check; Replace hands the chosen one back. */
     @Test
     fun rewriteReplacesEditableText() {
-        val scenario = ActivityScenario.launchActivityForResult<RewriteActivity>(processText("i has went to the shop at 9", readOnly = false))
+        val scenario = ActivityScenario.launchActivityForResult<RewriteActivity>(processText(SELECTED, readOnly = false))
         val sheet = activity(scenario)
-        tap(sheet, "Fix spelling")
-        waitUntil("meaning check") { sheet.meaning != null }
+        waitUntil("meaning checks", timeoutMs = 20_000) { sheet.meanings.size == 3 && sheet.meanings.all { it != null } }
         instr.waitForIdleSync()
-        assertEquals("I went to the shop at 9.", sheet.rewrite)
-        assertTrue(sheet.meaning!!.ok)
-        assertTrue(texts(sheet).toString(), texts(sheet).any { it.endsWith("Sounds natural") } && "Same meaning as yours" in texts(sheet))
+        assertEquals(REWRITES, sheet.versions)
+        assertEquals(listOf(true, true, false), sheet.meanings.map { it!!.ok })
+        val shown = texts(sheet)
+        assertTrue(shown.toString(), shown.containsAll(listOf("Cleaned up", "Shorter", "Main point first", "Same meaning as yours")) && shown.any { it.endsWith("Sounds natural") })
         tap(sheet, "Replace")
         assertEquals(Activity.RESULT_OK, scenario.result.resultCode)
-        assertEquals("I went to the shop at 9.", scenario.result.resultData.getStringExtra(Intent.EXTRA_PROCESS_TEXT))
+        assertEquals(REWRITES[0], scenario.result.resultData.getStringExtra(Intent.EXTRA_PROCESS_TEXT))
     }
 
     @Test
     fun rewriteWarnsOnChangedClaimAndOffersOnlyCopyWhenReadOnly() {
-        val scenario = ActivityScenario.launchActivityForResult<RewriteActivity>(processText("i has went to the shop at 9", readOnly = true))
+        val scenario = ActivityScenario.launchActivityForResult<RewriteActivity>(processText(SELECTED, readOnly = true))
         val sheet = activity(scenario)
-        tap(sheet, "Shorter")
-        waitUntil("meaning check") { sheet.meaning != null }
+        waitUntil("meaning checks", timeoutMs = 20_000) { sheet.meanings.size == 3 && sheet.meanings.all { it != null } }
         instr.waitForIdleSync()
-        assertFalse(sheet.meaning!!.ok)
         assertTrue(texts(sheet).toString(), texts(sheet).any { it.startsWith("Check this: it adds “10”") })
         assertFalse("Replace" in texts(sheet))
         tap(sheet, "Copy")
@@ -334,7 +339,7 @@ class InsertFlowTest {
     fun composeBoostReplacesNativeText() {
         instr.runOnMainSync { screen.edit.setText(OWN); screen.edit.requestFocus() }
         assertTrue("service could not verify the insert", boostAndInsert())
-        assertEquals(TIGHTER, screen.edit.text.toString())
+        assertEquals(CLEANED, screen.edit.text.toString())
     }
 
     @Test
@@ -342,18 +347,20 @@ class InsertFlowTest {
         focusWeb("ta")
         js("document.getElementById('ta').value = ${JSONObject.quote(OWN)}")
         assertTrue("service could not verify the insert", boostAndInsert())
-        assertEquals(TIGHTER, JSONArray("[${js("document.getElementById('ta').value")}]").getString(0))
+        assertEquals(CLEANED, JSONArray("[${js("document.getElementById('ta').value")}]").getString(0))
     }
 
     private fun boostAndInsert(): Boolean {
         val service = OwnvoiceService.instance!!
         waitUntil("the field's own text to show") { service.focusedField()?.text?.toString() == OWN }
         val sheet = openPanel()
+        waitUntil("the first version to land") { CLEANED in texts(sheet) }
+        assertTrue("the others are still being written", SHORTER !in texts(sheet) && "Yours" in texts(sheet))
         waitUntil("boosted versions") { sheet.drafts.isNotEmpty() }
-        assertEquals(listOf(TIGHTER, PLAINER, DETAIL), sheet.drafts)
+        assertEquals(listOf(CLEANED, SHORTER, FIRST), sheet.drafts)
         instr.waitForIdleSync()
         val shown = texts(sheet)
-        assertTrue(shown.toString(), shown.containsAll(listOf("Polish your message", "Yours", OWN, "Shorter", "More like you", "Start with a detail")))
+        assertTrue(shown.toString(), shown.containsAll(listOf("Polish your message", "Yours", OWN, "Cleaned up", "Shorter", "Main point first")))
         waitUntil("meaning checks", timeoutMs = 20_000) { sheet.meanings.last() != null }
         instr.waitForIdleSync()
         assertEquals("the user's text and each version get scores", 4, sheet.scores.count { it != null })
