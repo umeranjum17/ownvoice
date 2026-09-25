@@ -29,20 +29,46 @@ object Privacy {
     /** The reads younger than 30 days at [now]. */
     fun keep(reads: List<Read>, now: Long) = reads.filter { now - it.time < KEEP_MS }
 
-    /** Which mode ran and the character counts, never any of the text. */
-    fun summary(mode: Judge.Mode, conversation: String, typed: String): String {
+    /** What Ownvoice did and what it looked at, in plain words, never any of the text. */
+    fun summary(mode: Judge.Mode, conversation: String, typed: String) = summary(mode, conversation.isNotBlank(), typed.isNotBlank())
+
+    private fun summary(mode: Judge.Mode, screen: Boolean, typed: Boolean): String {
         val ran = when (mode) {
-            Judge.Mode.REPLY -> "Reply drafts"
-            Judge.Mode.COMPOSE -> "Compose boost"
-            Judge.Mode.EMPTY -> "Nothing to work on"
+            Judge.Mode.REPLY -> "Suggested replies"
+            Judge.Mode.COMPOSE -> "Polished your message"
+            Judge.Mode.EMPTY -> "Nothing to help with"
         }
-        return "$ran. ${conversation.length} characters on screen, ${typed.length} in your field."
+        val read = listOfNotNull("the chat on screen".takeIf { screen }, "your message".takeIf { typed })
+        return "$ran. " + if (read.isEmpty()) "Nothing was on screen." else "Read ${read.joinToString(" and ")}."
+    }
+
+    private val OLD = Regex("^(Reply drafts|Compose boost|Nothing to work on)\\. (\\d+) characters on screen, (\\d+) in your field\\.$")
+
+    /** An entry logged before summaries were plain words ("Reply drafts. 117 characters on screen, …"), as it reads now. */
+    fun plain(summary: String): String {
+        val m = OLD.find(summary) ?: return summary
+        val mode = when (m.groupValues[1]) { "Reply drafts" -> Judge.Mode.REPLY; "Compose boost" -> Judge.Mode.COMPOSE; else -> Judge.Mode.EMPTY }
+        return summary(mode, m.groupValues[2] != "0", m.groupValues[3] != "0")
     }
 
     // Writes use commit(): they are tiny, and a switch or wipe must not be lost if the process dies right after.
     private fun prefs(context: Context) = context.getSharedPreferences("privacy", Context.MODE_PRIVATE)
 
     fun paused(context: Context) = prefs(context).getBoolean("paused", false)
+
+    /** Whether the three setup steps were finished or skipped with "Not now". */
+    fun setUp(context: Context) = prefs(context).getBoolean("setUp", false)
+
+    fun setSetUp(context: Context) {
+        prefs(context).edit().putBoolean("setUp", true).commit()
+    }
+
+    /** True once: the first time the bubble shows, it says what it does. */
+    fun firstBubble(context: Context): Boolean {
+        if (prefs(context).getBoolean("bubbleTip", false)) return false
+        prefs(context).edit().putBoolean("bubbleTip", true).commit()
+        return true
+    }
 
     fun setPaused(context: Context, paused: Boolean) {
         prefs(context).edit().putBoolean("paused", paused).commit()

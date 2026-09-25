@@ -143,19 +143,32 @@ class InsertFlowTest {
         assertTrue(draftAndInsert(checkScores = true))
     }
 
-    /** Drafts show before their scores; then three separate chips fill in, each with reasons on tap. */
+    /** Drafts show before their scores; then one plain sentence fills in, and "Why?" gives the reasons in plain words. */
     private fun checkScores(sheet: DraftActivity) {
         instr.waitForIdleSync()
         assertEquals("drafts must not wait for scores", null, sheet.scores.single())
-        assertEquals(listOf("Slop: checking…", "Quality: checking…", "Reach: checking…"), chips(sheet))
+        assertTrue(texts(sheet).toString(), "Reply to Sam" in texts(sheet) && "Checking…" in texts(sheet) && "Why?" !in texts(sheet))
         waitUntil("scores") { sheet.scores.single() != null }
         instr.waitForIdleSync()
-        assertEquals(listOf("Slop: clean", "Quality: 1 flag", "Response: good"), chips(sheet))
-        tap(sheet, "Quality: 1 flag")
-        val detail = texts(sheet).single { it.startsWith("Quality checks") }
-        assertTrue(detail, "! Claims: Says they own a stove" in detail && Judge.SAME_MODEL in detail)
-        tap(sheet, "Slop: clean")
-        assertTrue(texts(sheet).any { it.startsWith("Slop: clean (10/100)") && Judge.SAME_MODEL in it })
+        assertTrue(texts(sheet).toString(), texts(sheet).any { it.endsWith("Might make something up") })
+        val link = views(sheet).first { it.text.toString() == "Why?" }
+        instr.runOnMainSync {
+            val card = link.parent.parent as View
+            val at = IntArray(2).also(link::getLocationOnScreen)
+            val box = IntArray(2).also(card::getLocationOnScreen)
+            assertTrue("Why? must show whole: ${link.width} wide, needs ${link.paint.measureText("Why?")}", link.width >= link.paint.measureText("Why?") + link.totalPaddingLeft + link.totalPaddingRight)
+            assertTrue("Why? must lie inside its card", at[0] >= box[0] && at[0] + link.width <= box[0] + card.width)
+        }
+        tap(sheet, "Why?")
+        val why = texts(sheet)
+        assertTrue(why.toString(), "Why this reply" in why && "Sounds natural" in why && "Answers Sam" in why && Judge.quickChecks("Sam") in why)
+        assertTrue(why.toString(), "Might make something up\nSays they own a stove" in why)
+        for (shown in why) assertFalse(shown, Regex("(?i)judge|slop|/100|model|characters").containsMatchIn(shown))
+        val close = ArrayList<View>()
+        instr.runOnMainSync { sheet.window.decorView.findViewsWithText(close, "Close", View.FIND_VIEWS_WITH_CONTENT_DESCRIPTION) }
+        instr.runOnMainSync { close.first { it.isShown }.performClick() }
+        instr.waitForIdleSync()
+        assertTrue("Why? note closed", "Reply to Sam" in texts(sheet))
     }
 
     /** In an app that is switched off, or while paused, the bubble hides and a tap reads nothing. */
@@ -195,14 +208,14 @@ class InsertFlowTest {
         waitUntil("drafts") { sheet.drafts.isNotEmpty() }
         val read = Privacy.reads(ctx).single()
         assertEquals(ctx.packageName, read.app)
-        assertTrue(read.summary, read.summary.startsWith("Reply drafts. ") && read.summary.endsWith(" 0 in your field."))
+        assertEquals("Suggested replies. Read the chat on screen.", read.summary)
         for (word in listOf("Sam", "Saturday", "tent")) assertFalse("message text logged", word in read.summary)
         instr.runOnMainSync { sheet.finish() }
         waitUntil("drafts panel to close") { sheet.isDestroyed }
         assertTrue(service.capture != null)
 
         val reads = instr.startActivitySync(Intent(ctx, ReadsActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) as ReadsActivity
-        assertTrue(texts(reads).any { it.endsWith(read.summary) })
+        assertTrue(texts(reads).toString(), "Suggested replies in Ownvoice" in texts(reads) && texts(reads).any { it.startsWith("Read the chat on screen · ") })
         tap(reads, "Wipe everything")
         assertEquals(emptyList<Privacy.Read>(), Privacy.reads(ctx))
         assertNull(service.capture)
@@ -237,10 +250,10 @@ class InsertFlowTest {
             assertEquals(listOf("circle the wagons"), marked)
             waitUntil("scores") { sheet.scores.single() != null }
             instr.waitForIdleSync()
-            tap(sheet, "Slop: clean")
-            assertTrue(texts(sheet).toString(), texts(sheet).any { "• “circle the wagons”: on your never-say list" in it })
-            tap(sheet, "Quality: 2 flags")
-            assertTrue(texts(sheet).toString(), texts(sheet).any { "! Sounds like you: Breaks your rules: says “circle the wagons” from your never-say list." in it })
+            assertTrue(texts(sheet).toString(), texts(sheet).any { it.endsWith("Doesn't sound like you") })
+            tap(sheet, "Why?")
+            assertTrue(texts(sheet).toString(), texts(sheet).any { "“circle the wagons”: on your never-say list" in it })
+            assertTrue(texts(sheet).toString(), "Doesn't sound like you\nBreaks your rules: says “circle the wagons” from your never-say list." in texts(sheet))
             instr.runOnMainSync { sheet.finish() }
         } finally {
             Stub.drafts = listOf(DRAFT)
@@ -252,12 +265,12 @@ class InsertFlowTest {
     fun rewriteReplacesEditableText() {
         val scenario = ActivityScenario.launchActivityForResult<RewriteActivity>(processText("i has went to the shop at 9", readOnly = false))
         val sheet = activity(scenario)
-        tap(sheet, "Fix grammar")
+        tap(sheet, "Fix spelling")
         waitUntil("meaning check") { sheet.meaning != null }
         instr.waitForIdleSync()
         assertEquals("I went to the shop at 9.", sheet.rewrite)
         assertTrue(sheet.meaning!!.ok)
-        assertTrue(texts(sheet).toString(), "Slop: clean" in texts(sheet))
+        assertTrue(texts(sheet).toString(), texts(sheet).any { it.endsWith("Sounds natural") } && "Same meaning as yours" in texts(sheet))
         tap(sheet, "Replace")
         assertEquals(Activity.RESULT_OK, scenario.result.resultCode)
         assertEquals("I went to the shop at 9.", scenario.result.resultData.getStringExtra(Intent.EXTRA_PROCESS_TEXT))
@@ -267,11 +280,11 @@ class InsertFlowTest {
     fun rewriteWarnsOnChangedClaimAndOffersOnlyCopyWhenReadOnly() {
         val scenario = ActivityScenario.launchActivityForResult<RewriteActivity>(processText("i has went to the shop at 9", readOnly = true))
         val sheet = activity(scenario)
-        tap(sheet, "Tighten")
+        tap(sheet, "Shorter")
         waitUntil("meaning check") { sheet.meaning != null }
         instr.waitForIdleSync()
         assertFalse(sheet.meaning!!.ok)
-        assertTrue(texts(sheet).any { it.startsWith("! Meaning may have changed: Adds 10") })
+        assertTrue(texts(sheet).toString(), texts(sheet).any { it.startsWith("Check this: it adds “10”") })
         assertFalse("Replace" in texts(sheet))
         tap(sheet, "Copy")
         assertEquals(Activity.RESULT_CANCELED, scenario.result.resultCode)
@@ -300,8 +313,6 @@ class InsertFlowTest {
     }
 
     private fun texts(activity: Activity) = views(activity).map { it.text.toString() }
-
-    private fun chips(sheet: DraftActivity) = texts(sheet).filter { Regex("^(Slop|Quality|Reach|Response): ").containsMatchIn(it) && "(" !in it && "\n" !in it }
 
     private fun tap(activity: Activity, label: String) {
         val view = views(activity).first { it.text.toString() == label }
@@ -333,12 +344,12 @@ class InsertFlowTest {
         assertEquals(listOf(TIGHTER, PLAINER, DETAIL), sheet.drafts)
         instr.waitForIdleSync()
         val shown = texts(sheet)
-        assertTrue(shown.toString(), shown.containsAll(listOf("Your text", OWN, "Tighter", "Plainer and more like you", "Lead with a specific detail")))
+        assertTrue(shown.toString(), shown.containsAll(listOf("Polish your message", "Yours", OWN, "Shorter", "More like you", "Start with a detail")))
         waitUntil("meaning checks", timeoutMs = 20_000) { sheet.meanings.last() != null }
         instr.waitForIdleSync()
         assertEquals("the user's text and each version get scores", 4, sheet.scores.count { it != null })
         assertEquals(listOf(null, true, true, false), sheet.meanings.map { it?.ok })
-        assertTrue(texts(sheet).toString(), "! Meaning may have changed: Adds 9 not in your text." in texts(sheet))
+        assertTrue(texts(sheet).toString(), "Check this: it adds “9”" in texts(sheet) && "Same meaning" in texts(sheet))
         return insertFirst(sheet)
     }
 
@@ -401,7 +412,8 @@ class InsertFlowTest {
         instr.runOnMainSync {
             val found = ArrayList<View>()
             sheet.window.decorView.findViewsWithText(found, "Insert", View.FIND_VIEWS_WITH_TEXT)
-            found.filterIsInstance<Button>().first { it.text == "Insert" }.performClick()
+            sheet.window.decorView.findViewsWithText(found, "Use this", View.FIND_VIEWS_WITH_TEXT)
+            found.filterIsInstance<Button>().first { it.text == "Insert" || it.text == "Use this" }.performClick()
         }
         waitUntil("insert verdict") { service.insertVerified != null }
         waitUntil("drafts panel to close") { sheet.isDestroyed }

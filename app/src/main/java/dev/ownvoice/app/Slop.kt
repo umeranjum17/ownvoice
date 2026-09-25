@@ -39,6 +39,7 @@ object Slop {
     private val TRIAD = Regex("$I$ITEM, $ITEM,? (?:and|or) $ITEM(?=[.,;:!?]|$)")
 
     private val DASH = Regex("—| – | -- ")
+    const val LONG_DASH = "long dash (—)"
 
     private val FLATTERY = Regex(
         I + "^\\s*(?:great|excellent|fantastic|brilliant|awesome|amazing|love (?:this|that|it)|what an? (?:great|fantastic|brilliant|insightful|amazing)|" +
@@ -69,20 +70,20 @@ object Slop {
         val hits = mutableListOf<Hit>()
         fun add(regex: Regex, reason: String) = regex.findAll(text).forEach { hits += Hit(it.range.first, it.range.last + 1, reason) }
         voice.never.filter { it.isNotBlank() }.forEach { add(Voice.matcher(it), Voice.NEVER_SAY) }
-        add(STOCK, "stock phrase")
-        CONTRAST.forEach { add(it, "contrast frame") }
-        add(TRIAD, "list of three")
-        add(DASH, "em dash")
-        add(FLATTERY, "flattery opener")
-        add(PREAMBLE, "meta preamble")
+        add(STOCK, "a phrase people say to anyone")
+        CONTRAST.forEach { add(it, "“not this, but that” pattern") }
+        add(TRIAD, "three things in a row")
+        add(DASH, LONG_DASH)
+        add(FLATTERY, "starts with flattery")
+        add(PREAMBLE, "starts with “Here’s a reply”")
         // Only the last sentence can be a closing call to action.
         val lastSentence = Regex("[.!?\\n]\\s+(?=\\S[^.!?\\n]*[.!?]*\\s*$)").findAll(text).lastOrNull()?.range?.last?.plus(1) ?: 0
-        CTA.find(text, lastSentence)?.let { hits += Hit(it.range.first, it.range.last + 1, "closing call to action") }
+        CTA.find(text, lastSentence)?.let { hits += Hit(it.range.first, it.range.last + 1, "ends by asking for their thoughts") }
         if (post && voice.statementEndings && text.trimEnd().endsWith('?')) hits += Hit(lastSentence, text.trimEnd().length, Voice.ENDS_ON_QUESTION)
         val tags = HASHTAG.findAll(text).toList()
-        if (tags.size >= 2) tags.forEach { hits += Hit(it.range.first, it.range.last + 1, "hashtag stuffing") }
+        if (tags.size >= 2) tags.forEach { hits += Hit(it.range.first, it.range.last + 1, "lots of hashtags") }
         val emoji = emojiRanges(text)
-        if (emoji.size >= 3) emoji.forEach { hits += Hit(it.first, it.last + 1, "emoji stuffing") }
+        if (emoji.size >= 3) emoji.forEach { hits += Hit(it.first, it.last + 1, "lots of emoji") }
         return hits.filter { it.end > it.start }.sortedBy { it.start }.distinctBy { it.start to it.reason }
     }
 
@@ -107,10 +108,13 @@ object Slop {
         return ((2 * hits + judge).coerceIn(0, 20)) * 5
     }
 
+    /** Reads as the person's own words rather than stock phrasing. */
+    fun natural(score: Int) = score < 25
+
     fun words(score: Int) = when {
-        score < 25 -> "clean"
-        score <= 55 -> "a bit generic"
-        else -> "sloppy"
+        natural(score) -> "Sounds natural"
+        score <= 55 -> "A bit stock"
+        else -> "Sounds canned"
     }
 
     /** Numbers in [rewrite] that [original] never had: a rewrite must not add facts. Swap the arguments for dropped numbers. */
