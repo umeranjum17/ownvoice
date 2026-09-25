@@ -1,0 +1,18 @@
+import {ERROR_CODES,message} from '../nano';
+import {words} from '../words';
+import {offeredApps} from '../onboarding';
+import React from 'react';
+const renderToStaticMarkup: (element:React.ReactElement)=>string = require('react-dom/server').renderToStaticMarkup;
+import Home from '../../../app/index';
+import * as Slop from '../slop';
+import * as Judge from '../judge';
+import * as Privacy from '../privacy';
+const banned=/(?:(?:gemini|gemma|\bnano\b|aicore|ml ?kit|\bllm\b|\bmodel\b|\/100|\/10\b|judge|slop|characters|\bprompt|\btokens?\b|on-device|gpt-\d|codex|openai api|responses))/i;
+const assertPlain=(shown:string[])=>{expect(shown.length).toBeGreaterThan(0);expect(shown.filter(x=>banned.test(x))).toEqual([]);};
+test('errorMessages',()=>{const msgs=[...ERROR_CODES,-1].map(message);assertPlain([...msgs,words.unsupported,words.gettingReady]);});
+test('checksAndVerdicts',()=>{const keys=['SPECIFIC','CLEAR','VOICE','FITS','CLAIMS','ANSWERS','NEXT_STEP','CONVERSATION','NOT_INTERESTED','HOOK'];const shown=[Judge.GENERAL,Judge.WRITE_FIRST,Judge.quickChecks(null),Judge.quickChecks('Sam')];for(const verdict of ['pass','concern'])for(const msg of [true,false])for(const who of [null,'Sam'])for(const generic of [0,5,10])for(const draft of ['Saturday works.','Read this https://example.com '+'x'.repeat(300),"Let's circle back — who's in?"]){const answer=`GENERIC: ${generic}\nSPECIFICITY: ${10-generic}\n`+keys.map(k=>`${k}: ${verdict}`).join('\n');const s=Judge.scoreDraft(draft,answer,msg,{never:['circle back'],noDashes:true,statementEndings:true,note:''},true,who);shown.push(...[...s.quality,...s.reach].flatMap(x=>[x.name,x.reason]),Judge.verdict(s).lead+Judge.verdict(s).rest);}for(const a of ['MEANING: pass','MEANING: concern - drops the date']){const c=Judge.meaning('See you at 5','See you then',a);if(c)shown.push(c.name,c.reason);}const c=Judge.meaning('See you then','See you at 4',null);if(c)shown.push(c.name,c.reason);shown.push('Shorter','More like you','Start with a detail','Cleaned up');assertPlain(shown);});
+test('markedPhrases',()=>{const text="Here's a reply: Great post! Let's delve in. It's not just fast, but fun — quick, simple, and fun. #one #two 😀😀😀 What do you think?";const reasons=[...Slop.hits(text,{...Slop.NO_RULES,never:['delve']},true).map(h=>h.reason),...Slop.hits('Is it on?',{...Slop.NO_RULES,statementEndings:true},true).map(h=>h.reason)];assertPlain([...new Set([...reasons,...Array.from({length:101},(_,i)=>Slop.words(i))])]);});
+test('readLog',()=>{const shown=(['REPLY','COMPOSE','EMPTY'] as Judge.Mode[]).flatMap(mode=>[['',''],['chat',''],['','hi'],['chat','hi']].map(([c,t])=>Privacy.summary(mode,c,t))).concat(['Reply drafts. 117 characters on screen, 0 in your field.','Compose boost. 0 characters on screen, 12 in your field.','Nothing to work on. 0 characters on screen, 0 in your field.'].map(Privacy.plain));assertPlain(shown);});
+test('displayedHomeCopy',()=>{const html=renderToStaticMarkup(React.createElement(Home));expect(html).toContain(words.home);assertPlain([html,...Object.values(words)]);});
+test('offeredApps',()=>{assertPlain(offeredApps(()=>true).map(x=>x[1]));});
+test('catchesATechnicalWord',()=>{for(const bad of ['Scored by the judge','Slop: clean (10/100)','The on-device model is ready (nano-v3).','117 characters on screen','Update AICore','Gemini Nano','Gemma'])expect(banned.test(bad)).toBe(true);for(const fine of ['Sounds natural and answers Sam','Getting Ownvoice ready… this happens once.','A bit stock'])expect(banned.test(fine)).toBe(false);});

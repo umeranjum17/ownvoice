@@ -4,3 +4,6 @@ local.properties
 .idea/
 *.iml
 .kotlin/
+mobile/node_modules/
+mobile/.expo/
+mobile/android/

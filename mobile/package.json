@@ -1,0 +1,7 @@
+{
+  "name":"ownvoice-mobile","version":"1.0.0","private":true,
+  "main":"expo-router/entry",
+  "scripts":{"start":"expo start","lint":"eslint .","typecheck":"tsc --noEmit","test":"jest --runInBand"},
+  "dependencies":{"expo":"~57.0.0","expo-build-properties":"~1.0.0","expo-router":"*","react":"19.3.0","react-dom":"19.3.0","react-native":"~0.86.3"},
+  "devDependencies":{"@types/jest":"^29.5.14","@typescript-eslint/parser":"^8.0.0","@types/react":"~19.3.0","eslint":"^9.0.0","jest":"^29.7.0","jest-expo":"~57.0.0","typescript":"~5.9.2"}
+}
