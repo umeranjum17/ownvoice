@@ -248,14 +248,26 @@ const run = async mode => {
   snap(tag('06-home'));
 };
 
-// Light pass, then dark: RN reads the colour scheme at process start, so force-stop after the flip.
-adb('shell', 'cmd', 'uimode', 'night', 'custom', '-o', 'off');
-adb('shell', 'cmd', 'uimode', 'night', 'no');
-await run('light');
-execFileSync('adb', ['-s', serial, 'shell', 'cmd', 'uimode', 'night', 'yes'], { stdio: 'inherit' });
-await run('dark');
-
-// Settings restored afterwards.
-adb('shell', 'cmd', 'uimode', 'night', 'no');
-disableService();
-console.log(`First-run proof saved to ${out}: setup walked in light and dark, texts plain, insert landed, service off again.`);
+const priorMode = adb('shell', 'cmd', 'uimode', 'night').trim().match(/^Night mode: (yes|no|auto|custom_schedule|custom_bedtime)$/)?.[1];
+if (!priorMode) throw new Error('Could not read the emulator night mode.');
+const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
+const priorAccessibility = adb('shell', 'settings', 'get', 'secure', 'accessibility_enabled').trim();
+try {
+  adb('shell', 'cmd', 'uimode', 'night', 'no');
+  if (!/mComputedNightMode=false/.test(adb('shell', 'dumpsys', 'uimode'))) throw new Error('Could not switch the emulator to light mode.');
+  await run('light');
+  adb('shell', 'cmd', 'uimode', 'night', 'yes');
+  if (!/mComputedNightMode=true/.test(adb('shell', 'dumpsys', 'uimode'))) throw new Error('Could not switch the emulator to dark mode.');
+  await run('dark');
+  console.log(`First-run proof saved to ${out}: setup walked in light and dark, texts plain, insert landed.`);
+} finally {
+  let failure;
+  for (const args of [
+    ['shell', 'cmd', 'uimode', 'night', priorMode],
+    ['shell', 'settings', priorServices === 'null' ? 'delete' : 'put', 'secure', 'enabled_accessibility_services', ...(priorServices === 'null' ? [] : [priorServices])],
+    ['shell', 'settings', priorAccessibility === 'null' ? 'delete' : 'put', 'secure', 'accessibility_enabled', ...(priorAccessibility === 'null' ? [] : [priorAccessibility])],
+  ]) {
+    try { adb(...args); } catch (error) { failure ??= error; }
+  }
+  if (failure) throw failure;
+}
