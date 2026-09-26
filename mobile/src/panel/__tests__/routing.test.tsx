@@ -6,6 +6,13 @@ import Native, { type Capture } from '../../../modules/ownvoice-native';
 import { words } from '../../core/words';
 import { CHATGPT_OFF } from '../../core/switch';
 import { routeWriters, type Writer } from '../../core/writers';
+import { store } from '../../core/store';
+
+jest.mock('../phoneWriter', () => ({ phoneWriter: { write: async (_request: unknown, on?: { landed?: (text: string, slot: number) => void }) => {
+  const drafts = ['Phone one', 'Phone two', 'Phone three'];
+  drafts.forEach((text, slot) => on?.landed?.(text, slot));
+  return { drafts };
+} } }));
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
@@ -29,14 +36,14 @@ const writer = (prefix: string): Writer => ({
 });
 const broken: Writer = { write: async (_request, on) => { on?.sent?.(); on?.sent?.(); throw new Error(words.chatgptFailed); } };
 
-const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'> & Partial<Omit<Parameters<typeof routeWriters>[0], 'chatgpt'>>, capture?: Partial<Capture>) => {
+const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'> & Partial<Omit<Parameters<typeof routeWriters>[0], 'chatgpt'>>, capture?: Partial<Capture>, select?: (app: string) => Promise<ReturnType<typeof routeWriters>>) => {
   native.capture.mockResolvedValue({
     conversation: 'Sam: Are we still on for Saturday?', written: 'Sam: Are we still on for Saturday?',
     nodes: [], fieldTop: null, typed: '', app: 'com.twitter.android', label: 'X', at: 0, hasField: true,
     ...capture,
   });
   const screen = await render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-    <Panel select={async () => routeWriters({ allowed: true, enabled: true, signedIn: true, phone: writer('Phone'), ...options })} />
+    <Panel select={select ?? (async () => routeWriters({ allowed: true, enabled: true, signedIn: true, phone: writer('Phone'), ...options }))} />
   </SafeAreaProvider>);
   await waitFor(() => expect(native.capture).toHaveBeenCalled());
   return screen;
@@ -72,6 +79,25 @@ test('a pending request records the send before it finishes', async () => {
   finish({ drafts: [] });
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(JSON.parse(kv.get('reads') ?? '[]')).toHaveLength(1);
+});
+
+test('a failed route selection uses the phone and leaves Writing', async () => {
+  const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => { throw new Error('switch store failed'); });
+  await waitFor(() => expect(shown(screen)).toContain('Phone one'));
+  expect(shown(screen)).toContain(words.fallback);
+  expect(loggedRead()?.summary).not.toContain('ChatGPT');
+});
+
+test.each([
+  [{ chatgpt: () => writer('ChatGPT') }, undefined, 'ChatGPT one'],
+  [{ chatgpt: () => writer('ChatGPT'), enabled: false }, undefined, 'Phone one'],
+  [{ chatgpt: () => writer('ChatGPT') }, { conversation: '', written: '' }, words.writeFirst],
+] as const)('drafting survives a failed history write', async (options, capture, expected) => {
+  const save = jest.spyOn(store, 'set').mockImplementation(() => { throw new Error('full'); });
+  try {
+    const screen = await open(options, capture);
+    await waitFor(() => expect(shown(screen)).toContain(expected));
+  } finally { save.mockRestore(); }
 });
 
 test('the off switch keeps the drafts on the phone and says which wrote them', async () => {

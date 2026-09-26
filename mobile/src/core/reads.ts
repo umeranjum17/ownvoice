@@ -7,8 +7,6 @@ const KEY = 'reads';
 
 export const readLog = (now = Date.now()): Read[] => keep(store.get<Read[]>(KEY) ?? [], now);
 
-export function logRead(read: Read, now = Date.now()): Read[] {
-  const reads = [...readLog(now), read];
-  store.set(KEY, reads);
-  return reads;
+export function logRead(read: Read, now = Date.now()): void {
+  try { store.set(KEY, [...readLog(now), read]); } catch {}
 }

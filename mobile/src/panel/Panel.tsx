@@ -7,6 +7,7 @@ import { dashesFor } from '../core/drafts';
 import { summary as readSummary } from '../core/privacy';
 import { logRead } from '../core/reads';
 import { gptRoute } from '../chatgpt/settings';
+import { phoneWriter } from './phoneWriter';
 import { guide as voiceGuide } from '../core/voice';
 import { words } from '../core/words';
 import type { Check, Scores } from '../core/judge';
@@ -125,7 +126,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     void (async () => {
       // ChatGPT writes when it is signed in and allowed here; the phone model writes otherwise, and
       // whenever ChatGPT can't. One plain line above the drafts says which happened.
-      const path: WriterRoute = writer ? { writer, note: null } : await select(value.app);
+      let path: WriterRoute;
+      try { path = writer ? { writer, note: null } : await select(value.app); }
+      catch { path = { writer: phoneWriter, note: words.fallback }; }
       if (run.current !== id) return;
       let choice;
       let sent = false;
