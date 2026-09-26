@@ -1,6 +1,6 @@
 import {
-  REPLY_SLOTS, acceptReplies, cleanDrafts, dashDecision, dashesFor, dedupe, latestMessage,
-  layoutKept, nearDuplicate, norm, phoneReplyPrompt, phoneSlotPrompt, replyPrompt, replySlotPrompt, undash, versionAcceptor,
+  REPLY_SLOTS, acceptReplies, cleanDrafts, dashDecision, dashesFor, latestMessage,
+  layoutKept, norm, phoneReplyPrompt, phoneSlotPrompt, replyPrompt, replySlotPrompt, undash, versionAcceptor,
 } from '../drafts';
 import { versionsList } from '../judge';
 
@@ -31,34 +31,21 @@ test('keeps a numbered or bulleted message intact unless explicitly labelled as 
   expect(cleanDrafts(['Version 1: “Here are three versions:”'])).toEqual([]);
 });
 
-// ---- 5.3 Near-duplicates ----
+// ---- 5.3 Duplicates ----
 
-test('norm folds agreement words, emoji and punctuation', () => {
-  expect(norm('Yep, still on for Saturday. 👍')).toBe(norm('Yeah, still on for Saturday'));
-  expect(norm('OK')).toBe('yes');
-  expect(norm('nope')).toBe('no');
-  expect(norm('Sure!')).toBe('yes');
-  expect(norm('Ya, 9 works')).toBe('yes 9 works');
-});
-
-test('the three real-phone reply drafts collapse to one', () => {
-  const qa = ['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.', 'Yeah, still on for Saturday. 👍'];
-  expect(dedupe(qa)).toHaveLength(1);
-  expect(nearDuplicate(qa[0], qa[1])).toBe(true);
-});
-
-test('the two real-phone polish cards collapse to one', () => {
-  expect(dedupe(["I'll bring the stove. You bring the tent.", "I'll bring the stove. You get the tent."])).toHaveLength(1);
-});
-
-test('yes and no stay two choices', () => {
-  expect(dedupe(['Yes, Saturday works.', "No, Saturday doesn't work for me."])).toHaveLength(2);
-  expect(nearDuplicate('Yes, Saturday works.', "No, Saturday doesn't work for me.")).toBe(false);
-  expect(nearDuplicate('Yes, Saturday works; I can bring the stove', 'No, Saturday works; I can bring the stove')).toBe(false);
-  expect(nearDuplicate('I can bring the stove', "I can't bring the stove")).toBe(false);
-  expect(nearDuplicate('I will bring the stove', "I won't bring the stove")).toBe(false);
-  expect(nearDuplicate('I can bring the stove', 'I cannot bring the stove')).toBe(false);
-  expect(acceptReplies(['I can bring the stove', "I can't bring the stove"], [], 2)).toEqual(['I can bring the stove', "I can't bring the stove"]);
+test('only exact normalized duplicates lose a slot', () => {
+  expect(norm('  YES, Saturday!  ')).toBe(norm('yes saturday'));
+  expect(norm("I can't bring it")).not.toBe(norm('I can bring it'));
+  expect(acceptReplies(['Yes, Saturday works.', 'YES Saturday works!'], [], 2)).toEqual(['Yes, Saturday works.']);
+  expect(acceptReplies(['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.'], [], 2))
+    .toEqual(['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.']);
+  expect(acceptReplies(['Yes, Saturday works; I can bring the stove', 'No, Saturday works; I can bring the stove'], [], 2)).toHaveLength(2);
+  expect(acceptReplies(['I can bring the stove', "I can't bring the stove"], [], 2)).toHaveLength(2);
+  expect(acceptReplies(['Could we meet on Saturday?', 'Could we meet on Sunday?'], [], 2)).toHaveLength(2);
+  const versions = versionAcceptor('Meet this weekend', 'remove', []);
+  expect(versions.accept('Could we meet on Saturday?', 0)).toBeTruthy();
+  expect(versions.accept('Could we meet on Sunday?', 1)).toBeTruthy();
+  expect(versions.accept('COULD WE MEET ON SATURDAY!', 2)).toBeNull();
 });
 
 test('explicit labels retain empty earlier slots through reply acceptance', () => {
@@ -70,8 +57,8 @@ test('explicit labels retain empty earlier slots through reply acceptance', () =
 
 test('acceptReplies cleans, dedupes and respects the avoid list', () => {
   const raw = ['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.', 'Not sure yet — what time works?'];
-  expect(acceptReplies(raw, [], 3)).toEqual(['Yep, still on for Saturday. 👍', null, 'Not sure yet, what time works?']);
-  expect(acceptReplies(raw, ['Yep, still on for Saturday. 👍'], 3)).toEqual([null, null, 'Not sure yet, what time works?']);
+  expect(acceptReplies(raw, [], 3)).toEqual(['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.', 'Not sure yet, what time works?']);
+  expect(acceptReplies(raw, ['Yep, still on for Saturday. 👍'], 3)).toEqual([null, 'Yeah, still on for Saturday.', 'Not sure yet, what time works?']);
   expect(acceptReplies([], [], 3)).toEqual([]);
   expect(acceptReplies(['Yep, still on for Saturday. 👍'], ['Yep, still on for Saturday. 👍'], 3)).toEqual([]);
 });
@@ -87,6 +74,9 @@ test('layoutKept: a list stays a list with the same markers', () => {
   expect(layoutKept('Bring:\n- the tent\n- the stove', 'Bring:\n- the tent\n- the stove, packed')).toBe(true);
   expect(layoutKept('Bring:\n- the tent\n- the stove', 'Bring:\n- the tent')).toBe(false);
   expect(layoutKept('Bring:\n- the tent\n- the stove', 'Bring the tent and the stove.')).toBe(false);
+  expect(layoutKept('1. First\n2. Second', '1) First\n2) Second')).toBe(false);
+  expect(layoutKept('Bring:\n- the tent\n- the stove', 'Bring:\n* the tent\n* the stove')).toBe(false);
+  expect(layoutKept('Bring:\n- the tent\n- the stove', 'Bring:\n- the tent\n- the stove\n- another')).toBe(false);
   expect(layoutKept('One line only.', 'One single line.')).toBe(true);
 });
 
@@ -148,7 +138,15 @@ test('nearest non-clickable message above the field wins over practice controls'
   const prompt = phoneReplyPrompt({ ...input, latest, conversation: 'Earlier screen. '.repeat(240) });
   expect(prompt).toContain('Latest message:\nCan you bring the stove?');
   expect(prompt).toContain('What time works?');
-  expect(latest.length).toBeLessThan(3010);
+  expect(latest).toContain('(middle shortened)');
+  expect(latest.length).toBeLessThan(1530);
+  const middle = 'a'.repeat(1100) + 'Can we meet in the middle? ' + 'b'.repeat(1100);
+  const shortened = latestMessage([{ text: middle, top: 0, bottom: 1, clickable: false }], 200);
+  expect(shortened).not.toContain('Can we meet in the middle?');
+  expect(shortened).toContain('(middle shortened)');
+  expect(phoneReplyPrompt({ ...input, latest: 'Hello', conversation: 'x'.repeat(3100) })).toContain(`Conversation:\n${'x'.repeat(3000)}`);
+  const short = 'What about Saturday? ' + 'a'.repeat(1450);
+  expect(latestMessage([{ text: short, top: 0, bottom: 1, clickable: false }], 200)).toBe(short);
   expect(replyPrompt({ ...input, latest: latestMessage(nodes.slice(2), 200) })).not.toContain('Latest message:');
 });
 
@@ -179,8 +177,8 @@ test('versionAcceptor drops a version equal to the writer text and near-duplicat
   expect(acceptor.accept('see you at 7', 1, versionsList[1].label)).toBeNull();
   const first = acceptor.accept('I can be there at 7.', 0, versionsList[0].label);
   expect(first).toBe('I can be there at 7.');
-  expect(acceptor.accept('I can be there at 7 o clock', 1, versionsList[1].label)).toBeNull();
-  expect(acceptor.results).toEqual([{ text: 'I can be there at 7.', slot: 0, label: versionsList[0].label }]);
+  expect(acceptor.accept('I can be there at 7 o clock', 1, versionsList[1].label)).toBe('I can be there at 7 o clock');
+  expect(acceptor.results).toEqual([{ text: 'I can be there at 7.', slot: 0, label: versionsList[0].label }, { text: 'I can be there at 7 o clock', slot: 1, label: versionsList[1].label }]);
 });
 
 test('versionAcceptor queues a flattened list for one fix, then drops it', () => {

@@ -57,9 +57,9 @@ test('the Sam message reaches the phone model as Latest message above Conversati
   expect(landed.every(([text]) => text.includes('stove'))).toBe(true);
 });
 
-test('near-duplicate replies are dropped and their slots refilled with the shown texts off-limits', async () => {
+test('exact duplicate replies are dropped and their slots refilled with the shown texts off-limits', async () => {
   native.drafts.mockResolvedValue([
-    'Draft 1: Yep, still on for Saturday. 👍\nDraft 2: Yeah, still on for Saturday.\nDraft 3: Yeah, still on for Saturday. 👍',
+    'Draft 1: Yep, still on for Saturday. 👍\nDraft 2: YEP still on for Saturday!\nDraft 3: Yep, still on for Saturday. 👍',
   ]);
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
     if (prompt.includes('Give a different answer')) return 'Honestly, Saturday is packed — could we push to Sunday?';
@@ -81,7 +81,7 @@ test('near-duplicate replies are dropped and their slots refilled with the shown
 });
 
 test('a rejected middle reply refills the decline slot without shifting the unsure slot', async () => {
-  native.drafts.mockResolvedValue(['Draft 1: Yes, Saturday works; I can bring the stove.\nDraft 2: Yeah, Saturday works; I can bring the stove.\nDraft 3: Not sure yet, what time?']);
+  native.drafts.mockResolvedValue(['Draft 1: Yes, Saturday works; I can bring the stove.\nDraft 2: YES Saturday works I can bring the stove!\nDraft 3: Not sure yet, what time?']);
   native.ask.mockResolvedValue('No, Saturday works; I can bring the stove.');
   const landed: number[] = [];
   const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });

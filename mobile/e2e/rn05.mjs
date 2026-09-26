@@ -1,7 +1,7 @@
 // OWNVOICE-RN-05 emulator evidence driver (adapted from e2e/driver.mjs helpers).
 // Emulator-only: refuses any serial that is not emulator-*. Never touches a phone.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 
 const serial = process.env.ANDROID_SERIAL;
 if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (phones are refused).');
@@ -85,7 +85,7 @@ const tapTextOrNull = async (label, state = '') => {
 };
 const tapText = async (label, state = '') => {
   const at = await tapTextOrNull(label, state);
-  if (!at) execFileSync('bash', ['-c', `adb -s ${serial} exec-out screencap -p > '/tmp/miss-${label.replace(/\W/g, '_')}.png'`]);
+  if (!at) writeFileSync(`${out}/miss-${label.replace(/\W/g, '_')}.png`, execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 }));
   if (!at) throw new Error(`Could not find visible ${label} ${state}`);
   return at;
 };

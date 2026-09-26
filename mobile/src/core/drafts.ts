@@ -58,61 +58,26 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
   return drafts;
 }
 
-// ---- 5.3 Near-duplicates ----
+// ---- 5.3 Duplicates ----
 
-const YES = /^(?:yep|yeah|yes|yup|ya|sure|ok|okay)$/;
-const NO = /^(?:nope|nah)$/;
-
-/** Lowercased, emoji- and punctuation-free, agreement words folded, single-spaced. */
 export function norm(text: string): string {
-  return text.toLowerCase()
-    .replace(/\p{Extended_Pictographic}/gu, ' ')
-    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
-    .split(/\s+/)
-    .map(word => (YES.test(word) ? 'yes' : NO.test(word) ? 'no' : word))
-    .filter(Boolean)
-    .join(' ');
+  return text.toLowerCase().replace(/’/g, "'").replace(/[^\p{L}\p{N}'\s]/gu, ' ').replace(/\s+/g, ' ').trim();
 }
 
-/** Two texts say the same thing when their norm is equal, or their word sets overlap by 60%+ (Jaccard). */
-export function nearDuplicate(a: string, b: string): boolean {
-  const na = norm(a), nb = norm(b);
-  if (na === nb) return true;
-  const stance = (value: string) => /^(?:yes|no|not|never|maybe|unsure|perhaps|possibly)$/.exec(value.split(' ')[0])?.[0];
-  if (stance(na) !== stance(nb) && (stance(na) || stance(nb))) return false;
-  const negated = (value: string) => /\b(?:no|not|never|cannot|can't|won't|don't|doesn't|didn't|isn't|aren't|wasn't|weren't|couldn't|wouldn't|shouldn't)\b/.test(value.toLowerCase().replace(/[’]/g, "'"));
-  if (negated(a) !== negated(b)) return false;
-  const wa = new Set(na.split(' ')), wb = new Set(nb.split(' '));
-  if (!wa.size || !wb.size) return false;
-  let shared = 0;
-  for (const word of wa) if (wb.has(word)) shared++;
-  return shared / (wa.size + wb.size - shared) >= 0.6;
-}
-
-/** Keeps the first of every near-duplicate run, in order. */
-export function dedupe(drafts: string[]): string[] {
-  return drafts.filter((draft, i) => !drafts.some((other, j) => j < i && nearDuplicate(other, draft)));
-}
-
-/** True when nothing already shown says the same thing (or too close to it). */
-export const fresh = (draft: string, shown: string[]): boolean => !shown.some(other => nearDuplicate(other, draft));
+export const fresh = (draft: string, shown: string[]): boolean => !shown.some(other => norm(other) === norm(draft));
 
 // ---- 5.2 Keep the writer's formatting ----
 
-const markerStyles = (text: string) => ({ numbered: /^\s*\d+[.)]/m.test(text), bulleted: /^\s*[-*•]/m.test(text) });
 const nonEmptyLines = (text: string) => text.split(/\r?\n/).filter(line => line.trim()).length;
+const listMarkers = (text: string) => text.split(/\r?\n/).flatMap(line => {
+  const marker = line.match(/^\s*(\d+[.)]|[-*•])\s+/)?.[1];
+  return marker ? [marker] : [];
+});
 
-/** A version keeps the writer's layout when it has at least as many non-empty lines minus one, and every list-marker style they used. */
 export function layoutKept(original: string, version: string): boolean {
-  if (!original.includes('\n')) return true;
-  const had = markerStyles(original), has = markerStyles(version);
-  const items = (text: string, pattern: RegExp) => text.split(/\r?\n/).map(line => line.match(pattern)?.[1]).filter(Boolean);
-  const numbers = items(original, /^\s*(\d+)[.)]\s/);
-  const bullets = items(original, /^\s*([-*•])\s/);
-  return nonEmptyLines(version) >= nonEmptyLines(original) - (numbers.length || bullets.length ? 0 : 1)
-    && (!had.numbered || has.numbered) && (!had.bulleted || has.bulleted)
-    && numbers.every(number => items(version, /^\s*(\d+)[.)]\s/).includes(number))
-    && items(version, /^\s*[-*•]\s/).length >= bullets.length;
+  const had = listMarkers(original), has = listMarkers(version);
+  return had.length === has.length && had.every((marker, i) => marker === has[i])
+    && (!original.includes('\n') || nonEmptyLines(version) >= nonEmptyLines(original) - 1);
 }
 
 // ---- 5.4 The dash rule: the writer's text and their own switch win ----
@@ -143,11 +108,12 @@ export function latestMessage(nodes?: ScreenText[], fieldTop?: number): string {
   if (fieldTop == null) return '';
   const text = (nodes ?? []).filter(node => !node.clickable && node.bottom <= fieldTop && node.text.trim())
     .sort((a, b) => b.bottom - a.bottom)[0]?.text.trim() ?? '';
-  return text.length > 3000 ? `${text.slice(0, 1500)}\n…\n${text.slice(-1500)}` : text;
+  return text.length > 1500 ? `${text.slice(0, 1000)}\n(middle shortened)\n${text.slice(-500)}` : text;
 }
 
 export type ReplyInput = { latest: string; conversation: string; guide?: string; dashes: 'keep' | 'remove'; avoid?: string[] };
 
+// ponytail: conversation keeps only its last 3000 characters; revisit if long-thread context is needed.
 const inputBlock = ({ latest, conversation }: { latest: string; conversation: string }) =>
   `${latest ? `Latest message:\n${latest}\n\n` : ''}Conversation:\n${conversation.slice(-3000)}`;
 
@@ -241,7 +207,7 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   return accepted;
 }
 
-// ---- 5.2 Acceptance for polish versions: layout kept, nothing equal to the writer's text, no near-duplicates ----
+// ---- 5.2 Acceptance for polish versions: layout kept, nothing equal to the writer's text, no duplicates ----
 
 export type AcceptedVersion = { text: string; slot: number; label?: string };
 
