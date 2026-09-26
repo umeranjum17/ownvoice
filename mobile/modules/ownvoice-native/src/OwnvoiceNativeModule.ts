@@ -7,7 +7,7 @@ export type TapFact = { at: number; app: string; label: string; screen: boolean;
 export type ModelStatus = 'available' | 'downloadable' | 'downloading' | 'unavailable';
 type Events = {
   onServiceChange: (event: { state: ServiceState }) => void;
-  onInserted: (event: { ok: boolean; newlinesLost: boolean }) => void;
+  onInserted: (event: { ok: boolean; newlinesLost: boolean; practice: boolean }) => void;
   onModelProgress: (event: { fraction: number }) => void;
   onModelPartial: (event: { id: string; text: string }) => void;
 };

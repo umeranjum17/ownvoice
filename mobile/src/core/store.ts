@@ -12,9 +12,7 @@ export const store = {
     }
   },
   set(name: string, value: unknown): void {
-    try {
-      if (value == null) Storage.removeItemSync(name);
-      else Storage.setItemSync(name, JSON.stringify(value));
-    } catch {}
+    if (value == null) Storage.removeItemSync(name);
+    else Storage.setItemSync(name, JSON.stringify(value));
   },
 };

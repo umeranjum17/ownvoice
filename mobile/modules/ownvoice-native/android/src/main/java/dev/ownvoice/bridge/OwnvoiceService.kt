@@ -45,7 +45,7 @@ class OwnvoiceService : AccessibilityService() {
     /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. Never saved. */
     @Volatile var practice = false
     @Volatile var panelIsOpen = false
-    @Volatile var onInserted: ((Boolean, Boolean) -> Unit)? = null
+    @Volatile var onInserted: ((Boolean, Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
     private val facts = mutableListOf<TapFact>()
     private const val TIP = "Tap for reply ideas, or to polish what you wrote."
@@ -61,6 +61,7 @@ class OwnvoiceService : AccessibilityService() {
   private lateinit var params: WindowManager.LayoutParams
   private var capture: Capture? = null
   private var inserting = false
+  private var insertingPractice = false
   private var pendingInsert: (() -> Unit)? = null
   private var resting = true
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
@@ -198,12 +199,13 @@ class OwnvoiceService : AccessibilityService() {
     if (inserting) {
       getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
       say("Couldn't insert. Copied, paste it.")
-      onInserted?.invoke(false, false)
+      onInserted?.invoke(false, false, false)
       return done(false, false)
     }
     inserting = true
     pendingInsert = { finishInsert(text, false, false, done) }
     val reading = captured()
+    insertingPractice = reading?.app == packageName && reading?.input?.contentDescription?.toString() == "Practice message"
     val field = reading?.input ?: return finishInsert(text, false, false, done)
     val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
     fun attempt(left: Int) {
@@ -231,7 +233,8 @@ class OwnvoiceService : AccessibilityService() {
     forget()
     inserting = false
     pendingInsert = null
-    onInserted?.invoke(ok, newlinesLost)
+    onInserted?.invoke(ok, newlinesLost, ok && insertingPractice)
+    insertingPractice = false
     done(ok, newlinesLost)
   }
 

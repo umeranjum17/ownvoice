@@ -17,7 +17,7 @@ class OwnvoiceNativeModule : Module() {
     Name("OwnvoiceNative")
     Events("onServiceChange", "onInserted", "onModelProgress", "onModelPartial")
     OnCreate {
-      OwnvoiceService.onInserted = { ok, newlinesLost -> sendEvent("onInserted", mapOf("ok" to ok, "newlinesLost" to newlinesLost)) }
+      OwnvoiceService.onInserted = { ok, newlinesLost, practice -> sendEvent("onInserted", mapOf("ok" to ok, "newlinesLost" to newlinesLost, "practice" to practice)) }
       OwnvoiceService.onServiceChange = { state -> sendEvent("onServiceChange", mapOf("state" to state)) }
     }
     OnDestroy { OwnvoiceService.onInserted = null; OwnvoiceService.onServiceChange = null }
@@ -92,7 +92,7 @@ class OwnvoiceNativeModule : Module() {
       PanelActivity.current?.finish()
       if (service == null) {
         context.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
-        sendEvent("onInserted", mapOf("ok" to false, "newlinesLost" to false))
+        sendEvent("onInserted", mapOf("ok" to false, "newlinesLost" to false, "practice" to false))
         return@AsyncFunction promise.resolve(mapOf("ok" to false, "newlinesLost" to false))
       }
       service.insert(text) { ok, newlinesLost -> promise.resolve(mapOf("ok" to ok, "newlinesLost" to newlinesLost)) }

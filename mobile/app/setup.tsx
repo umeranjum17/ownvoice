@@ -18,8 +18,9 @@ type Saved = { step: Step; inserted: boolean };
 type Offered = { app: string; name: string; icon: string | null };
 
 const readSaved = (): Saved => {
-  const saved = store.get<Saved>('setup');
-  return { step: saved?.step ?? Onboarding.first(!!store.get('setup-done')), inserted: !!saved?.inserted };
+  const done = !!store.get('setup-done');
+  const saved = done ? null : store.get<Saved>('setup');
+  return { step: saved?.step ?? Onboarding.first(done), inserted: !!saved?.inserted };
 };
 
 /** The first run: the welcome, the permission explained kindly, a practice chat that ends in a first
@@ -32,16 +33,34 @@ export default function Setup() {
   const [{ step, inserted }, setSaved] = useState<Saved>(readSaved);
   const [serviceOn, setServiceOn] = useState(false);
   const [installed, setInstalled] = useState<Offered[] | null>(null);
+  const [appsFailed, setAppsFailed] = useState(false);
+  const mounted = useRef(true);
   const [saving, setSaving] = useState(false);
   const savingRef = useRef(false);
   const [choices, setChoices] = useState<Record<string, boolean>>({});
   const [greyed, setGreyed] = useState(false);
   const [hintOn, setHintOn] = useState(false);
   // The handlers that leave the screen (Done, Back) read the step at tap time, not mount time.
-  const latest = useRef({ step, installed, choices });
-  latest.current = { step, installed, choices };
+  const latest = useRef({ step, inserted, installed, choices });
+  latest.current = { step, inserted, installed, choices };
 
-  const set = (update: (current: Saved) => Saved) => setSaved(update);
+  const set = (update: (current: Saved) => Saved) => {
+    const next = update(latest.current);
+    try {
+      store.set('setup', next);
+      latest.current.step = next.step;
+      latest.current.inserted = next.inserted;
+      setSaved(next);
+    } catch {}
+  };
+
+  const loadApps = () => {
+    setAppsFailed(false);
+    Native.launcherApps(true).then(apps => {
+      if (mounted.current) setInstalled(Onboarding.offeredApps(a => apps.some(x => x.app === a))
+        .map(([app, name]) => ({ app, name, icon: apps.find(x => x.app === app)?.icon ?? null })));
+    }).catch(() => { if (mounted.current) setAppsFailed(true); });
+  };
 
   const finish = async () => {
     if (savingRef.current) return;
@@ -59,7 +78,7 @@ export default function Setup() {
         await Native.setBubbleRules({ paused: rules.paused, on, off });
       }
       store.set('setup-done', true);
-      store.set('setup', null);
+      try { store.set('setup', null); } catch {}
       router.replace('/');
     } catch {
       setSaving(false);
@@ -68,31 +87,25 @@ export default function Setup() {
   };
 
   useEffect(() => {
-    let live = true;
+    mounted.current = true;
     // The one-time model download runs quietly behind setup (the home card reports problems later).
     Native.modelStatus().then(s => { if (s === 'downloadable') Native.downloadModel().catch(() => {}); }).catch(() => {});
-    Native.serviceState().then(s => { if (live) setServiceOn(s === 'on'); }).catch(() => {});
-    Native.launcherApps(true).then(apps => {
-      if (live) setInstalled(Onboarding.offeredApps(a => apps.some(x => x.app === a))
-        .map(([app, name]) => ({ app, name, icon: apps.find(x => x.app === app)?.icon ?? null })));
-    }).catch(() => { if (live) setInstalled([]); });
+    Native.serviceState().then(s => { if (mounted.current) setServiceOn(s === 'on'); }).catch(() => {});
+    loadApps();
     const service = Native.addListener('onServiceChange', ({ state }) => setServiceOn(state === 'on'));
     // The first draft inserted into the practice chat ends the step (B11).
-    const done = Native.addListener('onInserted', ({ ok }) => { if (ok) set(current => current.step === 'TRY' ? { ...current, inserted: true } : current); });
+    const done = Native.addListener('onInserted', ({ ok, practice }) => { if (ok && practice && latest.current.step === 'TRY') set(current => ({ ...current, inserted: true })); });
     const back = BackHandler.addEventListener('hardwareBackPress', () => { void finish(); return true; });
     return () => {
-      live = false;
+      mounted.current = false;
       service.remove(); done.remove(); back.remove();
       Native.setPractice(false).catch(() => {});
     };
   }, []);
 
-  // Where setup is now is saved, so rotation and process death come back to the same step (S7);
-  // the bubble works on the practice chat only while that step is in front (never saved, never while paused).
   useEffect(() => {
-    store.set('setup', { step, inserted });
     Native.setPractice(step === 'TRY').catch(() => {});
-  }, [step, inserted]);
+  }, [step]);
 
   // Once the service is on, the permission step has done its job and setup moves on (B10's return).
   useEffect(() => {
@@ -108,7 +121,10 @@ export default function Setup() {
 
   const advance = (from?: Step) => {
     const current = from ?? latest.current.step;
-    if ((current === 'PERMISSION' && !serviceOn || current === 'TRY') && !latest.current.installed) return;
+    if ((current === 'PERMISSION' && !serviceOn || current === 'TRY') && !latest.current.installed) {
+      if (appsFailed) loadApps();
+      return;
+    }
     const next = Onboarding.next(current, serviceOn, !!store.get('setup-done'), (latest.current.installed?.length ?? 0) > 0);
     if (next === 'DONE') void finish();
     else set(current => ({ ...current, step: next }));
@@ -194,16 +210,19 @@ export default function Setup() {
           <Row key={app}
             lead={icon ? <Image source={{ uri: `data:image/png;base64,${icon}` }} style={styles.appIcon} /> : undefined}
             title={name}
+            disabled={saving}
             end={<View pointerEvents="none"><Switch value={choices[app] ?? true} onValueChange={() => toggle(app)} /></View>}
             onPress={() => toggle(app)} />)}
       </View>
+      {appsFailed && <Button kind="text" label={words.tryAgain} onPress={loadApps} />}
+      {appsFailed && <Text style={[type.body, centre, { color: t.muted }]}>{words.appsUnavailable}</Text>}
       <View style={{ minHeight: space.xxl }} />
       <Button kind="filled" disabled={!installed || saving} label={words.done} onPress={() => { void finish(); }} />
     </View>}
   </ScrollView>;
 
   function toggle(app: string) {
-    setChoices(current => ({ ...current, [app]: !(current[app] ?? true) }));
+    if (!savingRef.current) setChoices(current => ({ ...current, [app]: !(current[app] ?? true) }));
   }
 }
 

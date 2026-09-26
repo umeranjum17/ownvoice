@@ -19,7 +19,7 @@ jest.mock('../../modules/ownvoice-native', () => ({
 
 const native = Native as jest.Mocked<typeof Native>;
 const kv = (jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>);
-const events: Record<string, (event: { state?: string; ok?: boolean; newlinesLost?: boolean }) => void> = {};
+const events: Record<string, (event: { state?: string; ok?: boolean; newlinesLost?: boolean; practice?: boolean }) => void> = {};
 // Every root must be unmounted before the next test renders, or the next render comes up empty.
 const live: Array<() => Promise<void>> = [];
 const renderSetup = async () => {
@@ -167,6 +167,8 @@ test('choicesReplaceConflictingRulesAndWaitForTheWrite', async () => {
   await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalled());
   expect(native.setBubbleRules.mock.calls[0][0]).toEqual({ paused: false, on: ['com.whatsapp'], off: ['com.google.android.gm'] });
   expect(kv.get('setup-done')).toBeUndefined();
+  await fireEvent.press(screen.getByText('Gmail'));
+  expect(native.setBubbleRules.mock.calls[0][0].off).toContain('com.google.android.gm');
   complete();
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
@@ -200,6 +202,38 @@ test('appChoicesWaitForTheInstalledList', async () => {
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
+test('launcherFailureDoesNotBecomeAnEmptyList', async () => {
+  at('APPS');
+  native.launcherApps.mockRejectedValueOnce(new Error('query failed'));
+  const screen = await renderSetup();
+  await screen.findByText(words.appsUnavailable);
+  await fireEvent.press(screen.getByText(words.done));
+  expect(kv.get('setup-done')).toBeUndefined();
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  await screen.findByText('Gmail');
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
+});
+
+test('failedSetupWriteDoesNotAdvanceOrComplete', async () => {
+  at('PERMISSION');
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const screen = await renderSetup();
+  await screen.findByText(words.permissionTitle);
+  jest.spyOn(storage, 'setItemSync').mockImplementationOnce(() => { throw new Error('disk full'); });
+  await fireEvent.press(screen.getByText(words.notNow));
+  expect(screen.getByText(words.permissionTitle)).toBeTruthy();
+  expect(kv.get('setup')).toContain('PERMISSION');
+  storage.setItemSync.mockRestore();
+  await fireEvent.press(screen.getByText(words.notNow));
+  await screen.findByText(words.appsTitle);
+  jest.spyOn(storage, 'setItemSync').mockImplementationOnce(() => { throw new Error('disk full'); });
+  await fireEvent.press(screen.getByText(words.done));
+  expect(router.replace).not.toHaveBeenCalled();
+  expect(kv.get('setup-done')).toBeUndefined();
+  storage.setItemSync.mockRestore();
+});
+
 test('practiceLetsTheBubbleWorkOnlyThereAndEndsOnInsert', async () => {
   at('TRY');
   native.serviceState.mockResolvedValue('on');
@@ -208,9 +242,10 @@ test('practiceLetsTheBubbleWorkOnlyThereAndEndsOnInsert', async () => {
   await waitFor(() => expect(native.setPractice).toHaveBeenCalledWith(true));
   expect(screen.getByText(words.practiceNote)).toBeTruthy();
   expect(screen.getByText(words.skip)).toBeTruthy();
-  events.onInserted?.({ ok: false, newlinesLost: false });
+  events.onInserted?.({ ok: false, newlinesLost: false, practice: true });
+  events.onInserted?.({ ok: true, newlinesLost: false, practice: false });
   expect(screen.queryByText(words.tryDone)).toBeNull();
-  events.onInserted?.({ ok: true, newlinesLost: false });
+  events.onInserted?.({ ok: true, newlinesLost: false, practice: true });
   expect(await screen.findByText(words.tryDone)).toBeTruthy();
   expect(screen.getByText(words.continueLabel)).toBeTruthy();
   expect(screen.queryByText(words.skip)).toBeNull();
