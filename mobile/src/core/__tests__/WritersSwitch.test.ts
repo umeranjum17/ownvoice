@@ -26,11 +26,11 @@ test('offline signing command emits a verifiable off flag', async () => {
 
 test('phone fallback reports a readable reason and preserves the primary on success', async () => {
   const req = { conversation: '', written: '', typed: '' };
-  const phone: Writer = { write: async () => ['phone draft'] };
+  const phone: Writer = { write: async () => ({ drafts: ['phone draft'] }) };
   const failed = await withPhoneFallback({ write: async () => { throw Error('secret'); } }, phone, req);
   expect(failed).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
-  expect(await withPhoneFallback({ write: async () => ['main'] }, phone, req)).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
-  expect(await withPhoneFallback({ write: async () => ['one', 'two', 'three'] }, phone, req)).toEqual({ drafts: ['one', 'two', 'three'] });
+  expect(await withPhoneFallback({ write: async () => ({ drafts: ['main'] }) }, phone, req)).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
+  expect(await withPhoneFallback({ write: async () => ({ drafts: ['one', 'two', 'three'] }) }, phone, req)).toEqual({ drafts: ['one', 'two', 'three'] });
 });
 
 test('remote switch vectors: valid, signature, app, rollback, version; failures keep last; first run is on', async () => {

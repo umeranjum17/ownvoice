@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Animated, BackHandler, Easing, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Dot } from './Dot';
@@ -14,16 +14,17 @@ type SheetProps = {
   mood?: Mood;
   onClose: () => void;
   children: ReactNode;
-  /** The second body (the Why? note). While it shows, X, Back and an outside tap return to the main body. */
+  /** The second body (the Why? note). While a cover is given, X, Back and an outside tap return to the main body. */
   cover?: Cover;
+  onCloseCover?: () => void;
 };
 
 /** The bottom sheet. Slides up, holds still for less motion, and fades out when it closes. */
-export function Sheet({ title, note, mood, onClose, children, cover }: SheetProps) {
+export function Sheet({ title, note, mood, onClose, children, cover, onCloseCover }: SheetProps) {
   const t = useTheme();
   const reduced = useReducedMotion();
   const insets = useSafeAreaInsets();
-  const [covered, setCovered] = useState(false);
+  const covered = !!cover;
   const closing = useRef(false);
   const slide = useRef(new Animated.Value(reduced === true ? 0 : 600)).current;
   const fade = useRef(new Animated.Value(1)).current;
@@ -45,21 +46,17 @@ export function Sheet({ title, note, mood, onClose, children, cover }: SheetProp
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (cover && covered) { setCovered(false); return true; }
+      if (covered) { onCloseCover?.(); return true; }
       close();
       return true;
     });
     return () => sub.remove();
-  }, [cover, covered]);
+  }, [covered]);
 
-  const tapOutside = () => {
-    if (cover && covered) setCovered(false);
-    else close();
-  };
-  const dismiss = () => (cover && covered ? setCovered(false) : close());
+  const dismiss = () => (covered ? onCloseCover?.() : close());
 
   return <View style={styles.scrim}>
-    <Pressable accessibilityLabel="Close" style={styles.outside} onPress={tapOutside} />
+    <Pressable accessibilityLabel="Close" style={styles.outside} onPress={dismiss} />
     <Animated.View accessibilityViewIsModal style={[styles.sheet, {
       backgroundColor: t.sheet, borderTopLeftRadius: shape.sheet, borderTopRightRadius: shape.sheet,
       transform: [{ translateY: slide }], opacity: fade, paddingBottom: insets.bottom + 8,
@@ -73,8 +70,7 @@ export function Sheet({ title, note, mood, onClose, children, cover }: SheetProp
         </Pressable>
       </View>
       {note && !covered ? <Text style={[type.note, { color: t.muted, marginHorizontal: space.xl, marginTop: 2, marginBottom: space.l }]}>{note}</Text> : null}
-      {cover && !covered ? <Pressable accessibilityRole="button" onPress={() => setCovered(true)} style={{ marginHorizontal: space.xl, marginBottom: space.s }}><Text style={[type.label, { color: t.primary }]}>Why?</Text></Pressable> : null}
-      <ScrollView contentContainerStyle={styles.body} stickyHeaderIndices={undefined}>
+      <ScrollView contentContainerStyle={styles.body}>
         {covered && cover ? cover.children : children}
       </ScrollView>
     </Animated.View>

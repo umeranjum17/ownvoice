@@ -1,6 +1,7 @@
 jest.mock('../accounts', () => ({ codexAuth: async () => ({ access: 'fixture-access', accountId: 'fixture-account' }) }));
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 import { chatgptWriter, streamResponses } from '../responses';
+import { words } from '../../core/words';
 
 const event = (item: object) => `data: ${JSON.stringify(item)}`;
 const body = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(controller) {
@@ -37,6 +38,46 @@ test.each([
   const originalFetch = global.fetch;
   global.fetch = fetcher(body(stream));
   try {
-    await expect(chatgptWriter.write({ conversation: '', written: 'hi', typed: '' })).rejects.toThrow('ChatGPT could not answer.');
+    await expect(chatgptWriter.write({ conversation: '', written: 'hi', typed: '' })).rejects.toThrow(words.chatgptFailed);
+  } finally { global.fetch = originalFetch; }
+});
+
+test('an http failure never shows a number', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn(async () => ({ ok: false, status: 500, body: null } as unknown as Response));
+  try {
+    await expect(chatgptWriter.write({ conversation: '', written: 'hi', typed: '' })).rejects.toThrow(words.chatgptFailed);
+    await expect(chatgptWriter.write({ conversation: '', written: 'hi', typed: '' })).rejects.toThrow(/ChatGPT didn't answer this time\./);
+  } finally { global.fetch = originalFetch; }
+});
+
+test('reply mode sends the C2 reply prompt; polish sends the rewrite prompt', async () => {
+  const originalFetch = global.fetch;
+  const bodies: string[] = [];
+  try {
+    // Replies: the reply prompt, asking for draft JSON.
+    global.fetch = jest.fn(async (_url, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body)) as { instructions: string; input: { content: { text: string }[] }[] };
+      bodies.push(`${payload.instructions}\n---\n${payload.input[0].content[0].text}`);
+      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"drafts":["Yes — on","No, Saturday is out","What time works?"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const reply = await chatgptWriter.write({ conversation: 'Sam: Are we still on for Saturday? I can bring the tent if you bring the stove.', written: 'Sam: Are we still on for Saturday? I can bring the tent if you bring the stove.', typed: '' });
+    expect(reply.drafts).toEqual(['Yes, on', 'No, Saturday is out', 'What time works?']);
+    expect(bodies.at(-1)).toContain('Return the requested reply drafts as JSON.');
+    expect(bodies.at(-1)).toContain('Latest message:');
+    expect(bodies.at(-1)).toContain('Every draft must respond to everything the latest message asks or offers');
+
+    // Polish: the rewrite prompt on the typed text.
+    global.fetch = jest.fn(async (_url, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body)) as { instructions: string; input: { content: { text: string }[] }[] };
+      bodies.push(`${payload.instructions}\n---\n${payload.input[0].content[0].text}`);
+      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b","c"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const polish = await chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: 'i can bring the stove' });
+    expect(polish.drafts).toEqual(['a', 'b', 'c']);
+    expect(bodies.at(-1)).toContain('Return the requested three rewrite versions as JSON.');
+    expect(bodies.at(-1)).toContain('Their text:\ni can bring the stove');
+    expect(bodies.at(-1)).toContain('Screen (context only):\nchat on screen');
+    expect(bodies.at(-1)).not.toContain('Latest message:');
   } finally { global.fetch = originalFetch; }
 });

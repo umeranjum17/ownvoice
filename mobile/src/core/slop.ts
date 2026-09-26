@@ -61,7 +61,9 @@ export function hits(text: string, voice: Rules = NO_RULES, post = false): Hit[]
   add(STOCK, 'a phrase people say to anyone');
   CONTRAST.forEach((re) => add(re, '“not this, but that” pattern'));
   add(TRIAD, 'three things in a row');
-  add(DASH, LONG_DASH);
+  // Deliberate change from Kotlin (spec 5.4): a long dash is only called out when the writer's
+  // no-dashes switch is on; otherwise their own dashes are theirs to keep.
+  if (voice.noDashes) add(DASH, LONG_DASH);
   add(FLATTERY, 'starts with flattery');
   add(PREAMBLE, 'starts with “Here’s a reply”');
   const all = [...text.matchAll(LAST_SENTENCE)];
