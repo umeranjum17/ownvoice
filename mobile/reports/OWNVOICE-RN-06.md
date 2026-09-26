@@ -4,7 +4,7 @@ Setup (S1–S7) on the worktree-owned `ov-rn-6` AVD (Android 16, API 36 google_a
 
 ## What ran
 
-`node e2e/first-run.mjs <release-apk> e2e/artifacts` (light pass, then dark pass with `cmd uimode night yes` + force-stop, since the app reads the colour scheme at process start):
+`node e2e/first-run.mjs <release-apk> e2e/artifacts` (forces light before the first pass, disables the twilight schedule, switches to dark for the second pass, and restores the prior mode, schedule and accessibility settings afterward; each pass clears app data and relaunches):
 
 1. **Welcome** — home redirect opens setup on a cleared install (S6); Dot waves hello; the one-time model download starts quietly (`modelStatus` → `downloadModel`, errors swallowed).
 2. **Permission** — three promises with the ported hand/lock/chat icons, the animated copy of the phone's Ownvoice switch (flips every 1.4 s), "full control" explainer, **Turn on** (deep links to accessibility settings with the row highlighted), **Not now**, **Switch greyed out?** (App info + restricted-settings help).

@@ -114,7 +114,7 @@ const findLine = async (label, tries = 10) => {
 };
 
 // The first Insert pill defeats OCR in both modes; the panel anchors it here on this emulator.
-const tapInsert = () => tap(Math.round(width * .4), Math.round(height * .48));
+const tapInsert = () => tap(Math.round(width * .28), Math.round(height * .54));
 
 const bubbleVisible = () => {
   const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
