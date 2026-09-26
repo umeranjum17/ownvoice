@@ -12,10 +12,20 @@ test('a history storage failure does not throw or erase earlier reads', () => {
   const write = jest.spyOn(store, 'set').mockImplementationOnce(() => { throw new Error('full'); });
   expect(() => logRead(next, 101)).not.toThrow();
   write.mockRestore();
-  const read = jest.spyOn(store, 'get').mockImplementationOnce(() => { throw new Error('unavailable'); });
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const read = jest.spyOn(storage, 'getItemSync').mockImplementationOnce(() => { throw new Error('unavailable'); });
   expect(() => logRead(next, 101)).not.toThrow();
   read.mockRestore();
   expect(readLog(101)).toEqual([first]);
+  logRead(next, 101);
+  expect(readLog(101)).toEqual([first, next]);
+});
+
+test('a malformed history log is not overwritten', () => {
+  kv.clear();
+  kv.set('reads', 'not JSON');
+  expect(() => logRead({ time: 100, app: 'next', label: 'Next', summary: 'Read' }, 100)).not.toThrow();
+  expect(kv.get('reads')).toBe('not JSON');
 });
 
 test('all reads within 30 days survive regardless of count', () => {
