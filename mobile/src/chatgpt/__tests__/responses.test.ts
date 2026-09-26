@@ -70,7 +70,7 @@ test('reply mode sends the C2 reply prompt; polish sends the rewrite prompt', as
       bodies.push(`${payload.instructions}\n---\n${payload.input[0].content[0].text}`);
       return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"drafts":["Yes — on","No, Saturday is out","What time works?"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
     }) as unknown as typeof fetch;
-    const reply = await chatgptWriter.write({ conversation: 'Sam: Are we still on for Saturday? I can bring the tent if you bring the stove.', written: 'Sam: Are we still on for Saturday? I can bring the tent if you bring the stove.', nodes: [{ text: 'Sam: Are we still on for Saturday? I can bring the tent if you bring the stove.', top: 10, bottom: 30, clickable: false }], fieldTop: 50, typed: '' });
+    const reply = await chatgptWriter.write({ conversation: 'Sam: Are we still on for Saturday? I can bring the tent if you bring the stove.', written: 'Sam: Are we still on for Saturday? I can bring the tent if you bring the stove.', nodes: [{ text: 'Sam: Are we still on for Saturday? I can bring the tent if you bring the stove.', left: 0, top: 10, bottom: 30, clickable: false }], fieldTop: 50, typed: '' });
     expect(reply.drafts).toEqual(['Yes, on', 'No, Saturday is out', 'What time works?']);
     expect(bodies.at(-1)).toContain('Return the requested reply drafts as JSON.');
     expect(bodies.at(-1)).toContain('Latest message:');

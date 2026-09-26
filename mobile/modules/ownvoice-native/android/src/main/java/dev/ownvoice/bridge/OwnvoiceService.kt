@@ -25,6 +25,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.TextView
+import kotlin.math.roundToInt
 
 internal fun accessibleText(text: CharSequence?, isShowingHintText: Boolean): String? =
   text?.takeUnless { isShowingHintText }?.toString()
@@ -48,7 +49,7 @@ class OwnvoiceService : AccessibilityService() {
   }
 
   data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean)
-  data class ScreenText(val text: String, val top: Int, val bottom: Int, val clickable: Boolean)
+  data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean)
   data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val nodes: List<ScreenText>, val fieldTop: Int?)
   private val main = Handler(Looper.getMainLooper())
   private val notes = Handler(Looper.getMainLooper())
@@ -147,7 +148,7 @@ class OwnvoiceService : AccessibilityService() {
     field?.getBoundsInScreen(fieldBounds)
     val typed = capturedInputText(field?.text, field?.isShowingHintText == true)
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
-    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, nodes, if (field != null) fieldBounds.top else null)
+    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null)
     synchronized(facts) { facts += TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty()) }
     if (lines.isEmpty() && field == null) return say("No text on this screen.")
     capture = reading
@@ -174,7 +175,8 @@ class OwnvoiceService : AccessibilityService() {
           written += it
           val bounds = Rect()
           node.getBoundsInScreen(bounds)
-          nodes += ScreenText(it, bounds.top, bounds.bottom, action)
+          val density = resources.displayMetrics.density
+          nodes += ScreenText(it, (bounds.left / density).roundToInt(), (bounds.top / density).roundToInt(), (bounds.bottom / density).roundToInt(), action)
         }
       }
       for (i in 0 until node.childCount) node.getChild(i)?.let { walk(it, action) }

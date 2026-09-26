@@ -61,7 +61,7 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
 // ---- 5.3 Duplicates ----
 
 export function norm(text: string): string {
-  return text.toLowerCase().replace(/’/g, "'").replace(/[^\p{L}\p{N}'\s]/gu, ' ').replace(/\s+/g, ' ').trim()
+  return text.toLowerCase().replace(/[’']/g, '').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim()
     .replace(/^(?:yep|yeah|yes|ya|yup|sure|ok|okay|sounds good)(?:\s+|$)/, '');
 }
 
@@ -105,12 +105,23 @@ export const REPLY_SLOTS = [
   'Not sure yet: a short honest reply that asks the one thing needed to decide.',
 ];
 
-export type ScreenText = { text: string; top: number; bottom: number; clickable: boolean };
+export type ScreenText = { text: string; left: number; top: number; bottom: number; clickable: boolean };
 
 export function latestMessage(nodes?: ScreenText[], fieldTop?: number): string {
   if (fieldTop == null) return '';
-  const text = (nodes ?? []).filter(node => !node.clickable && node.bottom <= fieldTop && node.text.trim())
-    .sort((a, b) => b.bottom - a.bottom)[0]?.text.trim() ?? '';
+  const candidates = (nodes ?? []).filter(node => !node.clickable && node.bottom <= fieldTop && node.text.trim())
+    .sort((a, b) => b.bottom - a.bottom);
+  const nearest = candidates[0];
+  if (!nearest) return '';
+  const lines = [nearest.text.trim()];
+  let previous = nearest;
+  for (const node of candidates.slice(1)) {
+    const gap = previous.top - node.bottom;
+    if (gap < 0 || gap > 24 || Math.abs(previous.left - node.left) > 16 || lines.join('\n').length >= 1500) break;
+    lines.unshift(node.text.trim());
+    previous = node;
+  }
+  const text = lines.join('\n');
   return text.length > 1500 ? `${text.slice(0, 1000)}\n(middle shortened)\n${text.slice(-500)}` : text;
 }
 

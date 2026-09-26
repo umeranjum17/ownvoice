@@ -10,10 +10,10 @@ const native = Native as jest.Mocked<typeof Native>;
 
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 const LIST = 'I can bring the stove.\n1. I will bring the stove.\n2. You can bring the tent.';
-const request = (over: { conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; nodes?: { text: string; top: number; bottom: number; clickable: boolean }[]; fieldTop?: number } = {}) => ({
+const request = (over: { conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; nodes?: { text: string; left: number; top: number; bottom: number; clickable: boolean }[]; fieldTop?: number } = {}) => ({
   conversation: over.conversation ?? SAM,
   written: over.written ?? SAM,
-  nodes: over.nodes ?? [{ text: over.written ?? SAM, top: 100, bottom: 180, clickable: false }],
+  nodes: over.nodes ?? [{ text: over.written ?? SAM, left: 0, top: 100, bottom: 180, clickable: false }],
   fieldTop: over.fieldTop ?? 200,
   typed: over.typed ?? '',
   dashes: over.dashes ?? ('remove' as const),
@@ -115,10 +115,10 @@ test('practice controls after the message are not sent as the latest message', a
   native.drafts.mockResolvedValue(['Draft 1: Saturday works.']);
   native.ask.mockResolvedValue('');
   await phoneWriter.write({ ...request(), conversation: 'Sam\nAre we still on for Saturday?\nI can bring the tent if you bring the stove.\nRecent activity\nClear last screen', nodes: [
-    { text: 'Sam', top: 100, bottom: 120, clickable: false },
-    { text: 'Are we still on for Saturday?\nI can bring the tent if you bring the stove.', top: 125, bottom: 170, clickable: false },
-    { text: 'Recent activity', top: 290, bottom: 310, clickable: true },
-    { text: 'Clear last screen', top: 320, bottom: 340, clickable: true },
+    { text: 'Sam', left: 10, top: 100, bottom: 120, clickable: false },
+    { text: 'Are we still on for Saturday?\nI can bring the tent if you bring the stove.', left: 30, top: 125, bottom: 170, clickable: false },
+    { text: 'Recent activity', left: 30, top: 290, bottom: 310, clickable: true },
+    { text: 'Clear last screen', left: 30, top: 320, bottom: 340, clickable: true },
   ] });
   expect(native.drafts.mock.calls[0][0]).toContain('Latest message:\nAre we still on for Saturday?\nI can bring the tent if you bring the stove.\n\nConversation:');
 });
@@ -249,16 +249,16 @@ test('polish prompts carry the avoid list', async () => {
 
 test('the prompt carries the nearest message above the field and never the controls below it', async () => {
   const nodes = [
-    { text: 'Ownvoice', top: 60, bottom: 120, clickable: false },
-    { text: 'Are we still on for Saturday?', top: 290, bottom: 340, clickable: false },
-    { text: 'I can bring the tent if you bring the stove.', top: 360, bottom: 410, clickable: false },
-    { text: 'Recent activity: 0', top: 720, bottom: 780, clickable: false },
-    { text: 'Clear last screen', top: 800, bottom: 860, clickable: false },
+    { text: 'Ownvoice', left: 10, top: 60, bottom: 120, clickable: false },
+    { text: 'Are we still on for Saturday?', left: 30, top: 290, bottom: 340, clickable: false },
+    { text: 'I can bring the tent if you bring the stove.', left: 30, top: 360, bottom: 410, clickable: false },
+    { text: 'Recent activity: 0', left: 30, top: 720, bottom: 780, clickable: false },
+    { text: 'Clear last screen', left: 30, top: 800, bottom: 860, clickable: false },
   ];
   native.drafts.mockResolvedValue(['Draft 1: Yes, and I will bring the stove.\nDraft 2: Not sure yet, what time works?\nDraft 3: Sunday is better for me and the stove.']);
   await phoneWriter.write(request({ nodes, fieldTop: 430 }));
   const prompt = native.drafts.mock.calls[0][0] as string;
-  expect(prompt).toContain('Latest message:\nI can bring the tent if you bring the stove.');
+  expect(prompt).toContain('Latest message:\nAre we still on for Saturday?\nI can bring the tent if you bring the stove.');
   expect(prompt).not.toContain('Recent activity');
   expect(prompt).not.toContain('Clear last screen');
 });

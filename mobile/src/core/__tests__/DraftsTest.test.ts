@@ -36,7 +36,12 @@ test('keeps a numbered or bulleted message intact unless explicitly labelled as 
 test('one leading agreement may repeat, but opposite answers and different days survive', () => {
   expect(norm('  YES, Saturday!  ')).toBe(norm('yes saturday'));
   expect(norm('Sounds good, Saturday!')).toBe(norm('Yep Saturday'));
+  expect(norm("I'm on")).toBe(norm('Im on'));
   expect(norm("I can't bring it")).not.toBe(norm('I can bring it'));
+  expect(acceptReplies(["Yep, I'm on", 'Yeah Im on'], [], 2)).toEqual(["Yep, I'm on"]);
+  const punctuation = versionAcceptor('Any update?', 'remove', []);
+  expect(punctuation.accept("Yep, I'm on", 0)).toBe("Yep, I'm on");
+  expect(punctuation.accept('Yeah Im on', 1)).toBeNull();
   expect(acceptReplies(['Yes, Saturday works.', 'YES Saturday works!'], [], 2)).toEqual(['Yes, Saturday works.']);
   expect(acceptReplies(['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.'], [], 2))
     .toEqual(['Yep, still on for Saturday. 👍']);
@@ -139,29 +144,29 @@ test('the reply prompt answers every point, offers no blanks, and carries the sl
 
 test('nearest non-clickable message above the field wins over practice controls', () => {
   const nodes = [
-    { text: 'Sam', top: 100, bottom: 120, clickable: false },
-    { text: 'Are we still on for Saturday?\nI can bring the tent if you bring the stove.', top: 125, bottom: 170, clickable: false },
-    { text: 'Turn on Ownvoice', top: 210, bottom: 230, clickable: true },
-    { text: 'Recent activity', top: 300, bottom: 320, clickable: true },
-    { text: 'Clear last screen', top: 330, bottom: 350, clickable: true },
+    { text: 'Sam', left: 10, top: 100, bottom: 120, clickable: false },
+    { text: 'Are we still on for Saturday?\nI can bring the tent if you bring the stove.', left: 30, top: 125, bottom: 170, clickable: false },
+    { text: 'Turn on Ownvoice', left: 30, top: 210, bottom: 230, clickable: true },
+    { text: 'Recent activity', left: 30, top: 300, bottom: 320, clickable: true },
+    { text: 'Clear last screen', left: 30, top: 330, bottom: 350, clickable: true },
   ];
   expect(latestMessage(nodes, 200)).toBe(nodes[1].text);
   expect(latestMessage(nodes.slice(2), 200)).toBe('');
-  expect(latestMessage([{ text: 'x'.repeat(400), top: 0, bottom: 1, clickable: false }], 200)).toHaveLength(400);
+  expect(latestMessage([{ text: 'x'.repeat(400), left: 0, top: 0, bottom: 1, clickable: false }], 200)).toHaveLength(400);
   const long = 'Can you bring the stove? ' + 'Earlier context. '.repeat(230) + 'What time works?';
-  const latest = latestMessage([{ text: long, top: 0, bottom: 1, clickable: false }], 200);
+  const latest = latestMessage([{ text: long, left: 0, top: 0, bottom: 1, clickable: false }], 200);
   const prompt = phoneReplyPrompt({ ...input, latest, conversation: 'Earlier screen. '.repeat(240) });
   expect(prompt).toContain('Latest message:\nCan you bring the stove?');
   expect(prompt).toContain('What time works?');
   expect(latest).toContain('(middle shortened)');
   expect(latest.length).toBeLessThan(1530);
   const middle = 'a'.repeat(1100) + 'Can we meet in the middle? ' + 'b'.repeat(1100);
-  const shortened = latestMessage([{ text: middle, top: 0, bottom: 1, clickable: false }], 200);
+  const shortened = latestMessage([{ text: middle, left: 0, top: 0, bottom: 1, clickable: false }], 200);
   expect(shortened).not.toContain('Can we meet in the middle?');
   expect(shortened).toContain('(middle shortened)');
   expect(phoneReplyPrompt({ ...input, latest: 'Hello', conversation: 'x'.repeat(3100) })).toContain(`Conversation:\n${'x'.repeat(3000)}`);
   const short = 'What about Saturday? ' + 'a'.repeat(1450);
-  expect(latestMessage([{ text: short, top: 0, bottom: 1, clickable: false }], 200)).toBe(short);
+  expect(latestMessage([{ text: short, left: 0, top: 0, bottom: 1, clickable: false }], 200)).toBe(short);
   expect(replyPrompt({ ...input, latest: latestMessage(nodes.slice(2), 200) })).not.toContain('Latest message:');
 });
 
@@ -221,26 +226,31 @@ test('acceptReplies strips a leaked dash from replies', () => {
   expect(acceptReplies(['Yes — see you'], [], 3, 'keep')).toEqual(['Yes — see you']);
 });
 
-// ---- The practice screen's layout (firstmate, run 01M3DQPNAA09QT8P78FEE8YX4H): Sam's two
-// lines above the focused field, the app's controls below; the latest message is the nearest
-// non-clickable text node fully above the field's top edge, or nothing. ----
-
 const PRACTICE_NODES = [
-  { text: 'Ownvoice', top: 60, bottom: 120, clickable: false },
-  { text: 'Your writing helper. It stays on this phone.', top: 140, bottom: 190, clickable: false },
-  { text: 'Sam', top: 230, bottom: 270, clickable: false },
-  { text: 'Are we still on for Saturday?', top: 290, bottom: 340, clickable: false },
-  { text: 'I can bring the tent if you bring the stove.', top: 360, bottom: 410, clickable: false },
-  { text: 'Turn on Ownvoice', top: 460, bottom: 540, clickable: true },
-  { text: 'Where the bubble shows', top: 560, bottom: 620, clickable: true },
-  { text: 'Pause for now', top: 640, bottom: 700, clickable: true },
-  { text: 'Recent activity: 0', top: 720, bottom: 780, clickable: false },
-  { text: 'Clear last screen', top: 800, bottom: 860, clickable: false },
+  { text: 'Ownvoice', left: 10, top: 60, bottom: 120, clickable: false },
+  { text: 'Your writing helper. It stays on this phone.', left: 10, top: 140, bottom: 190, clickable: false },
+  { text: 'Sam', left: 10, top: 230, bottom: 270, clickable: false },
+  { text: 'Are we still on for Saturday?', left: 30, top: 290, bottom: 340, clickable: false },
+  { text: 'I can bring the tent if you bring the stove.', left: 30, top: 360, bottom: 410, clickable: false },
+  { text: 'Turn on Ownvoice', left: 30, top: 460, bottom: 540, clickable: true },
+  { text: 'Where the bubble shows', left: 30, top: 560, bottom: 620, clickable: true },
+  { text: 'Pause for now', left: 30, top: 640, bottom: 700, clickable: true },
+  { text: 'Recent activity: 0', left: 30, top: 720, bottom: 780, clickable: false },
+  { text: 'Clear last screen', left: 30, top: 800, bottom: 860, clickable: false },
 ];
 const FIELD_TOP = 430;
 
-test('practice screen: the latest message is Sam\'s nearest line above the field, never the controls below it', () => {
-  expect(latestMessage(PRACTICE_NODES, FIELD_TOP)).toBe('I can bring the tent if you bring the stove.');
+test('practice screen groups Sam’s question and offer without controls', () => {
+  expect(latestMessage(PRACTICE_NODES, FIELD_TOP)).toBe('Are we still on for Saturday?\nI can bring the tent if you bring the stove.');
+});
+
+test('an earlier separate message stays outside the latest block', () => {
+  const nodes = [
+    { text: 'Can you send it today?', left: 30, top: 200, bottom: 250, clickable: false },
+    { text: 'Are we still on for Saturday?', left: 30, top: 290, bottom: 340, clickable: false },
+    { text: 'I can bring the tent if you bring the stove.', left: 30, top: 360, bottom: 410, clickable: false },
+  ];
+  expect(latestMessage(nodes, FIELD_TOP)).toBe('Are we still on for Saturday?\nI can bring the tent if you bring the stove.');
 });
 
 test('a node straddling the field top edge, a clickable row, or no field sends no latest message', () => {
