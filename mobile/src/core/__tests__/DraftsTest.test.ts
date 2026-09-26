@@ -220,3 +220,32 @@ test('acceptReplies strips a leaked dash from replies', () => {
   expect(acceptReplies(['Yes — see you'], [], 3, 'remove')).toEqual(['Yes, see you']);
   expect(acceptReplies(['Yes — see you'], [], 3, 'keep')).toEqual(['Yes — see you']);
 });
+
+// ---- The practice screen's layout (firstmate, run 01M3DQPNAA09QT8P78FEE8YX4H): Sam's two
+// lines above the focused field, the app's controls below; the latest message is the nearest
+// non-clickable text node fully above the field's top edge, or nothing. ----
+
+const PRACTICE_NODES = [
+  { text: 'Ownvoice', top: 60, bottom: 120, clickable: false },
+  { text: 'Your writing helper. It stays on this phone.', top: 140, bottom: 190, clickable: false },
+  { text: 'Sam', top: 230, bottom: 270, clickable: false },
+  { text: 'Are we still on for Saturday?', top: 290, bottom: 340, clickable: false },
+  { text: 'I can bring the tent if you bring the stove.', top: 360, bottom: 410, clickable: false },
+  { text: 'Turn on Ownvoice', top: 460, bottom: 540, clickable: true },
+  { text: 'Where the bubble shows', top: 560, bottom: 620, clickable: true },
+  { text: 'Pause for now', top: 640, bottom: 700, clickable: true },
+  { text: 'Recent activity: 0', top: 720, bottom: 780, clickable: false },
+  { text: 'Clear last screen', top: 800, bottom: 860, clickable: false },
+];
+const FIELD_TOP = 430;
+
+test('practice screen: the latest message is Sam\'s nearest line above the field, never the controls below it', () => {
+  expect(latestMessage(PRACTICE_NODES, FIELD_TOP)).toBe('I can bring the tent if you bring the stove.');
+});
+
+test('a node straddling the field top edge, a clickable row, or no field sends no latest message', () => {
+  expect(latestMessage(PRACTICE_NODES.map(n => ({ ...n, clickable: true })), FIELD_TOP)).toBe('');
+  expect(latestMessage([PRACTICE_NODES[4]], 380)).toBe(''); // the node crosses the field's top edge
+  expect(latestMessage(PRACTICE_NODES)).toBe('');
+  expect(latestMessage([], 1000)).toBe('');
+});
