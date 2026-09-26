@@ -62,7 +62,7 @@ const real: Session = {
     return { ...nothing, note: say('signIn.cancelled', { name: NAME }) };
   },
   signOut: async () => {
-    store.set(GPT_APPS_KEY, null);
+    try { store.set(GPT_APPS_KEY, null); } catch {}
     await live().signOut();
     return { ...nothing, note: say('status.signedOut', { name: NAME }) };
   },

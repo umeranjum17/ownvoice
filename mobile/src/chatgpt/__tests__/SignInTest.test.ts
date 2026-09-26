@@ -20,6 +20,21 @@ test('sign-out revokes and clears app permission', async () => {
   expect(store.get('chatgpt-apps')).toBeNull();
 });
 
+test('sign-out revokes even when clearing consent fails', async () => {
+  store.set('chatgpt-apps', { on: ['com.whatsapp'] });
+  (signOut as jest.Mock).mockClear();
+  const set = jest.spyOn(store, 'set').mockImplementationOnce(() => { throw new Error('storage unavailable'); });
+  try {
+    expect((await session.signOut()).signedIn).toBe(false);
+    expect(signOut).toHaveBeenCalledTimes(1);
+    expect(store.get('chatgpt-apps')).toEqual({ on: ['com.whatsapp'] });
+    await session.start();
+    expect(store.get('chatgpt-apps')).toBeNull();
+  } finally {
+    set.mockRestore();
+  }
+});
+
 test('starting a new sign-in clears consent from an expired account', async () => {
   store.set('chatgpt-apps', { on: ['com.whatsapp'] });
   (status as jest.Mock).mockResolvedValueOnce({ account: 'owner', name: 'ChatGPT', state: 'needs_again', words: 'Sign in again.' });
