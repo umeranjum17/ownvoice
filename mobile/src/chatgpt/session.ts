@@ -1,7 +1,9 @@
 import { say, signInError } from '@byokit/accounts';
 import type { SignIn, Status } from '@byokit/accounts';
+import { store } from '../core/store';
 
 export const NAME = 'ChatGPT';
+export const GPT_APPS_KEY = 'chatgpt-apps';
 
 export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
 const MOCK_CODE = 'KQPT-MXVD';
@@ -59,6 +61,7 @@ const real: Session = {
     return { ...nothing, note: say('signIn.cancelled', { name: NAME }) };
   },
   signOut: async () => {
+    store.set(GPT_APPS_KEY, null);
     await live().signOut();
     return { ...nothing, note: say('status.signedOut', { name: NAME }) };
   },
@@ -86,6 +89,7 @@ const mock: Session = {
   signOut: async () => {
     startedAt = 0;
     connectedAt = 0;
+    store.set(GPT_APPS_KEY, null);
     return { ...nothing, note: say('status.signedOut', { name: NAME }) };
   },
 };

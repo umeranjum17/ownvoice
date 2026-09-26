@@ -17,7 +17,6 @@ jest.mock('../accounts', () => ({
 const native = Native as jest.Mocked<typeof Native>;
 const ready = status as jest.Mock;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
-/** A switch file that never arrives: what was verified last is kept, and nothing was verified yet means on. */
 const offline = (async () => { throw new Error('no network'); }) as typeof fetch;
 
 beforeEach(() => {
@@ -27,46 +26,60 @@ beforeEach(() => {
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
 });
 
-test('only saved choices permit ChatGPT', () => {
+test('only signed-in saved choices permit ChatGPT', async () => {
   expect(gptApps()).toBeNull();
   expect(gptChoice('com.twitter.android')).toBe(false);
-  saveGptApps({ on: ['com.Slack'], off: ['com.twitter.android'] });
-  expect(gptApps()).toEqual({ on: ['com.Slack'], off: ['com.twitter.android'] });
+  ready.mockResolvedValueOnce({ account: 'owner', name: 'ChatGPT', state: 'signed_out', words: 'Signed out.' });
+  expect(await saveGptApps({ on: ['com.Slack'] })).toBe(false);
+  expect(gptApps()).toBeNull();
+  expect(await saveGptApps({ on: ['com.Slack'] })).toBe(true);
+  expect(gptApps()).toEqual({ on: ['com.Slack'] });
   expect(gptChoice('com.Slack')).toBe(true);
   expect(gptChoice('com.twitter.android')).toBe(false);
 });
 
-test('ChatGPT writes where it is signed in, allowed and not switched off', async () => {
-  expect(await gptRoute('com.twitter.android', offline)).toMatchObject({ viaChatGPT: false });
-  saveGptApps({ on: ['com.twitter.android'], off: [] });
-  const route = await gptRoute('com.twitter.android', offline);
-  expect(route).toMatchObject({ note: null, viaChatGPT: true });
+test('the switch is checked only after a signed-in app choice', async () => {
+  const fetcher = jest.fn(offline);
+  const before = await gptRoute('com.twitter.android', fetcher);
+  expect(before.note).toBeNull();
+  expect(fetcher).not.toHaveBeenCalled();
+  expect(await saveGptApps({ on: ['com.twitter.android'] })).toBe(true);
+  const route = await gptRoute('com.twitter.android', fetcher);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(route.note).toBeNull();
+  expect(route.writer).not.toBe(before.writer);
 });
 
 test('a workplace chat stays with the phone unless it is switched on', async () => {
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.Slack'], off: [] });
-  expect(await gptRoute('com.Slack', offline)).toMatchObject({ note: null, viaChatGPT: false });
-  saveGptApps({ on: ['com.Slack'], off: [] });
-  expect(await gptRoute('com.Slack', offline)).toMatchObject({ viaChatGPT: true });
+  const before = await gptRoute('com.Slack', offline);
+  expect(before.note).toBeNull();
+  await saveGptApps({ on: ['com.Slack'] });
+  expect((await gptRoute('com.Slack', offline)).writer).not.toBe(before.writer);
 });
 
-test('an app the bubble is off in never sends anything', async () => {
-  expect(await gptRoute('com.reddit.frontpage', offline)).toMatchObject({ note: null, viaChatGPT: false });
+test('an app the bubble is off in never checks the switch', async () => {
+  await saveGptApps({ on: ['com.reddit.frontpage'] });
+  const fetcher = jest.fn(offline);
+  expect((await gptRoute('com.reddit.frontpage', fetcher)).note).toBeNull();
+  expect(fetcher).not.toHaveBeenCalled();
 });
 
 test('the off switch means the phone writes, with the one plain line', async () => {
-  saveGptApps({ on: ['com.twitter.android'], off: [] });
+  await saveGptApps({ on: ['com.twitter.android'] });
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
-  expect(await gptRoute('com.twitter.android', offline)).toMatchObject({ note: CHATGPT_OFF, viaChatGPT: false });
+  expect((await gptRoute('com.twitter.android', offline)).note).toBe(CHATGPT_OFF);
 });
 
 test('a resting ChatGPT says so instead of trying to write', async () => {
-  saveGptApps({ on: ['com.twitter.android'], off: [] });
+  await saveGptApps({ on: ['com.twitter.android'] });
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' });
-  expect(await gptRoute('com.twitter.android', offline)).toMatchObject({ note: 'ChatGPT is resting until 3:40pm.', viaChatGPT: false });
+  expect((await gptRoute('com.twitter.android', offline)).note).toBe('ChatGPT is resting until 3:40pm.');
 });
 
 test('nobody signed in means no switch check and no ChatGPT', async () => {
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'signed_out', words: "ChatGPT isn't signed in yet." });
-  expect(await gptRoute('com.twitter.android', offline)).toMatchObject({ note: null, viaChatGPT: false });
+  const fetcher = jest.fn(offline);
+  expect((await gptRoute('com.twitter.android', fetcher)).note).toBeNull();
+  expect(fetcher).not.toHaveBeenCalled();
 });

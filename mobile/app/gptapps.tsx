@@ -45,8 +45,7 @@ export default function GptApps() {
     {failed ? <Button kind="text" label={words.tryAgain} onPress={load} /> : null}
     <Button kind="filled" label={words.done} disabled={!apps} onPress={() => {
       if (!apps) return;
-      saveGptApps({ on: apps.filter(({ app }) => chosen[app]).map(({ app }) => app), off: apps.filter(({ app }) => !chosen[app]).map(({ app }) => app) });
-      router.back();
+      void saveGptApps({ on: apps.filter(({ app }) => chosen[app]).map(({ app }) => app) }).then(() => router.back());
     }} />
     <Button kind="text" label={words.back} onPress={() => router.back()} />
   </View>;

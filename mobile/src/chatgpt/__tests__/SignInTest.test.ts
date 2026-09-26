@@ -1,7 +1,18 @@
-import { stateOf, nothing } from '../session';
+import { stateOf, nothing, session } from '../session';
+import { store } from '../../core/store';
+import { signOut } from '../accounts';
+
+jest.mock('../accounts', () => ({ signOut: jest.fn(async () => {}) }));
 import { words } from '../../core/words';
 
 // The sign-in states the screen shows, in byokit's own sentences (no real account is involved).
+test('sign-out revokes and clears app permission', async () => {
+  store.set('chatgpt-apps', { on: ['com.whatsapp'] });
+  await session.signOut();
+  expect(signOut).toHaveBeenCalledTimes(1);
+  expect(store.get('chatgpt-apps')).toBeNull();
+});
+
 test('nothingShowsNoState', () => {
   expect(stateOf(null, null)).toEqual(nothing);
 });

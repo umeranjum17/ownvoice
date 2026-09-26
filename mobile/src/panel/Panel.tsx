@@ -125,7 +125,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     void (async () => {
       // ChatGPT writes when it is signed in and allowed here; the phone model writes otherwise, and
       // whenever ChatGPT can't. One plain line above the drafts says which happened.
-      const path: WriterRoute = writer ? { writer, note: null, viaChatGPT: false } : await select(value.app);
+      const path: WriterRoute = writer ? { writer, note: null } : await select(value.app);
       if (run.current !== id) return;
       let choice;
       let sent = false;

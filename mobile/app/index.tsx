@@ -63,7 +63,6 @@ export default function Home() {
     <Button kind="filled" label="Turn on Ownvoice" onPress={() => { void native().openAccessibilitySettings(false).catch(() => {}); }} />
     <View style={{ borderRadius: 20, backgroundColor: t.group, overflow: 'hidden' }}>
       <Row title={words.gptButton} subtitle={words.gptNote} onPress={() => router.push('/chatgpt')} />
-      <Row title={words.gptApps} onPress={() => router.push('/gptapps')} />
       <Row title={words.readsTitle} onPress={() => router.push('/reads')} />
     </View>
     <Button kind="text" disabled={!rules} label="Where the bubble shows" onPress={() => { void native().launcherApps(null).then(setApps).catch(() => {}); }} />

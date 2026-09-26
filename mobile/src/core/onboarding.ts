@@ -5,8 +5,8 @@ export function offeredApps(installed:(packageName:string)=>boolean){return offe
 export const first=(setUp:boolean):Step=>setUp?'PERMISSION':'WELCOME';
 export function next(step:Step,on:boolean,setup:boolean,apps:boolean):Step {
  if(step==='WELCOME')return on?'TRY':'PERMISSION';
- if(step==='PERMISSION')return setup?'DONE':on?'TRY':apps?'APPS':'DONE';
- if(step==='TRY')return apps?'APPS':'DONE';
+ if(step==='PERMISSION')return setup?'DONE':on?'TRY':apps?'APPS':'CHATGPT';
+ if(step==='TRY')return apps?'APPS':'CHATGPT';
  if(step==='APPS')return 'CHATGPT';
  return 'DONE';
 }

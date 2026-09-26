@@ -5,6 +5,12 @@ import GptApps from '../gptapps';
 import { gptApps, gptChoice } from '../../src/chatgpt/settings';
 import { words } from '../../src/core/words';
 import Native from '../../modules/ownvoice-native';
+import { session } from '../../src/chatgpt/session';
+
+jest.mock('../../src/chatgpt/session', () => ({
+  mocked: false,
+  session: { current: jest.fn(async () => ({ signedIn: true })) },
+}));
 
 jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,
@@ -19,7 +25,11 @@ jest.mock('../../modules/ownvoice-native', () => ({
 }));
 
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
-beforeEach(() => { kv.clear(); jest.clearAllMocks(); });
+beforeEach(() => {
+  kv.clear();
+  jest.clearAllMocks();
+  (session.current as jest.Mock).mockResolvedValue({ signedIn: true });
+});
 
 test('choices are staged, then saved together by Done', async () => {
   const screen = await render(<GptApps />);
@@ -34,7 +44,15 @@ test('choices are staged, then saved together by Done', async () => {
   await fireEvent.press(screen.getByText('Slack'));
   expect(gptApps()).toBeNull();
   await fireEvent.press(screen.getByText(words.done));
-  expect(gptApps()).toEqual({ on: ['com.google.android.gm', 'com.Slack'], off: [] });
+  expect(gptApps()).toEqual({ on: ['com.google.android.gm', 'com.Slack'] });
   expect(gptChoice('com.Slack')).toBe(true);
   expect(router.back).toHaveBeenCalled();
+});
+
+test('Done cannot save choices before sign-in', async () => {
+  (session.current as jest.Mock).mockResolvedValue({ signedIn: false });
+  const screen = await render(<GptApps />);
+  await screen.findByText('Gmail');
+  await fireEvent.press(screen.getByText(words.done));
+  expect(gptApps()).toBeNull();
 });

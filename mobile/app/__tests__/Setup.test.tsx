@@ -162,13 +162,25 @@ test('notNowSkipsPracticeWhenAppsRemain', async () => {
   expect(screen.queryByText('Chrome')).toBeNull();
 });
 
-test('notNowWithNoOfferedAppsFinishesSetup', async () => {
+test('no offered apps still leads to optional ChatGPT setup', async () => {
   native.launcherApps.mockResolvedValue([{ app: 'com.android.chrome', label: 'Chrome', icon: null }]);
   const screen = await renderSetup();
   await fireEvent.press(await screen.findByText(words.continueLabel));
   await fireEvent.press(await screen.findByText(words.notNow));
+  expect(await screen.findByText(words.gptTitle)).toBeTruthy();
+  expect(kv.get('setup-done')).toBeUndefined();
+  await skipChatGPT(screen);
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
   expect(kv.get('setup-done')).toBe('true');
+});
+
+test('permission skip with no offered apps also leads to ChatGPT', async () => {
+  at('PERMISSION');
+  native.launcherApps.mockResolvedValue([]);
+  const screen = await renderSetup();
+  await fireEvent.press(await screen.findByText(words.notNow));
+  await skipChatGPT(screen);
+  await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
 test('appsSaveWhatTheyShowOnDone', async () => {

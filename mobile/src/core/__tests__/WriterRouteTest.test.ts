@@ -14,22 +14,22 @@ const written = async (writer: Writer) => (await writer.write(request)).drafts;
 test('the phone writes on its own when ChatGPT is not in play', async () => {
   for (const options of [{ signedIn: false, allowed: true }, { signedIn: true, allowed: false }]) {
     const route = routeWriters({ ...options, enabled: true, chatgpt, phone });
-    expect(route).toEqual({ writer: phone, note: null, viaChatGPT: false });
+    expect(route).toEqual({ writer: phone, note: null });
   }
 });
 
 test('ChatGPT is the main writer when it is signed in, allowed here and not switched off', async () => {
   const route = routeWriters({ signedIn: true, allowed: true, enabled: true, chatgpt, phone });
   expect(route.note).toBeNull();
-  expect(route.viaChatGPT).toBe(true);
+  expect(route.writer).not.toBe(phone);
   expect(await written(route.writer)).toEqual(three);
 });
 
 test('the off switch and a resting plan both hand the writing to the phone, with the reason said once', async () => {
   expect(routeWriters({ signedIn: true, allowed: true, enabled: false, chatgpt, phone }))
-    .toEqual({ writer: phone, note: CHATGPT_OFF, viaChatGPT: false });
+    .toEqual({ writer: phone, note: CHATGPT_OFF });
   const resting = routeWriters({ signedIn: true, allowed: true, enabled: true, note: 'ChatGPT is resting until 3:40pm.', chatgpt, phone });
-  expect(resting).toEqual({ writer: phone, note: 'ChatGPT is resting until 3:40pm.', viaChatGPT: false });
+  expect(resting).toEqual({ writer: phone, note: 'ChatGPT is resting until 3:40pm.' });
 });
 
 test('ChatGPT failing means the phone writes, and the panel is told why once', async () => {

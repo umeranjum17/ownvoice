@@ -1,4 +1,5 @@
 import type { GptState } from '../session';
+import { store } from '../../core/store';
 
 // The emulator-only stand-in (EXPO_PUBLIC_E2E_GPT) has to behave like the real thing on screen:
 // a code that waits, then a connected account. It never touches the network or anyone's sign-in.
@@ -22,7 +23,9 @@ test('the stand-in sign-in shows a code, waits, then is connected', async () => 
   expect(started.note).toContain('ChatGPT page');
   now.mockReturnValue(Date.now() + 10_000);
   expect(await session.current()).toMatchObject({ waiting: false, signedIn: true });
+  store.set('chatgpt-apps', { on: ['com.whatsapp'] });
   expect((await session.signOut()).signedIn).toBe(false);
+  expect(store.get('chatgpt-apps')).toBeNull();
   expect((await session.current()).signedIn).toBe(false);
 });
 
