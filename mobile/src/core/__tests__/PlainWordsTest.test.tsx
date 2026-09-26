@@ -91,7 +91,7 @@ describe('panel copy', () => {
   test('saved voice governs drafts, writer guidance and Why checks', async () => {
     const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
     kv.set('voice', JSON.stringify({ never: ['circle back'], noDashes: true, statementEndings: false, note: 'short sentences' }));
-    const write = jest.fn(async (_request: DraftRequest, on: WriterEvents) => { on.landed('Circle back — tomorrow.', 0); return { drafts: ['Circle back — tomorrow.'] }; });
+    const write = jest.fn(async (_request: DraftRequest, on: WriterEvents) => { on.landed?.('Circle back — tomorrow.', 0); return { drafts: ['Circle back — tomorrow.'] }; });
     native.modelStatus.mockResolvedValue('available');
     native.ask.mockResolvedValue('GENERIC: 1\nSPECIFICITY: 9\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: pass\nNOT_INTERESTED: pass\nHOOK: pass');
     try {
