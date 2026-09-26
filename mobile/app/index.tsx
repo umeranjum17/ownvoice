@@ -100,6 +100,8 @@ export default function Home() {
   return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={styles.page}>
     <Text style={[type.headline, { color: t.text }]}>{words.homeTitle}</Text>
     <Text style={[type.body, { color: t.text, marginBottom: space.l }]}>{words.home}</Text>
+    <Text style={[type.note, { color: t.muted }]}>{words.privacyNote}</Text>
+    <Text style={[type.note, { color: t.muted }]}>{words.switchNote}</Text>
 
     <View style={[styles.status, { backgroundColor: green ? t.primaryContainer : t.group }]}>
       <View style={styles.statusHead}>

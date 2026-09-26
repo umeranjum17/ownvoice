@@ -84,11 +84,9 @@ export const words = {
   gptAppsSignIn:'Sign in to ChatGPT again, then try Done.',
   gptSignedInNow:'ChatGPT is connected.',
   readsTitle:'What Ownvoice read',
-  readsNote:'Only the app, time and what happened are kept here. Never the message.',
   gptSignOutFailed:'Couldn’t sign out. Try again.',
   gptPageFailed:'Couldn’t open the ChatGPT page. Try the button again.',
   skip:'Skip',
-  back:'Back',
   appsTitle:'Where should I help?',
   appsNote:'The bubble shows only in these apps. You can change this any time.',
   appsUnavailable:'Couldn’t find your apps. Try again.',
@@ -152,7 +150,7 @@ export const words = {
   wipeElsewhere:'Wipe everything, under What Ownvoice read, deletes these too.',
 
   // What Ownvoice read (ReadsActivity).
-  readsNote:'Each time you tap the bubble, Ownvoice notes the app, the time and what it helped with. Never any of your text. This list stays on this phone and each entry is deleted after 30 days.',
+  readsNote:'Each time you tap the bubble, Ownvoice notes the app, the time, what it helped with and whether ChatGPT saw the screen. Never any of your text. This list stays on this phone and each entry is deleted after 30 days.',
   wipe:'Wipe everything',
   wipeVoiceNote:'Wipe everything also deletes Your voice.',
   nothingRead:'Nothing read in the last 30 days.',
