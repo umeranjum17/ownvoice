@@ -105,54 +105,16 @@ const tapText = async (label, state = '') => {
 const findLine = async (label, tries = 10) => {
   for (let attempt = 0; attempt < tries; attempt++) {
     const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
-    // Cropped bands with single-line segmentation only: the full-screen pass garbles coordinates.
-    const tops = Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75);
-    for (const top of tops) {
-      const input = execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image });
-      const tsv = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '7', 'tsv'], { input, encoding: 'utf8' });
-      const lines = new Map();
-      for (const row of tsv.split('\n').slice(1)) {
-        const columns = row.split('\t');
-        if (columns.length < 12 || !columns[11].trim()) continue;
-        const key = columns.slice(0, 5).join(':');
-        const line = lines.get(key) ?? { words: [], left: Infinity, top: Infinity, right: 0, bottom: 0 };
-        line.words.push(columns[11]);
-        line.left = Math.min(line.left, Number(columns[6]));
-        line.top = Math.min(line.top, Number(columns[7]) + top);
-        line.right = Math.max(line.right, Number(columns[6]) + Number(columns[8]));
-        line.bottom = Math.max(line.bottom, Number(columns[7]) + Number(columns[9]) + top);
-        lines.set(key, line);
-      }
-      const line = [...lines.values()].find(item => {
-        const text = item.words.join(' ').toLowerCase();
-        return (label === 'x' ? text === 'x' : text.includes(label.toLowerCase())) && item.left < width * 0.6;
-      });
-      if (line) return line;
-    }
+    const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: image, encoding: 'utf8' });
+    const word = tsv.split('\n').slice(1).map(row => row.split('\t')).find(c => c.length >= 12 && c[11].trim().toLowerCase() === label);
+    if (word) return { bottom: Number(word[7]) + Number(word[9]) };
     await wait(1000);
   }
   throw new Error(`Could not find the ${label} row.`);
 };
 
-// The Insert pill defeats OCR (white on primary); Copy beside it reads fine, and Insert sits left
-// of it with a fixed gap, so find Copy and tap the Insert pill by its known size.
-const tapInsert = async () => {
-  const copy = await (async () => {
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
-      const tops = [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)].reverse();
-      for (const top of tops) {
-        const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
-        const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input, encoding: 'utf8' });
-        const word = tsv.split('\n').slice(1).map(row => row.split('\t')).find(columns => columns.length >= 12 && columns[11].trim().toLowerCase() === 'copy');
-        if (word) return { left: Number(word[6]), top: Number(word[7]) + top, bottom: Number(word[7]) + Number(word[9]) + top };
-      }
-      await wait(1000);
-    }
-    throw new Error('Could not find the Copy button.');
-  })();
-  tap(copy.left - 215, Math.round((copy.top + copy.bottom) / 2));
-};
+// The first Insert pill defeats OCR in both modes; the panel anchors it here on this emulator.
+const tapInsert = () => tap(Math.round(width * .4), Math.round(height * .48));
 
 const bubbleVisible = () => {
   const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
@@ -193,6 +155,8 @@ const run = async mode => {
 
   // 2. Permission: promises, the animated switch hint, Turn on.
   await tapText('Continue');
+  await waitForLine('let ownvoice see');
+  adb('shell', 'input', 'swipe', String(width / 2), String(height * .8), String(width / 2), String(height * .2), '400');
   await waitForLine('full control');
   await wait(1200); // The hint switch flips every 1.4 s; give the screenshot both states a chance.
   expectPlain('permission');
@@ -211,10 +175,15 @@ const run = async mode => {
   disableService();
   await wait(1500);
   enableService();
+  await wait(1500);
+  // Reinstall/clear can leave the first bind stale; force a fresh bind before checking the tap.
+  disableService();
+  await wait(1000);
+  enableService();
   await wait(2500);
 
   // 4. Setup comes back by itself once the service connects (B10), straight at the practice step.
-  await waitForLine('Try it');
+  await waitForLine('tap the round bubble');
   await wait(800);
   expectPlain('try');
   snap(tag('03-try'));
@@ -225,7 +194,7 @@ const run = async mode => {
 
   // 5. Four taps in all: Continue, Turn on, the bubble, Insert.
   bubble();
-  await waitForLine(['suggested replies', 'reply to']); // The drafts panel over the practice chat.
+  await waitForLine('pick one to put in your message'); // The drafts panel over the practice chat.
   await wait(2500); // The drafts land before Insert can take one.
   await tapInsert();
   await wait(2500);
@@ -245,7 +214,7 @@ const run = async mode => {
   snap(tag('05-apps'));
   // Done sits a fixed step under the last app row; its pill defeats OCR.
   const row = await findLine(rows[rows.length - 1]);
-  tap(Math.round(width / 2), row.bottom + 205);
+  tap(Math.round(width / 2), row.bottom + 315);
   await wait(1500);
   await waitForLine('stays on this phone');
   snap(tag('06-home'));
