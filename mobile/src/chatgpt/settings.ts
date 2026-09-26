@@ -1,6 +1,6 @@
 import Native from '../../modules/ownvoice-native';
 import { chatgptAllowed, showsBubble } from '../core/privacy';
-import { chatgptEnabled, type SwitchState } from '../core/switch';
+import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
 import { store } from '../core/store';
 import { routeWriters, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
@@ -36,7 +36,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
       const beforeSend = async () => {
         const current = await Native.bubbleRules().catch(() => null);
         return !!current && !current.paused && chatgptAllowed(showsBubble(app, current), gptChoice(app))
-          && (mocked || await switchStore.get().then(choice => choice?.chatgpt !== 'off', () => false));
+          && (mocked || await currentSwitch(switchStore).then(choice => choice?.chatgpt !== 'off', () => false));
       };
       if (mocked) {
         if (!(await beforeSend())) throw new Error('App choice changed');

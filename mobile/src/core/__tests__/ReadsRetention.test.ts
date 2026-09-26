@@ -28,6 +28,32 @@ test('a malformed history log is not overwritten', () => {
   expect(kv.get('reads')).toBe('not JSON');
 });
 
+test('opening history deletes expired entries from storage', () => {
+  kv.clear();
+  const now = 40 * day;
+  const old = { time: now - 31 * day, app: 'old', label: 'Old', summary: 'Read' };
+  const recent = { time: now - day, app: 'new', label: 'New', summary: 'Read' };
+  store.set('reads', [old, recent]);
+  expect(readLog(now)).toEqual([recent]);
+  expect(store.get('reads')).toEqual([recent]);
+  expect(readLog(now + 31 * day)).toEqual([]);
+  expect(kv.has('reads')).toBe(false);
+});
+
+test('a failed history read never prunes or overwrites storage', () => {
+  kv.clear();
+  const old = { time: 0, app: 'old', label: 'Old', summary: 'Read' };
+  store.set('reads', [old]);
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementationOnce(() => { throw new Error('unavailable'); });
+  try {
+    expect(readLog(31 * day)).toEqual([]);
+    expect(kv.get('reads')).toBe(JSON.stringify([old]));
+  } finally { get.mockRestore(); }
+  expect(readLog(31 * day)).toEqual([]);
+  expect(kv.has('reads')).toBe(false);
+});
+
 test('all reads within 30 days survive regardless of count', () => {
   kv.clear();
   const now = 40 * day;
