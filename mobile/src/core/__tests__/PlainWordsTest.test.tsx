@@ -11,7 +11,7 @@ import * as Judge from '../judge';
 import * as Privacy from '../privacy';
 import { CHATGPT_OFF } from '../switch';
 import Native, { type Capture } from '../../../modules/ownvoice-native';
-import { act, fireEvent, render } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
@@ -66,7 +66,13 @@ test('catchesATechnicalWord', () => { for (const bad of ['Scored by the judge', 
 
 // The panel speaks in plain words in every state (spec 4.3: render it with a stub writer and scan the markup).
 describe('panel copy', () => {
-  beforeEach(() => { jest.clearAllMocks(); });
+  beforeEach(() => {
+    jest.clearAllMocks();
+    native.capture.mockReset();
+    native.ask.mockReset();
+    native.serviceState.mockReset().mockResolvedValue('on');
+    native.modelStatus.mockReset().mockResolvedValue('unavailable');
+  });
 
   test.each<[string, StubOptions, { typed?: string; written?: string; hasField?: boolean }]>([
     ['reply-ready', {}, {}],
@@ -84,35 +90,24 @@ describe('panel copy', () => {
 
   test('compose cards use post checks even before a model answer', async () => {
     const screen = await renderPanel(stubWriter(), { typed: 'Read https://example.com', written: '' });
-    expect(visibleStrings(screen)).toContain('Links can mean fewer views');
-  });
-
-  test('two rapid insert taps make one native request', async () => {
-    let settle!: (value: 'on') => void;
-    native.serviceState.mockImplementation(() => new Promise(resolve => { settle = resolve; }));
-    const screen = await renderPanel(stubWriter());
-    const button = screen.getAllByRole('button', { name: words.insert })[0];
-    fireEvent.press(button);
-    fireEvent.press(button);
-    await act(async () => { settle('on'); await Promise.resolve(); });
-    expect(native.serviceState).toHaveBeenCalledTimes(1);
-    expect(native.insert).toHaveBeenCalledTimes(1);
+    fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
+    await waitFor(() => expect(visibleStrings(screen)).toContain('Links can mean fewer views'));
   });
 
   test.each([['unclear kind', ['not sure'], 1], ['unreadable checks', ['MESSAGE', 'looks fine'], 2]] as const)('%s keeps quick checks when the model cannot answer', async (_name, answers, calls) => {
     native.modelStatus.mockResolvedValue('available');
     for (const answer of answers) native.ask.mockResolvedValueOnce(answer);
     const screen = await renderPanel(stubWriter());
-    await act(async () => { fireEvent.press(screen.getAllByRole('button', { name: words.why })[0]); await Promise.resolve(); });
-    expect(visibleStrings(screen)).toContain(words.noChecks);
+    const button = (await screen.findAllByRole('button', { name: words.why }))[0];
+    await act(async () => { fireEvent.press(button); await Promise.resolve(); });
+    await waitFor(() => expect(visibleStrings(screen)).toContain(words.noChecks));
     expect(native.ask).toHaveBeenCalledTimes(calls);
-    screen.unmount();
   });
 
   test('no capture shows only its own line', async () => {
     const screen = await renderPanel(stubWriter(), { none: true });
+    await waitFor(() => expect(JSON.stringify(screen.toJSON())).toContain(words.noCapture));
     const text = JSON.stringify(screen.toJSON());
-    expect(text).toContain(words.noCapture);
     expect(text).not.toContain(words.noField);
     expect(text).not.toContain(words.readyReply);
   });
@@ -120,8 +115,8 @@ describe('panel copy', () => {
   test('a phone that cannot write shows only the plain line, not the insert hint', async () => {
     const screen = await renderPanel(stubWriter({ fail: true }), { hasField: false });
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 280)); });
+    await waitFor(() => expect(JSON.stringify(screen.toJSON())).toContain(words.unsupported));
     const text = JSON.stringify(screen.toJSON());
-    expect(text).toContain(words.unsupported);
     expect(text).not.toContain(words.noField);
     expect(text).not.toContain(words.gettingReady);
   });
@@ -129,7 +124,19 @@ describe('panel copy', () => {
   test('the Dot sits in the header in every state', async () => {
     for (const options of [{}, { fail: true }, { empty: true }, { download: true, delay: 150 }] as StubOptions[]) {
       const screen = await renderPanel(stubWriter(options), options.empty ? { typed: '', written: '' } : {});
-      expect(JSON.stringify(screen.toJSON())).toContain('RNSVGSvgView');
+      await waitFor(() => expect(JSON.stringify(screen.toJSON())).toContain('RNSVGSvgView'));
     }
+  });
+
+  test('two rapid insert taps make one native request', async () => {
+    let settle!: (value: 'on') => void;
+    native.serviceState.mockImplementation(() => new Promise(resolve => { settle = resolve; }));
+    const screen = await renderPanel(stubWriter());
+    const button = (await screen.findAllByRole('button', { name: words.insert }))[0];
+    fireEvent.press(button);
+    fireEvent.press(button);
+    await act(async () => { settle('on'); await Promise.resolve(); });
+    expect(native.serviceState).toHaveBeenCalledTimes(1);
+    expect(native.insert).toHaveBeenCalledTimes(1);
   });
 });

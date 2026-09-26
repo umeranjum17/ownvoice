@@ -229,7 +229,8 @@ test('a version that stays flattened after its fix is dropped', async () => {
 });
 
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
-  native.ask.mockResolvedValue('{"versions":["Yours — dashed","Yours — dashed, kept."]}');
+  native.ask.mockResolvedValueOnce('{"versions":["Yours — dashed","Yours — dashed, kept."]}')
+    .mockResolvedValue('Yours — dashed');
   const { drafts } = await phoneWriter.write(request({ typed: 'yours — dashed', dashes: 'keep' }));
   expect(drafts).toEqual(['Yours — dashed, kept.']);
 });

@@ -25,7 +25,7 @@ const response = await fetch('https://chatgpt.com/backend-api/codex/responses', 
 });
 if (!response.ok || !response.body) throw new Error(`The streamed call failed (${response.status}): ${await response.text()}; no token was refreshed.`);
 let firstTextMs: number | undefined;
-const drafts = await readDraftStream(response.body, () => { firstTextMs ??= performance.now() - started; });
+const drafts = await readDraftStream(response.body, 'versions', () => { firstTextMs ??= performance.now() - started; });
 console.log(JSON.stringify({ firstTextMs: Math.round(firstTextMs ?? -1), totalMs: Math.round(performance.now() - started), drafts }, null, 2));
 }
 void main().catch(error => { console.error(error instanceof Error ? error.message : 'Live proof failed.'); process.exitCode = 1; });
