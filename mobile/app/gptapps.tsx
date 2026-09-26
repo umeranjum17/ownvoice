@@ -25,11 +25,11 @@ export default function GptApps() {
     void Promise.all([Native.launcherApps(null), Native.bubbleRules()])
       .then(([shown, rules]) => {
         const visible = shown.filter(({ app }) => showsBubble(app, rules));
-        const saved = gptApps();
+        const saved = gptApps(true);
         setChosen(Object.fromEntries(visible.map(({ app }) => [app, saved ? saved.on.includes(app) : !CHATGPT_DEFAULT_OFF.has(app)])));
         setApps(visible);
       })
-      .catch(() => setFailed(true));
+      .catch(() => { setApps(null); setFailed(true); });
   };
   useEffect(load, []);
 

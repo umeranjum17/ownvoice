@@ -54,6 +54,30 @@ test('Home choices are staged, then Done returns Home', async () => {
   expect(router.replace).not.toHaveBeenCalled();
 });
 
+test('an initial choice read failure shows no defaults and retry restores saved-off choices', async () => {
+  kv.set('setup-done', 'true');
+  store.set('chatgpt-apps', { on: [] });
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementationOnce(() => { throw new Error('unavailable'); });
+  const screen = await render(<GptApps />);
+  try {
+    await screen.findByText(words.gptAppsUnavailable);
+    expect(screen.queryByText('Gmail')).toBeNull();
+    await fireEvent.press(screen.getByText(words.done));
+    expect(screen.getByText(words.gptAppsUnavailable)).toBeTruthy();
+    expect(gptApps()).toEqual({ on: [] });
+    expect(router.dismissAll).not.toHaveBeenCalled();
+  } finally {
+    get.mockRestore();
+  }
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  await screen.findByText('Gmail');
+  expect(screen.getAllByText(words.off)).toHaveLength(2);
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(router.dismissAll).toHaveBeenCalled());
+  expect(gptApps()).toEqual({ on: [] });
+});
+
 test('Done changes shown apps but preserves choices hidden by bubble settings', async () => {
   kv.set('setup-done', 'true');
   store.set('chatgpt-apps', { on: ['com.whatsapp', 'com.google.android.gm'] });
