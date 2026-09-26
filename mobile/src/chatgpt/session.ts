@@ -52,6 +52,7 @@ const real: Session = {
     return stateOf(a.signInState(), await a.status().catch(() => null));
   },
   start: async () => {
+    store.set(GPT_APPS_KEY, null);
     const a = live();
     await a.signIn();
     return stateOf(a.signInState(), await a.status().catch(() => null));
@@ -78,6 +79,7 @@ const mock: Session = {
     return connected();
   },
   start: async () => {
+    store.set(GPT_APPS_KEY, null);
     startedAt = Date.now();
     connectedAt = 0;
     return waiting();

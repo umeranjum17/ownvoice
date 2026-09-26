@@ -136,7 +136,7 @@ export default function Setup() {
     }
     const next = Onboarding.next(current, serviceOn, !!store.get('setup-done'), (latest.current.installed?.length ?? 0) > 0);
     // The apps step saves its own list on the way to the optional ChatGPT step.
-    if (next === 'CHATGPT') {
+    if (current === 'APPS') {
       if (savingRef.current) return;
       savingRef.current = true;
       setSaving(true);

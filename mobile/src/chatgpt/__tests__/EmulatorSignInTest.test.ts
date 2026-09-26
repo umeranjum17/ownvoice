@@ -34,6 +34,13 @@ test('only the exact build flag enables the stand-in', () => {
   expect(load('1').mocked).toBe(true);
 });
 
+test('a fresh stand-in sign-in clears the earlier app choice', async () => {
+  const { session } = load('1');
+  store.set('chatgpt-apps', { on: ['com.whatsapp'] });
+  await session.start();
+  expect(store.get('chatgpt-apps')).toBeNull();
+});
+
 test('cancelling the stand-in sign-in leaves the screen asking to start again', async () => {
   const { session } = load('1');
   await session.start();

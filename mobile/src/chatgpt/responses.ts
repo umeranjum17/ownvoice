@@ -1,5 +1,6 @@
 import { fetch as expoFetch } from 'expo/fetch';
-import { codexAuth } from './accounts';
+import { classify } from '@byokit/accounts';
+import { codexAuth, reportFailure } from './accounts';
 import { readDraftStream } from '../core/responses-stream';
 import { acceptReplies, avoidLine, latestMessage, replyPrompt, replySlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
 import { rewritePrompt, versionPrompt, versionsList } from '../core/judge';
@@ -12,27 +13,30 @@ const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested three rewrite versions as JSON.';
 
 /** One streamed Responses call; the last `count` array entries must all be non-empty strings. */
-async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions', count = 3, sent?: () => void): Promise<string[]> {
+async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions', count = 3, sent?: () => void, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> {
   const auth = await codexAuth();
-  sent?.();
-  const response = await (expoFetch as typeof fetch)('https://chatgpt.com/backend-api/codex/responses', {
-    method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
-    body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
-  });
-  if (!response.ok || !response.body) throw new Error(words.chatgptFailed);
-  return readDraftStream(response.body, key, undefined, count);
+  try {
+    sent?.();
+    const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', {
+      method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
+      body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
+    });
+    if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+    if (!response.body) throw new Error('ChatGPT did not answer.');
+    return await readDraftStream(response.body, key, onText, count);
+  } catch (error) {
+    await reportFailure(error instanceof Error ? error.message : String(error)).catch(() => {});
+    throw error;
+  }
 }
 
-// Kept for the existing stream tests; now a thin wrapper over ask().
-export async function streamResponses(prompt: string, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> {
-  const auth = await codexAuth();
-  const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', {
-    method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
-    body: JSON.stringify({ model: 'gpt-6-sol', instructions: VERSION_INSTRUCTIONS, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
-  });
-  if (!response.ok || !response.body) throw new Error(words.chatgptFailed);
-  return readDraftStream(response.body, 'versions', onText, 3);
-}
+export const streamResponses = (prompt: string, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> =>
+  ask(prompt, VERSION_INSTRUCTIONS, 'versions', 3, undefined, onText, fetcher);
+
+const accountFailure = (error: unknown) => {
+  const kind = classify(error instanceof Error ? error.message : String(error))?.kind;
+  return kind != null && kind !== 'network';
+};
 
 /** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt). */
 async function replies(request: DraftRequest, on: WriterEvents): Promise<string[]> {
@@ -47,7 +51,7 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
     try {
       const [draft] = acceptReplies(await ask(replySlotPrompt(REPLY_SLOTS[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on.sent), exclude, 1, dashes);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
-    } catch { /* one retry per slot; a failure leaves the slot empty */ }
+    } catch (error) { if (accountFailure(error)) throw error; }
   }
   return made.filter((text): text is string => !!text);
 }
@@ -68,7 +72,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
     const prompt = versionPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes)
       + '\n- Keep their line breaks and list exactly.' + (note ? `\n\n${note}` : '');
     let again: string[] = [];
-    try { again = await ask(prompt, VERSION_INSTRUCTIONS, 'versions', 1, on.sent); } catch { continue; }
+    try { again = await ask(prompt, VERSION_INSTRUCTIONS, 'versions', 1, on.sent); } catch (error) { if (accountFailure(error)) throw error; continue; }
     const fixed = acceptor.fix(again[0] ?? '', fail.slot, fail.label);
     if (fixed != null) landed(fixed, fail.slot, fail.label);
   }

@@ -1,8 +1,14 @@
 import { stateOf, nothing, session } from '../session';
 import { store } from '../../core/store';
-import { signOut } from '../accounts';
+import { signIn, signOut, status } from '../accounts';
 
-jest.mock('../accounts', () => ({ signOut: jest.fn(async () => {}) }));
+jest.mock('../accounts', () => ({
+  signIn: jest.fn(async () => {}),
+  signOut: jest.fn(async () => {}),
+  refresh: jest.fn(async () => {}),
+  signInState: jest.fn(() => null),
+  status: jest.fn(async () => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'Connected.' })),
+}));
 import { words } from '../../core/words';
 
 // The sign-in states the screen shows, in byokit's own sentences (no real account is involved).
@@ -10,6 +16,15 @@ test('sign-out revokes and clears app permission', async () => {
   store.set('chatgpt-apps', { on: ['com.whatsapp'] });
   await session.signOut();
   expect(signOut).toHaveBeenCalledTimes(1);
+  expect(store.get('chatgpt-apps')).toBeNull();
+});
+
+test('starting a new sign-in clears consent from an expired account', async () => {
+  store.set('chatgpt-apps', { on: ['com.whatsapp'] });
+  (status as jest.Mock).mockResolvedValueOnce({ account: 'owner', name: 'ChatGPT', state: 'needs_again', words: 'Sign in again.' });
+  expect((await session.current()).signedIn).toBe(false);
+  expect((await session.start()).signedIn).toBe(true);
+  expect(signIn).toHaveBeenCalled();
   expect(store.get('chatgpt-apps')).toBeNull();
 });
 

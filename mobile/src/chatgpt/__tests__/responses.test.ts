@@ -1,8 +1,10 @@
-jest.mock('../accounts', () => ({ codexAuth: async () => ({ access: 'fixture-access', accountId: 'fixture-account' }) }));
+jest.mock('../accounts', () => ({ codexAuth: async () => ({ access: 'fixture-access', accountId: 'fixture-account' }), reportFailure: jest.fn(async () => ({ kind: 'rate_limit', until: 0 })) }));
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 import { chatgptWriter, streamResponses } from '../responses';
+import { reportFailure } from '../accounts';
 import { words } from '../../core/words';
 import { readDraftStream } from '../../core/responses-stream';
+import type { DraftRequest } from '../../core/writers';
 
 const event = (item: object) => `data: ${JSON.stringify(item)}`;
 const body = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(controller) {
@@ -10,6 +12,8 @@ const body = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(con
   controller.close();
 } });
 const fetcher = (stream: ReadableStream<Uint8Array>) => jest.fn(async () => ({ ok: true, body: stream } as Response));
+const reported = reportFailure as jest.Mock;
+beforeEach(() => reported.mockClear());
 
 test('accepts CRLF events split across chunks and a final unterminated completion', async () => {
   const first = event({ type: 'response.output_text.delta', delta: '{"versions":[' });
@@ -53,10 +57,52 @@ test('stream accepts only the requested response key, including a one-slot retry
 
 test('an http failure never shows a number', async () => {
   const originalFetch = global.fetch;
-  global.fetch = jest.fn(async () => ({ ok: false, status: 500, body: null } as unknown as Response));
+  global.fetch = jest.fn(async () => ({ ok: false, status: 500, text: async () => '', body: null } as unknown as Response));
   try {
     await expect(chatgptWriter.write({ conversation: '', written: 'hi', typed: '' })).rejects.toThrow(words.chatgptFailed);
     await expect(chatgptWriter.write({ conversation: '', written: 'hi', typed: '' })).rejects.toThrow(/ChatGPT didn't answer this time\./);
+  } finally { global.fetch = originalFetch; }
+});
+
+test.each([
+  [429, 'Too many requests. Try again in 12 min'],
+  [403, 'Unauthorized'],
+  [400, 'Usage limit reached'],
+])('account refusal %s is reported and reply slots are not retried', async (status, message) => {
+  const originalFetch = global.fetch;
+  const fetch = jest.fn(async () => ({ ok: false, status, text: async () => message, body: null } as unknown as Response));
+  global.fetch = fetch;
+  try {
+    await expect(chatgptWriter.write({ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' })).rejects.toThrow(words.chatgptFailed);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(reported).toHaveBeenCalledWith(`${status} ${message}`);
+  } finally { global.fetch = originalFetch; }
+});
+
+test('streamed account refusal is reported and polish slots are not retried', async () => {
+  const originalFetch = global.fetch;
+  const fetch = fetcher(body(`${event({ type: 'response.failed', response: { error: { message: 'Rate limit: try again in 3 min' } } })}\n\n`));
+  global.fetch = fetch;
+  try {
+    await expect(chatgptWriter.write({ conversation: '', written: '', typed: 'hello' })).rejects.toThrow(words.chatgptFailed);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(reported).toHaveBeenCalledWith('Rate limit: try again in 3 min');
+  } finally { global.fetch = originalFetch; }
+});
+
+const retryCases: Array<[DraftRequest, object]> = [
+  [{ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' }, { drafts: ['No thanks', 'No thanks', 'No thanks'] }],
+  [{ conversation: '', written: '', typed: 'line one\nline two\nline three' }, { versions: ['Changed', 'Better', 'Different'] }],
+];
+test.each(retryCases)('account failure during a slot retry stops further requests', async (request, initial) => {
+  const originalFetch = global.fetch;
+  const fetch = jest.fn().mockResolvedValueOnce({ ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify(initial) })}\n\n${event({ type: 'response.completed' })}`) })
+    .mockResolvedValue({ ok: false, status: 429, text: async () => 'Too many requests', body: null });
+  global.fetch = fetch;
+  try {
+    await expect(chatgptWriter.write(request)).rejects.toThrow(words.chatgptFailed);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(reported).toHaveBeenCalledWith('429 Too many requests');
   } finally { global.fetch = originalFetch; }
 });
 

@@ -5,7 +5,8 @@ export async function readDraftStream(body: ReadableStream<Uint8Array>, key: 'dr
     const data = event.split(/\r\n|\r|\n/).filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n');
     if (!data || data === '[DONE]') return;
     const item = JSON.parse(data);
-    if (item.type === 'response.failed' || item.type === 'response.incomplete') throw new Error('ChatGPT did not answer.');
+    if (item.type === 'response.failed' || item.type === 'response.incomplete')
+      throw new Error(item.response?.error?.message ?? item.error?.message ?? item.response?.incomplete_details?.reason ?? 'ChatGPT did not answer.');
     if (item.type === 'response.completed') completed = true;
     if (item.type === 'response.output_text.delta' && typeof item.delta === 'string') {
       text += item.delta;
