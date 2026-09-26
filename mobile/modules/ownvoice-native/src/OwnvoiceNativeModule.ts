@@ -13,6 +13,7 @@ type Events = {
 };
 declare class OwnvoiceNativeModule extends NativeModule<Events> {
   serviceState(): Promise<ServiceState>;
+  turnOff(): Promise<void>;
   openAccessibilitySettings(comeBack: boolean): Promise<void>;
   clearSetupReturn(): Promise<void>;
   openAppInfo(): Promise<void>;

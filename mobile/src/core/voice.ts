@@ -1,4 +1,11 @@
-import { Hit, Rules, matcher, NEVER_SAY, LONG_DASH, ENDS_ON_QUESTION } from './slop';
+import { Hit, NO_RULES, Rules, matcher, NEVER_SAY, LONG_DASH, ENDS_ON_QUESTION } from './slop';
+import { store } from './store';
+
+// Voice.rules / Voice.save / Voice.wipe on the phone's key-value store (the panel reads the same entry).
+export const loadVoice = (): Rules => ({ ...NO_RULES, ...(store.get<Rules>('voice') ?? {}) });
+export const saveVoice = (rules: Rules): void => { store.set('voice', rules); };
+export const wipeVoice = (): void => { store.set('voice', null); };
+
 export type Found = { never: string[]; noDashes: boolean; statementEndings: boolean; skipped: number };
 const heading = /^\s*(?:#{1,6}\s+(.+?)\s*#*|\*\*([^*]+)\*\*:?)\s*$/;
 const bullet = /^\s*(?:[-*+•]|\d+[.)])\s+(.+)$/;

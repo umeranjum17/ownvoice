@@ -212,9 +212,9 @@ const run = async mode => {
   const rows = OFFERED.filter(name => name === 'x' ? /\bx\b/.test(text) : text.includes(name));
   if (!rows.length) throw new Error('The apps step named none of the offered apps.');
   snap(tag('05-apps'));
-  // Done sits a fixed step under the last app row; its pill defeats OCR.
+  // Done sits below the last app row; its pill defeats OCR on the phone profile.
   const row = await findLine(rows[rows.length - 1]);
-  tap(Math.round(width / 2), row.bottom + 315);
+  tap(Math.round(width / 2), row.bottom + 230);
   await wait(1500);
   await waitForLine('stays on this phone');
   snap(tag('06-home'));

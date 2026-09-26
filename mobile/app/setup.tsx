@@ -181,7 +181,7 @@ export default function Setup() {
       </View>
       {greyed && <Text style={[type.body, centre, { color: t.muted, marginTop: space.xs }]}>{words.greyedHelp}</Text>}
     </View>}
-    {step === 'TRY' && <View>
+    {step === 'TRY' && <View style={{ flex: 1 }}>
       <Text style={[type.headline, centre, { color: t.text }]}>{words.tryTitle}</Text>
       <Text style={[type.body, centre, { color: t.muted, marginTop: space.s, marginBottom: space.l, paddingHorizontal: space.s }]}>
         {inserted ? words.tryDone : serviceOn ? words.tryInsert : words.tryTurnOnFirst}
@@ -201,7 +201,8 @@ export default function Setup() {
           style={[type.body, styles.field, { color: t.text, backgroundColor: t.card, borderColor: t.cardLine }]} />
       </View>
       <Text style={[type.body, centre, { color: t.text, marginTop: space.m }]}>{words.practiceNote}</Text>
-      <View style={{ minHeight: space.xxl }} />
+      {/* The bubble pill sits over the middle of this screen; the flex spacer keeps the button below it. */}
+      <View style={styles.grow} />
       {inserted
         ? <Button kind="filled" disabled={!installed && !appsFailed} label={words.continueLabel} onPress={() => advance()} />
         : <View style={styles.skip}><Button kind="text" disabled={!installed && !appsFailed} label={words.skip} onPress={() => advance()} /></View>}
@@ -249,7 +250,7 @@ function Welcome({ onContinue }: { onContinue: () => void }) {
     </Animated.View>
     <Text style={[type.headline, styles.centre, { color: t.text, marginTop: space.l }]}>{words.welcomeTitle}</Text>
     <View style={{ flex: 1 }} />
-    <Button kind="filled" label={words.continueLabel} onPress={onContinue} />
+    <View style={styles.wide}><Button kind="filled" label={words.continueLabel} onPress={onContinue} /></View>
   </View>;
 }
 
@@ -262,5 +263,7 @@ const styles = StyleSheet.create({
   received: { alignSelf: 'flex-start', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, overflow: 'hidden' },
   field: { minHeight: 48, marginRight: 34, marginTop: space.xs, borderWidth: 1, borderRadius: 24, paddingHorizontal: space.l, paddingVertical: space.m, textAlignVertical: 'top' },
   skip: { alignItems: 'center' },
+  grow: { flex: 1, minHeight: space.xxl },
+  wide: { alignSelf: 'stretch' },
   appIcon: { width: 40, height: 40, borderRadius: 10 },
 });

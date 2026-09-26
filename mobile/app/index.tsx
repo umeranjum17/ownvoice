@@ -1,67 +1,124 @@
-import { useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { Button } from '../src/ui/Button';
-import { Card } from '../src/ui/Card';
 import { Row } from '../src/ui/Row';
-import { space, type, useTheme } from '../src/ui/theme';
+import { Switch } from '../src/ui/Switch';
+import { Progress } from '../src/ui/Progress';
+import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { DEFAULT_ON } from '../src/core/privacy';
 import { store } from '../src/core/store';
-import type { TapFact } from '../modules/ownvoice-native';
+import { readLog } from '../src/core/readLog';
+import { loadVoice } from '../src/core/voice';
+import Native, { type ModelStatus, type ServiceState } from '../modules/ownvoice-native';
 
 type Rules = { paused: boolean; on: string[]; off: string[] };
-const native = () => require('../modules/ownvoice-native').default;
+type App = { app: string; label: string; icon: string | null };
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Whether the bubble shows in [app]: the user's own choice for it, or else the default list. */
+export const showsBubble = (rules: Rules | null, app: string) =>
+  !!rules && (rules.on.includes(app) || (!rules.off.includes(app) && DEFAULT_ON.has(app)));
+
+/** The apps the bubble shows in, as "WhatsApp, Gmail and 2 more" (MainActivity.appsLine). */
+export function appsLine(labels: string[]): string {
+  const n = labels.length;
+  if (n === 0) return words.noApps;
+  if (n === 1) return labels[0];
+  if (n === 2) return `${labels[0]} and ${labels[1]}`;
+  if (n === 3) return `${labels[0]}, ${labels[1]} and ${labels[2]}`;
+  return `${labels[0]}, ${labels[1]} and ${n - 2} more`;
+}
+
+/** Home: whether Ownvoice is on and ready, then plain rows for where it works, your voice, what it read and pause. */
 export default function Home() {
   const t = useTheme();
-  const [text, setText] = useState('');
   const [rules, setRules] = useState<Rules | null>(null);
-  const [activity, setActivity] = useState(0);
-  const [apps, setApps] = useState<{ app: string; label: string }[] | null>(null);
-  const [search, setSearch] = useState('');
-  const pending = useRef(Promise.resolve());
-  useEffect(() => {
-    void native().bubbleRules().then(setRules).catch(() => {});
-    if (!store.get('setup-done')) router.replace('/setup');
+  const [service, setService] = useState<ServiceState>('off');
+  const [model, setModel] = useState<ModelStatus>('available');
+  const [fraction, setFraction] = useState(0);
+  const [apps, setApps] = useState<App[]>([]);
+  const [phrases, setPhrases] = useState(0);
+  const [week, setWeek] = useState(0);
+  const busy = useRef(Promise.resolve());
+
+  const reload = useCallback(() => {
+    void Native.serviceState().then(setService).catch(() => {});
+    void Native.modelStatus().then(setModel).catch(() => {});
+    void Native.bubbleRules().then(setRules).catch(() => {});
+    void Native.launcherApps(null).then(setApps).catch(() => {});
+    setPhrases(loadVoice().never.length);
+    setWeek(readLog().filter(r => Date.now() - r.time < WEEK_MS).length);
   }, []);
-  const change = (update: (current: Rules) => Rules) => {
-    pending.current = pending.current.then(async () => {
-      const next = update(await native().bubbleRules());
-      await native().setBubbleRules(next);
+
+  useEffect(() => {
+    if (!store.get('setup-done')) { router.replace('/setup'); return; }
+    reload();
+    const shown = AppState.addEventListener('change', state => { if (state === 'active') reload(); });
+    const serviceChange = Native.addListener('onServiceChange', ({ state }) => setService(state));
+    const modelProgress = Native.addListener('onModelProgress', ({ fraction: f }) => setFraction(f));
+    return () => { shown.remove(); serviceChange.remove(); modelProgress.remove(); };
+  }, [reload]);
+
+  const changeRules = (update: (current: Rules) => Rules) => {
+    busy.current = busy.current.then(async () => {
+      const next = update(await Native.bubbleRules());
+      await Native.setBubbleRules(next);
       setRules(next);
     }).catch(() => {});
   };
-  const enabled = (app: string, current = rules) => !!current && (current.on.includes(app) || (!current.off.includes(app) && DEFAULT_ON.has(app)));
-  const toggle = (app: string) => {
-    if (!rules) return;
-    change(current => {
-      const on = current.on.filter(value => value !== app);
-      const off = current.off.filter(value => value !== app);
-      if (enabled(app, current)) off.push(app); else on.push(app);
-      return { ...current, on, off };
-    });
+  // The switch is the phone's own: turning it on goes to the permission screen, off stops the service.
+  const power = (want: boolean) => {
+    if (want) router.push('/setup');
+    else { void Native.turnOff().then(reload).catch(() => {}); }
   };
-  if (apps) return <View style={{ flex: 1, padding: space.xl, gap: space.l, backgroundColor: t.sheet }}>
-    <Text style={[type.title, { color: t.text }]}>Where the bubble shows</Text>
-    <Text style={[type.body, { color: t.muted }]}>In apps that are off, nothing is read.</Text>
-    <TextInput accessibilityLabel="Find an app" placeholder="Find an app" placeholderTextColor={t.muted} value={search} onChangeText={setSearch} style={[type.body, { color: t.text, borderColor: t.outline, borderWidth: 1, borderRadius: 16, padding: space.m }]} />
-    <ScrollView keyboardShouldPersistTaps="always">
-      {apps.filter(({ label }) => label.toLowerCase().includes(search.toLowerCase())).map(({ app, label }) =>
-        <Row key={app} disabled={!rules} title={label} subtitle={enabled(app) ? 'On' : 'Off'} onPress={() => toggle(app)} />)}
-    </ScrollView>
-    <Button kind="text" label="Back" onPress={() => { setApps(null); setSearch(''); }} />
-  </View>;
-  return <View style={{ flex: 1, justifyContent: 'center', padding: space.xl, gap: space.l, backgroundColor: t.sheet }}>
-    <Text style={[type.headline, { color: t.text }]}>Ownvoice</Text>
-    <Text style={[type.body, { color: t.text }]}>{words.home}</Text>
-    <View style={{ alignSelf: 'flex-start', maxWidth: '92%' }}><Card variant="filled" label="Sam">
-      <Text style={[type.body, { color: t.text }]}>Are we still on for Saturday?{'\n'}I can bring the tent if you bring the stove.</Text>
-    </Card></View>
-    <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.muted} value={text} onChangeText={setText} multiline style={[type.body, { minHeight: 56, borderWidth: 1, borderColor: t.outline, borderRadius: 12, padding: space.m, color: t.text }]} />
-    <Button kind="filled" label="Turn on Ownvoice" onPress={() => { void native().openAccessibilitySettings(false).catch(() => {}); }} />
-    <Button kind="text" disabled={!rules} label="Where the bubble shows" onPress={() => { void native().launcherApps(null).then(setApps).catch(() => {}); }} />
-    <Button kind="text" disabled={!rules} label={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change(current => ({ ...current, paused: !current.paused })); }} />
-    <Button kind="text" label={`Recent activity: ${activity}`} onPress={() => { void native().takeTapFacts().then((facts: TapFact[]) => setActivity(count => count + facts.length)).catch(() => {}); }} />
-    <Button kind="text" label="Clear last screen" onPress={() => { void native().forget().catch(() => {}); }} />
-  </View>;
+  const retry = () => { void Native.downloadModel().catch(() => {}); reload(); };
+
+  const paused = !!rules?.paused;
+  const on = service === 'on';
+  const problem = model === 'unavailable' ? words.unsupported : null;
+  const green = on && !paused && problem === null;
+  const headline = !on ? words.statusOff : problem ? words.statusNotReady : model !== 'available' ? words.statusGettingReady : paused ? words.statusPaused : words.statusReady;
+  const detail = !on ? words.statusOffNote : problem ?? (model !== 'available' ? words.gettingReady : paused ? words.statusPausedNote : words.statusReadyNote);
+  const shown = apps.filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
+  const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
+
+  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={styles.page}>
+    <Text style={[type.headline, { color: t.text }]}>{words.homeTitle}</Text>
+    <Text style={[type.body, { color: t.text, marginBottom: space.l }]}>{words.home}</Text>
+
+    <View style={[styles.status, { backgroundColor: green ? t.primaryContainer : t.group }]}>
+      <View style={styles.statusHead}>
+        <View style={styles.statusWords}>
+          <Text style={[type.title, { color: green ? t.onPrimaryContainer : t.text }]}>{headline}</Text>
+          <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted }]}>{detail}</Text>
+        </View>
+        <Switch accessibilityLabel={words.powerRow} value={on} onValueChange={power} />
+      </View>
+      {on && model !== 'available' && !problem && <View style={{ marginTop: space.m }}><Progress fraction={fraction} /></View>}
+      {problem !== null && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
+      {service === 'stuck' && <Text accessibilityRole="button" onPress={() => router.push('/setup')} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.turnBackOn}</Text>}
+    </View>
+
+    <View style={group}>
+      <Row title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
+      <Row title={words.rowVoice} subtitle={phrases === 0 ? words.noPhrases : phrases === 1 ? `1 ${words.phraseOne}` : `${phrases} ${words.phraseMany}`} onPress={() => router.push('/voice')} />
+      <Row title={words.rowReads} subtitle={week === 0 ? words.nothingWeek : week === 1 ? words.onceWeek : `${week} ${words.timesWeek}`} onPress={() => router.push('/reads')} />
+    </View>
+
+    <View style={group}>
+      <Row title={words.rowPause} subtitle={words.rowPauseNote}
+        end={<View pointerEvents="none"><Switch value={paused} disabled={!rules} onValueChange={v => changeRules(r => ({ ...r, paused: v }))} /></View>}
+        onPress={() => { if (rules) changeRules(r => ({ ...r, paused: !r.paused })); }} />
+      <Row title={words.rowRewrite} subtitle={words.rowRewriteNote} />
+    </View>
+  </ScrollView>;
 }
+
+const styles = StyleSheet.create({
+  page: { padding: space.xl, gap: space.m, paddingBottom: space.xxl },
+  status: { padding: space.xl, paddingVertical: space.l, borderRadius: shape.sheet },
+  statusHead: { flexDirection: 'row', alignItems: 'center', gap: space.l },
+  statusWords: { flex: 1 },
+});
