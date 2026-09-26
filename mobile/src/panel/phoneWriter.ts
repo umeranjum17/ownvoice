@@ -61,6 +61,11 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
 
 export const phoneWriter = {
   async write(request: DraftRequest, on: WriterEvents = {}): Promise<Choice> {
+    if (process.env.EXPO_PUBLIC_E2E_STUB === '1') {
+      const drafts = ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
+      drafts.forEach((text, slot) => on.landed?.(text, slot));
+      return { drafts };
+    }
     try {
       if (await Native.modelStatus() !== 'available') {
         on.state?.('downloading');

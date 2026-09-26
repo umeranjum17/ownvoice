@@ -32,6 +32,21 @@ beforeEach(() => {
 
 afterEach(() => { (Date.now as unknown as jest.SpyInstance).mockRestore(); });
 
+test('emulator stub delivers insertable drafts without a phone model', async () => {
+  const previous = process.env.EXPO_PUBLIC_E2E_STUB;
+  process.env.EXPO_PUBLIC_E2E_STUB = '1';
+  try {
+    const landed: [string, number][] = [];
+    const result = await phoneWriter.write(request(), { landed: (text, slot) => landed.push([text, slot]) });
+    expect(result.drafts).toHaveLength(3);
+    expect(landed).toEqual(result.drafts.map((text, slot) => [text, slot]));
+    expect(native.modelStatus).not.toHaveBeenCalled();
+  } finally {
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_E2E_STUB;
+    else process.env.EXPO_PUBLIC_E2E_STUB = previous;
+  }
+});
+
 // ---- Replies ----
 
 test('the Sam message reaches the phone model as Latest message above Conversation, asking for labelled slots', async () => {

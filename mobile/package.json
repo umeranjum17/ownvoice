@@ -17,6 +17,7 @@
     "expo-build-properties": "~1.0.0",
     "expo-router": "*",
     "expo-secure-store": "^57.0.4",
+    "expo-sqlite": "~57.0.3",
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-native": "~0.86.3",

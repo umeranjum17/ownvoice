@@ -27,5 +27,17 @@ jest.mock('expo-router', () => {
   };
   const table = () => (globalThis.__scheme === 'dark' ? dark : light);
   const dynamic = new Proxy({}, { get: (_, name) => table()[name] ?? '#FF00FF' });
-  return { __esModule: true, Color: { android: { dynamic } } };
+  return { __esModule: true, Color: { android: { dynamic } }, router: { replace: jest.fn(), push: jest.fn(), back: jest.fn() } };
+});
+
+// Setup state and later slices persist through the kv-store; tests read and seed this map
+// through requireMock('expo-sqlite/kv-store').__map.
+jest.mock('expo-sqlite/kv-store', () => {
+  const map = new Map();
+  class Storage {
+    getItemSync = key => (map.has(key) ? map.get(key) : null);
+    setItemSync = (key, value) => { map.set(key, String(value)); };
+    removeItemSync = key => map.delete(key);
+  }
+  return { __esModule: true, default: new Storage(), Storage, __map: map };
 });

@@ -7,14 +7,17 @@ export type TapFact = { at: number; app: string; label: string; screen: boolean;
 export type ModelStatus = 'available' | 'downloadable' | 'downloading' | 'unavailable';
 type Events = {
   onServiceChange: (event: { state: ServiceState }) => void;
-  onInserted: (event: { ok: boolean; newlinesLost: boolean }) => void;
+  onInserted: (event: { ok: boolean; newlinesLost: boolean; practice: boolean }) => void;
   onModelProgress: (event: { fraction: number }) => void;
   onModelPartial: (event: { id: string; text: string }) => void;
 };
 declare class OwnvoiceNativeModule extends NativeModule<Events> {
   serviceState(): Promise<ServiceState>;
-  openAccessibilitySettings(): Promise<void>;
-  launcherApps(): Promise<{ app: string; label: string }[]>;
+  openAccessibilitySettings(comeBack: boolean): Promise<void>;
+  clearSetupReturn(): Promise<void>;
+  openAppInfo(): Promise<void>;
+  setPractice(on: boolean): Promise<void>;
+  launcherApps(packages: string[] | null): Promise<{ app: string; label: string; icon: string | null }[]>;
   bubbleRules(): Promise<{ paused: boolean; on: string[]; off: string[] }>;
   setBubbleRules(rules: { paused: boolean; on: string[]; off: string[] }): Promise<void>;
   say(message: string, ms?: number): Promise<void>;

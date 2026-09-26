@@ -12,6 +12,7 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.InsetDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -41,8 +42,10 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var offApps: Set<String> = emptySet()
     val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
     @Volatile var paused = false
+    /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. Never saved. */
+    @Volatile var practice = false
     @Volatile var panelIsOpen = false
-    @Volatile var onInserted: ((Boolean, Boolean) -> Unit)? = null
+    @Volatile var onInserted: ((Boolean, Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
     private val facts = mutableListOf<TapFact>()
     private const val TIP = "Tap for reply ideas, or to polish what you wrote."
@@ -58,6 +61,7 @@ class OwnvoiceService : AccessibilityService() {
   private lateinit var params: WindowManager.LayoutParams
   private var capture: Capture? = null
   private var inserting = false
+  private var insertingPractice = false
   private var pendingInsert: (() -> Unit)? = null
   private var resting = true
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
@@ -67,7 +71,7 @@ class OwnvoiceService : AccessibilityService() {
     set(value) { panelIsOpen = value; if (value) main.post(restoreBubble); updateBubble() }
 
   private fun px(dp: Int) = (dp * resources.displayMetrics.density).toInt()
-  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON))
+  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON) || (practice && app == packageName))
   private val night get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
   private fun colour(id: Int, fallback: Int) = if (android.os.Build.VERSION.SDK_INT >= 31) getColor(id) else fallback
 
@@ -96,7 +100,10 @@ class OwnvoiceService : AccessibilityService() {
     onServiceChange?.invoke("on")
     if (prefs.getBoolean("comeBack", false)) {
       prefs.edit().remove("comeBack").apply()
-      packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)?.let { startActivity(it) }
+      // Setup comes back to the front by itself once the service connects (B10), the way Kotlin's
+      // service started SetupActivity directly; a deep link reaches the setup screen through the router.
+      startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("ownvoice://setup"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
     }
   }
 
@@ -192,12 +199,13 @@ class OwnvoiceService : AccessibilityService() {
     if (inserting) {
       getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
       say("Couldn't insert. Copied, paste it.")
-      onInserted?.invoke(false, false)
+      onInserted?.invoke(false, false, false)
       return done(false, false)
     }
     inserting = true
     pendingInsert = { finishInsert(text, false, false, done) }
     val reading = captured()
+    insertingPractice = reading?.app == packageName && reading?.input?.contentDescription?.toString() == "Practice message"
     val field = reading?.input ?: return finishInsert(text, false, false, done)
     val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
     fun attempt(left: Int) {
@@ -225,7 +233,8 @@ class OwnvoiceService : AccessibilityService() {
     forget()
     inserting = false
     pendingInsert = null
-    onInserted?.invoke(ok, newlinesLost)
+    onInserted?.invoke(ok, newlinesLost, ok && insertingPractice)
+    insertingPractice = false
     done(ok, newlinesLost)
   }
 

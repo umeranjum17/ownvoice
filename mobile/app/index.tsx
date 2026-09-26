@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
 import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
 import { Row } from '../src/ui/Row';
 import { space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { DEFAULT_ON } from '../src/core/privacy';
+import { store } from '../src/core/store';
 import type { TapFact } from '../modules/ownvoice-native';
 
 type Rules = { paused: boolean; on: string[]; off: string[] };
@@ -20,6 +22,7 @@ export default function Home() {
   const pending = useRef(Promise.resolve());
   useEffect(() => {
     void native().bubbleRules().then(setRules).catch(() => {});
+    if (!store.get('setup-done')) router.replace('/setup');
   }, []);
   const change = (update: (current: Rules) => Rules) => {
     pending.current = pending.current.then(async () => {
@@ -55,8 +58,8 @@ export default function Home() {
       <Text style={[type.body, { color: t.text }]}>Are we still on for Saturday?{'\n'}I can bring the tent if you bring the stove.</Text>
     </Card></View>
     <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.muted} value={text} onChangeText={setText} multiline style={[type.body, { minHeight: 56, borderWidth: 1, borderColor: t.outline, borderRadius: 12, padding: space.m, color: t.text }]} />
-    <Button kind="filled" label="Turn on Ownvoice" onPress={() => { void native().openAccessibilitySettings().catch(() => {}); }} />
-    <Button kind="text" disabled={!rules} label="Where the bubble shows" onPress={() => { void native().launcherApps().then(setApps).catch(() => {}); }} />
+    <Button kind="filled" label="Turn on Ownvoice" onPress={() => { void native().openAccessibilitySettings(false).catch(() => {}); }} />
+    <Button kind="text" disabled={!rules} label="Where the bubble shows" onPress={() => { void native().launcherApps(null).then(setApps).catch(() => {}); }} />
     <Button kind="text" disabled={!rules} label={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change(current => ({ ...current, paused: !current.paused })); }} />
     <Button kind="text" label={`Recent activity: ${activity}`} onPress={() => { void native().takeTapFacts().then((facts: TapFact[]) => setActivity(count => count + facts.length)).catch(() => {}); }} />
     <Button kind="text" label="Clear last screen" onPress={() => { void native().forget().catch(() => {}); }} />
