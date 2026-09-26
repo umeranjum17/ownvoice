@@ -135,6 +135,10 @@ const findRowWithState = (label, state) => {
       && other.top >= line.top && other.top - line.top < 120 && other.left < 400));
 };
 
+visibleLine('replies that sound');
+adb('shell', 'input', 'keyevent', '4');
+visibleLine('Where the bubble shows');
+
 // Walk a fresh Chrome profile through its first-run screens once, before any flows need its fields.
 execFileSync('adb', ['-s', serial, 'shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://example.com']);
 await wait(3500);

@@ -193,13 +193,34 @@ test('appChoicesWaitForTheInstalledList', async () => {
   native.launcherApps.mockImplementation(() => new Promise(resolve => { loaded = resolve; }));
   const screen = await renderSetup();
   await fireEvent.press(screen.getByText(words.done));
-  backHandlers.forEach(fire => fire());
   expect(native.setBubbleRules).not.toHaveBeenCalled();
   expect(kv.get('setup-done')).toBeUndefined();
   loaded([{ app: 'com.whatsapp', label: 'WhatsApp', icon: null }]);
   await screen.findByText('WhatsApp');
   await fireEvent.press(screen.getByText(words.done));
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
+});
+
+test('backCompletesSetupEvenWhileAppsAreUnknown', async () => {
+  at('APPS');
+  native.launcherApps.mockImplementation(() => new Promise(() => {}));
+  const screen = await renderSetup();
+  await screen.findByText(words.appsTitle);
+  backHandlers.forEach(fire => fire());
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+  expect(kv.get('setup-done')).toBe('true');
+  expect(native.setBubbleRules).not.toHaveBeenCalled();
+});
+
+test('backCompletesSetupAfterAppQueryFails', async () => {
+  at('APPS');
+  native.launcherApps.mockRejectedValueOnce(new Error('query failed'));
+  const screen = await renderSetup();
+  await screen.findByText(words.appsUnavailable);
+  backHandlers.forEach(fire => fire());
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+  expect(kv.get('setup-done')).toBe('true');
+  expect(native.setBubbleRules).not.toHaveBeenCalled();
 });
 
 test('launcherFailureDoesNotBecomeAnEmptyList', async () => {

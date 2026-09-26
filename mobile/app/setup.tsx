@@ -62,10 +62,10 @@ export default function Setup() {
     }).catch(() => { if (mounted.current) setAppsFailed(true); });
   };
 
-  const finish = async () => {
+  const finish = async (leaving = false) => {
     if (savingRef.current) return;
     const { step: now, installed: shown, choices: picked } = latest.current;
-    if (now === 'APPS' && !shown) return;
+    if (now === 'APPS' && !shown && !leaving) return;
     savingRef.current = true;
     setSaving(true);
     try {
@@ -95,7 +95,7 @@ export default function Setup() {
     const service = Native.addListener('onServiceChange', ({ state }) => setServiceOn(state === 'on'));
     // The first draft inserted into the practice chat ends the step (B11).
     const done = Native.addListener('onInserted', ({ ok, practice }) => { if (ok && practice && latest.current.step === 'TRY') set(current => ({ ...current, inserted: true })); });
-    const back = BackHandler.addEventListener('hardwareBackPress', () => { void finish(); return true; });
+    const back = BackHandler.addEventListener('hardwareBackPress', () => { void finish(true); return true; });
     return () => {
       mounted.current = false;
       service.remove(); done.remove(); back.remove();

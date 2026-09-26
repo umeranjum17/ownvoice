@@ -249,6 +249,8 @@ const run = async mode => {
 };
 
 // Light pass, then dark: RN reads the colour scheme at process start, so force-stop after the flip.
+adb('shell', 'cmd', 'uimode', 'night', 'custom', '-o', 'off');
+adb('shell', 'cmd', 'uimode', 'night', 'no');
 await run('light');
 execFileSync('adb', ['-s', serial, 'shell', 'cmd', 'uimode', 'night', 'yes'], { stdio: 'inherit' });
 await run('dark');
