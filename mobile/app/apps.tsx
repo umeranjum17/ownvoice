@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from '../src/ui/Button';
@@ -18,18 +18,21 @@ export default function Apps() {
   const [rules, setRules] = useState<Rules | null>(null);
   const [apps, setApps] = useState<App[]>([]);
   const [filter, setFilter] = useState('');
+  const busy = useRef(Promise.resolve());
   useEffect(() => {
     void Native.bubbleRules().then(setRules).catch(() => {});
     // Launcher icons only come back for a named list, so ask for the whole screen's worth in one go.
     void Native.launcherApps(null).then(rows => Native.launcherApps(rows.map(({ app }) => app))).then(setApps).catch(() => {});
   }, []);
   const toggle = (app: string) => {
-    void Native.bubbleRules().then(current => {
+    busy.current = busy.current.then(async () => {
+      const current = await Native.bubbleRules();
       const on = current.on.filter(x => x !== app);
       const off = current.off.filter(x => x !== app);
       if (showsBubble(current, app)) off.push(app); else on.push(app);
       const next = { ...current, on, off };
-      return Native.setBubbleRules(next).then(() => setRules(next));
+      await Native.setBubbleRules(next);
+      setRules(next);
     }).catch(() => {});
   };
   const order = (a: App, b: App) => Number(showsBubble(rules, b.app)) - Number(showsBubble(rules, a.app)) || a.label.localeCompare(b.label);

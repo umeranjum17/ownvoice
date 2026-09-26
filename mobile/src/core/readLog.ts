@@ -1,6 +1,6 @@
 import { type Read, keep, summary } from './privacy';
 import { store } from './store';
-import type { TapFact } from '../../modules/ownvoice-native';
+import Native, { type TapFact } from '../../modules/ownvoice-native';
 
 // Privacy.reads and Privacy.record on the phone's key-value store: metadata only, newest first,
 // anything older than 30 days dropped on every read. The text a tap read is never part of a fact.
@@ -23,5 +23,7 @@ export function recordFacts(facts: TapFact[], now = Date.now()): Read[] {
   store.set(KEY, reads);
   return reads;
 }
+
+export async function syncReadLog(): Promise<Read[]> { return recordFacts(await Native.takeTapFacts()); }
 
 export function wipeReadLog(): void { store.set(KEY, null); }

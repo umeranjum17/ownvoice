@@ -6,7 +6,7 @@ import { Row } from '../src/ui/Row';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { plain, type Read } from '../src/core/privacy';
-import { readLog, recordFacts, wipeReadLog } from '../src/core/readLog';
+import { readLog, syncReadLog, wipeReadLog } from '../src/core/readLog';
 import { wipeVoice } from '../src/core/voice';
 import Native from '../modules/ownvoice-native';
 
@@ -14,12 +14,13 @@ import Native from '../modules/ownvoice-native';
 export default function Reads() {
   const t = useTheme();
   const [reads, setReads] = useState<Read[]>([]);
+  const [error, setError] = useState(false);
   const pending = useRef<Promise<void>>(Promise.resolve());
   const wiping = useRef(false);
   const refresh = useCallback(() => {
     if (wiping.current) return;
-    pending.current = pending.current.then(() => Native.takeTapFacts().then(facts => {
-      if (!wiping.current) setReads(recordFacts(facts));
+    pending.current = pending.current.then(() => syncReadLog().then(rows => {
+      if (!wiping.current) setReads(rows);
     }).catch(() => { if (!wiping.current) setReads(readLog()); }));
   }, []);
   useEffect(() => {
@@ -29,13 +30,17 @@ export default function Reads() {
   }, [refresh]);
   // Privacy.wipe: the log, Your voice, and anything still held in memory.
   const wipe = async () => {
+    if (wiping.current) return;
     wiping.current = true;
-    await pending.current;
-    await Promise.allSettled([Native.forget(), Native.clearTapFacts()]);
-    wipeReadLog();
-    wipeVoice();
-    setReads([]);
-    wiping.current = false;
+    setError(false);
+    try {
+      await pending.current;
+      await Promise.all([Native.forget(), Native.clearTapFacts()]);
+      wipeReadLog();
+      wipeVoice();
+      setReads([]);
+    } catch { setError(true); }
+    finally { wiping.current = false; }
   };
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
 
@@ -45,6 +50,7 @@ export default function Reads() {
     <View style={styles.actions}>
       <Button kind="text" label={words.wipe} onPress={() => { void wipe(); }} />
     </View>
+    {error && <Text style={[type.body, { color: t.text }]}>{words.failed}</Text>}
     <Text style={[type.body, { color: t.muted }]}>{words.wipeVoiceNote}</Text>
     <View style={group}>
       {reads.length === 0 && <Row title={words.nothingRead} />}

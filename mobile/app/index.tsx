@@ -8,7 +8,7 @@ import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { DEFAULT_ON } from '../src/core/privacy';
 import { store } from '../src/core/store';
-import { readLog } from '../src/core/readLog';
+import { readLog, syncReadLog } from '../src/core/readLog';
 import { loadVoice } from '../src/core/voice';
 import Native, { type ModelStatus, type ServiceState } from '../modules/ownvoice-native';
 
@@ -42,6 +42,7 @@ export default function Home() {
   const [phrases, setPhrases] = useState(0);
   const [week, setWeek] = useState(0);
   const busy = useRef(Promise.resolve());
+  const readsBusy = useRef(Promise.resolve());
 
   const reload = useCallback(() => {
     void Native.serviceState().then(setService).catch(() => {});
@@ -49,7 +50,10 @@ export default function Home() {
     void Native.bubbleRules().then(setRules).catch(() => {});
     void Native.launcherApps(null).then(setApps).catch(() => {});
     setPhrases(loadVoice().never.length);
-    setWeek(readLog().filter(r => Date.now() - r.time < WEEK_MS).length);
+    readsBusy.current = readsBusy.current.then(async () => {
+      const reads = await syncReadLog().catch(() => readLog());
+      setWeek(reads.filter(r => Date.now() - r.time < WEEK_MS).length);
+    });
   }, []);
 
   useEffect(() => {
@@ -73,7 +77,7 @@ export default function Home() {
     if (want) router.push('/setup');
     else { void Native.turnOff().then(reload).catch(() => {}); }
   };
-  const retry = () => { void Native.downloadModel().catch(() => {}); reload(); };
+  const retry = () => { void Native.downloadModel().catch(() => {}).finally(reload); };
 
   const paused = !!rules?.paused;
   const on = service === 'on';
@@ -97,7 +101,7 @@ export default function Home() {
         <Switch accessibilityLabel={words.powerRow} value={on} onValueChange={power} />
       </View>
       {on && model !== 'available' && !problem && <View style={{ marginTop: space.m }}><Progress fraction={fraction} /></View>}
-      {problem !== null && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
+      {(problem !== null || model === 'downloadable') && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
       {service === 'stuck' && <Text accessibilityRole="button" onPress={() => router.push('/setup')} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.turnBackOn}</Text>}
     </View>
 

@@ -4,7 +4,7 @@ import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import { dashesFor } from '../core/drafts';
-import { guide as voiceGuide } from '../core/voice';
+import { guide as voiceGuide, loadVoice } from '../core/voice';
 import { words } from '../core/words';
 import type { Check, Scores } from '../core/judge';
 import type { Writer } from '../core/writers';
@@ -19,9 +19,6 @@ import { Sheet } from '../ui/Sheet';
 import { VerdictLine } from '../ui/VerdictLine';
 import { space, type, useReducedMotion, useTheme } from '../ui/theme';
 import { phoneWriter } from './phoneWriter';
-
-// The writer's rules come with the voice-settings slice; until then nothing is switched on.
-const RULES = Slop.NO_RULES;
 
 type Mode = 'reply' | 'polish' | 'compose' | 'empty';
 type Phase = 'loading' | 'writing' | 'ready' | 'failed';
@@ -94,11 +91,13 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
   const kind = useRef<{ message: boolean } | null>(null);
+  const voice = useRef(loadVoice());
 
   const shown = cards.filter((card): card is Draft => !!card);
 
   const start = useCallback((value: Capture, avoid?: string[]) => {
     const id = ++run.current;
+    const rules = voice.current = loadVoice();
     const nextMode = modeOf(value.typed, value.written);
     const post = nextMode === 'compose';
     const person = Judge.who(value.written);
@@ -113,7 +112,7 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
     setPhase('writing');
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
-      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, RULES, post, person), meaning: null });
+      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, rules, post, person), meaning: null });
     }
     void writer.write({
       conversation: value.conversation,
@@ -121,8 +120,8 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
       nodes: value.nodes,
       fieldTop: value.fieldTop ?? undefined,
       typed: value.typed.trim(),
-      guide: voiceGuide(RULES, post),
-      dashes: dashesFor(RULES, nextMode === 'reply' ? value.written : value.typed),
+      guide: voiceGuide(rules, post),
+      dashes: dashesFor(rules, nextMode === 'reply' ? value.written : value.typed),
       avoid,
     }, {
       state: state => {
@@ -134,7 +133,7 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
       reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
       landed: (text, slot, label) => {
         if (run.current !== id) return;
-        const scores = Judge.scoreDraft(text, null, !post, RULES, post, person);
+        const scores = Judge.scoreDraft(text, null, !post, rules, post, person);
         const meaning = label ? Judge.meaning(value.typed, text, null) : null;
         setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
       },
@@ -173,6 +172,7 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
     };
     void (async () => {
       const post = mode === 'compose';
+      const rules = voice.current;
       const conversation = capture?.conversation ?? '';
       let model = true;
       try { if (await Native.modelStatus() !== 'available') model = false; } catch { model = false; }
@@ -182,8 +182,8 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
         if (message !== null) kind.current = { message };
       }
       const message = post ? false : kind.current?.message;
-      const answer = model && message !== undefined ? await ask(Judge.draftPrompt(conversation, draft.text, message, voiceGuide(RULES, post && !message)), 220) : null;
-      const scores = answer && message !== undefined && Judge.validDraftAnswer(answer, message) ? Judge.scoreDraft(draft.text, answer, message, RULES, post, who) : null;
+      const answer = model && message !== undefined ? await ask(Judge.draftPrompt(conversation, draft.text, message, voiceGuide(rules, post && !message)), 220) : null;
+      const scores = answer && message !== undefined && Judge.validDraftAnswer(answer, message) ? Judge.scoreDraft(draft.text, answer, message, rules, post, who) : null;
       let meaning = draft.meaning;
       if (model && draft.label && yours) {
         meaning = Judge.meaning(yours.text, draft.text, await ask(Judge.rewriteCheckPrompt(yours.text, draft.text), 80));

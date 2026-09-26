@@ -30,6 +30,7 @@ export function foundLines(found: Found): string {
 export default function Voice() {
   const t = useTheme();
   const [rules, setRules] = useState<Rules>(loadVoice);
+  const [neverText, setNeverText] = useState(() => loadVoice().never.join('\n'));
   const [preview, setPreview] = useState('');
   const [pending, setPending] = useState<Found | null>(null);
   // Everything on this screen saves as it changes, like VoiceActivity saving on pause.
@@ -59,7 +60,7 @@ export default function Voice() {
     {preview !== '' && <Card variant="filled">
       <Text style={[type.body, { color: t.text }]}>{preview}</Text>
       {pending !== null && <View style={styles.actions}>
-        <Button kind="filled" label={words.addThese} onPress={() => { change(merge(rules, pending)); setPreview(words.added); setPending(null); }} />
+        <Button kind="filled" label={words.addThese} onPress={() => { const next = merge(rules, pending); change(next); setNeverText(next.never.join('\n')); setPreview(words.added); setPending(null); }} />
         <Button kind="text" label={words.cancel} onPress={() => { setPreview(''); setPending(null); }} />
       </View>}
     </Card>}
@@ -77,7 +78,7 @@ export default function Voice() {
     <Text style={[type.label, { color: t.text, marginTop: space.m }]}>{words.neverSay}</Text>
     <Text style={[type.note, { color: t.muted }]}>{words.neverSayHelp}</Text>
     <TextInput accessibilityLabel={words.neverSay} placeholder={words.neverSayHint} placeholderTextColor={t.muted} multiline
-      value={rules.never.join('\n')} onChangeText={text => change({ ...rules, never: text.split('\n').map(x => x.trim()).filter(Boolean) })} style={[type.body, field, styles.wide]} />
+      value={neverText} onChangeText={text => { setNeverText(text); change({ ...rules, never: text.split('\n').map(x => x.trim()).filter(Boolean) }); }} style={[type.body, field, styles.wide]} />
     <Text style={[type.body, { color: t.muted, marginTop: space.m }]}>{words.wipeElsewhere}</Text>
     <Button kind="text" label={words.back} onPress={() => router.back()} />
   </ScrollView>;

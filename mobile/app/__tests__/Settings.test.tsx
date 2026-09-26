@@ -87,6 +87,18 @@ test('a phone that cannot write offers Try again in plain words', async () => {
   await waitFor(() => expect(native.downloadModel).toHaveBeenCalled());
 });
 
+test('a completed download refreshes the card and a downloadable phone can retry', async () => {
+  native.modelStatus.mockResolvedValueOnce('downloadable').mockResolvedValue('available');
+  let finish!: () => void;
+  native.downloadModel.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.tryAgain)).toBeTruthy();
+  fireEvent.press(screen.getByText(words.tryAgain));
+  await waitFor(() => expect(native.downloadModel).toHaveBeenCalled());
+  await act(async () => { finish(); });
+  expect(await screen.findByText(words.statusReady)).toBeTruthy();
+});
+
 test('the card pauses, and the switch hides the bubble everywhere', async () => {
   const screen = await homeCopy();
   await act(async () => { fireEvent(screen.getByLabelText(words.powerRow), 'valueChange', false); });
@@ -155,6 +167,24 @@ test('the app list is on-apps first, keeps the note, and saves a switch', async 
   await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalledWith(expect.objectContaining({ on: expect.arrayContaining(['com.google.android.gm']), off: [] })));
 });
 
+test('quick app choices build on each completed write', async () => {
+  let saved = rules;
+  let finish!: () => void;
+  native.bubbleRules.mockImplementation(async () => saved);
+  native.setBubbleRules.mockImplementation(next => new Promise(resolve => { finish = () => { saved = next; resolve(); }; }));
+  const screen = await show(<Apps />);
+  await screen.findByText('Chrome');
+  fireEvent.press(screen.getByText('Chrome'));
+  fireEvent.press(screen.getByText('Gmail'));
+  await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalledTimes(1));
+  expect(native.bubbleRules).toHaveBeenCalledTimes(2);
+  await act(async () => { finish(); });
+  await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalledTimes(2));
+  await act(async () => { finish(); });
+  expect(saved.on).toEqual(expect.arrayContaining(['com.netflix.netflix', 'com.android.chrome', 'com.google.android.gm']));
+  expect(saved.off).toEqual([]);
+});
+
 test('the list narrows as you type', async () => {
   const screen = await show(<Apps />);
   await screen.findByText('WhatsApp');
@@ -198,6 +228,16 @@ test('a cancelled pick leaves the screen alone', async () => {
   fireEvent.press(screen.getByText(words.importFile));
   await waitFor(() => expect(picker.pickFileAsync).toHaveBeenCalled());
   expect(screen.queryByText(words.foundNothing)).toBeNull();
+});
+
+test('a newline stays editable before the next phrase is typed', async () => {
+  const screen = await show(<Voice />);
+  const field = screen.getByLabelText(words.neverSay);
+  fireEvent.changeText(field, 'delve');
+  fireEvent.changeText(field, 'delve\n');
+  expect(screen.getByLabelText(words.neverSay).props.value).toBe('delve\n');
+  fireEvent.changeText(field, 'delve\ncircle back');
+  expect(loadVoice().never).toEqual(['delve', 'circle back']);
 });
 
 test('the rules, the note and the never-say list all save', async () => {
@@ -246,6 +286,27 @@ test('Wipe everything clears the log, Your voice and what is held in memory', as
   expect(loadVoice().never).toEqual([]);
   expect(native.forget).toHaveBeenCalled();
   expect(native.clearTapFacts).toHaveBeenCalled();
+});
+
+test('a failed native wipe keeps saved choices and offers a retry', async () => {
+  native.takeTapFacts.mockResolvedValue([fact()]);
+  native.clearTapFacts.mockRejectedValueOnce(new Error('could not clear'));
+  const screen = await show(<Reads />);
+  await waitFor(() => expect(readLog()).toHaveLength(1));
+  kv.set('voice', JSON.stringify({ never: ['delve'], noDashes: true, statementEndings: false, note: '' }));
+  fireEvent.press(screen.getByText(words.wipe));
+  expect(await screen.findByText(words.failed)).toBeTruthy();
+  expect(readLog()).toHaveLength(1);
+  expect(loadVoice().never).toEqual(['delve']);
+  fireEvent.press(screen.getByText(words.wipe));
+  await waitFor(() => expect(readLog()).toEqual([]));
+});
+
+test('Home includes taps still waiting in the phone', async () => {
+  native.takeTapFacts.mockResolvedValueOnce([fact()]).mockResolvedValue([]);
+  const screen = await homeCopy();
+  expect(await screen.findByText(words.onceWeek)).toBeTruthy();
+  expect(readLog()).toHaveLength(1);
 });
 
 test('an entry older than 30 days has already gone', async () => {
