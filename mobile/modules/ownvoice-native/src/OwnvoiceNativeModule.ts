@@ -16,7 +16,7 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   openAccessibilitySettings(): Promise<void>;
   openAppInfo(): Promise<void>;
   setPractice(on: boolean): Promise<void>;
-  launcherApps(): Promise<{ app: string; label: string; icon: string | null }[]>;
+  launcherApps(offeredOnly: boolean): Promise<{ app: string; label: string; icon: string | null }[]>;
   bubbleRules(): Promise<{ paused: boolean; on: string[]; off: string[] }>;
   setBubbleRules(rules: { paused: boolean; on: string[]; off: string[] }): Promise<void>;
   say(message: string, ms?: number): Promise<void>;
@@ -27,7 +27,6 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;
   closePanel(): Promise<void>;
   modelStatus(): Promise<ModelStatus>;
-  stubWriter(): Promise<boolean>;
   downloadModel(): Promise<void>;
   ask(id: string, prompt: string, options: { maxTokens: number }): Promise<string>;
   drafts(prompt: string, options: { candidates: number; maxTokens: number }): Promise<string[]>;

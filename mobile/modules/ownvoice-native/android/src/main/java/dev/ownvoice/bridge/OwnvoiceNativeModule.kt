@@ -36,12 +36,15 @@ class OwnvoiceNativeModule : Module() {
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         .setData(android.net.Uri.fromParts("package", context.packageName, null)))
     }.runOnQueue(Queues.MAIN)
-    AsyncFunction("launcherApps") {
+    AsyncFunction("launcherApps") Coroutine { offeredOnly: Boolean ->
       val pm = context.packageManager
       val size = (40 * context.resources.displayMetrics.density).toInt()
+      val offered = setOf("com.twitter.android", "com.linkedin.android", "com.reddit.frontpage", "com.Slack", "com.whatsapp", "com.google.android.gm")
       pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
+        .filter { !offeredOnly || it.activityInfo.packageName in offered }
+        .distinctBy { it.activityInfo.packageName }
         .map { info ->
-          val icon = runCatching {
+          val icon = if (offeredOnly) runCatching {
             val drawable = info.loadIcon(pm)
             val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
             val canvas = android.graphics.Canvas(bitmap)
@@ -51,12 +54,11 @@ class OwnvoiceNativeModule : Module() {
             bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, bytes)
             bitmap.recycle()
             android.util.Base64.encodeToString(bytes.toByteArray(), android.util.Base64.NO_WRAP)
-          }.getOrNull()
+          }.getOrNull() else null
           mapOf("app" to info.activityInfo.packageName, "label" to info.loadLabel(pm).toString(), "icon" to icon)
         }
-        .distinctBy { it["app"] }
         .sortedBy { it["label"]?.lowercase() }
-    }.runOnQueue(Queues.MAIN)
+    }
     AsyncFunction("bubbleRules") {
       val prefs = context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE)
       mapOf("paused" to prefs.getBoolean("paused", false), "on" to prefs.getStringSet("on", emptySet()).orEmpty().toList(),
@@ -97,11 +99,6 @@ class OwnvoiceNativeModule : Module() {
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("closePanel") { PanelActivity.current?.finish() }.runOnQueue(Queues.MAIN)
     AsyncFunction("modelStatus") Coroutine { -> PhoneModel.status() }
-    AsyncFunction("stubWriter") {
-      // e2e seam (plan §3.5): the emulator has no phone model; the device driver turns this on so the
-      // panel has drafts to insert. It is a system setting no user ever sets, never shown anywhere.
-      Settings.Global.getInt(context.contentResolver, "ownvoice_stub_writer", 0) == 1
-    }.runOnQueue(Queues.MAIN)
     AsyncFunction("downloadModel") Coroutine { ->
       try { PhoneModel.download { fraction -> sendEvent("onModelProgress", mapOf("fraction" to fraction)) } }
       catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }

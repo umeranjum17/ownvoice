@@ -4,6 +4,7 @@ import { render, fireEvent, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Setup from '../setup';
+import Home from '../index';
 import Native from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
 
@@ -61,6 +62,15 @@ beforeEach(() => {
 });
 
 const at = (step: string, inserted = false) => kv.set('setup', JSON.stringify({ step, inserted }));
+
+test('unfinishedSetupResumesEvenWhenServiceIsOn', async () => {
+  at('APPS');
+  native.serviceState.mockResolvedValue('on');
+  const screen = await render(<Home />);
+  live.push(() => screen.unmount());
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/setup'));
+  expect(native.serviceState).not.toHaveBeenCalled();
+});
 
 test('welcomeStartsTheDownloadAndMovesToPermission', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
@@ -141,8 +151,53 @@ test('appsSaveWhatTheyShowOnDone', async () => {
   const saved = native.setBubbleRules.mock.calls[0][0];
   expect(saved.on).toContain('com.whatsapp');
   expect(saved.off).toContain('com.google.android.gm');
-  expect(router.replace).toHaveBeenCalledWith('/');
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
   expect(kv.get('setup-done')).toBe('true');
+});
+
+test('choicesReplaceConflictingRulesAndWaitForTheWrite', async () => {
+  at('APPS');
+  native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.google.android.gm'], off: ['com.whatsapp'] });
+  let complete!: () => void;
+  native.setBubbleRules.mockImplementation(() => new Promise<void>(resolve => { complete = resolve; }));
+  const screen = await renderSetup();
+  await screen.findByText('Gmail');
+  await fireEvent.press(screen.getByText('Gmail'));
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalled());
+  expect(native.setBubbleRules.mock.calls[0][0]).toEqual({ paused: false, on: ['com.whatsapp'], off: ['com.google.android.gm'] });
+  expect(kv.get('setup-done')).toBeUndefined();
+  complete();
+  await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
+});
+
+test('failedAppWriteLeavesSetupRecoverable', async () => {
+  at('APPS');
+  native.setBubbleRules.mockRejectedValueOnce(new Error('write failed'));
+  const screen = await renderSetup();
+  await screen.findByText('Gmail');
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalledTimes(1));
+  expect(native.setBubbleRules).toHaveBeenCalledTimes(1);
+  expect(kv.get('setup-done')).toBeUndefined();
+  expect(router.replace).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+});
+
+test('appChoicesWaitForTheInstalledList', async () => {
+  at('APPS');
+  let loaded!: (apps: { app: string; label: string; icon: null }[]) => void;
+  native.launcherApps.mockImplementation(() => new Promise(resolve => { loaded = resolve; }));
+  const screen = await renderSetup();
+  await fireEvent.press(screen.getByText(words.done));
+  backHandlers.forEach(fire => fire());
+  expect(native.setBubbleRules).not.toHaveBeenCalled();
+  expect(kv.get('setup-done')).toBeUndefined();
+  loaded([{ app: 'com.whatsapp', label: 'WhatsApp', icon: null }]);
+  await screen.findByText('WhatsApp');
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
 test('practiceLetsTheBubbleWorkOnlyThereAndEndsOnInsert', async () => {
@@ -153,6 +208,8 @@ test('practiceLetsTheBubbleWorkOnlyThereAndEndsOnInsert', async () => {
   await waitFor(() => expect(native.setPractice).toHaveBeenCalledWith(true));
   expect(screen.getByText(words.practiceNote)).toBeTruthy();
   expect(screen.getByText(words.skip)).toBeTruthy();
+  events.onInserted?.({ ok: false, newlinesLost: false });
+  expect(screen.queryByText(words.tryDone)).toBeNull();
   events.onInserted?.({ ok: true, newlinesLost: false });
   expect(await screen.findByText(words.tryDone)).toBeTruthy();
   expect(screen.getByText(words.continueLabel)).toBeTruthy();
@@ -172,6 +229,6 @@ test('leavingByBackCountsAsDone', async () => {
   await screen.findByText(words.welcomeTitle);
   expect(backHandlers.length).toBeGreaterThan(0);
   backHandlers.forEach(fire => fire());
-  expect(kv.get('setup-done')).toBe('true');
+  await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
   expect(kv.has('setup')).toBe(false);
 });

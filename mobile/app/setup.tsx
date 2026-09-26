@@ -32,6 +32,8 @@ export default function Setup() {
   const [{ step, inserted }, setSaved] = useState<Saved>(readSaved);
   const [serviceOn, setServiceOn] = useState(false);
   const [installed, setInstalled] = useState<Offered[] | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [choices, setChoices] = useState<Record<string, boolean>>({});
   const [greyed, setGreyed] = useState(false);
   const [hintOn, setHintOn] = useState(false);
@@ -41,25 +43,28 @@ export default function Setup() {
 
   const set = (update: (current: Saved) => Saved) => setSaved(update);
 
-  // Leaving setup by any route marks it done, so it doesn't open again by itself.
-  const finish = () => {
+  const finish = async () => {
+    if (savingRef.current) return;
     const { step: now, installed: shown, choices: picked } = latest.current;
-    if (now === 'APPS' && shown) {
-      void (async () => {
-        try {
-          const rules = await Native.bubbleRules();
-          const on = [...rules.on];
-          const off = [...rules.off];
-          for (const { app } of shown) {
-            (picked[app] ?? true ? on : off).push(app);
-          }
-          await Native.setBubbleRules({ paused: rules.paused, on, off });
-        } catch {}
-      })();
+    if (now === 'APPS' && !shown) return;
+    savingRef.current = true;
+    setSaving(true);
+    try {
+      if (now === 'APPS' && shown) {
+        const rules = await Native.bubbleRules();
+        const shownApps = new Set(shown.map(({ app }) => app));
+        const on = rules.on.filter(app => !shownApps.has(app));
+        const off = rules.off.filter(app => !shownApps.has(app));
+        for (const { app } of shown) (picked[app] ?? true ? on : off).push(app);
+        await Native.setBubbleRules({ paused: rules.paused, on, off });
+      }
+      store.set('setup-done', true);
+      store.set('setup', null);
+      router.replace('/');
+    } catch {
+      setSaving(false);
+      savingRef.current = false;
     }
-    store.set('setup-done', true);
-    store.set('setup', null);
-    router.replace('/');
   };
 
   useEffect(() => {
@@ -67,14 +72,14 @@ export default function Setup() {
     // The one-time model download runs quietly behind setup (the home card reports problems later).
     Native.modelStatus().then(s => { if (s === 'downloadable') Native.downloadModel().catch(() => {}); }).catch(() => {});
     Native.serviceState().then(s => { if (live) setServiceOn(s === 'on'); }).catch(() => {});
-    Native.launcherApps().then(apps => {
+    Native.launcherApps(true).then(apps => {
       if (live) setInstalled(Onboarding.offeredApps(a => apps.some(x => x.app === a))
         .map(([app, name]) => ({ app, name, icon: apps.find(x => x.app === app)?.icon ?? null })));
     }).catch(() => { if (live) setInstalled([]); });
     const service = Native.addListener('onServiceChange', ({ state }) => setServiceOn(state === 'on'));
     // The first draft inserted into the practice chat ends the step (B11).
-    const done = Native.addListener('onInserted', () => set(current => ({ ...current, inserted: true })));
-    const back = BackHandler.addEventListener('hardwareBackPress', () => { finish(); return false; });
+    const done = Native.addListener('onInserted', ({ ok }) => { if (ok) set(current => current.step === 'TRY' ? { ...current, inserted: true } : current); });
+    const back = BackHandler.addEventListener('hardwareBackPress', () => { void finish(); return true; });
     return () => {
       live = false;
       service.remove(); done.remove(); back.remove();
@@ -92,7 +97,7 @@ export default function Setup() {
   // Once the service is on, the permission step has done its job and setup moves on (B10's return).
   useEffect(() => {
     if (serviceOn && step === 'PERMISSION') advance();
-  }, [serviceOn, step]);
+  }, [serviceOn, step, installed]);
 
   // A small copy of the phone's own row and switch, the switch flipping on and off (S3).
   useEffect(() => {
@@ -103,8 +108,9 @@ export default function Setup() {
 
   const advance = (from?: Step) => {
     const current = from ?? latest.current.step;
+    if ((current === 'PERMISSION' && !serviceOn || current === 'TRY') && !latest.current.installed) return;
     const next = Onboarding.next(current, serviceOn, !!store.get('setup-done'), (latest.current.installed?.length ?? 0) > 0);
-    if (next === 'DONE') finish();
+    if (next === 'DONE') void finish();
     else set(current => ({ ...current, step: next }));
   };
 
@@ -192,7 +198,7 @@ export default function Setup() {
             onPress={() => toggle(app)} />)}
       </View>
       <View style={{ minHeight: space.xxl }} />
-      <Button kind="filled" label={words.done} onPress={finish} />
+      <Button kind="filled" disabled={!installed || saving} label={words.done} onPress={() => { void finish(); }} />
     </View>}
   </ScrollView>;
 

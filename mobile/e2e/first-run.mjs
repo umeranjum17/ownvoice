@@ -179,9 +179,6 @@ const run = async mode => {
   disableService();
   await wait(1500);
 
-  // The stub writer gives the panel drafts on this model-less emulator.
-  adb('shell', 'settings', 'put', 'global', 'ownvoice_stub_writer', '1');
-
   // 1. Welcome. The home redirect opens setup on a cleared install (S6).
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
   await waitForLine('replies that sound');
@@ -258,6 +255,5 @@ await run('dark');
 
 // Settings restored afterwards.
 adb('shell', 'cmd', 'uimode', 'night', 'no');
-adb('shell', 'settings', 'delete', 'global', 'ownvoice_stub_writer');
 disableService();
 console.log(`First-run proof saved to ${out}: setup walked in light and dark, texts plain, insert landed, service off again.`);

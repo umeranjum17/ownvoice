@@ -19,7 +19,7 @@ Screenshots: `light-NN-*` and `dark-NN-*` pairs (copied to the pane attachments 
 
 ## Regression
 
-`node e2e/driver.mjs` still passes end to end on the same AVD: RN field, Chrome textarea and contenteditable inserts (read-back ok=true ×3), pause/off bubble hiding, per-app switch, and the service-rebind-after-reinstall check (`OWNVOICE-RN-06-regression-*` screenshots). The driver gained: the psm-13 raw-line OCR pass (filled pills), a Copy-anchored Insert tap (the Insert pill defeats OCR), Chrome first-run dismissal, and the plan §3.5 stub writer — `settings put global ownvoice_stub_writer 1` gives the panel fixed drafts on this model-less emulator (unset after the run).
+`node e2e/driver.mjs` still passes end to end on the same AVD: RN field, Chrome textarea and contenteditable inserts (read-back ok=true ×3), pause/off bubble hiding, per-app switch, and the service-rebind-after-reinstall check (`OWNVOICE-RN-06-regression-*` screenshots). The driver gained: the psm-13 raw-line OCR pass (filled pills), a Copy-anchored Insert tap (the Insert pill defeats OCR), Chrome first-run dismissal, and the build-flagged stand-in writer (`EXPO_PUBLIC_E2E_STUB=1`) gives the panel fixed drafts on this model-less emulator without a device setting.
 
 ## Local checks
 

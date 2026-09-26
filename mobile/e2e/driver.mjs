@@ -22,8 +22,6 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 execFileSync('adb', ['-s', serial, 'logcat', '-c']);
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'pm', 'clear', pkg);
-// The stub writer stands in for the phone model this emulator does not have.
-adb('shell', 'settings', 'put', 'global', 'ownvoice_stub_writer', '1');
 // Reinstall kills the process without rebinding this service; toggle only this emulator's service entry.
 const enabled = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const services = new Set(enabled === 'null' ? [] : enabled.split(':'));

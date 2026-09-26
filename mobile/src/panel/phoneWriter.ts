@@ -60,12 +60,17 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
 }
 
 export const phoneWriter = {
+<<<<<<< HEAD
   async write(request: DraftRequest, on: WriterEvents = {}): Promise<Choice> {
-    // The emulator's explicit test switch bypasses the unavailable phone model.
-    if (await Native.stubWriter()) {
+    if (process.env.EXPO_PUBLIC_E2E_STUB === '1') {
       const drafts = ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
       drafts.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts };
+=======
+  async write(request: DraftRequest, onState: (state: 'downloading' | 'writing') => void = () => {}) {
+    if (process.env.EXPO_PUBLIC_E2E_STUB === '1') {
+      return ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
+>>>>>>> 08ce2af (no-mistakes(review): Fix setup recovery, app choices, and test-only drafts)
     }
     try {
       if (await Native.modelStatus() !== 'available') {
