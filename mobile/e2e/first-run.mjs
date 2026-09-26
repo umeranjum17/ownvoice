@@ -18,7 +18,10 @@ mkdirSync(out, { recursive: true });
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const snap = name => {
+  const dark = name.startsWith('dark-');
+  adb('shell', 'cmd', 'uimode', 'night', dark ? 'yes' : 'no');
   adb('shell', 'screencap', '-p', `/sdcard/${name}.png`);
+  if (!adb('shell', 'dumpsys', 'uimode').includes(`mComputedNightMode=${dark}`)) throw new Error(`Wrong colour mode for ${name}.`);
   execFileSync('adb', ['-s', serial, 'pull', `/sdcard/${name}.png`, resolve(out, `${name}.png`)], { stdio: 'inherit' });
 };
 
