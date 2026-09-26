@@ -6,7 +6,7 @@ import { Card } from '../src/ui/Card';
 import { Row } from '../src/ui/Row';
 import { space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
-import { DEFAULT_ON } from '../src/core/privacy';
+import { showsBubble } from '../src/core/privacy';
 import { store } from '../src/core/store';
 import type { TapFact } from '../modules/ownvoice-native';
 
@@ -31,7 +31,7 @@ export default function Home() {
       setRules(next);
     }).catch(() => {});
   };
-  const enabled = (app: string, current = rules) => !!current && (current.on.includes(app) || (!current.off.includes(app) && DEFAULT_ON.has(app)));
+  const enabled = (app: string, current = rules) => !!current && showsBubble(app, current);
   const toggle = (app: string) => {
     if (!rules) return;
     change(current => {
@@ -54,11 +54,18 @@ export default function Home() {
   return <View style={{ flex: 1, justifyContent: 'center', padding: space.xl, gap: space.l, backgroundColor: t.sheet }}>
     <Text style={[type.headline, { color: t.text }]}>Ownvoice</Text>
     <Text style={[type.body, { color: t.text }]}>{words.home}</Text>
+    <Text style={[type.note, { color: t.muted }]}>{words.privacyNote}</Text>
+    <Text style={[type.note, { color: t.muted }]}>{words.switchNote}</Text>
     <View style={{ alignSelf: 'flex-start', maxWidth: '92%' }}><Card variant="filled" label="Sam">
       <Text style={[type.body, { color: t.text }]}>Are we still on for Saturday?{'\n'}I can bring the tent if you bring the stove.</Text>
     </Card></View>
     <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.muted} value={text} onChangeText={setText} multiline style={[type.body, { minHeight: 56, borderWidth: 1, borderColor: t.outline, borderRadius: 12, padding: space.m, color: t.text }]} />
     <Button kind="filled" label="Turn on Ownvoice" onPress={() => { void native().openAccessibilitySettings(false).catch(() => {}); }} />
+    <View style={{ borderRadius: 20, backgroundColor: t.group, overflow: 'hidden' }}>
+      <Row title={words.gptButton} subtitle={words.gptNote} onPress={() => router.push('/chatgpt')} />
+      <Row title={words.gptApps} onPress={() => router.push('/gptapps')} />
+      <Row title={words.readsTitle} onPress={() => router.push('/reads')} />
+    </View>
     <Button kind="text" disabled={!rules} label="Where the bubble shows" onPress={() => { void native().launcherApps(null).then(setApps).catch(() => {}); }} />
     <Button kind="text" disabled={!rules} label={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change(current => ({ ...current, paused: !current.paused })); }} />
     <Button kind="text" label={`Recent activity: ${activity}`} onPress={() => { void native().takeTapFacts().then((facts: TapFact[]) => setActivity(count => count + facts.length)).catch(() => {}); }} />

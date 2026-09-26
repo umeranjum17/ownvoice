@@ -8,7 +8,7 @@ import { Switch } from '../src/ui/Switch';
 import { Dot } from '../src/ui/Dot';
 import { ChatIcon, HandIcon, LockIcon } from '../src/ui/icons';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
-import { words } from '../src/core/words';
+import { words, CHATGPT_TERMS } from '../src/core/words';
 import * as Onboarding from '../src/core/onboarding';
 import type { Step } from '../src/core/onboarding';
 import { store } from '../src/core/store';
@@ -62,21 +62,26 @@ export default function Setup() {
     }).catch(() => { if (mounted.current) setAppsFailed(true); });
   };
 
+  /** The apps the person left on, written into the bubble rules once, when they leave the apps step. */
+  const saveApps = async () => {
+    const { installed: shown, choices: picked } = latest.current;
+    if (!shown) return;
+    const rules = await Native.bubbleRules();
+    const shownApps = new Set(shown.map(({ app }) => app));
+    const on = rules.on.filter(app => !shownApps.has(app));
+    const off = rules.off.filter(app => !shownApps.has(app));
+    for (const { app } of shown) (picked[app] ?? true ? on : off).push(app);
+    await Native.setBubbleRules({ paused: rules.paused, on, off });
+  };
+
   const finish = async (leaving = false) => {
     if (savingRef.current) return;
-    const { step: now, installed: shown, choices: picked } = latest.current;
+    const { step: now, installed: shown } = latest.current;
     if (now === 'APPS' && !shown && !leaving) return;
     savingRef.current = true;
     setSaving(true);
     try {
-      if (now === 'APPS' && shown) {
-        const rules = await Native.bubbleRules();
-        const shownApps = new Set(shown.map(({ app }) => app));
-        const on = rules.on.filter(app => !shownApps.has(app));
-        const off = rules.off.filter(app => !shownApps.has(app));
-        for (const { app } of shown) (picked[app] ?? true ? on : off).push(app);
-        await Native.setBubbleRules({ paused: rules.paused, on, off });
-      }
+      if (now === 'APPS' && shown) await saveApps();
       await Native.clearSetupReturn();
       store.set('setup-done', true);
       try { store.set('setup', null); } catch {}
@@ -130,6 +135,21 @@ export default function Setup() {
       return;
     }
     const next = Onboarding.next(current, serviceOn, !!store.get('setup-done'), (latest.current.installed?.length ?? 0) > 0);
+    // The apps step saves its own list on the way to the optional ChatGPT step.
+    if (next === 'CHATGPT') {
+      if (savingRef.current) return;
+      savingRef.current = true;
+      setSaving(true);
+      void saveApps().then(() => {
+        savingRef.current = false;
+        setSaving(false);
+        set(saved => ({ ...saved, step: 'CHATGPT' }));
+      }, () => {
+        savingRef.current = false;
+        setSaving(false);
+      });
+      return;
+    }
     if (next === 'DONE') void finish();
     else set(current => ({ ...current, step: next }));
   };
@@ -221,7 +241,16 @@ export default function Setup() {
       {appsFailed && <Button kind="text" label={words.tryAgain} onPress={loadApps} />}
       {appsFailed && <Text style={[type.body, centre, { color: t.muted }]}>{words.appsUnavailable}</Text>}
       <View style={{ minHeight: space.xxl }} />
-      <Button kind="filled" disabled={!installed || saving} label={words.done} onPress={() => { void finish(); }} />
+      <Button kind="filled" disabled={!installed || saving} label={words.done} onPress={() => advance()} />
+    </View>}
+    {step === 'CHATGPT' && <View>
+      <Text style={[type.headline, centre, { color: t.text }]}>{words.gptTitle}</Text>
+      <Text style={[type.body, centre, { color: t.muted, marginTop: space.s, marginBottom: space.l, paddingHorizontal: space.s }]}>{words.gptNote}</Text>
+      <Text style={[type.note, centre, { color: t.muted, marginBottom: space.s }]}>{CHATGPT_TERMS}</Text>
+      <Text style={[type.note, centre, { color: t.muted }]}>{words.switchNote}</Text>
+      <View style={{ minHeight: space.xxl }} />
+      <Button kind="filled" label={words.gptButton} onPress={() => { router.push('/chatgpt'); }} />
+      <Button kind="text" label={words.notNow} onPress={() => { void finish(); }} />
     </View>}
   </ScrollView>;
 

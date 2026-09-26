@@ -4,10 +4,13 @@ import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import { dashesFor } from '../core/drafts';
+import { summary as readSummary } from '../core/privacy';
+import { logRead } from '../core/reads';
+import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide } from '../core/voice';
 import { words } from '../core/words';
 import type { Check, Scores } from '../core/judge';
-import type { Writer } from '../core/writers';
+import type { Writer, WriterRoute } from '../core/writers';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { MeaningLine } from '../ui/MeaningLine';
@@ -18,10 +21,11 @@ import { ReasonRow } from '../ui/ReasonRow';
 import { Sheet } from '../ui/Sheet';
 import { VerdictLine } from '../ui/VerdictLine';
 import { space, type, useReducedMotion, useTheme } from '../ui/theme';
-import { phoneWriter } from './phoneWriter';
 
 // The writer's rules come with the voice-settings slice; until then nothing is switched on.
 const RULES = Slop.NO_RULES;
+
+const privacyMode = (mode: Mode): Judge.Mode => mode === 'reply' ? 'REPLY' : mode === 'empty' ? 'EMPTY' : 'COMPOSE';
 
 type Mode = 'reply' | 'polish' | 'compose' | 'empty';
 type Phase = 'loading' | 'writing' | 'ready' | 'failed';
@@ -77,14 +81,14 @@ function WhyCover({ draft, checks, who }: { draft: Draft; checks: WhyState; who:
   </View>;
 }
 
-export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}) {
+export default function Panel({ writer, select = gptRoute }: { writer?: Writer; select?: (app: string) => Promise<WriterRoute> } = {}) {
   const t = useTheme();
   const [capture, setCapture] = useState<Capture | null>(null);
   const [mode, setMode] = useState<Mode | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [note, setNote] = useState<string | null>(null);
   const [fraction, setFraction] = useState<number | null>(null);
-  const [fallback, setFallback] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);
   const [who, setWho] = useState<string | null>(null);
   const [yours, setYours] = useState<Draft | null>(null);
   const [cards, setCards] = useState<(Draft | null)[]>([null, null, null]);
@@ -105,52 +109,68 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
     setMode(nextMode);
     setCards([null, null, null]);
     setYours(null);
-    setFallback(false);
+    setReason(null);
     setFraction(null);
     setWhy(null);
-    if (nextMode === 'empty') { setNote(null); setPhase('ready'); return; }
+    if (nextMode === 'empty') {
+      logRead({ time: Date.now(), app: value.app, label: value.label, summary: readSummary('EMPTY', value.conversation, value.typed) });
+      setNote(null); setPhase('ready'); return;
+    }
     setNote(words.writing);
     setPhase('writing');
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
       setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, RULES, post, person), meaning: null });
     }
-    void writer.write({
-      conversation: value.conversation,
-      written: value.written,
-      nodes: value.nodes,
-      fieldTop: value.fieldTop ?? undefined,
-      typed: value.typed.trim(),
-      guide: voiceGuide(RULES, post),
-      dashes: dashesFor(RULES, nextMode === 'reply' ? value.written : value.typed),
-      avoid,
-    }, {
-      state: state => {
+    void (async () => {
+      // ChatGPT writes when it is signed in and allowed here; the phone model writes otherwise, and
+      // whenever ChatGPT can't. One plain line above the drafts says which happened.
+      const path: WriterRoute = writer ? { writer, note: null, viaChatGPT: false } : await select(value.app);
+      if (run.current !== id) return;
+      let choice;
+      let sent = false;
+      try {
+        choice = await path.writer.write({
+          conversation: value.conversation,
+          written: value.written,
+          nodes: value.nodes,
+          fieldTop: value.fieldTop ?? undefined,
+          typed: value.typed.trim(),
+          guide: voiceGuide(RULES, post),
+          dashes: dashesFor(RULES, nextMode === 'reply' ? value.written : value.typed),
+          avoid,
+        }, {
+          sent: () => { sent = true; },
+          state: state => {
+            if (run.current !== id) return;
+            setNote(state === 'downloading' ? words.gettingReady : words.writing);
+            if (state === 'writing') setFraction(null);
+          },
+          fraction: value2 => { if (run.current === id) setFraction(value2); },
+          reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
+          landed: (text, slot, label) => {
+            if (run.current !== id) return;
+            const scores = Judge.scoreDraft(text, null, !post, RULES, post, person);
+            const meaning = label ? Judge.meaning(value.typed, text, null) : null;
+            setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
+          },
+        });
+      } catch (error) {
+        logRead({ time: Date.now(), app: value.app, label: value.label, summary: readSummary(privacyMode(nextMode), value.conversation, value.typed, sent), sent });
         if (run.current !== id) return;
-        setNote(state === 'downloading' ? words.gettingReady : words.writing);
-        if (state === 'writing') setFraction(null);
-      },
-      fraction: value2 => { if (run.current === id) setFraction(value2); },
-      reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
-      landed: (text, slot, label) => {
-        if (run.current !== id) return;
-        const scores = Judge.scoreDraft(text, null, !post, RULES, post, person);
-        const meaning = label ? Judge.meaning(value.typed, text, null) : null;
-        setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
-      },
-    }).then(({ reason }) => {
+        setFraction(null);
+        setNote(error instanceof Error ? error.message : words.failed);
+        setPhase('failed');
+        return;
+      }
+      logRead({ time: Date.now(), app: value.app, label: value.label, summary: readSummary(privacyMode(nextMode), value.conversation, value.typed, sent), sent });
       if (run.current !== id) return;
       setFraction(null);
-      setFallback(!!reason);
+      setReason(choice.reason ?? path.note);
       setNote(null);
       setPhase('ready');
-    }).catch((error: unknown) => {
-      if (run.current !== id) return;
-      setFraction(null);
-      setNote(error instanceof Error ? error.message : words.failed);
-      setPhase('failed');
-    });
-  }, [writer]);
+    })();
+  }, [writer, select]);
 
   useEffect(() => {
     const progress = Native.addListener('onModelProgress', ({ fraction: value }) => setFraction(value));
@@ -223,6 +243,7 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
     } : undefined}
     onCloseCover={() => setWhy(null)}>
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
+    {reason && shown.length ? <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{reason}</Text> : null}
     {yours ? <View style={{ marginBottom: space.m }}>
       <Card variant="filled" label="Yours">
         <Marked text={yours.text} hits={yours.scores.hits} />
@@ -265,6 +286,5 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
         <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} />
       </View>
       : null}
-    {fallback && shown.length ? <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{words.fallback}</Text> : null}
   </Sheet>;
 }
