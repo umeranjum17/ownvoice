@@ -33,8 +33,12 @@ export default function Voice() {
   const [neverText, setNeverText] = useState(() => loadVoice().never.join('\n'));
   const [preview, setPreview] = useState('');
   const [pending, setPending] = useState<Found | null>(null);
+  const [saveFailed, setSaveFailed] = useState(false);
   // Everything on this screen saves as it changes, like VoiceActivity saving on pause.
-  const change = (next: Rules) => { setRules(next); saveVoice(next); };
+  const change = (next: Rules): boolean => {
+    try { saveVoice(next); setRules(next); setSaveFailed(false); return true; }
+    catch { setSaveFailed(true); return false; }
+  };
   const show = (markdown: string) => {
     const found = parse(markdown);
     if (!found.never.length && !found.noDashes && !found.statementEndings) { setPreview(words.foundNothing); setPending(null); return; }
@@ -46,8 +50,7 @@ export default function Voice() {
     try {
       const picked = await File.pickFileAsync({ mimeTypes: ['*/*'] });
       if (picked.canceled) return;
-      const lines = (await picked.result.text()).split(/\r?\n/).slice(0, 5000).join('\n'); // ponytail: first 5,000 lines; a voice profile is a page or two.
-      show(lines);
+      show(await picked.result.text());
     } catch { setPreview(words.cantOpen); setPending(null); }
   };
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
@@ -57,10 +60,11 @@ export default function Voice() {
     <Text style={[type.headline, { color: t.text }]}>{words.rowVoice}</Text>
     <Text style={[type.body, { color: t.muted, marginBottom: space.s }]}>{words.voiceNote}</Text>
     <Button kind="text" label={words.importFile} onPress={() => { void pick(); }} />
+    {saveFailed && <Text style={[type.body, { color: t.text }]}>{words.failed}</Text>}
     {preview !== '' && <Card variant="filled">
       <Text style={[type.body, { color: t.text }]}>{preview}</Text>
       {pending !== null && <View style={styles.actions}>
-        <Button kind="filled" label={words.addThese} onPress={() => { const next = merge(rules, pending); change(next); setNeverText(next.never.join('\n')); setPreview(words.added); setPending(null); }} />
+        <Button kind="filled" label={words.addThese} onPress={() => { const next = merge(rules, pending); if (change(next)) { setNeverText(next.never.join('\n')); setPreview(words.added); setPending(null); } }} />
         <Button kind="text" label={words.cancel} onPress={() => { setPreview(''); setPending(null); }} />
       </View>}
     </Card>}
@@ -78,7 +82,7 @@ export default function Voice() {
     <Text style={[type.label, { color: t.text, marginTop: space.m }]}>{words.neverSay}</Text>
     <Text style={[type.note, { color: t.muted }]}>{words.neverSayHelp}</Text>
     <TextInput accessibilityLabel={words.neverSay} placeholder={words.neverSayHint} placeholderTextColor={t.muted} multiline
-      value={neverText} onChangeText={text => { setNeverText(text); change({ ...rules, never: text.split('\n').map(x => x.trim()).filter(Boolean) }); }} style={[type.body, field, styles.wide]} />
+      value={neverText} onChangeText={text => { if (change({ ...rules, never: text.split('\n').map(x => x.trim()).filter(Boolean) })) setNeverText(text); }} style={[type.body, field, styles.wide]} />
     <Text style={[type.body, { color: t.muted, marginTop: space.m }]}>{words.wipeElsewhere}</Text>
     <Button kind="text" label={words.back} onPress={() => router.back()} />
   </ScrollView>;

@@ -57,10 +57,10 @@ class OwnvoiceService : AccessibilityService() {
     // ponytail: If the service never runs, old facts remain until its next start.
     private fun restoreFacts(context: android.content.Context) {
       val prefs = context.getSharedPreferences("ownvoice-native", MODE_PRIVATE)
-      if (facts.isEmpty()) prefs.getString(FACTS, "").orEmpty().lineSequence().filter { it.isNotBlank() }.forEachIndexed { index, line ->
+      if (facts.isEmpty()) prefs.getString(FACTS, "").orEmpty().lineSequence().filter { it.isNotBlank() }.forEach { line ->
         val parts = line.split('\t')
-        if (parts.size == 6 || parts.size == 7) parts[0].toLongOrNull()?.let { at ->
-          facts += TapFact(at, parts[1], parts[2], parts[3].toBoolean(), parts[4].toBoolean(), parts[5].toBoolean(), parts.getOrNull(6) ?: "legacy-${line.hashCode()}-$index")
+        if (parts.size == 7) parts[0].toLongOrNull()?.let { at ->
+          facts += TapFact(at, parts[1], parts[2], parts[3].toBoolean(), parts[4].toBoolean(), parts[5].toBoolean(), parts[6])
         }
       }
       val kept = facts.filter { System.currentTimeMillis() - it.at < KEEP_MS }

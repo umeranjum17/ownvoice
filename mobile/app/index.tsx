@@ -89,7 +89,7 @@ export default function Home() {
 
   const paused = !!rules?.paused;
   const on = service === 'on';
-  const problem = model === 'unavailable' ? words.unsupported : null;
+  const problem = model === 'unavailable' ? words.unsupported : model === 'downloadable' ? words.statusNotReadyNote : null;
   const green = on && !paused && problem === null;
   const headline = !on ? words.statusOff : problem ? words.statusNotReady : model !== 'available' ? words.statusGettingReady : paused ? words.statusPaused : words.statusReady;
   const detail = !on ? words.statusOffNote : problem ?? (model !== 'available' ? words.gettingReady : paused ? words.statusPausedNote : words.statusReadyNote);
@@ -109,7 +109,7 @@ export default function Home() {
         <Switch accessibilityLabel={words.powerRow} value={on} onValueChange={power} />
       </View>
       {on && model !== 'available' && !problem && <View style={{ marginTop: space.m }}><Progress fraction={fraction} /></View>}
-      {(problem !== null || model === 'downloadable') && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
+      {problem !== null && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
       {powerFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
       {service === 'stuck' && <Text accessibilityRole="button" onPress={() => router.push('/setup')} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.turnBackOn}</Text>}
     </View>

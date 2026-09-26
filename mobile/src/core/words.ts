@@ -82,6 +82,7 @@ export const words = {
   statusReadyNote:'Tap the bubble in your chats',
   statusGettingReady:'Getting ready…',
   statusNotReady:'Not ready yet',
+  statusNotReadyNote:'Tap Try again to get Ownvoice ready.',
   statusPaused:'Paused',
   statusPausedNote:'The bubble is hidden everywhere',
   powerRow:'Ownvoice on or off',

@@ -90,6 +90,15 @@ test('a phone that cannot write offers Try again in plain words', async () => {
   await waitFor(() => expect(native.downloadModel).toHaveBeenCalled());
 });
 
+test('a downloadable phone is not shown as actively getting ready', async () => {
+  native.modelStatus.mockResolvedValue('downloadable');
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.statusNotReady)).toBeTruthy();
+  expect(screen.getByText(words.statusNotReadyNote)).toBeTruthy();
+  expect(screen.getByText(words.tryAgain)).toBeTruthy();
+  expect(screen.queryByText(words.gettingReady)).toBeNull();
+});
+
 test('a completed download refreshes the card and a downloadable phone can retry', async () => {
   native.modelStatus.mockResolvedValueOnce('downloadable').mockResolvedValue('available');
   let finish!: () => void;
@@ -243,6 +252,13 @@ test('an import previews what it found before adding anything', async () => {
   expect(screen.getByText(words.added)).toBeTruthy();
 });
 
+test('an import includes phrases beyond the first 5,000 lines', async () => {
+  picker.pickFileAsync.mockResolvedValue({ canceled: false, result: { text: async () => '# Never say\n' + 'filler\n'.repeat(5000) + '- "later phrase"' } });
+  const screen = await show(<Voice />);
+  fireEvent.press(screen.getByText(words.importFile));
+  expect(await screen.findByText(/later phrase/)).toBeTruthy();
+});
+
 test('a file with nothing to add says so', async () => {
   picker.pickFileAsync.mockResolvedValue({ canceled: false, result: { text: async () => 'just a paragraph' } });
   const screen = await show(<Voice />);
@@ -284,6 +300,48 @@ test('the rules, the note and the never-say list all save', async () => {
   await waitFor(() => expect(loadVoice()).toEqual({ never: ['delve', 'circle back'], noDashes: true, statementEndings: false, note: 'short sentences' }));
   expect(screen.getByText(words.neverSayHelp)).toBeTruthy();
   expect(screen.getByText(words.wipeElsewhere)).toBeTruthy();
+});
+
+test('failed voice saves leave switches, notes and phrases unchanged', async () => {
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const set = jest.spyOn(storage, 'setItemSync');
+  try {
+    const screen = await show(<Voice />);
+    set.mockImplementationOnce(() => { throw new Error('disk full'); });
+    fireEvent.press(screen.getByText(words.ruleDashes));
+    expect(screen.getByText(words.failed)).toBeTruthy();
+    expect(loadVoice().noDashes).toBe(false);
+    fireEvent.press(screen.getByText(words.ruleDashes));
+    expect(loadVoice().noDashes).toBe(true);
+    set.mockImplementationOnce(() => { throw new Error('disk full'); });
+    fireEvent.changeText(screen.getByLabelText(words.howIWrite), 'short');
+    expect(screen.getByLabelText(words.howIWrite).props.value).toBe('');
+    set.mockImplementationOnce(() => { throw new Error('disk full'); });
+    fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve');
+    expect(screen.getByLabelText(words.neverSay).props.value).toBe('');
+    expect(loadVoice().never).toEqual([]);
+    fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve');
+    expect(loadVoice().never).toEqual(['delve']);
+    expect(screen.queryByText(words.failed)).toBeNull();
+  } finally { set.mockRestore(); }
+});
+
+test('a failed import keeps its preview available to retry', async () => {
+  picker.pickFileAsync.mockResolvedValue({ canceled: false, result: { text: async () => '# Never say\n- "delve"' } });
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const set = jest.spyOn(storage, 'setItemSync');
+  try {
+    const screen = await show(<Voice />);
+    fireEvent.press(screen.getByText(words.importFile));
+    await screen.findByText(words.addThese);
+    set.mockImplementationOnce(() => { throw new Error('disk full'); });
+    fireEvent.press(screen.getByText(words.addThese));
+    expect(screen.getByText(words.failed)).toBeTruthy();
+    expect(screen.getByText(words.addThese)).toBeTruthy();
+    expect(loadVoice().never).toEqual([]);
+    fireEvent.press(screen.getByText(words.addThese));
+    expect(loadVoice().never).toEqual(['delve']);
+  } finally { set.mockRestore(); }
 });
 
 test('an import preview reads in plain words, both skipped counts', () => {
