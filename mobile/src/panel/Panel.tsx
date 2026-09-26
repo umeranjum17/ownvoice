@@ -7,7 +7,7 @@ import { dashesFor } from '../core/drafts';
 import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide, loadVoice } from '../core/voice';
 import { words } from '../core/words';
-import type { Check, Scores } from '../core/judge';
+import type { Check, Scores, Verdict } from '../core/judge';
 import type { Writer, WriterRoute } from '../core/writers';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
@@ -52,6 +52,15 @@ function Checking() {
     return () => loop.stop();
   }, [reduced, pulse]);
   return <Animated.Text style={[type.note, { color: t.muted, paddingVertical: space.s, opacity: pulse }]}>{words.checking}</Animated.Text>;
+}
+
+/** A card's verdict line, shown only when the cards differ: one note shared by every card tells the person nothing. */
+function distinctVerdict(card: Draft, cards: Draft[]): Verdict | null {
+  const signature = (item: Draft) => {
+    const value = Judge.verdict(item.scores);
+    return `${value.good}:${value.lead}:${value.rest}`;
+  };
+  return new Set(cards.map(signature)).size > 1 ? Judge.verdict(card.scores) : null;
 }
 
 function WhyCover({ draft, checks, who }: { draft: Draft; checks: WhyState; who: string | null }) {
@@ -245,13 +254,15 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <VerdictLine verdict={Judge.verdict(yours.scores)} />
       </Card>
     </View> : null}
-    {cards.map((card, slot) => card
-      ? <View key={slot} style={{ marginBottom: space.m }}>
+    {cards.map((card, slot) => {
+      if (!card) return phase === 'writing' ? <View key={slot} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
+      const verdict = card.label ? null : distinctVerdict(card, shown);
+      return <View key={slot} style={{ marginBottom: space.m }}>
         <Card variant="outlined" label={card.label}>
           <Marked text={card.text} hits={card.scores.hits} />
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
-              {card.label ? <MeaningLine check={card.meaning} /> : <VerdictLine verdict={Judge.verdict(card.scores)} />}
+              {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <VerdictLine verdict={verdict} /> : null}
             </View>
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>
@@ -269,8 +280,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             <Button kind="text" label={words.copy} onPress={() => { void Native.copy(card.text).catch(() => {}); }} />
           </View>
         </Card>
-      </View>
-      : phase === 'writing' ? <View key={slot} style={{ marginBottom: space.m }}><Placeholder /></View> : null)}
+      </View>;
+    })}
     {phase === 'ready' && shown.length
       ? <View style={{ alignItems: 'flex-end', marginBottom: space.m }}>
         <Button kind="text" label={words.writeNew} onPress={() => capture && start(capture, shown.map(draft => draft.text))} />

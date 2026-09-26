@@ -32,6 +32,8 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   copy(text: string): Promise<void>;
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;
   closePanel(): Promise<void>;
+  rewriteInput(): { text: string; editable: boolean } | null;
+  finishRewrite(text: string | null): Promise<void>;
   modelStatus(): Promise<ModelStatus>;
   downloadModel(): Promise<void>;
   ask(id: string, prompt: string, options: { maxTokens: number }): Promise<string>;

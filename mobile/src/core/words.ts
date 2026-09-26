@@ -31,7 +31,7 @@ export const words = {
   whyVersion:'Why this version',
   howItReads:'How it reads',
   checking:'Checking…',
-  noChecks:'Couldn\'t run the other checks this time.',
+  noChecks:'The lines above come from reading your writing.',
   unsupported:"Sorry, Ownvoice doesn't work on this phone yet.",
   busy:'Your phone is busy. Try again in a moment.',
   batteryQuota:'Ownvoice needs a short break. Try again in a little while.',

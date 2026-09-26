@@ -13,6 +13,24 @@
         android:exported="false"
         android:taskAffinity="dev.ownvoice.drafts"
         android:theme="@style/OwnvoicePanel" />
+    <!-- Selected-text rewrite: "Ownvoice" in the text-selection menu, or Share of a piece of text. -->
+    <activity
+        android:name="dev.ownvoice.bridge.RewriteActivity"
+        android:excludeFromRecents="true"
+        android:exported="true"
+        android:taskAffinity="dev.ownvoice.rewrite"
+        android:theme="@style/OwnvoicePanel">
+      <intent-filter>
+        <action android:name="android.intent.action.PROCESS_TEXT" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/plain" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.SEND" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <data android:mimeType="text/plain" />
+      </intent-filter>
+    </activity>
     <service
         android:name="dev.ownvoice.bridge.OwnvoiceService"
         android:exported="false"

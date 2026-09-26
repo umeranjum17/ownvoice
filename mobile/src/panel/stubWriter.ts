@@ -18,7 +18,7 @@ export const STUB_VERSIONS = [
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export type StubOptions = { delay?: number; download?: boolean; fail?: boolean; empty?: boolean };
+export type StubOptions = { delay?: number; download?: boolean; fail?: boolean; empty?: boolean; drafts?: string[] };
 
 /** A Writer with fixed, deterministic output. Versions derive from the typed text so the
  *  number-check meaning line can fire (a version drops the list and its numbers). */
@@ -34,6 +34,10 @@ export const stubWriter = (options: StubOptions = {}): Writer => ({
     await wait(options.delay ?? 200);
     if (options.empty) return { drafts: [] };
     const typed = request.typed.trim();
+    if (!typed && options.drafts) {
+      options.drafts.forEach((text, slot) => on.landed?.(text, slot));
+      return { drafts: [...options.drafts] };
+    }
     if (!typed) {
       STUB_REPLIES.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts: [...STUB_REPLIES] };
