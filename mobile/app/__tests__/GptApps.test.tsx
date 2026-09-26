@@ -55,4 +55,5 @@ test('Done cannot save choices before sign-in', async () => {
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
   expect(gptApps()).toBeNull();
+  expect(router.back).not.toHaveBeenCalled();
 });

@@ -25,14 +25,29 @@ const switchStore = {
 export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<WriterRoute> {
   const state = await session.current();
   const rules = await Native.bubbleRules().catch(() => null);
-  const allowed = !!rules && chatgptAllowed(showsBubble(app, rules), gptChoice(app));
+  const allowed = !!rules && !rules.paused && chatgptAllowed(showsBubble(app, rules), gptChoice(app));
   const enabled = state.signedIn && allowed && (mocked || await chatgptEnabled(switchStore, fetcher));
   return routeWriters({
     signedIn: state.signedIn,
     allowed,
     enabled,
     note: state.resting,
-    chatgpt: () => (mocked ? { write: (request, on) => { on?.sent?.(); return require('../panel/stubWriter').stubWriter().write(request, on); } } : require('./responses').chatgptWriter),
+    chatgpt: () => ({ write: async (request, on = {}) => {
+      const beforeSend = async () => {
+        const current = await Native.bubbleRules().catch(() => null);
+        return !!current && !current.paused && chatgptAllowed(showsBubble(app, current), gptChoice(app));
+      };
+      if (mocked) {
+        if (!(await beforeSend())) throw new Error('App choice changed');
+        on.sent?.();
+        return require('../panel/stubWriter').stubWriter().write(request, on);
+      }
+      return require('./responses').chatgptWriter.write(request, { ...on, beforeSend });
+    } }),
+    fallbackNote: async () => {
+      const current = await require('./accounts').status();
+      return ['resting', 'not_included', 'needs_again', 'signed_out'].includes(current.state) ? current.words : null;
+    },
     phone: phoneWriter,
   });
 }
