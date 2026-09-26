@@ -39,15 +39,14 @@ class OwnvoiceNativeModule : Module() {
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         .setData(android.net.Uri.fromParts("package", context.packageName, null)))
     }.runOnQueue(Queues.MAIN)
-    AsyncFunction("launcherApps") Coroutine { offeredOnly: Boolean ->
+    AsyncFunction("launcherApps") Coroutine { packages: List<String>? ->
       val pm = context.packageManager
       val size = (40 * context.resources.displayMetrics.density).toInt()
-      val offered = setOf("com.twitter.android", "com.linkedin.android", "com.reddit.frontpage", "com.Slack", "com.whatsapp", "com.google.android.gm")
       pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-        .filter { !offeredOnly || it.activityInfo.packageName in offered }
+        .filter { packages == null || it.activityInfo.packageName in packages }
         .distinctBy { it.activityInfo.packageName }
         .map { info ->
-          val icon = if (offeredOnly) runCatching {
+          val icon = if (packages != null) runCatching {
             val drawable = info.loadIcon(pm)
             val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
             val canvas = android.graphics.Canvas(bitmap)

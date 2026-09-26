@@ -56,7 +56,7 @@ export default function Setup() {
 
   const loadApps = () => {
     setAppsFailed(false);
-    Native.launcherApps(true).then(apps => {
+    Native.launcherApps(Onboarding.offered.map(([app]) => app)).then(apps => {
       if (mounted.current) setInstalled(Onboarding.offeredApps(a => apps.some(x => x.app === a))
         .map(([app, name]) => ({ app, name, icon: apps.find(x => x.app === app)?.icon ?? null })));
     }).catch(() => { if (mounted.current) setAppsFailed(true); });
@@ -123,7 +123,10 @@ export default function Setup() {
   const advance = (from?: Step) => {
     const current = from ?? latest.current.step;
     if ((current === 'PERMISSION' && !serviceOn || current === 'TRY') && !latest.current.installed) {
-      if (appsFailed) loadApps();
+      if (appsFailed) {
+        if (store.get('setup-done')) void finish();
+        else set(saved => ({ ...saved, step: 'APPS' }));
+      }
       return;
     }
     const next = Onboarding.next(current, serviceOn, !!store.get('setup-done'), (latest.current.installed?.length ?? 0) > 0);

@@ -19,7 +19,6 @@ mkdirSync(out, { recursive: true });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const snap = name => {
   const dark = name.startsWith('dark-');
-  adb('shell', 'cmd', 'uimode', 'night', dark ? 'yes' : 'no');
   adb('shell', 'screencap', '-p', `/sdcard/${name}.png`);
   if (!adb('shell', 'dumpsys', 'uimode').includes(`mComputedNightMode=${dark}`)) throw new Error(`Wrong colour mode for ${name}.`);
   execFileSync('adb', ['-s', serial, 'pull', `/sdcard/${name}.png`, resolve(out, `${name}.png`)], { stdio: 'inherit' });
@@ -255,7 +254,9 @@ const priorMode = adb('shell', 'cmd', 'uimode', 'night').trim().match(/^Night mo
 if (!priorMode) throw new Error('Could not read the emulator night mode.');
 const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const priorAccessibility = adb('shell', 'settings', 'get', 'secure', 'accessibility_enabled').trim();
+const priorSchedule = adb('shell', 'settings', 'get', 'secure', 'ui_night_mode_custom_type').trim();
 try {
+  adb('shell', 'settings', 'put', 'secure', 'ui_night_mode_custom_type', '-1');
   adb('shell', 'cmd', 'uimode', 'night', 'no');
   if (!/mComputedNightMode=false/.test(adb('shell', 'dumpsys', 'uimode'))) throw new Error('Could not switch the emulator to light mode.');
   await run('light');
@@ -266,6 +267,7 @@ try {
 } finally {
   let failure;
   for (const args of [
+    ['shell', 'settings', priorSchedule === 'null' ? 'delete' : 'put', 'secure', 'ui_night_mode_custom_type', ...(priorSchedule === 'null' ? [] : [priorSchedule])],
     ['shell', 'cmd', 'uimode', 'night', priorMode],
     ['shell', 'settings', priorServices === 'null' ? 'delete' : 'put', 'secure', 'enabled_accessibility_services', ...(priorServices === 'null' ? [] : [priorServices])],
     ['shell', 'settings', priorAccessibility === 'null' ? 'delete' : 'put', 'secure', 'accessibility_enabled', ...(priorAccessibility === 'null' ? [] : [priorAccessibility])],

@@ -79,6 +79,8 @@ test('homeSettingsDoesNotRequestASetupReturn', async () => {
   live.push(() => screen.unmount());
   await fireEvent.press(screen.getByText('Turn on Ownvoice'));
   expect(native.openAccessibilitySettings).toHaveBeenCalledWith(false);
+  await fireEvent.press(screen.getByText('Where the bubble shows'));
+  await waitFor(() => expect(native.launcherApps).toHaveBeenCalledWith(null));
 });
 
 test('welcomeStartsTheDownloadAndMovesToPermission', async () => {
@@ -133,6 +135,7 @@ test('notNowSkipsPracticeWhenAppsRemain', async () => {
   await fireEvent.press(await screen.findByText(words.continueLabel));
   await fireEvent.press(await screen.findByText(words.notNow));
   expect(await screen.findByText(words.appsTitle)).toBeTruthy();
+  expect(native.launcherApps).toHaveBeenCalledWith(expect.arrayContaining(['com.whatsapp', 'com.google.android.gm']));
   // Only installed apps among the offered ones, in the list's order (S5).
   expect(screen.getByText('WhatsApp')).toBeTruthy();
   expect(screen.getByText('Gmail')).toBeTruthy();
@@ -257,6 +260,19 @@ test('launcherFailureDoesNotBecomeAnEmptyList', async () => {
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
+});
+
+test.each([['PERMISSION', words.notNow], ['TRY', words.skip]])('failedAppQueryFrom%sOpensRetry', async (step, action) => {
+  at(step);
+  native.launcherApps.mockRejectedValueOnce(new Error('query failed'));
+  const screen = await renderSetup();
+  await screen.findByText(step === 'TRY' ? words.tryTitle : words.permissionTitle);
+  await fireEvent.press(screen.getByText(action));
+  expect(await screen.findByText(words.appsUnavailable)).toBeTruthy();
+  expect(kv.get('setup')).toContain('APPS');
+  expect(kv.get('setup-done')).toBeUndefined();
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  expect(await screen.findByText('Gmail')).toBeTruthy();
 });
 
 test('failedSetupWriteDoesNotAdvanceOrComplete', async () => {

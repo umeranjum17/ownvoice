@@ -59,7 +59,7 @@ export default function Home() {
     </Card></View>
     <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.muted} value={text} onChangeText={setText} multiline style={[type.body, { minHeight: 56, borderWidth: 1, borderColor: t.outline, borderRadius: 12, padding: space.m, color: t.text }]} />
     <Button kind="filled" label="Turn on Ownvoice" onPress={() => { void native().openAccessibilitySettings(false).catch(() => {}); }} />
-    <Button kind="text" disabled={!rules} label="Where the bubble shows" onPress={() => { void native().launcherApps(false).then(setApps).catch(() => {}); }} />
+    <Button kind="text" disabled={!rules} label="Where the bubble shows" onPress={() => { void native().launcherApps(null).then(setApps).catch(() => {}); }} />
     <Button kind="text" disabled={!rules} label={rules?.paused ? 'Resume' : 'Pause for now'} onPress={() => { if (rules) change(current => ({ ...current, paused: !current.paused })); }} />
     <Button kind="text" label={`Recent activity: ${activity}`} onPress={() => { void native().takeTapFacts().then((facts: TapFact[]) => setActivity(count => count + facts.length)).catch(() => {}); }} />
     <Button kind="text" label="Clear last screen" onPress={() => { void native().forget().catch(() => {}); }} />
