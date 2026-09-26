@@ -1,4 +1,4 @@
-export async function readDraftStream(body: ReadableStream<Uint8Array>, onText?: (text: string) => void, count = 3): Promise<string[]> {
+export async function readDraftStream(body: ReadableStream<Uint8Array>, key: 'drafts' | 'versions', onText?: (text: string) => void, count = 3): Promise<string[]> {
   const reader = body.getReader(), decoder = new TextDecoder();
   let pending = '', text = '', completed = false;
   const consume = (event: string) => {
@@ -23,7 +23,7 @@ export async function readDraftStream(body: ReadableStream<Uint8Array>, onText?:
   if (pending.trim()) consume(pending);
   if (!completed) throw new Error('ChatGPT could not answer.');
   let drafts: unknown;
-  try { const parsed = JSON.parse(text); drafts = parsed.versions ?? parsed.drafts; } catch { throw new Error('ChatGPT could not answer.'); }
+  try { const parsed = JSON.parse(text); drafts = parsed[key]; } catch { throw new Error('ChatGPT could not answer.'); }
   if (!Array.isArray(drafts) || drafts.length !== count || drafts.some(draft => typeof draft !== 'string' || !draft.trim())) throw new Error('ChatGPT could not answer.');
   return drafts;
 }

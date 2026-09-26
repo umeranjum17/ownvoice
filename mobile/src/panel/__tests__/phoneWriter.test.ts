@@ -91,6 +91,29 @@ test('a rejected middle reply refills the decline slot without shifting the unsu
   expect(drafts).toEqual(['Yes, Saturday works; I can bring the stove.', 'No, Saturday works; I can bring the stove.', 'Not sure yet, what time?']);
 });
 
+test('missing labelled first slot is retried without moving the other replies', async () => {
+  native.drafts.mockResolvedValue(['Draft 2: No, Saturday is out.\nDraft 3: Not sure yet, what time?']);
+  native.ask.mockResolvedValue('Yes, Saturday works.');
+  const landed: number[] = [];
+  const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });
+  expect(native.ask).toHaveBeenCalledTimes(1);
+  expect(native.ask.mock.calls[0][1]).toContain('Say yes or agree');
+  expect(landed).toEqual([1, 2, 0]);
+  expect(drafts).toEqual(['Yes, Saturday works.', 'No, Saturday is out.', 'Not sure yet, what time?']);
+});
+
+test('practice controls after the message are not sent as the latest message', async () => {
+  native.drafts.mockResolvedValue(['Draft 1: Saturday works.']);
+  native.ask.mockResolvedValue('');
+  await phoneWriter.write({ ...request(), conversation: 'Sam\nAre we still on for Saturday?\nI can bring the tent if you bring the stove.\nRecent activity\nClear last screen', nodes: [
+    { text: 'Sam', top: 100, bottom: 120, clickable: false },
+    { text: 'Are we still on for Saturday?\nI can bring the tent if you bring the stove.', top: 125, bottom: 170, clickable: false },
+    { text: 'Recent activity', top: 290, bottom: 310, clickable: true },
+    { text: 'Clear last screen', top: 320, bottom: 340, clickable: true },
+  ] });
+  expect(native.drafts.mock.calls[0][0]).toContain('Latest message:\nAre we still on for Saturday?\nI can bring the tent if you bring the stove.\n\nConversation:');
+});
+
 test('at least one reply that is not a plain yes survives, and retries stop after 8 seconds', async () => {
   setClock(1000);
   native.drafts.mockResolvedValue(['Draft 1: Yep, still on for Saturday. 👍']);

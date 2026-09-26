@@ -5,7 +5,7 @@ import type { Rules } from './slop';
 
 const count = 3;
 const numbered = /(?:^|\s)(?:(?:draft|option|version)\s*)?([1-3])[.):]\s+/gi;
-const labelled = /(?:^|\s)(?:draft|option|version)\s*[1-3][.):]\s*/gi;
+const labelled = /(?:^|\s)(?:draft|option|version)\s*([1-3])[.):]\s*/gi;
 
 function unquote(text: string) {
   return text.replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
@@ -78,8 +78,10 @@ export function norm(text: string): string {
 export function nearDuplicate(a: string, b: string): boolean {
   const na = norm(a), nb = norm(b);
   if (na === nb) return true;
-  const stance = (value: string) => /^(?:yes|no|not|never|can't|cannot|won't|maybe|unsure|perhaps|possibly)$/.exec(value.split(' ')[0])?.[0];
+  const stance = (value: string) => /^(?:yes|no|not|never|maybe|unsure|perhaps|possibly)$/.exec(value.split(' ')[0])?.[0];
   if (stance(na) !== stance(nb) && (stance(na) || stance(nb))) return false;
+  const negated = (value: string) => /\b(?:no|not|never|cannot|can't|won't|don't|doesn't|didn't|isn't|aren't|wasn't|weren't|couldn't|wouldn't|shouldn't)\b/.test(value.toLowerCase().replace(/[’]/g, "'"));
+  if (negated(a) !== negated(b)) return false;
   const wa = new Set(na.split(' ')), wb = new Set(nb.split(' '));
   if (!wa.size || !wb.size) return false;
   let shared = 0;
@@ -215,11 +217,26 @@ export function replySlotPrompt(slot: string, input: ReplyInput): string {
 }
 
 export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove'): (string | null)[] {
-  const accepted: (string | null)[] = [];
-  for (const candidate of cleanDrafts(candidates, count, false, false)) {
-    const draft = dashes === 'remove' ? undash(candidate) : candidate;
-    accepted.push(draft && fresh(draft, [...exclude, ...accepted.filter((text): text is string => !!text)]) ? draft : null);
+  const accepted: (string | null)[] = Array(count).fill(null);
+  let next = 0;
+  const accept = (text: string, slot: number) => {
+    if (slot >= count || accepted[slot]) return;
+    const draft = dashes === 'remove' ? undash(text) : text;
+    if (draft && fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
+  };
+  for (const candidate of candidates) {
+    const source = body(unquote(candidate), false);
+    const markers = [...source.matchAll(labelled)];
+    if (count > 1 && markers.length && !source.slice(0, markers[0].index).trim()) {
+      markers.forEach((marker, i) => {
+        const text = source.slice(marker.index! + marker[0].length, markers[i + 1]?.index ?? source.length);
+        accept(cleanDrafts([text], 1)[0] ?? '', Number(marker[1]) - 1);
+      });
+    } else {
+      for (const text of cleanDrafts([candidate], count, false, false)) accept(text, next++);
+    }
   }
+  while (accepted.at(-1) == null) accepted.pop();
   return accepted;
 }
 

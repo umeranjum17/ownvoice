@@ -2,6 +2,7 @@ jest.mock('../accounts', () => ({ codexAuth: async () => ({ access: 'fixture-acc
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 import { chatgptWriter, streamResponses } from '../responses';
 import { words } from '../../core/words';
+import { readDraftStream } from '../../core/responses-stream';
 
 const event = (item: object) => `data: ${JSON.stringify(item)}`;
 const body = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(controller) {
@@ -40,6 +41,14 @@ test.each([
   try {
     await expect(chatgptWriter.write({ conversation: '', written: 'hi', typed: '' })).rejects.toThrow(words.chatgptFailed);
   } finally { global.fetch = originalFetch; }
+});
+
+test('stream accepts only the requested response key, including a one-slot retry', async () => {
+  const output = (key: string, drafts: string[]) => body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ [key]: drafts }) })}\n\n${event({ type: 'response.completed' })}`);
+  await expect(readDraftStream(output('versions', ['A', 'B', 'C']), 'drafts')).rejects.toThrow();
+  await expect(readDraftStream(output('drafts', ['A', 'B', 'C']), 'versions')).rejects.toThrow();
+  await expect(readDraftStream(output('drafts', ['No thanks']), 'drafts', undefined, 1)).resolves.toEqual(['No thanks']);
+  await expect(readDraftStream(output('versions', ['No thanks']), 'drafts', undefined, 1)).rejects.toThrow();
 });
 
 test('an http failure never shows a number', async () => {

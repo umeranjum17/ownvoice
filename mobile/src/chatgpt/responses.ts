@@ -12,14 +12,14 @@ const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested three rewrite versions as JSON.';
 
 /** One streamed Responses call; the last `count` array entries must all be non-empty strings. */
-async function ask(prompt: string, instructions: string, count = 3, onText?: (text: string) => void): Promise<string[]> {
+async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions', count = 3): Promise<string[]> {
   const auth = await codexAuth();
   const response = await (expoFetch as typeof fetch)('https://chatgpt.com/backend-api/codex/responses', {
     method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
     body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
   });
   if (!response.ok || !response.body) throw new Error(words.chatgptFailed);
-  return readDraftStream(response.body, onText, count);
+  return readDraftStream(response.body, key, undefined, count);
 }
 
 // Kept for the existing stream tests; now a thin wrapper over ask().
@@ -30,7 +30,7 @@ export async function streamResponses(prompt: string, onText?: (text: string) =>
     body: JSON.stringify({ model: 'gpt-6-sol', instructions: VERSION_INSTRUCTIONS, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
   });
   if (!response.ok || !response.body) throw new Error(words.chatgptFailed);
-  return readDraftStream(response.body, onText, 3);
+  return readDraftStream(response.body, 'versions', onText, 3);
 }
 
 /** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt). */
@@ -39,12 +39,12 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide, dashes };
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
-  const made = acceptReplies(await ask(replyPrompt(input), REPLY_INSTRUCTIONS), exclude, 3, dashes);
+  const made = acceptReplies(await ask(replyPrompt(input), REPLY_INSTRUCTIONS, 'drafts'), exclude, 3, dashes);
   made.forEach((text, slot) => { if (text) { exclude.push(text); landed(text, slot); } });
   for (let slot = 0; slot < REPLY_SLOTS.length; slot++) {
     if (made[slot]) continue;
     try {
-      const [draft] = acceptReplies(await ask(replySlotPrompt(REPLY_SLOTS[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 1), exclude, 1, dashes);
+      const [draft] = acceptReplies(await ask(replySlotPrompt(REPLY_SLOTS[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1), exclude, 1, dashes);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }
@@ -58,7 +58,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
   const note = avoidLine(avoid);
   const landed = on.landed ?? (() => {});
   const acceptor = versionAcceptor(request.typed, dashes, avoid);
-  const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS);
+  const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions');
   raw.slice(0, versionsList.length).forEach((text, slot) => {
     const clean = acceptor.accept(text, slot, versionsList[slot].label);
     if (clean != null) landed(clean, slot, versionsList[slot].label);
@@ -67,7 +67,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
     const prompt = versionPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes)
       + '\n- Keep their line breaks and list exactly.' + (note ? `\n\n${note}` : '');
     let again: string[] = [];
-    try { again = await ask(prompt, VERSION_INSTRUCTIONS, 1); } catch { continue; }
+    try { again = await ask(prompt, VERSION_INSTRUCTIONS, 'versions', 1); } catch { continue; }
     const fixed = acceptor.fix(again[0] ?? '', fail.slot, fail.label);
     if (fixed != null) landed(fixed, fail.slot, fail.label);
   }

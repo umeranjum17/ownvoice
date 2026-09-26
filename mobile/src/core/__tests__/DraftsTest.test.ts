@@ -55,6 +55,17 @@ test('yes and no stay two choices', () => {
   expect(dedupe(['Yes, Saturday works.', "No, Saturday doesn't work for me."])).toHaveLength(2);
   expect(nearDuplicate('Yes, Saturday works.', "No, Saturday doesn't work for me.")).toBe(false);
   expect(nearDuplicate('Yes, Saturday works; I can bring the stove', 'No, Saturday works; I can bring the stove')).toBe(false);
+  expect(nearDuplicate('I can bring the stove', "I can't bring the stove")).toBe(false);
+  expect(nearDuplicate('I will bring the stove', "I won't bring the stove")).toBe(false);
+  expect(nearDuplicate('I can bring the stove', 'I cannot bring the stove')).toBe(false);
+  expect(acceptReplies(['I can bring the stove', "I can't bring the stove"], [], 2)).toEqual(['I can bring the stove', "I can't bring the stove"]);
+});
+
+test('explicit labels retain empty earlier slots through reply acceptance', () => {
+  expect(acceptReplies(['Draft 2: No, Saturday is out.\nDraft 3: Not sure yet, what time?'], [], 3))
+    .toEqual([null, 'No, Saturday is out.', 'Not sure yet, what time?']);
+  expect(acceptReplies(['Draft 3: Not sure yet, what time?'], [], 3))
+    .toEqual([null, null, 'Not sure yet, what time?']);
 });
 
 test('acceptReplies cleans, dedupes and respects the avoid list', () => {
