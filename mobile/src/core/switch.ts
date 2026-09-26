@@ -18,19 +18,22 @@ export async function verify(flag: Flag, publicKey: string, previousSeq: number)
 export async function chatgptEnabled(store: SwitchStore, fetcher: typeof fetch = fetch, now = Date.now(), publicKey = SWITCH_PUBLIC_KEY): Promise<boolean> {
   const prior = await store.get();
   if (!publicKey || prior && now - prior.fetchedAt < CACHE_MS) return prior?.chatgpt !== 'off';
+  let response: Response;
+  try { response = await fetcher(SWITCH_URL, { method: 'GET', signal: AbortSignal.timeout(3000) }); }
+  catch { return (await store.get())?.chatgpt !== 'off'; }
+  if (!response.ok) return (await store.get())?.chatgpt !== 'off';
+  let flag: Flag;
+  try { flag = await response.json() as Flag; }
+  catch { return (await store.get())?.chatgpt !== 'off'; }
+  const previous = lastUpdate;
+  let release!: () => void;
+  lastUpdate = new Promise(resolve => { release = resolve; });
+  await previous;
   try {
-    const response = await fetcher(SWITCH_URL, { method: 'GET', signal: AbortSignal.timeout(3000) });
-    if (!response.ok) return (await store.get())?.chatgpt !== 'off';
-    const flag = await response.json() as Flag;
-    const previous = lastUpdate;
-    let release!: () => void;
-    lastUpdate = new Promise(resolve => { release = resolve; });
-    await previous;
-    try {
-      const current = await store.get();
-      const same = current && flag?.payload?.seq === current.seq && flag.payload.chatgpt === current.chatgpt;
-      if (await verify(flag, publicKey, (current?.seq ?? 0) - (same ? 1 : 0))) await store.set({ seq: flag.payload.seq, chatgpt: flag.payload.chatgpt, fetchedAt: Math.max(now, current?.fetchedAt ?? now) });
-    } finally { release(); }
-  } catch { /* Keep the last verified choice. */ }
+    const current = await store.get();
+    const same = current && flag?.payload?.seq === current.seq && flag.payload.chatgpt === current.chatgpt;
+    if (await verify(flag, publicKey, (current?.seq ?? 0) - (same ? 1 : 0)))
+      await store.set({ seq: flag.payload.seq, chatgpt: flag.payload.chatgpt, fetchedAt: Math.max(now, current?.fetchedAt ?? now) }).catch(() => {});
+  } finally { release(); }
   return (await store.get())?.chatgpt !== 'off';
 }

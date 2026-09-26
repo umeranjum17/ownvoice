@@ -17,7 +17,7 @@ export async function saveGptApps(apps: GptApps): Promise<boolean> {
 export const gptChoice = (app: string): boolean => !!gptApps()?.on.includes(app);
 
 const switchStore = {
-  get: async () => store.get<SwitchState>('chatgpt-switch'),
+  get: async () => store.get<SwitchState>('chatgpt-switch', true),
   set: async (value: SwitchState) => { store.set('chatgpt-switch', value); },
 };
 
@@ -26,7 +26,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   const state = await session.current();
   const rules = await Native.bubbleRules().catch(() => null);
   const allowed = !!rules && !rules.paused && chatgptAllowed(showsBubble(app, rules), gptChoice(app));
-  const enabled = state.signedIn && allowed && (mocked || await chatgptEnabled(switchStore, fetcher));
+  const enabled = state.signedIn && allowed && (mocked || await chatgptEnabled(switchStore, fetcher).catch(() => false));
   return routeWriters({
     signedIn: state.signedIn,
     allowed,

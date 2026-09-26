@@ -4,6 +4,7 @@ import { status } from '../accounts';
 import { CHATGPT_OFF } from '../../core/switch';
 import Native from '../../../modules/ownvoice-native';
 import { reportFailure } from '../accounts';
+import { phoneWriter } from '../../panel/phoneWriter';
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
@@ -84,6 +85,48 @@ test('the off switch means the phone writes, with the one plain line', async () 
   await saveGptApps({ on: ['com.twitter.android'] });
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
   expect((await gptRoute('com.twitter.android', offline)).note).toBe(CHATGPT_OFF);
+});
+
+test.each([1, 2])('an unreadable switch on read %i uses the phone without losing a verified off choice', async failedRead => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: 0 });
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  let reads = 0;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: string) => {
+    if (key === 'chatgpt-switch' && ++reads === failedRead) throw new Error('storage unavailable');
+    return kv.get(key) ?? null;
+  });
+  const fetcher = jest.fn(offline);
+  try {
+    const route = await gptRoute('com.twitter.android', fetcher);
+    expect(route.writer).toBe(phoneWriter);
+    expect(route.note).toBe(CHATGPT_OFF);
+    expect(fetcher).toHaveBeenCalledTimes(failedRead === 1 ? 0 : 1);
+    expect(kv.get('chatgpt-switch')).toEqual(JSON.stringify({ seq: 1, chatgpt: 'off', fetchedAt: 0 }));
+  } finally {
+    get.mockRestore();
+  }
+  expect((await gptRoute('com.twitter.android', offline)).note).toBe(CHATGPT_OFF);
+});
+
+test('a switch read failure during verification cannot reuse an earlier on choice', async () => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  store.set('chatgpt-switch', { seq: 1, chatgpt: 'on', fetchedAt: 0 });
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  let reads = 0;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: string) => {
+    if (key === 'chatgpt-switch' && ++reads === 2) throw new Error('storage unavailable');
+    return kv.get(key) ?? null;
+  });
+  const fetcher = jest.fn(async () => ({ ok: true, json: async () => ({ payload: { v: 1, app: 'ownvoice', seq: 2, chatgpt: 'off' }, sig: 'invalid' }) } as Response));
+  try {
+    const route = await gptRoute('com.twitter.android', fetcher);
+    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(route.writer).toBe(phoneWriter);
+    expect(route.note).toBe(CHATGPT_OFF);
+  } finally {
+    get.mockRestore();
+  }
 });
 
 test('a resting ChatGPT says so instead of trying to write', async () => {
