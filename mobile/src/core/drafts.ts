@@ -236,7 +236,7 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
       for (const text of cleanDrafts([candidate], count, false, false)) accept(text, next++);
     }
   }
-  while (accepted.at(-1) == null) accepted.pop();
+  while (accepted.length && accepted.at(-1) == null) accepted.pop();
   return accepted;
 }
 

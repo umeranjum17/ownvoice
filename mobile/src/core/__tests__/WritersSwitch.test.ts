@@ -33,6 +33,26 @@ test('phone fallback reports a readable reason and preserves the primary on succ
   expect(await withPhoneFallback({ write: async () => ({ drafts: ['one', 'two', 'three'] }) }, phone, req)).toEqual({ drafts: ['one', 'two', 'three'] });
 });
 
+test('fallback replaces partial primary cards before showing phone cards', async () => {
+  const req = { conversation: '', written: '', typed: '' };
+  const cards: (string | null)[] = [null, null, null];
+  const events = {
+    landed: (text: string, slot: number) => { cards[slot] = text; },
+    reset: () => { cards.fill(null); },
+  };
+  const primary: Writer = { write: async (_request, on) => {
+    on?.landed?.('remote one', 0);
+    on?.landed?.('remote two', 1);
+    return { drafts: ['remote one', 'remote two'] };
+  } };
+  const phone: Writer = { write: async (_request, on) => {
+    on?.landed?.('phone one', 0);
+    return { drafts: ['phone one'] };
+  } };
+  expect(await withPhoneFallback(primary, phone, req, events)).toEqual({ drafts: ['phone one'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
+  expect(cards).toEqual(['phone one', null, null]);
+});
+
 test('remote switch vectors: valid, signature, app, rollback, version; failures keep last; first run is on', async () => {
   const publicKey = b64(await ed.getPublicKeyAsync(privateKey));
   const base = { v: 1, app: 'ownvoice', seq: 3, chatgpt: 'off' as const };

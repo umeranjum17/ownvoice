@@ -131,6 +131,7 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
         if (state === 'writing') setFraction(null);
       },
       fraction: value2 => { if (run.current === id) setFraction(value2); },
+      reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
       landed: (text, slot, label) => {
         if (run.current !== id) return;
         const scores = Judge.scoreDraft(text, null, !post, RULES, post, person);

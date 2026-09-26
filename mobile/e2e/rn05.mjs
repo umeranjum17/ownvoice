@@ -14,7 +14,6 @@ const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding
 const shell = (...args) => { const r = adb('shell', ...args); console.error(`[${new Date().toISOString().slice(11, 19)}] shell:`, args.join(' ').slice(0, 90)); return r; };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const wake = () => { shell('input', 'keyevent', 'KEYCODE_WAKEUP'); shell('svc', 'power', 'stayon', 'true'); shell('settings', 'put', 'system', 'screen_off_timeout', '1800000'); };
-const focusNow = () => (shell('dumpsys', 'window').split('\n').find(l => l.includes('mCurrentFocus')) ?? '').trim();
 
 mkdirSync(out, { recursive: true });
 const [width, height] = shell('wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
@@ -120,12 +119,6 @@ const enter = () => shell('input', 'keyevent', '66');
 // no keyboard ever shows on this emulator (hardware-keyboard mode), so there is nothing to dismiss;
 // a keyevent 4 here would finish the activity instead
 const dismissKeyboard = async () => { await wait(200); };
-const clearField = async () => {
-  shell('input', 'keyevent', '123'); // MOVE_END
-  for (let i = 0; i < 90; i++) shell('input', 'keyevent', '67'); // DEL
-  await wait(300);
-};
-
 const rebindService = async () => {
   const enabled = shell('settings', 'get', 'secure', 'enabled_accessibility_services').trim();
   const services = new Set(enabled === 'null' ? [] : enabled.split(':'));
@@ -137,42 +130,7 @@ const rebindService = async () => {
   await wait(1500);
   if (!shell('settings', 'get', 'secure', 'enabled_accessibility_services').includes(component)) throw new Error('service not enabled');
 };
-const restartApp = async () => {
-  wake();
-  shell('am', 'force-stop', pkg);
-  await wait(800);
-  await rebindService();
-  shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
-  await wait(4000);
-};
-const setMode = async mode => {
-  // an explicit yes/no is manual on this image; no twilight override follows
-  shell('cmd', 'uimode', 'night', mode);
-  await wait(800);
-  await restartApp();
-};
 const focusField = async () => { await tapText('Message'); await wait(500); await dismissKeyboard(); await wait(400); };
-
-// Enable apps directly in the app's own prefs (root is fine on this emulator) instead of
-// OCR-driving the in-app list; the service re-reads them at each rebind.
-const chooseApp = async () => {
-  shell('am', 'force-stop', pkg);
-  await wait(600);
-  execFileSync('bash', ['-c', `adb -s ${serial} shell "su 0 sh -c 'cat > /data/data/dev.ownvoice.next/shared_prefs/ownvoice-native.xml'" <<'XML'
-<?xml version='1.0' encoding='utf-8' standalone='yes' ?>
-<map>
-    <boolean name="tipShown" value="true" />
-    <boolean name="paused" value="false" />
-    <set name="off" />
-    <set name="on">
-        <string>com.android.chrome</string>
-        <string>dev.ownvoice.next</string>
-    </set>
-</map>
-XML`], { stdio: 'ignore' });
-  await rebindService();
-  await wait(500);
-};
 
 wake();
 // ---- scenario helpers ----

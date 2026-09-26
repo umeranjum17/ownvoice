@@ -72,6 +72,8 @@ test('acceptReplies cleans, dedupes and respects the avoid list', () => {
   const raw = ['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.', 'Not sure yet — what time works?'];
   expect(acceptReplies(raw, [], 3)).toEqual(['Yep, still on for Saturday. 👍', null, 'Not sure yet, what time works?']);
   expect(acceptReplies(raw, ['Yep, still on for Saturday. 👍'], 3)).toEqual([null, null, 'Not sure yet, what time works?']);
+  expect(acceptReplies([], [], 3)).toEqual([]);
+  expect(acceptReplies(['Yep, still on for Saturday. 👍'], ['Yep, still on for Saturday. 👍'], 3)).toEqual([]);
 });
 
 // ---- 5.2 Keep the writer's formatting ----
