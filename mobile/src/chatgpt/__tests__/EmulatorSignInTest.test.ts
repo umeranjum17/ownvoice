@@ -2,8 +2,9 @@ import type { GptState } from '../session';
 
 // The emulator-only stand-in (EXPO_PUBLIC_E2E_GPT) has to behave like the real thing on screen:
 // a code that waits, then a connected account. It never touches the network or anyone's sign-in.
-const load = (flag: string) => {
-  process.env.EXPO_PUBLIC_E2E_GPT = flag;
+const load = (flag?: string) => {
+  if (flag === undefined) delete process.env.EXPO_PUBLIC_E2E_GPT;
+  else process.env.EXPO_PUBLIC_E2E_GPT = flag;
   let mod: typeof import('../session');
   jest.isolateModules(() => { mod = require('../session'); });
   return mod!;
@@ -23,6 +24,11 @@ test('the stand-in sign-in shows a code, waits, then is connected', async () => 
   expect(await session.current()).toMatchObject({ waiting: false, signedIn: true });
   expect((await session.signOut()).signedIn).toBe(false);
   expect((await session.current()).signedIn).toBe(false);
+});
+
+test('only the exact build flag enables the stand-in', () => {
+  for (const flag of [undefined, '', 'off', 'true', '0', '10']) expect(load(flag).mocked).toBe(false);
+  expect(load('1').mocked).toBe(true);
 });
 
 test('cancelling the stand-in sign-in leaves the screen asking to start again', async () => {

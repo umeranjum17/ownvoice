@@ -10,6 +10,7 @@ test('waitingShowsTheCodeToTypeAndThePageToOpen', () => {
   const view = stateOf({ state: 'waiting', via: 'code', code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' }, null);
   expect(view).toMatchObject({ signedIn: false, waiting: true, code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' });
   expect(view.note).toContain('ChatGPT page');
+  expect(stateOf({ state: 'waiting', code: 'KQPT-MXVD' }, { account: 'owner', name: 'ChatGPT', state: 'signing', words: 'Signing in' }).signedIn).toBe(false);
   expect(stateOf({ state: 'waiting' }, null).note).toContain('Opening');
 });
 
@@ -27,7 +28,7 @@ test('a connected account is shown as connected, a resting one says why', () => 
   const resting = stateOf(null, { account: 'owner', name: 'ChatGPT', state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' });
   expect(resting.signedIn).toBe(true);
   expect(resting.resting).toBe('ChatGPT is resting until 3:40pm.');
-  for (const state of ['signed_out', 'needs_again'] as const)
+  for (const state of ['signed_out', 'needs_again', 'signing'] as const)
     expect(stateOf(null, { account: 'owner', name: 'ChatGPT', state, words: words.failed }).signedIn).toBe(false);
 });
 

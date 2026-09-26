@@ -7,9 +7,8 @@ const KEY = 'reads';
 
 export const readLog = (now = Date.now()): Read[] => keep(store.get<Read[]>(KEY) ?? [], now);
 
-// ponytail: last 200 entries in one kv row; move to one row per read if the log ever needs paging.
 export function logRead(read: Read, now = Date.now()): Read[] {
-  const reads = [...readLog(now), read].slice(-200);
+  const reads = [...readLog(now), read];
   store.set(KEY, reads);
   return reads;
 }

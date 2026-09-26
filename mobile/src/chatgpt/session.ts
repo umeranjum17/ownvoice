@@ -3,11 +3,7 @@ import type { SignIn, Status } from '@byokit/accounts';
 
 export const NAME = 'ChatGPT';
 
-/** Emulator proof only: `EXPO_PUBLIC_E2E_GPT=1` stands in the whole sign-in (and `=off` stands in the
- *  remote switch being off), so the screens can be shown without an account. It never reaches the
- *  network and never reads anyone's sign-in, and it is never in a build for a phone. */
-export const MOCK = process.env.EXPO_PUBLIC_E2E_GPT ?? '';
-export const mocked = MOCK !== '';
+export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
 const MOCK_CODE = 'KQPT-MXVD';
 const MOCK_WAIT_MS = 9000;
 
@@ -31,11 +27,11 @@ export function stateOf(view: SignIn | null, status: Status | null): GptState {
     return { signedIn: signed(status), waiting: true, code: view.code ?? null, url: view.url ?? null, note: view.code ? say('signIn.waitingUrl', { name: NAME }) : say('signIn.opening', { name: NAME }), resting: null };
   if (view?.state === 'failed')
     return { ...nothing, note: /cancel/i.test(view.error ?? '') ? say('signIn.cancelled', { name: NAME }) : signInError(NAME, view.error ?? '') };
-  const ready = status && !['signed_out', 'needs_again'].includes(status.state);
+  const ready = signed(status);
   return { ...nothing, signedIn: !!ready, note: ready ? status!.words : null, resting: ready && ['resting', 'not_included'].includes(status!.state) ? status!.words : null };
 }
 
-const signed = (status: Status | null) => !!status && !['signed_out', 'needs_again'].includes(status.state);
+const signed = (status: Status | null) => !!status && ['ready', 'resting', 'not_included'].includes(status.state);
 
 export type Session = {
   current(): Promise<GptState>;

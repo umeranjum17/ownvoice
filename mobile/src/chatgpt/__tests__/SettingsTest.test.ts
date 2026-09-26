@@ -1,5 +1,5 @@
 import { store } from '../../core/store';
-import { gptChoice, gptApps, setGptApp, gptRoute } from '../settings';
+import { gptChoice, gptApps, saveGptApps, gptRoute } from '../settings';
 import { status } from '../accounts';
 import { CHATGPT_OFF } from '../../core/switch';
 import Native from '../../../modules/ownvoice-native';
@@ -27,17 +27,18 @@ beforeEach(() => {
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
 });
 
-test('every app the bubble shows in can use ChatGPT, and private workplace chat cannot', () => {
-  expect(gptChoice('com.twitter.android')).toBeUndefined();
-  expect(gptChoice('com.Slack')).toBeUndefined();
-  setGptApp('com.Slack', true);
-  setGptApp('com.twitter.android', false);
+test('only saved choices permit ChatGPT', () => {
+  expect(gptApps()).toBeNull();
+  expect(gptChoice('com.twitter.android')).toBe(false);
+  saveGptApps({ on: ['com.Slack'], off: ['com.twitter.android'] });
   expect(gptApps()).toEqual({ on: ['com.Slack'], off: ['com.twitter.android'] });
-  setGptApp('com.Slack', false);
-  expect(gptApps()).toEqual({ on: [], off: ['com.twitter.android', 'com.Slack'] });
+  expect(gptChoice('com.Slack')).toBe(true);
+  expect(gptChoice('com.twitter.android')).toBe(false);
 });
 
 test('ChatGPT writes where it is signed in, allowed and not switched off', async () => {
+  expect(await gptRoute('com.twitter.android', offline)).toMatchObject({ viaChatGPT: false });
+  saveGptApps({ on: ['com.twitter.android'], off: [] });
   const route = await gptRoute('com.twitter.android', offline);
   expect(route).toMatchObject({ note: null, viaChatGPT: true });
 });
@@ -45,7 +46,7 @@ test('ChatGPT writes where it is signed in, allowed and not switched off', async
 test('a workplace chat stays with the phone unless it is switched on', async () => {
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.Slack'], off: [] });
   expect(await gptRoute('com.Slack', offline)).toMatchObject({ note: null, viaChatGPT: false });
-  setGptApp('com.Slack', true);
+  saveGptApps({ on: ['com.Slack'], off: [] });
   expect(await gptRoute('com.Slack', offline)).toMatchObject({ viaChatGPT: true });
 });
 
@@ -54,11 +55,13 @@ test('an app the bubble is off in never sends anything', async () => {
 });
 
 test('the off switch means the phone writes, with the one plain line', async () => {
+  saveGptApps({ on: ['com.twitter.android'], off: [] });
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
   expect(await gptRoute('com.twitter.android', offline)).toMatchObject({ note: CHATGPT_OFF, viaChatGPT: false });
 });
 
 test('a resting ChatGPT says so instead of trying to write', async () => {
+  saveGptApps({ on: ['com.twitter.android'], off: [] });
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' });
   expect(await gptRoute('com.twitter.android', offline)).toMatchObject({ note: 'ChatGPT is resting until 3:40pm.', viaChatGPT: false });
 });

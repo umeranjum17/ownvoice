@@ -77,6 +77,7 @@ export const words = {
   gptCancel:'Cancel',
   gptSignOut:'Sign out of ChatGPT',
   gptApps:'Apps that can use ChatGPT',
+  gptAppsQuestion:'Which apps can use ChatGPT?',
   gptAppsNote:'ChatGPT writes only in the apps you switch on. The rest are written on this phone.',
   gptAppsUnavailable:'Couldn’t find your apps. Try again.',
   gptSignedInNow:'ChatGPT is connected.',

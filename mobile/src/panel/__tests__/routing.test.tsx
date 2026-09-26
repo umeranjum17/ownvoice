@@ -27,7 +27,7 @@ const writer = (prefix: string): Writer => ({
     return { drafts };
   },
 });
-const broken: Writer = { write: async (_request, on) => { on?.sent?.(); throw new Error(words.chatgptFailed); } };
+const broken: Writer = { write: async (_request, on) => { on?.sent?.(); on?.sent?.(); throw new Error(words.chatgptFailed); } };
 
 const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'> & Partial<Omit<Parameters<typeof routeWriters>[0], 'chatgpt'>>, capture?: Partial<Capture>) => {
   native.capture.mockResolvedValue({
@@ -60,6 +60,18 @@ test('when ChatGPT cannot write, the phone does and the panel says so once', asy
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(times(shown(screen), words.fallback)).toBe(1);
   expect(loggedRead()?.summary).toContain('Sent to ChatGPT.');
+  expect(JSON.parse(kv.get('reads') ?? '[]')).toHaveLength(1);
+});
+
+test('a pending request records the send before it finishes', async () => {
+  let finish!: (value: { drafts: string[] }) => void;
+  const pending: Writer = { write: (_request, on) => { on?.sent?.(); return new Promise(resolve => { finish = resolve; }); } };
+  const screen = await open({ chatgpt: () => pending });
+  await waitFor(() => expect(loggedRead()?.summary).toContain('Sent to ChatGPT.'));
+  expect(JSON.parse(kv.get('reads') ?? '[]')).toHaveLength(1);
+  finish({ drafts: [] });
+  await waitFor(() => expect(shown(screen)).toContain('Phone one'));
+  expect(JSON.parse(kv.get('reads') ?? '[]')).toHaveLength(1);
 });
 
 test('the off switch keeps the drafts on the phone and says which wrote them', async () => {

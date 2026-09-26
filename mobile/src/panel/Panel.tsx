@@ -129,6 +129,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (run.current !== id) return;
       let choice;
       let sent = false;
+      const record = (sentToChatGPT: boolean) => logRead({ time: Date.now(), app: value.app, label: value.label, summary: readSummary(privacyMode(nextMode), value.conversation, value.typed, sentToChatGPT) });
       try {
         choice = await path.writer.write({
           conversation: value.conversation,
@@ -140,7 +141,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           dashes: dashesFor(RULES, nextMode === 'reply' ? value.written : value.typed),
           avoid,
         }, {
-          sent: () => { sent = true; },
+          sent: () => { if (!sent) { sent = true; record(true); } },
           state: state => {
             if (run.current !== id) return;
             setNote(state === 'downloading' ? words.gettingReady : words.writing);
@@ -156,14 +157,14 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           },
         });
       } catch (error) {
-        logRead({ time: Date.now(), app: value.app, label: value.label, summary: readSummary(privacyMode(nextMode), value.conversation, value.typed, sent), sent });
+        if (!sent) record(false);
         if (run.current !== id) return;
         setFraction(null);
         setNote(error instanceof Error ? error.message : words.failed);
         setPhase('failed');
         return;
       }
-      logRead({ time: Date.now(), app: value.app, label: value.label, summary: readSummary(privacyMode(nextMode), value.conversation, value.typed, sent), sent });
+      if (!sent) record(false);
       if (run.current !== id) return;
       setFraction(null);
       setReason(choice.reason ?? path.note);

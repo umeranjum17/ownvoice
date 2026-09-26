@@ -2,6 +2,7 @@ import React from 'react';
 import { Linking } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import ChatGpt from '../chatgpt';
+import { router } from 'expo-router';
 import { session, nothing, type GptState } from '../../src/chatgpt/session';
 import { words, CHATGPT_TERMS, technicalWords } from '../../src/core/words';
 import Native from '../../modules/ownvoice-native';
@@ -35,7 +36,8 @@ const open = async (state: GptState) => {
   return screen;
 };
 
-beforeEach(() => { jest.clearAllMocks(); jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined); });
+const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
+beforeEach(() => { kv.clear(); jest.clearAllMocks(); jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined); });
 
 test('nobody signed in yet: one button and the terms line', async () => {
   const screen = await open(nothing);
@@ -75,6 +77,11 @@ test('a connected account is named, and signing out is offered', async () => {
   await waitFor(() => expect(fake.signOut).toHaveBeenCalled());
   await waitFor(() => expect(screen.getByText(words.gptButton)).toBeTruthy());
   expect(visible.filter(text => technicalWords.test(text))).toEqual([]);
+});
+
+test('a newly connected account opens app choices until Done saves them', async () => {
+  await open(signedIn);
+  await waitFor(() => expect(router.push).toHaveBeenCalledWith('/gptapps'));
 });
 
 test('a resting plan says so in one line', async () => {

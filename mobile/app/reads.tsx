@@ -14,7 +14,7 @@ export default function Reads() {
     <Text style={[type.body, { color: t.muted }]}>{words.readsNote}</Text>
     <ScrollView>
       {readLog().slice().reverse().map((read, index) =>
-        <Row key={`${read.time}-${index}`} title={`${read.label} · ${new Date(read.time).toLocaleString()}`} subtitle={`${plain(read.summary)}${read.sent && !read.summary.includes('Sent to ChatGPT.') ? ' Sent to ChatGPT.' : ''}`} />)}
+        <Row key={`${read.time}-${index}`} title={`${read.label} · ${new Date(read.time).toLocaleString()}`} subtitle={plain(read.summary)} />)}
     </ScrollView>
     <Button kind="text" label={words.back} onPress={() => router.back()} />
   </View>;

@@ -7,6 +7,7 @@ import { Row } from '../src/ui/Row';
 import { space, type, useTheme } from '../src/ui/theme';
 import { words, CHATGPT_TERMS } from '../src/core/words';
 import { session, nothing, type GptState } from '../src/chatgpt/session';
+import { gptApps } from '../src/chatgpt/settings';
 import Native from '../modules/ownvoice-native';
 
 /** Signing in to the person's own ChatGPT plan: one button, a code to type on the page that opens,
@@ -29,6 +30,10 @@ export default function ChatGpt() {
     const id = setInterval(() => { void session.current().then(show).catch(() => {}); }, 1000);
     return () => clearInterval(id);
   }, [state?.waiting]);
+
+  useEffect(() => {
+    if (state?.signedIn && !gptApps()) router.push('/gptapps');
+  }, [state?.signedIn]);
 
   const openPage = (url: string | null) => {
     if (!url) return;
