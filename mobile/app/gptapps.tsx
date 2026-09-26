@@ -7,6 +7,8 @@ import { space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { CHATGPT_DEFAULT_OFF, showsBubble } from '../src/core/privacy';
 import { gptApps, saveGptApps } from '../src/chatgpt/settings';
+import { completeSetup } from '../src/core/setup-completion';
+import { store } from '../src/core/store';
 import Native from '../modules/ownvoice-native';
 
 type App = { app: string; label: string };
@@ -45,7 +47,13 @@ export default function GptApps() {
     {failed ? <Button kind="text" label={words.tryAgain} onPress={load} /> : null}
     <Button kind="filled" label={words.done} disabled={!apps} onPress={() => {
       if (!apps) return;
-      void saveGptApps({ on: apps.filter(({ app }) => chosen[app]).map(({ app }) => app) }).then(saved => { if (saved) router.back(); }).catch(() => {});
+      void (async () => {
+        if (!(await saveGptApps({ on: apps.filter(({ app }) => chosen[app]).map(({ app }) => app) }))) return;
+        const fromSetup = !store.get('setup-done');
+        if (fromSetup) await completeSetup();
+        router.dismissAll();
+        if (fromSetup) router.replace('/');
+      })().catch(() => {});
     }} />
     <Button kind="text" label={words.back} onPress={() => router.back()} />
   </View>;

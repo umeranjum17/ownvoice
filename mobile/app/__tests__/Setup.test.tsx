@@ -187,6 +187,14 @@ test('permission skip with no offered apps also leads to ChatGPT', async () => {
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
+test('optional setup opens ChatGPT without marking setup done', async () => {
+  at('CHATGPT');
+  const screen = await renderSetup();
+  await fireEvent.press(await screen.findByText(words.gptButton));
+  expect(router.push).toHaveBeenCalledWith('/chatgpt');
+  expect(kv.get('setup-done')).toBeUndefined();
+});
+
 test('appsSaveWhatTheyShowOnDone', async () => {
   at('APPS');
   const screen = await renderSetup();

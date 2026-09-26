@@ -12,6 +12,7 @@ import { words, CHATGPT_TERMS } from '../src/core/words';
 import * as Onboarding from '../src/core/onboarding';
 import type { Step } from '../src/core/onboarding';
 import { store } from '../src/core/store';
+import { completeSetup } from '../src/core/setup-completion';
 import Native from '../modules/ownvoice-native';
 
 type Saved = { step: Step; inserted: boolean };
@@ -82,9 +83,7 @@ export default function Setup() {
     setSaving(true);
     try {
       if (now === 'APPS' && shown) await saveApps();
-      await Native.clearSetupReturn();
-      store.set('setup-done', true);
-      try { store.set('setup', null); } catch {}
+      await completeSetup();
       router.replace('/');
     } catch {
       setSaving(false);

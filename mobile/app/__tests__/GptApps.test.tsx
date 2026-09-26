@@ -21,6 +21,7 @@ jest.mock('../../modules/ownvoice-native', () => ({
       { app: 'com.android.chrome', label: 'Chrome', icon: null },
     ]),
     bubbleRules: jest.fn(async () => ({ paused: false, on: ['com.Slack'], off: [] })),
+    clearSetupReturn: jest.fn(async () => {}),
   },
 }));
 
@@ -31,7 +32,8 @@ beforeEach(() => {
   (session.current as jest.Mock).mockResolvedValue({ signedIn: true });
 });
 
-test('choices are staged, then saved together by Done', async () => {
+test('Home choices are staged, then Done returns Home', async () => {
+  kv.set('setup-done', 'true');
   const screen = await render(<GptApps />);
   await waitFor(() => expect(Native.launcherApps).toHaveBeenCalled());
   await screen.findByText('Gmail');
@@ -46,7 +48,33 @@ test('choices are staged, then saved together by Done', async () => {
   await fireEvent.press(screen.getByText(words.done));
   expect(gptApps()).toEqual({ on: ['com.google.android.gm', 'com.Slack'] });
   expect(gptChoice('com.Slack')).toBe(true);
-  expect(router.back).toHaveBeenCalled();
+  expect(router.dismissAll).toHaveBeenCalled();
+  expect(router.replace).not.toHaveBeenCalled();
+});
+
+test('setup sign-in choice finishes setup and lands Home', async () => {
+  const screen = await render(<GptApps />);
+  await screen.findByText('Gmail');
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+  expect(gptApps()).toEqual({ on: ['com.google.android.gm'] });
+  expect(kv.get('setup-done')).toBe('true');
+  expect(kv.has('setup')).toBe(false);
+  expect(Native.clearSetupReturn).toHaveBeenCalledTimes(1);
+  expect(router.dismissAll).toHaveBeenCalledTimes(1);
+  expect(router.back).not.toHaveBeenCalled();
+});
+
+test('setup completion failure keeps the choice screen open', async () => {
+  (Native.clearSetupReturn as jest.Mock).mockRejectedValueOnce(new Error('write failed'));
+  const screen = await render(<GptApps />);
+  await screen.findByText('Gmail');
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(Native.clearSetupReturn).toHaveBeenCalledTimes(1));
+  expect(kv.get('setup-done')).toBeUndefined();
+  expect(router.dismissAll).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
 });
 
 test('Done cannot save choices before sign-in', async () => {
@@ -55,5 +83,5 @@ test('Done cannot save choices before sign-in', async () => {
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
   expect(gptApps()).toBeNull();
-  expect(router.back).not.toHaveBeenCalled();
+  expect(router.dismissAll).not.toHaveBeenCalled();
 });

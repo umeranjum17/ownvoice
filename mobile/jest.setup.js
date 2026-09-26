@@ -27,7 +27,7 @@ jest.mock('expo-router', () => {
   };
   const table = () => (globalThis.__scheme === 'dark' ? dark : light);
   const dynamic = new Proxy({}, { get: (_, name) => table()[name] ?? '#FF00FF' });
-  return { __esModule: true, Color: { android: { dynamic } }, router: { replace: jest.fn(), push: jest.fn(), back: jest.fn() } };
+  return { __esModule: true, Color: { android: { dynamic } }, router: { replace: jest.fn(), push: jest.fn(), back: jest.fn(), dismissAll: jest.fn() } };
 });
 
 // Setup state and later slices persist through the kv-store; tests read and seed this map
