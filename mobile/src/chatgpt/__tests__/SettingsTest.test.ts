@@ -129,6 +129,45 @@ test('a switch read failure during verification cannot reuse an earlier on choic
   }
 });
 
+test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the Responses send', async mode => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  const route = await gptRoute('com.twitter.android', offline);
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = mode === 'unreadable'
+    ? jest.spyOn(storage, 'getItemSync').mockImplementation((key: string) => {
+      if (key === 'chatgpt-switch') throw new Error('unavailable');
+      return kv.get(key) ?? null;
+    }) : null;
+  if (mode === 'off') store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  try {
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(global.fetch).not.toHaveBeenCalled();
+  } finally {
+    global.fetch = originalFetch;
+    get?.mockRestore();
+  }
+});
+
+test('a newer off choice blocks a later reply request', async () => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  const route = await gptRoute('com.twitter.android', offline);
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn(async () => {
+    store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
+    return { ok: true, body: new ReadableStream({ start(controller) {
+      const delta = JSON.stringify({ type: 'response.output_text.delta', delta: JSON.stringify({ drafts: ['No thanks', 'No thanks', 'No thanks'] }) });
+      controller.enqueue(new TextEncoder().encode(`data: ${delta}\n\ndata: {"type":"response.completed"}\n\n`));
+      controller.close();
+    } }) } as Response;
+  });
+  try {
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  } finally { global.fetch = originalFetch; }
+});
+
 test('a resting ChatGPT says so instead of trying to write', async () => {
   await saveGptApps({ on: ['com.twitter.android'] });
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' });
