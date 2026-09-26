@@ -10,7 +10,7 @@
     "test": "jest --runInBand"
   },
   "dependencies": {
-    "@byokit/accounts": "^0.2.1",
+    "@byokit/accounts": "0.2.2",
     "@noble/ed25519": "^2.2.3",
     "@noble/hashes": "^1.8.0",
     "expo": "~57.0.0",

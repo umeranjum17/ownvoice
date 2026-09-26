@@ -6,7 +6,7 @@ import { Switch } from '../src/ui/Switch';
 import { Progress } from '../src/ui/Progress';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
-import { DEFAULT_ON } from '../src/core/privacy';
+import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { store } from '../src/core/store';
 import { readLog, syncReadLog } from '../src/core/readLog';
 import { loadVoice } from '../src/core/voice';
@@ -19,7 +19,7 @@ const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Whether the bubble shows in [app]: the user's own choice for it, or else the default list. */
 export const showsBubble = (rules: Rules | null, app: string) =>
-  !!rules && (rules.on.includes(app) || (!rules.off.includes(app) && DEFAULT_ON.has(app)));
+  !!rules && bubbleInApp(app, rules);
 
 /** The apps the bubble shows in, as "WhatsApp, Gmail and 2 more" (MainActivity.appsLine). */
 export function appsLine(labels: string[]): string {
@@ -119,6 +119,7 @@ export default function Home() {
       <Row title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
       <Row title={words.rowVoice} subtitle={phrases === 0 ? words.noPhrases : phrases === 1 ? `1 ${words.phraseOne}` : `${phrases} ${words.phraseMany}`} onPress={() => router.push('/voice')} />
       <Row title={words.rowReads} subtitle={week === 0 ? words.nothingWeek : week === 1 ? words.onceWeek : `${week} ${words.timesWeek}`} onPress={() => router.push('/reads')} />
+      <Row title={words.gptButton} subtitle={words.gptNote} onPress={() => router.push('/chatgpt')} />
     </View>
 
     <View style={group}>

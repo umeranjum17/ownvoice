@@ -63,6 +63,10 @@ beforeEach(() => {
 });
 
 const at = (step: string, inserted = false) => kv.set('setup', JSON.stringify({ step, inserted }));
+const skipChatGPT = async (screen: Awaited<ReturnType<typeof renderSetup>>) => {
+  await screen.findByText(words.gptTitle);
+  await fireEvent.press(screen.getByText(words.notNow));
+};
 
 test.each(['WELCOME', 'PERMISSION', 'TRY', 'APPS'])('%s uses plain visible wording', async step => {
   at(step, true);
@@ -158,13 +162,37 @@ test('notNowSkipsPracticeWhenAppsRemain', async () => {
   expect(screen.queryByText('Chrome')).toBeNull();
 });
 
-test('notNowWithNoOfferedAppsFinishesSetup', async () => {
+test('no offered apps still leads to optional ChatGPT setup', async () => {
+  native.setBubbleRules.mockRejectedValue(new Error('unneeded write'));
   native.launcherApps.mockResolvedValue([{ app: 'com.android.chrome', label: 'Chrome', icon: null }]);
   const screen = await renderSetup();
   await fireEvent.press(await screen.findByText(words.continueLabel));
   await fireEvent.press(await screen.findByText(words.notNow));
+  expect(await screen.findByText(words.gptTitle)).toBeTruthy();
+  expect(native.setBubbleRules).not.toHaveBeenCalled();
+  expect(kv.get('setup-done')).toBeUndefined();
+  await skipChatGPT(screen);
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
   expect(kv.get('setup-done')).toBe('true');
+});
+
+test('permission skip with no offered apps also leads to ChatGPT', async () => {
+  at('PERMISSION');
+  native.setBubbleRules.mockRejectedValue(new Error('unneeded write'));
+  native.launcherApps.mockResolvedValue([]);
+  const screen = await renderSetup();
+  await fireEvent.press(await screen.findByText(words.notNow));
+  await skipChatGPT(screen);
+  expect(native.setBubbleRules).not.toHaveBeenCalled();
+  await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
+});
+
+test('optional setup opens ChatGPT without marking setup done', async () => {
+  at('CHATGPT');
+  const screen = await renderSetup();
+  await fireEvent.press(await screen.findByText(words.gptButton));
+  expect(router.push).toHaveBeenCalledWith('/chatgpt');
+  expect(kv.get('setup-done')).toBeUndefined();
 });
 
 test('appsSaveWhatTheyShowOnDone', async () => {
@@ -178,6 +206,7 @@ test('appsSaveWhatTheyShowOnDone', async () => {
   const saved = native.setBubbleRules.mock.calls[0][0];
   expect(saved.on).toContain('com.whatsapp');
   expect(saved.off).toContain('com.google.android.gm');
+  await skipChatGPT(screen);
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
   expect(native.clearSetupReturn).toHaveBeenCalledTimes(1);
   expect(kv.get('setup-done')).toBe('true');
@@ -198,6 +227,7 @@ test('choicesReplaceConflictingRulesAndWaitForTheWrite', async () => {
   await fireEvent.press(screen.getByText('Gmail'));
   expect(native.setBubbleRules.mock.calls[0][0].off).toContain('com.google.android.gm');
   complete();
+  await skipChatGPT(screen);
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
@@ -212,6 +242,7 @@ test('failedAppWriteLeavesSetupRecoverable', async () => {
   expect(kv.get('setup-done')).toBeUndefined();
   expect(router.replace).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText(words.done));
+  await skipChatGPT(screen);
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
 });
 
@@ -221,10 +252,11 @@ test('failedReturnCleanupLeavesSetupUnfinished', async () => {
   const screen = await renderSetup();
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
+  await skipChatGPT(screen);
   await waitFor(() => expect(native.clearSetupReturn).toHaveBeenCalledTimes(1));
   expect(kv.get('setup-done')).toBeUndefined();
   expect(router.replace).not.toHaveBeenCalled();
-  await fireEvent.press(screen.getByText(words.done));
+  await fireEvent.press(screen.getByText(words.notNow));
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
 });
 
@@ -239,6 +271,7 @@ test('appChoicesWaitForTheInstalledList', async () => {
   loaded([{ app: 'com.whatsapp', label: 'WhatsApp', icon: null }]);
   await screen.findByText('WhatsApp');
   await fireEvent.press(screen.getByText(words.done));
+  await skipChatGPT(screen);
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
@@ -274,6 +307,7 @@ test('launcherFailureDoesNotBecomeAnEmptyList', async () => {
   await fireEvent.press(screen.getByText(words.tryAgain));
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
+  await skipChatGPT(screen);
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 

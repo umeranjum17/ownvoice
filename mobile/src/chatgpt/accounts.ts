@@ -10,6 +10,9 @@ export const signIn = () => accounts.login(member, 'chatgpt', { via: 'code' });
 export const signOut = () => accounts.logout(member, 'chatgpt');
 export const refresh = () => accounts.keepFresh([member]);
 export const signInState = () => accounts.view(member, 'chatgpt');
+export const cancelSignIn = () => accounts.cancel(member, 'chatgpt');
+export const status = () => accounts.status(member, 'chatgpt');
+export const reportFailure = (error: string) => accounts.failed(member, 'chatgpt', error);
 export async function codexAuth(): Promise<{ access: string; accountId: string }> {
   const runtime = await accounts.runtime(member);
   const auth = await runtime.getAuth('openai-codex');
