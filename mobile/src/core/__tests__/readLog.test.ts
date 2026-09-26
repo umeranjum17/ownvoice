@@ -4,6 +4,8 @@ import { loadVoice, saveVoice, wipeVoice } from '../voice';
 import { store } from '../store';
 import type { TapFact } from '../../../modules/ownvoice-native';
 
+jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: { clearTapFacts: jest.fn(async () => {}) } }));
+
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 const NOW = 1_800_000_000_000;
 let sequence = 0;
@@ -35,10 +37,10 @@ test('the log survives a restart and stays newest first', () => {
   expect(readLog(NOW).map(r => r.time)).toEqual([NOW, NOW - 5000]);
 });
 
-test('Wipe everything clears the log and Your voice', () => {
+test('Wipe everything clears the log and Your voice', async () => {
   recordFacts([fact()], NOW);
   saveVoice({ never: ['delve'], noDashes: true, statementEndings: false, note: 'blunt' });
-  wipeReadLog();
+  await wipeReadLog();
   wipeVoice();
   expect(readLog(NOW)).toEqual([]);
   expect(loadVoice().never).toEqual([]);

@@ -353,6 +353,21 @@ test('a failed JS write leaves native taps unacknowledged for retry', async () =
   } finally { set.mockRestore(); }
 });
 
+test('a failed log read never replaces history or acknowledges the tap', async () => {
+  const prior = [{ id: 'old', time: Date.now(), app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }];
+  kv.set('reads', JSON.stringify(prior));
+  native.takeTapFacts.mockResolvedValue([fact()]);
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementationOnce(() => { throw new Error('read failed'); });
+  try {
+    await expect(syncReadLog()).rejects.toThrow('read failed');
+    expect(native.ackTapFacts).not.toHaveBeenCalled();
+    expect(JSON.parse(kv.get('reads')!)).toEqual(prior);
+    await syncReadLog();
+    expect(readLog()).toHaveLength(2);
+  } finally { get.mockRestore(); }
+});
+
 test('an acknowledgement failure cannot duplicate an already saved tap', async () => {
   const tap = fact();
   native.takeTapFacts.mockResolvedValue([tap]);
@@ -361,6 +376,22 @@ test('an acknowledgement failure cannot duplicate an already saved tap', async (
   expect(readLog()).toHaveLength(1);
   await syncReadLog();
   expect(readLog()).toHaveLength(1);
+});
+
+test('a wipe waits for Home transfer and cannot be undone by it', async () => {
+  const tap = fact();
+  let deliver!: (facts: TapFact[]) => void;
+  native.takeTapFacts.mockImplementationOnce(() => new Promise(resolve => { deliver = resolve; })).mockResolvedValue([]);
+  await show(<Home />);
+  await waitFor(() => expect(native.takeTapFacts).toHaveBeenCalledTimes(1));
+  const screen = await show(<Reads />);
+  fireEvent.press(screen.getByText(words.wipe));
+  await act(async () => { await Promise.resolve(); });
+  expect(native.clearTapFacts).not.toHaveBeenCalled();
+  await act(async () => { deliver([tap]); });
+  await waitFor(() => expect(native.clearTapFacts).toHaveBeenCalled());
+  await waitFor(() => expect(readLog()).toEqual([]));
+  expect(screen.getByText(words.nothingRead)).toBeTruthy();
 });
 
 test('Home includes taps still waiting in the phone', async () => {

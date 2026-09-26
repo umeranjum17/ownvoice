@@ -21,7 +21,7 @@ export default function Reads() {
     if (wiping.current) return;
     pending.current = pending.current.then(() => syncReadLog().then(rows => {
       if (!wiping.current) setReads(rows);
-    }).catch(() => { if (!wiping.current) setReads(readLog()); }));
+    }).catch(() => { if (!wiping.current) { try { setReads(readLog()); } catch { setError(true); } } }));
   }, []);
   useEffect(() => {
     refresh();
@@ -35,8 +35,8 @@ export default function Reads() {
     setError(false);
     try {
       await pending.current;
-      await Promise.all([Native.forget(), Native.clearTapFacts()]);
-      wipeReadLog();
+      await Native.forget();
+      await wipeReadLog();
       wipeVoice();
       setReads([]);
     } catch { setError(true); }

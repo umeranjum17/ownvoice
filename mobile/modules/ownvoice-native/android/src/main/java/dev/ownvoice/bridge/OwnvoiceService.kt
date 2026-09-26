@@ -53,7 +53,7 @@ class OwnvoiceService : AccessibilityService() {
     private const val DAY_MS = 24L * 60 * 60 * 1000
     private const val TIP = "Tap for reply ideas, or to polish what you wrote."
 
-    private fun factLine(f: TapFact) = listOf(f.at, f.app.replace("\t", " "), f.label.replace("\t", " "), f.screen, f.typed, f.replying, f.id).joinToString("\t")
+    private fun factLine(f: TapFact) = listOf(f.at, f.app.replace(Regex("[\\t\\r\\n]"), " "), f.label.replace(Regex("[\\t\\r\\n]"), " "), f.screen, f.typed, f.replying, f.id).joinToString("\t")
     // ponytail: If the service never runs, old facts remain until its next start.
     private fun restoreFacts(context: android.content.Context) {
       val prefs = context.getSharedPreferences("ownvoice-native", MODE_PRIVATE)

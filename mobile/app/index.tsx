@@ -52,8 +52,10 @@ export default function Home() {
     void Native.launcherApps(null).then(setApps).catch(() => {});
     setPhrases(loadVoice().never.length);
     readsBusy.current = readsBusy.current.then(async () => {
-      const reads = await syncReadLog().catch(() => readLog());
-      setWeek(reads.filter(r => Date.now() - r.time < WEEK_MS).length);
+      try {
+        const reads = await syncReadLog().catch(() => readLog());
+        setWeek(reads.filter(r => Date.now() - r.time < WEEK_MS).length);
+      } catch {}
     });
   }, []);
 
