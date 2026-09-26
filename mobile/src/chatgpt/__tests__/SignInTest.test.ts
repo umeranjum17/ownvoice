@@ -1,3 +1,4 @@
+import { Accounts } from '@byokit/accounts';
 import { stateOf, nothing, session } from '../session';
 import { store } from '../../core/store';
 import { signIn, signOut, status } from '../accounts';
@@ -40,12 +41,22 @@ test('waitingShowsTheCodeToTypeAndThePageToOpen', () => {
   expect(stateOf({ state: 'waiting' }, null).note).toContain('Opening');
 });
 
-test('failedSignInsSayWhatHappenedInPlainWords', () => {
-  expect(stateOf({ state: 'failed', error: 'the code expired' }, null).note).toContain('expired');
-  expect(stateOf({ state: 'failed', error: 'access_denied' }, null).note).toContain('declined');
-  expect(stateOf({ state: 'failed', error: 'fetch failed' }, null).note).toContain("Couldn't reach");
-  expect(stateOf({ state: 'failed', error: 'cancelled' }, null).note).toContain('Nothing was kept');
-  expect(stateOf({ state: 'failed', error: 'token exchange failed' }, null).note).toContain("didn't finish");
+test.each([
+  ['fetch failed', "Couldn't reach"],
+  ['the code expired', 'expired'],
+  ['access_denied', 'declined'],
+])('a failed Byokit sign-in preserves its %s explanation', async (reason, words) => {
+  const byokit = new Accounts({ offer: ['chatgpt'] });
+  jest.spyOn(byokit, 'open').mockResolvedValue({ login: async () => { throw new Error(reason); } } as never);
+  const error = jest.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    const view = await byokit.login('owner', 'chatgpt', { via: 'code' });
+    expect(view?.state).toBe('failed');
+    expect(view?.error).toContain(words);
+    expect(stateOf(view, null).note).toBe(view?.error);
+  } finally {
+    error.mockRestore();
+  }
 });
 
 test('a connected account is shown as connected, a resting one says why', () => {

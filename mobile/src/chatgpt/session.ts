@@ -1,4 +1,4 @@
-import { say, signInError } from '@byokit/accounts';
+import { say } from '@byokit/accounts';
 import type { SignIn, Status } from '@byokit/accounts';
 import { store } from '../core/store';
 
@@ -28,7 +28,7 @@ export function stateOf(view: SignIn | null, status: Status | null): GptState {
   if (view?.state === 'waiting')
     return { signedIn: signed(status), waiting: true, code: view.code ?? null, url: view.url ?? null, note: view.code ? say('signIn.waitingUrl', { name: NAME }) : say('signIn.opening', { name: NAME }), resting: null };
   if (view?.state === 'failed')
-    return { ...nothing, note: /cancel/i.test(view.error ?? '') ? say('signIn.cancelled', { name: NAME }) : signInError(NAME, view.error ?? '') };
+    return { ...nothing, note: view.error ?? null };
   const ready = signed(status);
   return { ...nothing, signedIn: !!ready, note: ready ? status!.words : null, resting: ready && ['resting', 'not_included'].includes(status!.state) ? status!.words : null };
 }
