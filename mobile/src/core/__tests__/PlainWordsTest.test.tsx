@@ -6,6 +6,7 @@ const renderToStaticMarkup: (element: React.ReactElement) => string = require('r
 import Home from '../../../app/index';
 import Panel from '../../panel/Panel';
 import { stubWriter, type StubOptions } from '../../panel/stubWriter';
+import type { DraftRequest, WriterEvents } from '../writers';
 import * as Slop from '../slop';
 import * as Judge from '../judge';
 import * as Privacy from '../privacy';
@@ -85,6 +86,24 @@ describe('panel copy', () => {
     const shown = visibleStrings(screen);
     expect(shown.length).toBeGreaterThan(0);
     assertPlain([...shown, ...Object.values(words)]);
+  });
+
+  test('saved voice governs drafts, writer guidance and Why checks', async () => {
+    const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
+    kv.set('voice', JSON.stringify({ never: ['circle back'], noDashes: true, statementEndings: false, note: 'short sentences' }));
+    const write = jest.fn(async (_request: DraftRequest, on: WriterEvents) => { on.landed?.('Circle back — tomorrow.', 0); return { drafts: ['Circle back — tomorrow.'] }; });
+    native.modelStatus.mockResolvedValue('available');
+    native.ask.mockResolvedValue('GENERIC: 1\nSPECIFICITY: 9\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: pass\nNOT_INTERESTED: pass\nHOOK: pass');
+    try {
+      const screen = await renderPanel({ write }, { typed: 'circle back — tomorrow', written: '' });
+      await waitFor(() => expect(write).toHaveBeenCalled());
+      expect(write.mock.calls[0][0].guide).toContain('No em dashes.');
+      expect(write.mock.calls[0][0].guide).toContain('short sentences');
+      expect(write.mock.calls[0][0].dashes).toBe('remove');
+      fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
+      await waitFor(() => expect(native.ask).toHaveBeenCalled());
+      await waitFor(() => expect(visibleStrings(screen).join(' ')).toContain('Breaks your rules'));
+    } finally { kv.delete('voice'); }
   });
 
   test('compose cards use post checks even before a model answer', async () => {

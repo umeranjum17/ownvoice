@@ -2,10 +2,11 @@ import { Switch as RNSwitch, View } from 'react-native';
 import { useTheme } from './theme';
 
 /** The phone's own switch, coloured from the theme. Disabled at 38%, like the buttons. */
-export function Switch({ value, onValueChange, disabled = false }: { value: boolean; onValueChange: (v: boolean) => void; disabled?: boolean }) {
+export function Switch({ value, onValueChange, disabled = false, accessibilityLabel }: { value: boolean; onValueChange: (v: boolean) => void; disabled?: boolean; accessibilityLabel?: string }) {
   const t = useTheme();
   return <View style={{ opacity: disabled ? 0.38 : 1 }}>
     <RNSwitch
+      accessibilityLabel={accessibilityLabel}
       value={value}
       onValueChange={onValueChange}
       disabled={disabled}

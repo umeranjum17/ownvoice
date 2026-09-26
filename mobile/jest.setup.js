@@ -1,3 +1,6 @@
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(async () => {}), deleteItemAsync: jest.fn(async () => {}) }));
+jest.mock('expo-file-system', () => ({ File: { pickFileAsync: jest.fn() } }));
+
 // Jest has no native module behind expo-router's dynamic colours, so stand in a fixed
 // Material 3 baseline table (one light, one dark). Tests flip the scheme with
 // Appearance.setColorScheme('dark'); the mock below intercepts the Appearance module itself
@@ -27,7 +30,7 @@ jest.mock('expo-router', () => {
   };
   const table = () => (globalThis.__scheme === 'dark' ? dark : light);
   const dynamic = new Proxy({}, { get: (_, name) => table()[name] ?? '#FF00FF' });
-  return { __esModule: true, Color: { android: { dynamic } }, router: { replace: jest.fn(), push: jest.fn(), back: jest.fn() } };
+  return { __esModule: true, Color: { android: { dynamic } }, useFocusEffect: jest.fn(cb => require('react').useEffect(cb, [cb])), router: { replace: jest.fn(), push: jest.fn(), back: jest.fn() } };
 });
 
 // Setup state and later slices persist through the kv-store; tests read and seed this map

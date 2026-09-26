@@ -1,7 +1,7 @@
 import { Mode } from './judge';
 export const DEFAULT_ON=new Set(['com.twitter.android','com.linkedin.android','com.google.android.gm','com.whatsapp','com.whatsapp.w4b']);
 export const KEEP_MS=30*24*60*60*1000;
-export type Read={time:number;app:string;label:string;summary:string};
+export type Read={time:number;app:string;label:string;summary:string;id?:string};
 export const allowed=(app:string,choice?:boolean|null)=>choice??DEFAULT_ON.has(app);
 export const keep=(reads:Read[],now:number)=>reads.filter(r=>now-r.time<KEEP_MS);
 export function encode(r:Read){return [r.time,r.app,r.label,r.summary].map(x=>String(x).replace(/[\t\n\r]/g,' ')).join('\t');}

@@ -92,10 +92,10 @@ test('homeSettingsDoesNotRequestASetupReturn', async () => {
   kv.set('setup-done', 'true');
   const screen = await render(<Home />);
   live.push(() => screen.unmount());
-  await fireEvent.press(screen.getByText('Turn on Ownvoice'));
-  expect(native.openAccessibilitySettings).toHaveBeenCalledWith(false);
-  await fireEvent.press(screen.getByText('Where the bubble shows'));
-  await waitFor(() => expect(native.launcherApps).toHaveBeenCalledWith(null));
+  await fireEvent(screen.getByLabelText(words.powerRow), 'valueChange', true);
+  expect(router.push).toHaveBeenCalledWith('/setup');
+  await fireEvent.press(screen.getByText(words.rowApps));
+  expect(router.push).toHaveBeenCalledWith('/apps');
 });
 
 test('welcomeStartsTheDownloadAndMovesToPermission', async () => {

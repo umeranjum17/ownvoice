@@ -15,7 +15,7 @@ class OwnvoiceNativeModule : Module() {
   private val context get() = appContext.reactContext!!
   override fun definition() = ModuleDefinition {
     Name("OwnvoiceNative")
-    Events("onServiceChange", "onInserted", "onModelProgress", "onModelPartial")
+    Events("onServiceChange", "onInserted", "onModelProgress", "onModelPartial", "onModelSettled")
     OnCreate {
       OwnvoiceService.onInserted = { ok, newlinesLost, practice -> sendEvent("onInserted", mapOf("ok" to ok, "newlinesLost" to newlinesLost, "practice" to practice)) }
       OwnvoiceService.onServiceChange = { state -> sendEvent("onServiceChange", mapOf("state" to state)) }
@@ -77,11 +77,17 @@ class OwnvoiceNativeModule : Module() {
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("say") { message: String, ms: Int? -> OwnvoiceService.instance?.say(message, (ms ?: 4000).toLong()) }.runOnQueue(Queues.MAIN)
     AsyncFunction("serviceState") { state() }.runOnQueue(Queues.MAIN)
+    // The home switch turns the service off the same way the phone's own row does (MainActivity.power).
+    AsyncFunction("turnOff") { OwnvoiceService.instance?.disableSelf() }.runOnQueue(Queues.MAIN)
     AsyncFunction("capture") {
       OwnvoiceService.instance?.captured()?.let { c -> mapOf("conversation" to c.conversation, "written" to c.written, "typed" to c.typed, "app" to c.app, "label" to c.label, "at" to c.at, "hasField" to (c.input != null), "fieldTop" to c.fieldTop, "nodes" to c.nodes.map { mapOf("text" to it.text, "left" to it.left, "top" to it.top, "bottom" to it.bottom, "clickable" to it.clickable) }) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("takeTapFacts") {
-      OwnvoiceService.instance?.drainFacts()?.map { mapOf("at" to it.at, "app" to it.app, "label" to it.label, "screen" to it.screen, "typed" to it.typed, "replying" to it.replying) }.orEmpty()
+      OwnvoiceService.savedFacts(context).map { mapOf("at" to it.at, "app" to it.app, "label" to it.label, "screen" to it.screen, "typed" to it.typed, "replying" to it.replying, "id" to it.id) }
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("ackTapFacts") { ids: List<String> -> OwnvoiceService.acknowledgeFacts(context, ids) }.runOnQueue(Queues.MAIN)
+    AsyncFunction("clearTapFacts") {
+      OwnvoiceService.clearSavedFacts(context)
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("forget") { OwnvoiceService.instance?.forget() }.runOnQueue(Queues.MAIN)
     AsyncFunction("copy") { text: String ->
@@ -104,6 +110,7 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("downloadModel") Coroutine { ->
       try { PhoneModel.download { fraction -> sendEvent("onModelProgress", mapOf("fraction" to fraction)) } }
       catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
+      finally { sendEvent("onModelSettled", emptyMap<String, Any>()) }
     }
     AsyncFunction("ask") Coroutine { id: String, prompt: String, options: Map<String, Any?> ->
       try {

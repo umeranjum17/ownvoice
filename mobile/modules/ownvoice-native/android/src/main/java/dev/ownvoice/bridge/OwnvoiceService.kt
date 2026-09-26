@@ -26,6 +26,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.TextView
+import android.widget.Toast
 import kotlin.math.roundToInt
 
 internal fun accessibleText(text: CharSequence?, isShowingHintText: Boolean): String? =
@@ -48,10 +49,44 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var onInserted: ((Boolean, Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
     private val facts = mutableListOf<TapFact>()
+    private const val FACTS = "tapFacts"
+    private const val KEEP_MS = 30L * 24 * 60 * 60 * 1000
+    private const val DAY_MS = 24L * 60 * 60 * 1000
     private const val TIP = "Tap for reply ideas, or to polish what you wrote."
+
+    private fun factLine(f: TapFact) = listOf(f.at, f.app.replace(Regex("[\\t\\r\\n]"), " "), f.label.replace(Regex("[\\t\\r\\n]"), " "), f.screen, f.typed, f.replying, f.id).joinToString("\t")
+    // ponytail: If the service never runs, old facts remain until its next start.
+    private fun restoreFacts(context: android.content.Context) {
+      val prefs = context.getSharedPreferences("ownvoice-native", MODE_PRIVATE)
+      if (facts.isEmpty()) prefs.getString(FACTS, "").orEmpty().lineSequence().filter { it.isNotBlank() }.forEach { line ->
+        val parts = line.split('\t')
+        if (parts.size == 7) parts[0].toLongOrNull()?.let { at ->
+          facts += TapFact(at, parts[1], parts[2], parts[3].toBoolean(), parts[4].toBoolean(), parts[5].toBoolean(), parts[6])
+        }
+      }
+      val kept = facts.filter { System.currentTimeMillis() - it.at < KEEP_MS }
+      if (kept.size != facts.size && prefs.edit().putString(FACTS, kept.joinToString("\n", transform = ::factLine)).commit()) {
+        facts.clear(); facts.addAll(kept)
+      }
+    }
+    fun savedFacts(context: android.content.Context): List<TapFact> = synchronized(facts) {
+      restoreFacts(context)
+      facts.toList()
+    }
+    fun acknowledgeFacts(context: android.content.Context, ids: List<String>) = synchronized(facts) {
+      restoreFacts(context)
+      check(facts.take(ids.size).map { it.id } == ids)
+      val kept = facts.drop(ids.size)
+      check(context.getSharedPreferences("ownvoice-native", MODE_PRIVATE).edit().putString(FACTS, kept.joinToString("\n", transform = ::factLine)).commit())
+      facts.clear(); facts.addAll(kept)
+    }
+    fun clearSavedFacts(context: android.content.Context) = synchronized(facts) {
+      check(context.getSharedPreferences("ownvoice-native", MODE_PRIVATE).edit().remove(FACTS).commit())
+      facts.clear()
+    }
   }
 
-  data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean)
+  data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String)
   data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean)
   data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val nodes: List<ScreenText>, val fieldTop: Int?)
   private val main = Handler(Looper.getMainLooper())
@@ -64,6 +99,7 @@ class OwnvoiceService : AccessibilityService() {
   private var insertingPractice = false
   private var pendingInsert: (() -> Unit)? = null
   private var resting = true
+  private var lastPrune = 0L
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
   var panelOpen: Boolean
     get() = panelIsOpen
@@ -80,6 +116,8 @@ class OwnvoiceService : AccessibilityService() {
     paused = prefs.getBoolean("paused", false)
     onApps = prefs.getStringSet("on", emptySet()).orEmpty()
     offApps = prefs.getStringSet("off", emptySet()).orEmpty()
+    synchronized(facts) { restoreFacts(this) }
+    lastPrune = System.currentTimeMillis()
     wm = getSystemService(WindowManager::class.java)
     bubble = TextView(this).apply {
       gravity = Gravity.CENTER
@@ -108,6 +146,10 @@ class OwnvoiceService : AccessibilityService() {
   }
 
   override fun onAccessibilityEvent(event: AccessibilityEvent) {
+    if (System.currentTimeMillis() - lastPrune >= DAY_MS) {
+      synchronized(facts) { restoreFacts(this) }
+      lastPrune = System.currentTimeMillis()
+    }
     if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) updateBubble()
   }
   override fun onInterrupt() {}
@@ -156,7 +198,14 @@ class OwnvoiceService : AccessibilityService() {
     val typed = capturedInputText(field?.text, field?.isShowingHintText == true)
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null)
-    synchronized(facts) { facts += TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty()) }
+    val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), java.util.UUID.randomUUID().toString())
+    val saved = synchronized(facts) {
+      restoreFacts(this@OwnvoiceService)
+      val ok = prefs.edit().putString(FACTS, (facts + fact).joinToString("\n", transform = ::factLine)).commit()
+      if (ok) facts += fact
+      ok
+    }
+    if (!saved) Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show()
     if (lines.isEmpty() && field == null) return say("No text on this screen.")
     capture = reading
     startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
@@ -193,7 +242,7 @@ class OwnvoiceService : AccessibilityService() {
 
   fun captured() = capture?.takeIf { allowed(it.app) }
   fun forget() { capture = null }
-  fun drainFacts(): List<TapFact> = synchronized(facts) { facts.toList().also { facts.clear() } }
+  fun clearTapFacts() = clearSavedFacts(this)
 
   fun insert(text: String, done: (Boolean, Boolean) -> Unit) {
     if (inserting) {

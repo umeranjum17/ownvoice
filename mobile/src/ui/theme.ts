@@ -38,6 +38,8 @@ export function useTheme() {
     cardLine: d.outlineVariant,
     yours: d.surfaceContainerHighest,
     group: d.surfaceContainer,
+    primaryContainer: d.primaryContainer,
+    onPrimaryContainer: d.onPrimaryContainer,
     text: d.onSurface,
     muted: d.onSurfaceVariant,
     primary: d.primary,

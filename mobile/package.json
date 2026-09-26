@@ -15,6 +15,7 @@
     "@noble/hashes": "^1.8.0",
     "expo": "~57.0.0",
     "expo-build-properties": "~1.0.0",
+    "expo-file-system": "^57.0.7",
     "expo-router": "*",
     "expo-secure-store": "^57.0.4",
     "expo-sqlite": "~57.0.3",
