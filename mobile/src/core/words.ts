@@ -39,7 +39,7 @@ export const words = {
   systemUpdate:'Your phone needs an update first. Open Settings › System updates, then try again.',
   failed:'Something went wrong. Try again.',
   home:'Your writing helper. It writes on this phone, or with your ChatGPT plan.',
-  privacyNote:'With the phone’s own writer, nothing leaves your phone. If you sign in to ChatGPT, the message you tap on is sent to ChatGPT to write your drafts.',
+  privacyNote:'With the phone’s own writer, nothing leaves your phone. If you sign in to ChatGPT, the chat on your screen and what you typed are sent to ChatGPT to write your drafts.',
   switchNote:'Ownvoice checks now and then whether ChatGPT is allowed to write. That check carries no name and no message.',
   permission:'On the next screen, tap Ownvoice, then switch on “Use Ownvoice”:',
   welcomeTitle:'Write replies that sound like you.',

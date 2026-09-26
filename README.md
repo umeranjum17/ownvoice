@@ -44,7 +44,7 @@ To import a voice profile, tap **Import from a file** and pick a markdown file, 
 
 ## Privacy
 
-Ownvoice reads the screen only when you tap its bubble. With the phone's own writer, nothing leaves your phone. If you sign in to ChatGPT, the message you tap on is sent to ChatGPT to write drafts.
+Ownvoice reads the screen only when you tap its bubble. With the phone's own writer, nothing leaves your phone. If you sign in to ChatGPT, the chat on your screen and what you typed are sent to ChatGPT to write your drafts.
 
 - **Reads only on request.** Ownvoice reads the screen only when you tap its bubble, never in the background. It reads the visible text and the field you're typing in, and keeps that in memory only until your next tap.
 - **Every read is logged where you can see it.** **What Ownvoice read** on the main screen lists each tap: the app, the time, what it did ("Suggested replies", "Polished your message" or "Nothing to help with"), what it looked at ("Read the chat on screen and your message"), and whether it was sent to ChatGPT, never any of the text. The list stays on the phone and each entry is deleted after 30 days. **Wipe everything** clears the list, whatever the last tap read, and Your voice.
