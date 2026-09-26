@@ -53,6 +53,12 @@ test('explicit labels retain empty earlier slots through reply acceptance', () =
     .toEqual([null, 'No, Saturday is out.', 'Not sure yet, what time?']);
   expect(acceptReplies(['Draft 3: Not sure yet, what time?'], [], 3))
     .toEqual([null, null, 'Not sure yet, what time?']);
+  expect(acceptReplies(['Draft 1: Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?'], [], 3))
+    .toEqual(['Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
+  expect(acceptReplies(['Draft 1: Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?'], ['Yes, I can bring it.'], 3))
+    .toEqual([null, 'No, could we change the day?', 'Not sure; what time?']);
+  expect(acceptReplies(['Draft 2: No, could we change the day?', 'Not sure; what time?'], [], 3))
+    .toEqual([null, 'No, could we change the day?', 'Not sure; what time?']);
 });
 
 test('acceptReplies cleans, dedupes and respects the avoid list', () => {

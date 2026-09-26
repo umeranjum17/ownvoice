@@ -91,6 +91,15 @@ test('a rejected middle reply refills the decline slot without shifting the unsu
   expect(drafts).toEqual(['Yes, Saturday works; I can bring the stove.', 'No, Saturday works; I can bring the stove.', 'Not sure yet, what time?']);
 });
 
+test('mixed labelled and unlabelled replies retain their slots without retries', async () => {
+  native.drafts.mockResolvedValue(['Draft 1: Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
+  const landed: number[] = [];
+  const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });
+  expect(drafts).toEqual(['Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
+  expect(landed).toEqual([0, 1, 2]);
+  expect(native.ask).not.toHaveBeenCalled();
+});
+
 test('missing labelled first slot is retried without moving the other replies', async () => {
   native.drafts.mockResolvedValue(['Draft 2: No, Saturday is out.\nDraft 3: Not sure yet, what time?']);
   native.ask.mockResolvedValue('Yes, Saturday works.');

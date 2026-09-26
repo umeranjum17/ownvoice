@@ -197,7 +197,9 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
     if (count > 1 && markers.length && !source.slice(0, markers[0].index).trim()) {
       markers.forEach((marker, i) => {
         const text = source.slice(marker.index! + marker[0].length, markers[i + 1]?.index ?? source.length);
-        accept(cleanDrafts([text], 1)[0] ?? '', Number(marker[1]) - 1);
+        const slot = Number(marker[1]) - 1;
+        next = Math.max(next, slot + 1);
+        accept(cleanDrafts([text], 1)[0] ?? '', slot);
       });
     } else {
       for (const text of cleanDrafts([candidate], count, false, false)) accept(text, next++);
