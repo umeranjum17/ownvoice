@@ -123,7 +123,10 @@ const findLine = async (label, tries = 10) => {
         line.bottom = Math.max(line.bottom, Number(columns[7]) + Number(columns[9]) + top);
         lines.set(key, line);
       }
-      const line = [...lines.values()].find(item => item.words.join(' ').toLowerCase().includes(label.toLowerCase()) && item.left < width * 0.6);
+      const line = [...lines.values()].find(item => {
+        const text = item.words.join(' ').toLowerCase();
+        return (label === 'x' ? text === 'x' : text.includes(label.toLowerCase())) && item.left < width * 0.6;
+      });
       if (line) return line;
     }
     await wait(1000);
@@ -234,18 +237,16 @@ const run = async mode => {
 
   // 6. Continue leaves the practice step; "Where should I help?" only when an offered app is installed.
   await tapText('Continue');
-  await waitForLine(['the bubble shows only', 'stays on this phone']);
+  await waitForLine('the bubble shows only');
   await wait(1200);
   const text = screenText();
-  if (text.includes('bubble shows only')) {
-    const rows = OFFERED.filter(name => text.includes(name));
-    if (!rows.length) throw new Error('The apps step showed but named none of the offered apps.');
-    snap(tag('05-apps'));
-    // Done sits a fixed step under the last app row; its pill defeats OCR.
-    const row = await findLine(rows[rows.length - 1]);
-    tap(Math.round(width / 2), row.bottom + 205);
-    await wait(1500);
-  }
+  const rows = OFFERED.filter(name => name === 'x' ? /\bx\b/.test(text) : text.includes(name));
+  if (!rows.length) throw new Error('The apps step named none of the offered apps.');
+  snap(tag('05-apps'));
+  // Done sits a fixed step under the last app row; its pill defeats OCR.
+  const row = await findLine(rows[rows.length - 1]);
+  tap(Math.round(width / 2), row.bottom + 205);
+  await wait(1500);
   await waitForLine('stays on this phone');
   snap(tag('06-home'));
 };
