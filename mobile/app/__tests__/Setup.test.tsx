@@ -12,7 +12,7 @@ jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: {
     modelStatus: jest.fn(), downloadModel: jest.fn(), serviceState: jest.fn(), launcherApps: jest.fn(),
-    bubbleRules: jest.fn(), setBubbleRules: jest.fn(), setPractice: jest.fn(),
+    bubbleRules: jest.fn(), setBubbleRules: jest.fn(), setPractice: jest.fn(), clearSetupReturn: jest.fn(),
     openAccessibilitySettings: jest.fn(), openAppInfo: jest.fn(), addListener: jest.fn(),
   },
 }));
@@ -49,6 +49,7 @@ beforeEach(() => {
   native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: [] });
   native.setBubbleRules.mockResolvedValue(undefined as never);
   native.setPractice.mockResolvedValue(undefined as never);
+  native.clearSetupReturn.mockResolvedValue(undefined as never);
   native.openAccessibilitySettings.mockResolvedValue(undefined as never);
   native.openAppInfo.mockResolvedValue(undefined as never);
   (native.addListener as unknown as jest.Mock).mockImplementation((event: string, cb: (event: never) => void) => {
@@ -70,6 +71,14 @@ test('unfinishedSetupResumesEvenWhenServiceIsOn', async () => {
   live.push(() => screen.unmount());
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/setup'));
   expect(native.serviceState).not.toHaveBeenCalled();
+});
+
+test('homeSettingsDoesNotRequestASetupReturn', async () => {
+  kv.set('setup-done', 'true');
+  const screen = await render(<Home />);
+  live.push(() => screen.unmount());
+  await fireEvent.press(screen.getByText('Turn on Ownvoice'));
+  expect(native.openAccessibilitySettings).toHaveBeenCalledWith(false);
 });
 
 test('welcomeStartsTheDownloadAndMovesToPermission', async () => {
@@ -104,7 +113,7 @@ test('permissionExplainsAndOpensTheSwitch', async () => {
   expect(screen.getByText(words.switchRowAction, { includeHiddenElements: true })).toBeTruthy();
   expect(screen.getByText(words.fullControl)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.turnOn));
-  expect(native.openAccessibilitySettings).toHaveBeenCalled();
+  expect(native.openAccessibilitySettings).toHaveBeenCalledWith(true);
   expect(screen.queryByText(words.greyedHelp)).toBeNull();
   await fireEvent.press(screen.getByText(words.switchGreyed));
   expect(native.openAppInfo).toHaveBeenCalled();
@@ -152,6 +161,7 @@ test('appsSaveWhatTheyShowOnDone', async () => {
   expect(saved.on).toContain('com.whatsapp');
   expect(saved.off).toContain('com.google.android.gm');
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+  expect(native.clearSetupReturn).toHaveBeenCalledTimes(1);
   expect(kv.get('setup-done')).toBe('true');
 });
 
@@ -181,6 +191,19 @@ test('failedAppWriteLeavesSetupRecoverable', async () => {
   await fireEvent.press(screen.getByText(words.done));
   await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalledTimes(1));
   expect(native.setBubbleRules).toHaveBeenCalledTimes(1);
+  expect(kv.get('setup-done')).toBeUndefined();
+  expect(router.replace).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+});
+
+test('failedReturnCleanupLeavesSetupUnfinished', async () => {
+  at('APPS');
+  native.clearSetupReturn.mockRejectedValueOnce(new Error('write failed'));
+  const screen = await renderSetup();
+  await screen.findByText('Gmail');
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(native.clearSetupReturn).toHaveBeenCalledTimes(1));
   expect(kv.get('setup-done')).toBeUndefined();
   expect(router.replace).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText(words.done));

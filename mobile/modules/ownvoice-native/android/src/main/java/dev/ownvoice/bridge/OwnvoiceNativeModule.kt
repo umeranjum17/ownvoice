@@ -22,10 +22,13 @@ class OwnvoiceNativeModule : Module() {
     }
     OnDestroy { OwnvoiceService.onInserted = null; OwnvoiceService.onServiceChange = null }
 
-    AsyncFunction("openAccessibilitySettings") {
-      context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().putBoolean("comeBack", true).apply()
+    AsyncFunction("openAccessibilitySettings") { comeBack: Boolean ->
+      check(context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().putBoolean("comeBack", comeBack).commit())
       val me = ComponentName(context, OwnvoiceService::class.java).flattenToString()
       context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(":settings:fragment_args_key", me))
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("clearSetupReturn") {
+      check(context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().remove("comeBack").commit())
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("setPractice") { on: Boolean ->
       OwnvoiceService.practice = on

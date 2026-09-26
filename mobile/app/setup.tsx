@@ -77,6 +77,7 @@ export default function Setup() {
         for (const { app } of shown) (picked[app] ?? true ? on : off).push(app);
         await Native.setBubbleRules({ paused: rules.paused, on, off });
       }
+      await Native.clearSetupReturn();
       store.set('setup-done', true);
       try { store.set('setup', null); } catch {}
       router.replace('/');
@@ -170,7 +171,7 @@ export default function Setup() {
       </View>
       <Text style={[type.body, centre, { color: t.text }]}>{words.fullControl}</Text>
       <View style={{ minHeight: space.xxl }} />
-      <Button kind="filled" label={words.turnOn} onPress={() => { Native.openAccessibilitySettings().catch(() => {}); }} />
+      <Button kind="filled" label={words.turnOn} onPress={() => { Native.openAccessibilitySettings(true).catch(() => {}); }} />
       <View style={styles.actions}>
         <Button kind="text" label={words.notNow} onPress={() => advance()} />
         <Button kind="text" label={words.switchGreyed} onPress={() => { setGreyed(true); Native.openAppInfo().catch(() => {}); }} />
