@@ -1,48 +1,51 @@
-import { KEEP_MS, type Read, keep } from '../privacy';
-import { readLog, recordFacts, wipeReadLog } from '../readLog';
-import { loadVoice, saveVoice, wipeVoice } from '../voice';
-import { store } from '../store';
-import type { TapFact } from '../../../modules/ownvoice-native';
-
-jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: { clearTapFacts: jest.fn(async () => {}) } }));
-
+import Native, { type TapFact } from '../../../modules/ownvoice-native';
+import { KEEP_MS } from '../privacy';
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
+import { readLog, recordFacts, syncReadLog, wipeReadLog } from '../readLog';
+
+jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: { takeTapFacts: jest.fn(), clearTapFacts: jest.fn() } }));
+const native = Native as jest.Mocked<typeof Native>;
 const NOW = 1_800_000_000_000;
 let sequence = 0;
-const fact = (over: Partial<TapFact> = {}): TapFact => ({ id: String(++sequence), at: NOW, app: 'com.whatsapp', label: 'WhatsApp', screen: true, typed: false, replying: true, ...over });
+const fact = (over: Partial<TapFact> = {}): TapFact => ({ id: String(++sequence), at: NOW, app: 'com.whatsapp', label: 'WhatsApp', screen: true, typed: false, replying: true, sent: false, ...over });
 
-beforeEach(() => { kv.clear(); sequence = 0; });
+beforeEach(async () => { sequence = 0; jest.clearAllMocks(); native.clearTapFacts.mockResolvedValue(); await wipeReadLog(); });
 
-// PrivacyTest's keep and summary cases, through the log that shows them (checklist H5, 2.8).
-test('the log keeps 30 days and drops anything older', () => {
-  const rows: Read[] = [{ time: NOW, app: 'a', label: 'A', summary: 'new' }, { time: NOW - KEEP_MS, app: 'b', label: 'B', summary: 'old' }];
-  expect(keep(rows, NOW)).toEqual([rows[0]]);
-  kv.set('reads', JSON.stringify(rows));
-  expect(readLog(NOW).map(r => r.summary)).toEqual(['new']);
+test('native facts are displayed once per tap, newest first, with no JS history write', async () => {
+  const older = fact({ at: NOW - 1000 });
+  const newer = fact({ sent: true });
+  native.takeTapFacts.mockResolvedValue([older, newer]);
+  const rows = await syncReadLog();
+  expect(rows).toHaveLength(2);
+  expect(rows.map(r => r.id)).toEqual([newer.id, older.id]);
+  expect(rows[0].summary).toBe('Suggested replies. Read the chat on screen. Sent to ChatGPT.');
+  expect(rows[1].summary).not.toContain('ChatGPT');
+  expect(readLog(NOW)).toEqual(rows);
+  expect(recordFacts([older, newer], NOW)).toEqual(rows);
 });
 
-test('a tap is logged as plain words with no text from the screen', () => {
-  const rows = recordFacts([fact(), fact({ at: NOW - 1000, typed: true, replying: false, screen: false })], NOW);
-  expect(rows[0].summary).toBe('Suggested replies. Read the chat on screen.');
-  expect(rows[1].summary).toBe('Polished your message. Read your message.');
-  expect(JSON.stringify(kv.get('reads'))).not.toMatch(/Sam|tent|stove|message box/i);
+test('empty and typed taps disclose only metadata; 30-day retention is applied', () => {
+  const rows = recordFacts([fact({ screen: false, replying: false }), fact({ typed: true, replying: false, screen: false }), fact({ at: NOW - KEEP_MS })], NOW);
+  expect(rows.map(r => r.summary)).toEqual(['Nothing to help with. Nothing was on screen.', 'Polished your message. Read your message.']);
+  expect(JSON.stringify(rows)).not.toMatch(/Sam|tent|stove/i);
 });
 
-test('an unreadable tap logs nothing to help with', () => {
-  expect(recordFacts([fact({ screen: false, typed: false, replying: false })], NOW)[0].summary).toBe('Nothing to help with. Nothing was on screen.');
-});
-
-test('the log survives a restart and stays newest first', () => {
-  recordFacts([fact({ at: NOW - 5000 }), fact()], NOW);
-  expect(readLog(NOW).map(r => r.time)).toEqual([NOW, NOW - 5000]);
-});
-
-test('Wipe everything clears the log and Your voice', async () => {
-  recordFacts([fact()], NOW);
-  saveVoice({ never: ['delve'], noDashes: true, statementEndings: false, note: 'blunt' });
+test('wipe removes even malformed legacy history', async () => {
+  kv.set('reads', 'invalid');
   await wipeReadLog();
-  wipeVoice();
-  expect(readLog(NOW)).toEqual([]);
-  expect(loadVoice().never).toEqual([]);
-  expect(store.get('reads')).toBeNull();
+  expect(kv.has('reads')).toBe(false);
+  expect(native.clearTapFacts).toHaveBeenCalled();
+});
+
+test('failed refresh keeps the last native snapshot; failed wipe leaves it intact', async () => {
+  native.takeTapFacts.mockResolvedValue([fact()]);
+  await syncReadLog();
+  native.takeTapFacts.mockRejectedValueOnce(new Error('unavailable'));
+  await expect(syncReadLog()).rejects.toThrow('unavailable');
+  expect(readLog()).toHaveLength(1);
+  native.clearTapFacts.mockRejectedValueOnce(new Error('full'));
+  await expect(wipeReadLog()).rejects.toThrow('full');
+  expect(readLog()).toHaveLength(1);
+  await wipeReadLog();
+  expect(readLog()).toEqual([]);
 });

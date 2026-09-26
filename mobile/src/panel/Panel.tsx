@@ -4,8 +4,6 @@ import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import { dashesFor } from '../core/drafts';
-import { summary as readSummary } from '../core/privacy';
-import { logRead } from '../core/reads';
 import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide, loadVoice } from '../core/voice';
 import { words } from '../core/words';
@@ -24,7 +22,6 @@ import { space, type, useReducedMotion, useTheme } from '../ui/theme';
 import { phoneWriter } from './phoneWriter';
 
 type Mode = 'reply' | 'polish' | 'compose' | 'empty';
-const privacyMode = (mode: Mode): Judge.Mode => mode === 'reply' ? 'REPLY' : mode === 'empty' ? 'EMPTY' : 'COMPOSE';
 type Phase = 'loading' | 'writing' | 'ready' | 'failed';
 type Draft = { text: string; label?: string; slot: number; scores: Scores; meaning: Check | null };
 type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
@@ -112,7 +109,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setFraction(null);
     setWhy(null);
     if (nextMode === 'empty') {
-      logRead({ time: Date.now(), app: value.app, label: value.label, summary: readSummary('EMPTY', value.conversation, value.typed) });
       setNote(null); setPhase('ready'); return;
     }
     setNote(words.writing);
@@ -127,7 +123,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       catch { path = { writer: phoneWriter, note: words.fallback }; }
       if (run.current !== id) return;
       let sent = false;
-      const record = (toChatGPT: boolean) => logRead({ time: Date.now(), app: value.app, label: value.label, summary: readSummary(privacyMode(nextMode), value.conversation, value.typed, toChatGPT) });
+
       try {
         const choice = await path.writer.write({
           conversation: value.conversation,
@@ -139,7 +135,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           dashes: dashesFor(rules, nextMode === 'reply' ? value.written : value.typed),
           avoid,
         }, {
-          sent: () => { if (!sent) { sent = true; record(true); } },
+          sent: () => { if (!sent) { sent = true; void Native.markTapSent(value.id).catch(() => {}); } },
           state: state => {
             if (run.current !== id) return;
             setNote(state === 'downloading' ? words.gettingReady : words.writing);
@@ -154,14 +150,12 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
           },
         });
-        if (!sent) record(false);
         if (run.current !== id) return;
         setFraction(null);
         setReason(choice.reason ?? path.note);
         setNote(null);
         setPhase('ready');
       } catch (error) {
-        if (!sent) record(false);
         if (run.current !== id) return;
         setFraction(null);
         setNote(error instanceof Error ? error.message : words.failed);

@@ -6,7 +6,6 @@ import Native, { type Capture } from '../../../modules/ownvoice-native';
 import { words } from '../../core/words';
 import { CHATGPT_OFF } from '../../core/switch';
 import { routeWriters, type Writer } from '../../core/writers';
-import { store } from '../../core/store';
 
 jest.mock('../phoneWriter', () => ({ phoneWriter: { write: async (_request: unknown, on?: { landed?: (text: string, slot: number) => void }) => {
   const drafts = ['Phone one', 'Phone two', 'Phone three'];
@@ -20,6 +19,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({
     addListener: jest.fn(() => ({ remove: () => {} })),
     capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(),
     modelStatus: jest.fn(async () => 'available'), ask: jest.fn(), closePanel: jest.fn(), bubbleRules: jest.fn(),
+    markTapSent: jest.fn(async () => {}),
   },
 }));
 
@@ -39,7 +39,7 @@ const broken: Writer = { write: async (_request, on) => { on?.sent?.(); on?.sent
 const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'> & Partial<Omit<Parameters<typeof routeWriters>[0], 'chatgpt'>>, capture?: Partial<Capture>, select?: (app: string) => Promise<ReturnType<typeof routeWriters>>) => {
   native.capture.mockResolvedValue({
     conversation: 'Sam: Are we still on for Saturday?', written: 'Sam: Are we still on for Saturday?',
-    nodes: [], fieldTop: null, typed: '', app: 'com.twitter.android', label: 'X', at: 0, hasField: true,
+    nodes: [], fieldTop: null, typed: '', app: 'com.twitter.android', label: 'X', at: 0, id: 'tap-1', hasField: true,
     ...capture,
   });
   const screen = await render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
@@ -49,7 +49,7 @@ const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'>
   return screen;
 };
 const shown = (screen: { toJSON: () => unknown }) => JSON.stringify(screen.toJSON());
-const loggedRead = () => (JSON.parse(kv.get('reads') ?? '[]') as { summary: string; app: string }[]).at(-1);
+const sentTap = () => native.markTapSent.mock.calls.map(([id]) => id);
 const times = (text: string, needle: string) => text.split(needle).length - 1;
 
 beforeEach(() => { kv.clear(); jest.clearAllMocks(); });
@@ -59,45 +59,41 @@ test('ChatGPT writes, the drafts say nothing about it, and the read log notes th
   await waitFor(() => expect(shown(screen)).toContain('ChatGPT one'));
   expect(shown(screen)).not.toContain(CHATGPT_OFF);
   expect(shown(screen)).not.toContain(words.fallback);
-  expect(loggedRead()).toMatchObject({ app: 'com.twitter.android', summary: 'Suggested replies. Read the chat on screen. Sent to ChatGPT.' });
+  expect(sentTap()).toEqual(['tap-1']);
+  expect(kv.has('reads')).toBe(false);
 });
 
 test('when ChatGPT cannot write, the phone does and the panel says so once', async () => {
   const screen = await open({ chatgpt: () => broken });
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(times(shown(screen), words.fallback)).toBe(1);
-  expect(loggedRead()?.summary).toContain('Sent to ChatGPT.');
-  expect(JSON.parse(kv.get('reads') ?? '[]')).toHaveLength(1);
+  expect(sentTap()).toEqual(['tap-1']);
+  expect(kv.has('reads')).toBe(false);
 });
 
 test('a pending request records the send before it finishes', async () => {
   let finish!: (value: { drafts: string[] }) => void;
   const pending: Writer = { write: (_request, on) => { on?.sent?.(); return new Promise(resolve => { finish = resolve; }); } };
   const screen = await open({ chatgpt: () => pending });
-  await waitFor(() => expect(loggedRead()?.summary).toContain('Sent to ChatGPT.'));
-  expect(JSON.parse(kv.get('reads') ?? '[]')).toHaveLength(1);
+  await waitFor(() => expect(sentTap()).toEqual(['tap-1']));
+  expect(kv.has('reads')).toBe(false);
   finish({ drafts: [] });
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
-  expect(JSON.parse(kv.get('reads') ?? '[]')).toHaveLength(1);
+  expect(sentTap()).toEqual(['tap-1']);
 });
 
 test('a failed route selection uses the phone and leaves Writing', async () => {
   const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => { throw new Error('switch store failed'); });
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(shown(screen)).toContain(words.fallback);
-  expect(loggedRead()?.summary).not.toContain('ChatGPT');
+  expect(sentTap()).toEqual([]);
 });
 
-test.each([
-  [{ chatgpt: () => writer('ChatGPT') }, undefined, 'ChatGPT one'],
-  [{ chatgpt: () => writer('ChatGPT'), enabled: false }, undefined, 'Phone one'],
-  [{ chatgpt: () => writer('ChatGPT') }, { conversation: '', written: '' }, words.writeFirst],
-] as const)('drafting survives a failed history write', async (options, capture, expected) => {
-  const save = jest.spyOn(store, 'set').mockImplementation(() => { throw new Error('full'); });
-  try {
-    const screen = await open(options, capture);
-    await waitFor(() => expect(shown(screen)).toContain(expected));
-  } finally { save.mockRestore(); }
+test('a failed native sent mark does not interrupt drafting', async () => {
+  native.markTapSent.mockRejectedValueOnce(new Error('full'));
+  const screen = await open({ chatgpt: () => writer('ChatGPT') });
+  await waitFor(() => expect(shown(screen)).toContain('ChatGPT one'));
+  expect(sentTap()).toEqual(['tap-1']);
 });
 
 test('the off switch keeps the drafts on the phone and says which wrote them', async () => {
@@ -105,12 +101,13 @@ test('the off switch keeps the drafts on the phone and says which wrote them', a
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(shown(screen)).not.toContain('ChatGPT one');
   expect(times(shown(screen), CHATGPT_OFF)).toBe(1);
-  expect(loggedRead()?.summary).not.toContain('ChatGPT');
+  expect(sentTap()).toEqual([]);
 });
 
 test('a screen with nothing to help with is logged as nothing read', async () => {
   const screen = await open({ chatgpt: () => writer('ChatGPT') }, { conversation: '', written: '' });
   await waitFor(() => expect(shown(screen)).toContain(words.writeFirst));
   expect(shown(screen)).not.toContain('ChatGPT one');
-  expect(loggedRead()?.summary).toBe('Nothing to help with. Nothing was on screen.');
+  expect(sentTap()).toEqual([]);
+  expect(kv.has('reads')).toBe(false);
 });

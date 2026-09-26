@@ -29,7 +29,7 @@ const assertPlain = (shown: string[]) => { expect(shown.length).toBeGreaterThan(
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 const LIST = 'i can bring the stove, 4 chairs\n1. I will bring the stove.\n2. You can bring the tent.';
 const fixture = (over: { typed?: string; written?: string; hasField?: boolean } = {}): Capture =>
-  ({ conversation: over.written ?? SAM, written: over.written ?? SAM, nodes: [], fieldTop: null, typed: over.typed ?? '', app: 'dev.ownvoice.app', label: 'Ownvoice', at: 0, hasField: over.hasField ?? true });
+  ({ conversation: over.written ?? SAM, written: over.written ?? SAM, nodes: [], fieldTop: null, typed: over.typed ?? '', app: 'dev.ownvoice.app', label: 'Ownvoice', at: 0, id: 'tap-1', hasField: over.hasField ?? true });
 
 const renderPanel = async (writer: ReturnType<typeof stubWriter>, over: { typed?: string; written?: string; hasField?: boolean; none?: boolean } = {}) => {
   native.capture.mockResolvedValue(over.none ? null : fixture(over));
