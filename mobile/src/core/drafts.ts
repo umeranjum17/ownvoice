@@ -141,8 +141,9 @@ export type ScreenText = { text: string; top: number; bottom: number; clickable:
 
 export function latestMessage(nodes?: ScreenText[], fieldTop?: number): string {
   if (fieldTop == null) return '';
-  return (nodes ?? []).filter(node => !node.clickable && node.bottom <= fieldTop && node.text.trim())
-    .sort((a, b) => b.bottom - a.bottom)[0]?.text.trim().slice(-300) ?? '';
+  const text = (nodes ?? []).filter(node => !node.clickable && node.bottom <= fieldTop && node.text.trim())
+    .sort((a, b) => b.bottom - a.bottom)[0]?.text.trim() ?? '';
+  return text.length > 3000 ? `${text.slice(0, 1500)}\n…\n${text.slice(-1500)}` : text;
 }
 
 export type ReplyInput = { latest: string; conversation: string; guide?: string; dashes: 'keep' | 'remove'; avoid?: string[] };

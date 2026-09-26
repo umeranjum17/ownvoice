@@ -142,7 +142,13 @@ test('nearest non-clickable message above the field wins over practice controls'
   ];
   expect(latestMessage(nodes, 200)).toBe(nodes[1].text);
   expect(latestMessage(nodes.slice(2), 200)).toBe('');
-  expect(latestMessage([{ text: 'x'.repeat(400), top: 0, bottom: 1, clickable: false }], 200)).toHaveLength(300);
+  expect(latestMessage([{ text: 'x'.repeat(400), top: 0, bottom: 1, clickable: false }], 200)).toHaveLength(400);
+  const long = 'Can you bring the stove? ' + 'Earlier context. '.repeat(230) + 'What time works?';
+  const latest = latestMessage([{ text: long, top: 0, bottom: 1, clickable: false }], 200);
+  const prompt = phoneReplyPrompt({ ...input, latest, conversation: 'Earlier screen. '.repeat(240) });
+  expect(prompt).toContain('Latest message:\nCan you bring the stove?');
+  expect(prompt).toContain('What time works?');
+  expect(latest.length).toBeLessThan(3010);
   expect(replyPrompt({ ...input, latest: latestMessage(nodes.slice(2), 200) })).not.toContain('Latest message:');
 });
 

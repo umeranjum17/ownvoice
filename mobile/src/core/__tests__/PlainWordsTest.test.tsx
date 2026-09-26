@@ -99,6 +99,16 @@ describe('panel copy', () => {
     expect(native.insert).toHaveBeenCalledTimes(1);
   });
 
+  test.each([['unclear kind', ['not sure'], 1], ['unreadable checks', ['MESSAGE', 'looks fine'], 2]] as const)('%s keeps quick checks when the model cannot answer', async (_name, answers, calls) => {
+    native.modelStatus.mockResolvedValue('available');
+    for (const answer of answers) native.ask.mockResolvedValueOnce(answer);
+    const screen = await renderPanel(stubWriter());
+    await act(async () => { fireEvent.press(screen.getAllByRole('button', { name: words.why })[0]); await Promise.resolve(); });
+    expect(visibleStrings(screen)).toContain(words.noChecks);
+    expect(native.ask).toHaveBeenCalledTimes(calls);
+    screen.unmount();
+  });
+
   test('no capture shows only its own line', async () => {
     const screen = await renderPanel(stubWriter(), { none: true });
     const text = JSON.stringify(screen.toJSON());
