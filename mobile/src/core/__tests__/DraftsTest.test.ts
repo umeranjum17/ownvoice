@@ -33,12 +33,13 @@ test('keeps a numbered or bulleted message intact unless explicitly labelled as 
 
 // ---- 5.3 Duplicates ----
 
-test('only exact normalized duplicates lose a slot', () => {
+test('one leading agreement may repeat, but opposite answers and different days survive', () => {
   expect(norm('  YES, Saturday!  ')).toBe(norm('yes saturday'));
+  expect(norm('Sounds good, Saturday!')).toBe(norm('Yep Saturday'));
   expect(norm("I can't bring it")).not.toBe(norm('I can bring it'));
   expect(acceptReplies(['Yes, Saturday works.', 'YES Saturday works!'], [], 2)).toEqual(['Yes, Saturday works.']);
   expect(acceptReplies(['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.'], [], 2))
-    .toEqual(['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.']);
+    .toEqual(['Yep, still on for Saturday. 👍']);
   expect(acceptReplies(['Yes, Saturday works; I can bring the stove', 'No, Saturday works; I can bring the stove'], [], 2)).toHaveLength(2);
   expect(acceptReplies(['I can bring the stove', "I can't bring the stove"], [], 2)).toHaveLength(2);
   expect(acceptReplies(['Could we meet on Saturday?', 'Could we meet on Sunday?'], [], 2)).toHaveLength(2);
@@ -63,8 +64,8 @@ test('explicit labels retain empty earlier slots through reply acceptance', () =
 
 test('acceptReplies cleans, dedupes and respects the avoid list', () => {
   const raw = ['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.', 'Not sure yet — what time works?'];
-  expect(acceptReplies(raw, [], 3)).toEqual(['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.', 'Not sure yet, what time works?']);
-  expect(acceptReplies(raw, ['Yep, still on for Saturday. 👍'], 3)).toEqual([null, 'Yeah, still on for Saturday.', 'Not sure yet, what time works?']);
+  expect(acceptReplies(raw, [], 3)).toEqual(['Yep, still on for Saturday. 👍', null, 'Not sure yet, what time works?']);
+  expect(acceptReplies(raw, ['Yep, still on for Saturday. 👍'], 3)).toEqual([null, null, 'Not sure yet, what time works?']);
   expect(acceptReplies([], [], 3)).toEqual([]);
   expect(acceptReplies(['Yep, still on for Saturday. 👍'], ['Yep, still on for Saturday. 👍'], 3)).toEqual([]);
 });
@@ -86,10 +87,18 @@ test('layoutKept: a list stays a list with the same markers', () => {
   expect(layoutKept('One line only.', 'One single line.')).toBe(true);
 });
 
-test('layoutKept allows one line fewer', () => {
+test('layoutKept allows one ordinary line fewer but preserves paragraph breaks', () => {
   const three = 'Hi.\nMiddle line here.\nBye.';
   expect(layoutKept(three, 'Hi.\nBye.')).toBe(true);
   expect(layoutKept(three, 'Hi.')).toBe(false);
+  const paragraphs = 'Hello\n\nI can bring the stove.\n\nThanks';
+  expect(layoutKept(paragraphs, 'Hello\nI can bring the stove.\nThanks')).toBe(false);
+  expect(layoutKept(paragraphs, 'Hello\n\nI will bring the stove.\n\nThanks')).toBe(true);
+  expect(layoutKept('Hello\nThanks', 'Hello\n\nThanks')).toBe(false);
+  const versions = versionAcceptor(paragraphs, 'remove', []);
+  expect(versions.accept('Hello\nI will bring the stove.\nThanks', 0)).toBeNull();
+  expect(versions.layoutFails).toEqual([{ slot: 0, label: undefined }]);
+  expect(versions.fix('Hello\n\nI will bring the stove.\n\nThanks', 0)).toBeTruthy();
 });
 
 // ---- 5.4 The dash rule ----

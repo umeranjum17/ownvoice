@@ -61,7 +61,8 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
 // ---- 5.3 Duplicates ----
 
 export function norm(text: string): string {
-  return text.toLowerCase().replace(/’/g, "'").replace(/[^\p{L}\p{N}'\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  return text.toLowerCase().replace(/’/g, "'").replace(/[^\p{L}\p{N}'\s]/gu, ' ').replace(/\s+/g, ' ').trim()
+    .replace(/^(?:yep|yeah|yes|ya|yup|sure|ok|okay|sounds good)(?:\s+|$)/, '');
 }
 
 export const fresh = (draft: string, shown: string[]): boolean => !shown.some(other => norm(other) === norm(draft));
@@ -69,6 +70,7 @@ export const fresh = (draft: string, shown: string[]): boolean => !shown.some(ot
 // ---- 5.2 Keep the writer's formatting ----
 
 const nonEmptyLines = (text: string) => text.split(/\r?\n/).filter(line => line.trim()).length;
+const paragraphBreaks = (text: string) => text.trim().match(/\r?\n(?:[ \t]*\r?\n)+/g)?.length ?? 0;
 const listMarkers = (text: string) => text.split(/\r?\n/).flatMap(line => {
   const marker = line.match(/^\s*(\d+[.)]|[-*•])\s+/)?.[1];
   return marker ? [marker] : [];
@@ -77,6 +79,7 @@ const listMarkers = (text: string) => text.split(/\r?\n/).flatMap(line => {
 export function layoutKept(original: string, version: string): boolean {
   const had = listMarkers(original), has = listMarkers(version);
   return had.length === has.length && had.every((marker, i) => marker === has[i])
+    && paragraphBreaks(original) === paragraphBreaks(version)
     && (!original.includes('\n') || nonEmptyLines(version) >= nonEmptyLines(original) - 1);
 }
 
