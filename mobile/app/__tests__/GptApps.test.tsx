@@ -9,6 +9,7 @@ import Native from '../../modules/ownvoice-native';
 import { session } from '../../src/chatgpt/session';
 
 jest.mock('../../src/chatgpt/session', () => ({
+  GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
   session: { current: jest.fn(async () => ({ signedIn: true })) },
 }));
@@ -51,6 +52,37 @@ test('Home choices are staged, then Done returns Home', async () => {
   expect(gptChoice('com.Slack')).toBe(true);
   expect(router.dismissAll).toHaveBeenCalled();
   expect(router.replace).not.toHaveBeenCalled();
+});
+
+test('Done changes shown apps but preserves choices hidden by bubble settings', async () => {
+  kv.set('setup-done', 'true');
+  store.set('chatgpt-apps', { on: ['com.whatsapp', 'com.google.android.gm'] });
+  const screen = await render(<GptApps />);
+  await screen.findByText('Gmail');
+  await fireEvent.press(screen.getByText('Gmail'));
+  await fireEvent.press(screen.getByText('Slack'));
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(router.dismissAll).toHaveBeenCalled());
+  expect(gptApps()).toEqual({ on: ['com.whatsapp', 'com.Slack'] });
+  expect(gptChoice('com.whatsapp')).toBe(true);
+  expect(gptChoice('com.google.android.gm')).toBe(false);
+});
+
+test('Done does not erase hidden choices when the saved list cannot be read', async () => {
+  kv.set('setup-done', 'true');
+  store.set('chatgpt-apps', { on: ['com.whatsapp'] });
+  const screen = await render(<GptApps />);
+  await screen.findByText('Gmail');
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementationOnce(() => { throw new Error('unavailable'); });
+  try {
+    await fireEvent.press(screen.getByText(words.done));
+    await screen.findByText(words.gptAppsSaveFailed);
+    expect(router.dismissAll).not.toHaveBeenCalled();
+  } finally {
+    get.mockRestore();
+  }
+  expect(gptApps()).toEqual({ on: ['com.whatsapp'] });
 });
 
 test('setup sign-in choice finishes setup and lands Home', async () => {

@@ -8,7 +8,7 @@ import { GPT_APPS_KEY, mocked, session } from './session';
 
 export type GptApps = { on: string[] };
 
-export const gptApps = (): GptApps | null => store.get<GptApps>(GPT_APPS_KEY);
+export const gptApps = (strict = false): GptApps | null => store.get<GptApps>(GPT_APPS_KEY, strict);
 export async function saveGptApps(apps: GptApps): Promise<boolean> {
   if (!(await session.current()).signedIn) return false;
   store.set(GPT_APPS_KEY, apps);

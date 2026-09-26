@@ -51,7 +51,9 @@ export default function GptApps() {
       if (!apps) return;
       setDoneError(null);
       void (async () => {
-        if (!(await saveGptApps({ on: apps.filter(({ app }) => chosen[app]).map(({ app }) => app) }))) {
+        const shown = new Set(apps.map(({ app }) => app));
+        const on = [...(gptApps(true)?.on ?? []).filter(app => !shown.has(app)), ...apps.filter(({ app }) => chosen[app]).map(({ app }) => app)];
+        if (!(await saveGptApps({ on }))) {
           setDoneError(words.gptAppsSignIn);
           return;
         }
