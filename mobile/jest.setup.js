@@ -1,3 +1,6 @@
+jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(async () => {}), deleteItemAsync: jest.fn(async () => {}) }));
+jest.mock('expo-file-system', () => ({ File: { pickFileAsync: jest.fn() } }));
+
 // Jest has no native module behind expo-router's dynamic colours, so stand in a fixed
 // Material 3 baseline table (one light, one dark). Tests flip the scheme with
 // Appearance.setColorScheme('dark'); the mock below intercepts the Appearance module itself

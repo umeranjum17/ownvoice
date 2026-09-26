@@ -24,6 +24,7 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   capture(): Promise<Capture | null>;
   forget(): Promise<void>;
   takeTapFacts(): Promise<TapFact[]>;
+  clearTapFacts(): Promise<void>;
   copy(text: string): Promise<void>;
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;
   closePanel(): Promise<void>;
