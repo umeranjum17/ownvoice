@@ -1,7 +1,8 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
 export type ServiceState = 'on' | 'off' | 'stuck';
-export type Capture = { conversation: string; written: string; typed: string; app: string; label: string; at: number; hasField: boolean };
+import type { ScreenText } from '../../../src/core/drafts';
+export type Capture = { conversation: string; written: string; nodes: ScreenText[]; fieldTop: number | null; typed: string; app: string; label: string; at: number; hasField: boolean };
 export type TapFact = { at: number; app: string; label: string; screen: boolean; typed: boolean; replying: boolean };
 export type ModelStatus = 'available' | 'downloadable' | 'downloading' | 'unavailable';
 type Events = {

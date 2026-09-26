@@ -51,7 +51,7 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("say") { message: String, ms: Int? -> OwnvoiceService.instance?.say(message, (ms ?: 4000).toLong()) }.runOnQueue(Queues.MAIN)
     AsyncFunction("serviceState") { state() }.runOnQueue(Queues.MAIN)
     AsyncFunction("capture") {
-      OwnvoiceService.instance?.captured()?.let { c -> mapOf("conversation" to c.conversation, "written" to c.written, "typed" to c.typed, "app" to c.app, "label" to c.label, "at" to c.at, "hasField" to (c.input != null)) }
+      OwnvoiceService.instance?.captured()?.let { c -> mapOf("conversation" to c.conversation, "written" to c.written, "typed" to c.typed, "app" to c.app, "label" to c.label, "at" to c.at, "hasField" to (c.input != null), "fieldTop" to c.fieldTop, "nodes" to c.nodes.map { mapOf("text" to it.text, "left" to it.left, "top" to it.top, "bottom" to it.bottom, "clickable" to it.clickable) }) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("takeTapFacts") {
       OwnvoiceService.instance?.drainFacts()?.map { mapOf("at" to it.at, "app" to it.app, "label" to it.label, "screen" to it.screen, "typed" to it.typed, "replying" to it.replying) }.orEmpty()

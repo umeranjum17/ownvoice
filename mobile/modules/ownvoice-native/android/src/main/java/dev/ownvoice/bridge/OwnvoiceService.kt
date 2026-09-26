@@ -5,6 +5,7 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.PixelFormat
@@ -24,6 +25,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.TextView
+import kotlin.math.roundToInt
 
 internal fun accessibleText(text: CharSequence?, isShowingHintText: Boolean): String? =
   text?.takeUnless { isShowingHintText }?.toString()
@@ -47,7 +49,8 @@ class OwnvoiceService : AccessibilityService() {
   }
 
   data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean)
-  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?)
+  data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean)
+  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val nodes: List<ScreenText>, val fieldTop: Int?)
   private val main = Handler(Looper.getMainLooper())
   private val notes = Handler(Looper.getMainLooper())
   private lateinit var wm: WindowManager
@@ -139,10 +142,13 @@ class OwnvoiceService : AccessibilityService() {
     val app = currentApp()?.takeIf(::allowed) ?: run { restoreBubble.run(); updateBubble(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
-    (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written) }
+    val nodes = mutableListOf<ScreenText>()
+    (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written, nodes) }
+    val fieldBounds = Rect()
+    field?.getBoundsInScreen(fieldBounds)
     val typed = capturedInputText(field?.text, field?.isShowingHintText == true)
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
-    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field)
+    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null)
     synchronized(facts) { facts += TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty()) }
     if (lines.isEmpty() && field == null) return say("No text on this screen.")
     capture = reading
@@ -159,13 +165,23 @@ class OwnvoiceService : AccessibilityService() {
     }
     return find(focus)
   }
-  private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>) {
-    fun walk(node: AccessibilityNodeInfo) {
+  private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>) {
+    fun walk(node: AccessibilityNodeInfo, clickable: Boolean) {
       if (node == skip || !node.isVisibleToUser) return
-      accessibleText(node.text ?: node.contentDescription, node.isShowingHintText)?.trim()?.takeIf { it.isNotEmpty() }?.let { if (lines.lastOrNull() != it) lines += it; if (node.text != null && !node.isEditable) written += it }
-      for (i in 0 until node.childCount) node.getChild(i)?.let(::walk)
+      val action = clickable || node.isClickable || node.className?.toString()?.endsWith("Button") == true
+      accessibleText(node.text ?: node.contentDescription, node.isShowingHintText)?.trim()?.takeIf { it.isNotEmpty() }?.let {
+        if (lines.lastOrNull() != it) lines += it
+        if (node.text != null && !node.isEditable) {
+          written += it
+          val bounds = Rect()
+          node.getBoundsInScreen(bounds)
+          val density = resources.displayMetrics.density
+          nodes += ScreenText(it, (bounds.left / density).roundToInt(), (bounds.top / density).roundToInt(), (bounds.bottom / density).roundToInt(), action)
+        }
+      }
+      for (i in 0 until node.childCount) node.getChild(i)?.let { walk(it, action) }
     }
-    walk(root)
+    walk(root, false)
   }
 
   fun captured() = capture?.takeIf { allowed(it.app) }

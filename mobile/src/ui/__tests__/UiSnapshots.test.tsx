@@ -24,7 +24,7 @@ const cases: [string, () => React.ReactElement][] = [
   ['sheet', () => withSafeArea(<Sheet title="Reply to Sam" note="Pick one to put in your message box. You send it yourself." mood="thinking" onClose={() => {}}>
     <Card variant="outlined"><Button kind="filled" label="Insert" onPress={() => {}} /><Button kind="text" label="Copy" onPress={() => {}} /></Card>
   </Sheet>)],
-  ['sheet-covered', () => withSafeArea(<Sheet title="Reply to Sam" mood="ready" onClose={() => {}} cover={{ title: 'Why this reply', children: <Row title="How it reads" /> }}>
+  ['sheet-covered', () => withSafeArea(<Sheet title="Reply to Sam" mood="ready" onClose={() => {}} cover={{ title: 'Why this reply', children: <Row title="How it reads" /> }} onCloseCover={() => {}}>
     <Card variant="outlined"><Text>Yes, still on!</Text></Card>
   </Sheet>)],
   ['card-outlined-busy', () => <Card variant="outlined" label="Cleaned up" busy>
@@ -81,7 +81,7 @@ describe.each(['light', 'dark'] as const)('ui components (%s)', scheme => {
   test.each(cases)('%s', async (name, element) => {
     const screen = await render(element());
     await act(async () => { await Promise.resolve(); });
-    if (name === 'sheet-covered') await fireEvent.press(screen.getByText('Why?'));
+    
     expect(screen.toJSON()).toMatchSnapshot(`${scheme}/${name}`);
   });
 });
