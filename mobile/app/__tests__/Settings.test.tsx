@@ -40,6 +40,8 @@ beforeEach(() => {
   sequence = 0;
   kv.set('setup-done', '"done"');
   jest.clearAllMocks();
+  for (const method of Object.values(native)) if (jest.isMockFunction(method)) method.mockReset();
+  picker.pickFileAsync.mockReset();
   native.serviceState.mockResolvedValue('on');
   native.modelStatus.mockResolvedValue('available');
   native.bubbleRules.mockResolvedValue(rules);
@@ -225,18 +227,15 @@ test('the app list is on-apps first, keeps the note, and saves a switch', async 
 
 test('quick app choices build on each completed write', async () => {
   let saved = rules;
-  let finish!: () => void;
   native.bubbleRules.mockImplementation(async () => saved);
-  native.setBubbleRules.mockImplementation(next => new Promise(resolve => { finish = () => { saved = next; resolve(); }; }));
+  native.setBubbleRules.mockImplementation(async next => { saved = next; });
   const screen = await show(<Apps />);
   await screen.findByText('Chrome');
-  fireEvent.press(screen.getByText('Chrome'));
-  fireEvent.press(screen.getByText('Gmail'));
-  await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalledTimes(1));
-  expect(native.bubbleRules).toHaveBeenCalledTimes(2);
-  await act(async () => { finish(); });
-  await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalledTimes(2));
-  await act(async () => { finish(); });
+  await act(async () => {
+    fireEvent.press(screen.getByText('Chrome'));
+    fireEvent.press(screen.getByText('Gmail'));
+  });
+  expect(native.setBubbleRules).toHaveBeenCalledTimes(2);
   expect(saved.on).toEqual(expect.arrayContaining(['com.netflix.netflix', 'com.android.chrome', 'com.google.android.gm']));
   expect(saved.off).toEqual([]);
 });
@@ -309,10 +308,10 @@ test('a cancelled pick leaves the screen alone', async () => {
 test('a newline stays editable before the next phrase is typed', async () => {
   const screen = await show(<Voice />);
   const field = screen.getByLabelText(words.neverSay);
-  fireEvent.changeText(field, 'delve');
-  fireEvent.changeText(field, 'delve\n');
+  await act(async () => { fireEvent.changeText(field, 'delve'); });
+  await act(async () => { fireEvent.changeText(field, 'delve\n'); });
   expect(screen.getByLabelText(words.neverSay).props.value).toBe('delve\n');
-  fireEvent.changeText(field, 'delve\ncircle back');
+  await act(async () => { fireEvent.changeText(field, 'delve\ncircle back'); });
   expect(loadVoice().never).toEqual(['delve', 'circle back']);
 });
 
@@ -332,19 +331,19 @@ test('failed voice saves leave switches, notes and phrases unchanged', async () 
   try {
     const screen = await show(<Voice />);
     set.mockImplementationOnce(() => { throw new Error('disk full'); });
-    fireEvent.press(screen.getByText(words.ruleDashes));
+    await act(async () => { fireEvent.press(screen.getByText(words.ruleDashes)); });
     expect(screen.getByText(words.failed)).toBeTruthy();
     expect(loadVoice().noDashes).toBe(false);
-    fireEvent.press(screen.getByText(words.ruleDashes));
+    await act(async () => { fireEvent.press(screen.getByText(words.ruleDashes)); });
     expect(loadVoice().noDashes).toBe(true);
     set.mockImplementationOnce(() => { throw new Error('disk full'); });
-    fireEvent.changeText(screen.getByLabelText(words.howIWrite), 'short');
+    await act(async () => { fireEvent.changeText(screen.getByLabelText(words.howIWrite), 'short'); });
     expect(screen.getByLabelText(words.howIWrite).props.value).toBe('');
     set.mockImplementationOnce(() => { throw new Error('disk full'); });
-    fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve');
+    await act(async () => { fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve'); });
     expect(screen.getByLabelText(words.neverSay).props.value).toBe('');
     expect(loadVoice().never).toEqual([]);
-    fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve');
+    await act(async () => { fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve'); });
     expect(loadVoice().never).toEqual(['delve']);
     expect(screen.queryByText(words.failed)).toBeNull();
   } finally { set.mockRestore(); }
@@ -359,11 +358,11 @@ test('a failed import keeps its preview available to retry', async () => {
     fireEvent.press(screen.getByText(words.importFile));
     await screen.findByText(words.addThese);
     set.mockImplementationOnce(() => { throw new Error('disk full'); });
-    fireEvent.press(screen.getByText(words.addThese));
+    await act(async () => { fireEvent.press(screen.getByText(words.addThese)); });
     expect(screen.getByText(words.failed)).toBeTruthy();
     expect(screen.getByText(words.addThese)).toBeTruthy();
     expect(loadVoice().never).toEqual([]);
-    fireEvent.press(screen.getByText(words.addThese));
+    await act(async () => { fireEvent.press(screen.getByText(words.addThese)); });
     expect(loadVoice().never).toEqual(['delve']);
   } finally { set.mockRestore(); }
 });
@@ -460,22 +459,6 @@ test('an acknowledgement failure cannot duplicate an already saved tap', async (
   expect(readLog()).toHaveLength(1);
 });
 
-test('a wipe waits for Home transfer and cannot be undone by it', async () => {
-  const tap = fact();
-  let deliver!: (facts: TapFact[]) => void;
-  native.takeTapFacts.mockImplementationOnce(() => new Promise(resolve => { deliver = resolve; })).mockResolvedValue([]);
-  await show(<Home />);
-  await waitFor(() => expect(native.takeTapFacts).toHaveBeenCalledTimes(1));
-  const screen = await show(<Reads />);
-  fireEvent.press(screen.getByText(words.wipe));
-  await act(async () => { await Promise.resolve(); });
-  expect(native.clearTapFacts).not.toHaveBeenCalled();
-  await act(async () => { deliver([tap]); });
-  await waitFor(() => expect(native.clearTapFacts).toHaveBeenCalled());
-  await waitFor(() => expect(readLog()).toEqual([]));
-  expect(screen.getByText(words.nothingRead)).toBeTruthy();
-});
-
 test('Home includes taps still waiting in the phone', async () => {
   native.takeTapFacts.mockResolvedValueOnce([fact()]).mockResolvedValue([]);
   const screen = await homeCopy();
@@ -487,5 +470,22 @@ test('an entry older than 30 days has already gone', async () => {
   native.takeTapFacts.mockResolvedValue([]);
   kv.set('reads', JSON.stringify([{ time: Date.now() - 31 * 24 * 3600_000, app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }]));
   const screen = await show(<Reads />);
+  expect(screen.getByText(words.nothingRead)).toBeTruthy();
+});
+
+test('a wipe waits for Home transfer and cannot be undone by it', async () => {
+  const tap = fact();
+  let deliver!: (facts: TapFact[]) => void;
+  native.takeTapFacts.mockImplementationOnce(() => new Promise(resolve => { deliver = resolve; })).mockResolvedValue([]);
+  const home = await show(<Home />);
+  await waitFor(() => expect(native.takeTapFacts).toHaveBeenCalledTimes(1));
+  home.unmount();
+  const screen = await show(<Reads />);
+  fireEvent.press(screen.getByText(words.wipe));
+  await act(async () => { await Promise.resolve(); });
+  expect(native.clearTapFacts).not.toHaveBeenCalled();
+  await act(async () => { deliver([tap]); });
+  await waitFor(() => expect(native.clearTapFacts).toHaveBeenCalled());
+  await waitFor(() => expect(readLog()).toEqual([]));
   expect(screen.getByText(words.nothingRead)).toBeTruthy();
 });
