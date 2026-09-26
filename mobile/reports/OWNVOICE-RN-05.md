@@ -30,6 +30,10 @@ Two release builds were used, both from this branch:
 
 Checks made without a screenshot: E2's `rg '#[0-9a-fA-F]{6}'` over `mobile/src` and `mobile/app` finds only the scrim, attention and Dot constants; the fallback note ("ChatGPT didn't answer. This phone wrote these instead.") is supplied by `withPhoneFallback` and covered by the Panel plain-words scan, but this disconnected integration was not shown on the emulator; E10 (launcher/themed icon) was captured in slice 4.
 
+## Reproducing emulator captures
+
+On the API 36 emulator, hardware-keyboard mode hides the soft keyboard. Outside the panel's BackHandler, `input keyevent 4` finishes the activity rather than dismissing a keyboard; use one Back press to close the panel. Shell-launched activities may open in a small desktop-windowing task that closes after about 7 seconds; pass `--windowingMode 1` to `am start`. If `adb reverse` fails, the emulator can reach host ports at `10.0.2.2`. Tesseract may miss white-on-dark Insert/Use this pills or split a button across lines; scan the negated frame, group words by vertical overlap and tap the matching word box rather than the row centre. For the model-free shots, temporarily point the panel's default writer at `src/panel/stubWriter.ts` and revert the edit afterward.
+
 ## Emulator limits written down
 
 - No phone model and no ChatGPT sign-in: real-model draft quality (P3–P5, P8), the Checking… model-check rows (§4.4.3) and the fallback path from a real ChatGPT failure remain for the real-phone QA that firstmate arranges.
