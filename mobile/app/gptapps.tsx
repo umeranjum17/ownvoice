@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from '../src/ui/Button';
@@ -18,6 +18,8 @@ export default function GptApps() {
   const [apps, setApps] = useState<App[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [doneError, setDoneError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const savingNow = useRef(false);
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
 
   const load = () => {
@@ -39,16 +41,18 @@ export default function GptApps() {
     <ScrollView keyboardShouldPersistTaps="always">
       {(apps ?? []).map(({ app, label }) => {
         const on = chosen[app] ?? false;
-        return <Row key={app} disabled={!apps} title={label} subtitle={on ? words.on : words.off} onPress={() => {
-          setChosen(current => ({ ...current, [app]: !on }));
+        return <Row key={app} disabled={saving} title={label} subtitle={on ? words.on : words.off} onPress={() => {
+          if (!savingNow.current) setChosen(current => ({ ...current, [app]: !on }));
         }} />;
       })}
     </ScrollView>
     {failed ? <Text style={[type.body, { color: t.muted }]}>{words.gptAppsUnavailable}</Text> : null}
     {failed ? <Button kind="text" label={words.tryAgain} onPress={load} /> : null}
     {doneError ? <Text style={[type.body, { color: t.muted }]}>{doneError}</Text> : null}
-    <Button kind="filled" label={words.done} disabled={!apps} onPress={() => {
-      if (!apps) return;
+    {!failed ? <Button kind="filled" label={words.done} disabled={!apps || saving} onPress={() => {
+      if (!apps || savingNow.current) return;
+      savingNow.current = true;
+      setSaving(true);
       setDoneError(null);
       void (async () => {
         const shown = new Set(apps.map(({ app }) => app));
@@ -61,8 +65,11 @@ export default function GptApps() {
         if (fromSetup) await completeSetup();
         router.dismissAll();
         if (fromSetup) router.replace('/');
-      })().catch(() => setDoneError(words.gptAppsSaveFailed));
-    }} />
-    <Button kind="text" label={words.back} onPress={() => router.back()} />
+      })().catch(() => setDoneError(words.gptAppsSaveFailed)).finally(() => {
+        savingNow.current = false;
+        setSaving(false);
+      });
+    }} /> : null}
+    <Button kind="text" label={words.back} disabled={saving} onPress={() => { if (!savingNow.current) router.back(); }} />
   </View>;
 }
