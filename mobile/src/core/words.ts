@@ -72,7 +72,6 @@ export const words = {
   appsTitle:'Where should I help?',
   appsNote:'The bubble shows only in these apps. You can change this any time.',
   appsUnavailable:'Couldn’t find your apps. Try again.',
-  tryAgain:'Try again',
   done:'Done',
 
 } as const;

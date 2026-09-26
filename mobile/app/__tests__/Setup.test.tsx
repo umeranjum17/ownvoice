@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import Setup from '../setup';
 import Home from '../index';
 import Native from '../../modules/ownvoice-native';
-import { words } from '../../src/core/words';
+import { words, technicalWords } from '../../src/core/words';
 
 jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,
@@ -63,6 +63,21 @@ beforeEach(() => {
 });
 
 const at = (step: string, inserted = false) => kv.set('setup', JSON.stringify({ step, inserted }));
+
+test.each(['WELCOME', 'PERMISSION', 'TRY', 'APPS'])('%s uses plain visible wording', async step => {
+  at(step, true);
+  const screen = await renderSetup();
+  await screen.findByText(({ WELCOME: words.welcomeTitle, PERMISSION: words.permissionTitle, TRY: words.tryTitle, APPS: words.appsTitle } as Record<string, string>)[step]);
+  const visible: string[] = [];
+  const collect = (node: unknown): void => {
+    if (typeof node === 'string') visible.push(node);
+    else if (Array.isArray(node)) node.forEach(collect);
+    else if (node && typeof node === 'object' && 'children' in node) collect((node as { children: unknown }).children);
+  };
+  collect(screen.toJSON());
+  expect(visible.length).toBeGreaterThan(0);
+  expect(visible.filter(text => technicalWords.test(text))).toEqual([]);
+});
 
 test('unfinishedSetupResumesEvenWhenServiceIsOn', async () => {
   at('APPS');
