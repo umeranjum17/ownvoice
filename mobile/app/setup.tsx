@@ -176,7 +176,7 @@ export default function Setup() {
       <View style={{ minHeight: space.xxl }} />
       <Button kind="filled" label={words.turnOn} onPress={() => { Native.openAccessibilitySettings(true).catch(() => {}); }} />
       <View style={styles.actions}>
-        <Button kind="text" label={words.notNow} onPress={() => advance()} />
+        <Button kind="text" disabled={!installed && !appsFailed} label={words.notNow} onPress={() => advance()} />
         <Button kind="text" label={words.switchGreyed} onPress={() => { setGreyed(true); Native.openAppInfo().catch(() => {}); }} />
       </View>
       {greyed && <Text style={[type.body, centre, { color: t.muted, marginTop: space.xs }]}>{words.greyedHelp}</Text>}
@@ -203,8 +203,8 @@ export default function Setup() {
       <Text style={[type.body, centre, { color: t.text, marginTop: space.m }]}>{words.practiceNote}</Text>
       <View style={{ minHeight: space.xxl }} />
       {inserted
-        ? <Button kind="filled" label={words.continueLabel} onPress={() => advance()} />
-        : <View style={styles.skip}><Button kind="text" label={words.skip} onPress={() => advance()} /></View>}
+        ? <Button kind="filled" disabled={!installed && !appsFailed} label={words.continueLabel} onPress={() => advance()} />
+        : <View style={styles.skip}><Button kind="text" disabled={!installed && !appsFailed} label={words.skip} onPress={() => advance()} /></View>}
     </View>}
     {step === 'APPS' && <View>
       <Text style={[type.headline, centre, { color: t.text }]}>{words.appsTitle}</Text>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { AccessibilityInfo, BackHandler } from 'react-native';
-import { render, fireEvent, waitFor } from '@testing-library/react-native';
+import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import Setup from '../setup';
@@ -260,6 +260,23 @@ test('launcherFailureDoesNotBecomeAnEmptyList', async () => {
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
+});
+
+test.each([
+  ['PERMISSION', words.notNow, false],
+  ['TRY', words.skip, false],
+  ['TRY', words.continueLabel, true],
+])('pendingAppQueryDisables%sAction', async (step, action, inserted) => {
+  at(step, inserted);
+  let loaded!: (apps: { app: string; label: string; icon: null }[]) => void;
+  native.launcherApps.mockImplementation(() => new Promise(resolve => { loaded = resolve; }));
+  const screen = await renderSetup();
+  await screen.findByText(step === 'TRY' ? words.tryTitle : words.permissionTitle);
+  await fireEvent.press(screen.getByText(action));
+  expect(screen.queryByText(words.appsTitle)).toBeNull();
+  await act(async () => { loaded([{ app: 'com.whatsapp', label: 'WhatsApp', icon: null }]); });
+  await fireEvent.press(screen.getByText(action));
+  expect(await screen.findByText(words.appsTitle)).toBeTruthy();
 });
 
 test.each([['PERMISSION', words.notNow], ['TRY', words.skip]])('failedAppQueryFrom%sOpensRetry', async (step, action) => {
