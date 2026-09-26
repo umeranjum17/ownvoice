@@ -92,9 +92,9 @@ test.each([1, 2])('an unreadable switch on read %i uses the phone without losing
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: 0 });
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
   let reads = 0;
-  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: string) => {
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
     if (key === 'chatgpt-switch' && ++reads === failedRead) throw new Error('storage unavailable');
-    return kv.get(key) ?? null;
+    return kv.get(key as string) ?? null;
   });
   const fetcher = jest.fn(offline);
   try {
@@ -114,9 +114,9 @@ test('a switch read failure during verification cannot reuse an earlier on choic
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'on', fetchedAt: 0 });
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
   let reads = 0;
-  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: string) => {
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
     if (key === 'chatgpt-switch' && ++reads === 2) throw new Error('storage unavailable');
-    return kv.get(key) ?? null;
+    return kv.get(key as string) ?? null;
   });
   const fetcher = jest.fn(async () => ({ ok: true, json: async () => ({ payload: { v: 1, app: 'ownvoice', seq: 2, chatgpt: 'off' }, sig: 'invalid' }) } as Response));
   try {
@@ -134,9 +134,9 @@ test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the R
   const route = await gptRoute('com.twitter.android', offline);
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
   const get = mode === 'unreadable'
-    ? jest.spyOn(storage, 'getItemSync').mockImplementation((key: string) => {
+    ? jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
       if (key === 'chatgpt-switch') throw new Error('unavailable');
-      return kv.get(key) ?? null;
+      return kv.get(key as string) ?? null;
     }) : null;
   if (mode === 'off') store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
   const originalFetch = global.fetch;

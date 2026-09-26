@@ -62,7 +62,7 @@ test.each([
   ['access_denied', 'declined'],
 ])('a failed Byokit sign-in preserves its %s explanation', async (reason, words) => {
   const byokit = new Accounts({ offer: ['chatgpt'] });
-  jest.spyOn(byokit, 'open').mockResolvedValue({ login: async () => { throw new Error(reason); } } as never);
+  jest.spyOn(byokit, 'runtime').mockResolvedValue({ login: async () => { throw new Error(reason); } } as unknown as Awaited<ReturnType<typeof byokit.runtime>>);
   const error = jest.spyOn(console, 'error').mockImplementation(() => {});
   try {
     const view = await byokit.login('owner', 'chatgpt', { via: 'code' });
