@@ -2,7 +2,7 @@ import { keep, type Read } from './privacy';
 import { store } from './store';
 
 // "What Ownvoice read": what each tap did, never the text it saw. Entries name the app, what was on
-// screen and whether ChatGPT wrote the replies (see Privacy.summary); 30 days, then they drop out.
+// screen and whether it was sent to ChatGPT (see privacy.summary); expired entries are pruned on read or write.
 const KEY = 'reads';
 
 export function readLog(now = Date.now()): Read[] {
