@@ -176,12 +176,12 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
       const conversation = capture?.conversation ?? '';
       let model = true;
       try { if (await Native.modelStatus() !== 'available') model = false; } catch { model = false; }
-      if (!kind.current && model) {
+      if (!post && !kind.current && model) {
         const answer = await ask(Judge.kindPrompt(conversation), 5);
         const message = answer ? Judge.isMessage(answer) : null;
         if (message !== null) kind.current = { message };
       }
-      const message = kind.current?.message;
+      const message = post ? false : kind.current?.message;
       const answer = model && message !== undefined ? await ask(Judge.draftPrompt(conversation, draft.text, message, voiceGuide(RULES, post && !message)), 220) : null;
       const scores = answer && message !== undefined && Judge.validDraftAnswer(answer, message) ? Judge.scoreDraft(draft.text, answer, message, RULES, post, who) : null;
       let meaning = draft.meaning;

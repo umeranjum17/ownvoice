@@ -1,4 +1,6 @@
 export const CHATGPT_TERMS = 'Uses your ChatGPT plan. OpenAI may change this at any time.';
+export const technicalWords = /(?:gemini|gemma|\bnano\b|aicore|ml ?kit|\bllm\b|\bmodel\b|\/100|\/10\b|judge|slop|characters|\bprompt|\btokens?\b|on-device|gpt-\d|codex|openai api|responses|%|\bpercent\b|\(\d{3}\))/i;
+export const plainReason = (reason: string) => !technicalWords.test(reason) && !/\d/.test(reason) && reason.trim().split(/\s+/).length <= 12;
 export const words = {
   writeFirst:'Write a line or two first, and Ownvoice will help you polish it.',
   quickChecks:'These are quick checks to help you choose.',

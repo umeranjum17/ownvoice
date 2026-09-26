@@ -1,5 +1,5 @@
 import { ERROR_CODES, message } from '../nano';
-import { words, CHATGPT_TERMS } from '../words';
+import { words, CHATGPT_TERMS, technicalWords } from '../words';
 import { offeredApps } from '../onboarding';
 import React from 'react';
 const renderToStaticMarkup: (element: React.ReactElement) => string = require('react-dom/server').renderToStaticMarkup;
@@ -23,8 +23,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
 const native = Native as jest.Mocked<typeof Native>;
 
 // The banned patterns grow here: no number may show either (look spec 4.3 and 6 E11).
-const banned = /(?:(?:gemini|gemma|\bnano\b|aicore|ml ?kit|\bllm\b|\bmodel\b|\/100|\/10\b|judge|slop|characters|\bprompt|\btokens?\b|on-device|gpt-\d|codex|openai api|responses|%|\bpercent\b|\(\d{3}\)))/i;
-const assertPlain = (shown: string[]) => { expect(shown.length).toBeGreaterThan(0); expect(shown.filter(x => banned.test(x))).toEqual([]); };
+const assertPlain = (shown: string[]) => { expect(shown.length).toBeGreaterThan(0); expect(shown.filter(x => technicalWords.test(x))).toEqual([]); };
 
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 const LIST = 'i can bring the stove, 4 chairs\n1. I will bring the stove.\n2. You can bring the tent.';
@@ -62,7 +61,7 @@ test('readLog', () => { const shown = (['REPLY', 'COMPOSE', 'EMPTY'] as Judge.Mo
 test('displayedHomeCopy', () => { const html = renderToStaticMarkup(React.createElement(Home)); expect(html).toContain(words.home); assertPlain([html.replace(/<[^>]*>/g, ''), ...Object.values(words)]); });
 test('offeredApps', () => { assertPlain(offeredApps(() => true).map(x => x[1])); });
 test('switchMessage', () => assertPlain([CHATGPT_OFF, CHATGPT_TERMS]));
-test('catchesATechnicalWord', () => { for (const bad of ['Scored by the judge', 'Slop: clean (10/100)', 'The on-device model is ready (nano-v3).', '117 characters on screen', 'Update AICore', 'Gemini Nano', 'Gemma', 'Done in 42%', '78 percent ready', '(500) something broke']) expect(banned.test(bad)).toBe(true); for (const fine of ['Sounds natural and answers Sam', 'Getting Ownvoice ready… this happens once.', 'A bit stock']) expect(banned.test(fine)).toBe(false); });
+test('catchesATechnicalWord', () => { for (const bad of ['Scored by the judge', 'Slop: clean (10/100)', 'The on-device model is ready (nano-v3).', '117 characters on screen', 'Update AICore', 'Gemini Nano', 'Gemma', 'Done in 42%', '78 percent ready', '(500) something broke']) expect(technicalWords.test(bad)).toBe(true); for (const fine of ['Sounds natural and answers Sam', 'Getting Ownvoice ready… this happens once.', 'A bit stock']) expect(technicalWords.test(fine)).toBe(false); });
 
 // The panel speaks in plain words in every state (spec 4.3: render it with a stub writer and scan the markup).
 describe('panel copy', () => {
@@ -92,6 +91,29 @@ describe('panel copy', () => {
     const screen = await renderPanel(stubWriter(), { typed: 'Read https://example.com', written: '' });
     fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
     await waitFor(() => expect(visibleStrings(screen)).toContain('Links can mean fewer views'));
+  });
+
+  test('compose keeps post checks with a model answer on a quiet screen', async () => {
+    native.modelStatus.mockResolvedValue('available');
+    native.ask.mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: concern - needs a question\nNOT_INTERESTED: pass\nHOOK: concern - start with the result').mockResolvedValueOnce('MEANING: pass');
+    const screen = await renderPanel(stubWriter(), { typed: 'Shipped the fix today', written: '' });
+    fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
+    await waitFor(() => expect(visibleStrings(screen)).toContain('Weak first line'));
+    expect(visibleStrings(screen)).not.toContain('Answers the question');
+    expect(native.ask).toHaveBeenCalledTimes(2);
+  });
+
+  test('Why hides technical model reasons in both draft and meaning checks', async () => {
+    native.modelStatus.mockResolvedValue('available');
+    native.ask.mockResolvedValueOnce('MESSAGE').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: concern - The model token limit was low\nFITS: pass\nCLAIMS: pass\nANSWERS: concern - The model token limit was low\nNEXT_STEP: pass').mockResolvedValueOnce('MEANING: concern - The model token limit was low');
+    const screen = await renderPanel(stubWriter(), { typed: 'hello there' });
+    fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
+    await waitFor(() => expect(visibleStrings(screen)).toContain('It may change what you meant.'));
+    const shown = visibleStrings(screen);
+    expect(shown).toContain("Doesn't sound like you.");
+    expect(shown).toContain("Doesn't answer Sam.");
+    expect(shown.join(' ')).not.toContain('The model token limit was low');
+    assertPlain(shown);
   });
 
   test.each([['unclear kind', ['not sure'], 1], ['unreadable checks', ['MESSAGE', 'looks fine'], 2]] as const)('%s keeps quick checks when the model cannot answer', async (_name, answers, calls) => {
