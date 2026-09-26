@@ -17,6 +17,7 @@ export default function GptApps() {
   const t = useTheme();
   const [apps, setApps] = useState<App[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [doneError, setDoneError] = useState<string | null>(null);
   const [chosen, setChosen] = useState<Record<string, boolean>>({});
 
   const load = () => {
@@ -45,15 +46,20 @@ export default function GptApps() {
     </ScrollView>
     {failed ? <Text style={[type.body, { color: t.muted }]}>{words.gptAppsUnavailable}</Text> : null}
     {failed ? <Button kind="text" label={words.tryAgain} onPress={load} /> : null}
+    {doneError ? <Text style={[type.body, { color: t.muted }]}>{doneError}</Text> : null}
     <Button kind="filled" label={words.done} disabled={!apps} onPress={() => {
       if (!apps) return;
+      setDoneError(null);
       void (async () => {
-        if (!(await saveGptApps({ on: apps.filter(({ app }) => chosen[app]).map(({ app }) => app) }))) return;
+        if (!(await saveGptApps({ on: apps.filter(({ app }) => chosen[app]).map(({ app }) => app) }))) {
+          setDoneError(words.gptAppsSignIn);
+          return;
+        }
         const fromSetup = !store.get('setup-done');
         if (fromSetup) await completeSetup();
         router.dismissAll();
         if (fromSetup) router.replace('/');
-      })().catch(() => {});
+      })().catch(() => setDoneError(words.gptAppsSaveFailed));
     }} />
     <Button kind="text" label={words.back} onPress={() => router.back()} />
   </View>;

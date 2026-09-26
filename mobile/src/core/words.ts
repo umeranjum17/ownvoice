@@ -80,6 +80,8 @@ export const words = {
   gptAppsQuestion:'Which apps can use ChatGPT?',
   gptAppsNote:'ChatGPT writes only in the apps you switch on. The rest are written on this phone.',
   gptAppsUnavailable:'Couldn’t find your apps. Try again.',
+  gptAppsSaveFailed:'Couldn’t save your choices. Try again.',
+  gptAppsSignIn:'Sign in to ChatGPT again, then try Done.',
   gptSignedInNow:'ChatGPT is connected.',
   readsTitle:'What Ownvoice read',
   readsNote:'Only the app, time and what happened are kept here. Never the message.',

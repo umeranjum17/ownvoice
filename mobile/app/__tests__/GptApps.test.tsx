@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import GptApps from '../gptapps';
 import { gptApps, gptChoice } from '../../src/chatgpt/settings';
 import { words } from '../../src/core/words';
+import { store } from '../../src/core/store';
 import Native from '../../modules/ownvoice-native';
 import { session } from '../../src/chatgpt/session';
 
@@ -70,18 +71,39 @@ test('setup completion failure keeps the choice screen open', async () => {
   const screen = await render(<GptApps />);
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
-  await waitFor(() => expect(Native.clearSetupReturn).toHaveBeenCalledTimes(1));
+  await screen.findByText(words.gptAppsSaveFailed);
   expect(kv.get('setup-done')).toBeUndefined();
   expect(router.dismissAll).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText(words.done));
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+  expect(screen.queryByText(words.gptAppsSaveFailed)).toBeNull();
 });
 
-test('Done cannot save choices before sign-in', async () => {
-  (session.current as jest.Mock).mockResolvedValue({ signedIn: false });
+test('Done reports a save failure and keeps choices for a retry', async () => {
+  kv.set('setup-done', 'true');
+  const screen = await render(<GptApps />);
+  await screen.findByText('Gmail');
+  const set = jest.spyOn(store, 'set').mockImplementationOnce(() => { throw new Error('full'); });
+  try {
+    await fireEvent.press(screen.getByText(words.done));
+    await screen.findByText(words.gptAppsSaveFailed);
+    expect(gptApps()).toBeNull();
+    expect(router.dismissAll).not.toHaveBeenCalled();
+    await fireEvent.press(screen.getByText(words.done));
+    await waitFor(() => expect(router.dismissAll).toHaveBeenCalledTimes(1));
+    expect(gptApps()).toEqual({ on: ['com.google.android.gm'] });
+    expect(screen.queryByText(words.gptAppsSaveFailed)).toBeNull();
+  } finally {
+    set.mockRestore();
+  }
+});
+
+test('Done reports expired sign-in without discarding choices', async () => {
+  (session.current as jest.Mock).mockResolvedValueOnce({ signedIn: false });
   const screen = await render(<GptApps />);
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
+  await screen.findByText(words.gptAppsSignIn);
   expect(gptApps()).toBeNull();
   expect(router.dismissAll).not.toHaveBeenCalled();
 });
