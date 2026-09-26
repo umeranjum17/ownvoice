@@ -45,13 +45,13 @@ function parts(text: string, polishing: boolean) {
   return [value];
 }
 
-export function cleanDrafts(candidates: string[], limit = count, polishing = false) {
+export function cleanDrafts(candidates: string[], limit = count, polishing = false, unique = true) {
   const drafts: string[] = [];
   for (const candidate of candidates) {
     for (const part of parts(candidate, polishing)) {
       const draft = unquote(body(unquote(part.trim().replace(/^(?:draft|option|version)\s*[1-3][.):]\s*/i, '')), polishing));
       const key = draft.toLowerCase().replace(/\s+/g, ' ');
-      if (draft && !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === key)) drafts.push(draft);
+      if (draft && (!unique || !drafts.some(value => value.toLowerCase().replace(/\s+/g, ' ') === key))) drafts.push(draft);
       if (drafts.length === limit) return drafts;
     }
   }
@@ -78,6 +78,8 @@ export function norm(text: string): string {
 export function nearDuplicate(a: string, b: string): boolean {
   const na = norm(a), nb = norm(b);
   if (na === nb) return true;
+  const stance = (value: string) => /^(?:yes|no|not|never|can't|cannot|won't|maybe|unsure|perhaps|possibly)$/.exec(value.split(' ')[0])?.[0];
+  if (stance(na) !== stance(nb) && (stance(na) || stance(nb))) return false;
   const wa = new Set(na.split(' ')), wb = new Set(nb.split(' '));
   if (!wa.size || !wb.size) return false;
   let shared = 0;
@@ -102,8 +104,13 @@ const nonEmptyLines = (text: string) => text.split(/\r?\n/).filter(line => line.
 export function layoutKept(original: string, version: string): boolean {
   if (!original.includes('\n')) return true;
   const had = markerStyles(original), has = markerStyles(version);
-  return nonEmptyLines(version) >= nonEmptyLines(original) - 1
-    && (!had.numbered || has.numbered) && (!had.bulleted || has.bulleted);
+  const items = (text: string, pattern: RegExp) => text.split(/\r?\n/).map(line => line.match(pattern)?.[1]).filter(Boolean);
+  const numbers = items(original, /^\s*(\d+)[.)]\s/);
+  const bullets = items(original, /^\s*([-*•])\s/);
+  return nonEmptyLines(version) >= nonEmptyLines(original) - (numbers.length || bullets.length ? 0 : 1)
+    && (!had.numbered || has.numbered) && (!had.bulleted || has.bulleted)
+    && numbers.every(number => items(version, /^\s*(\d+)[.)]\s/).includes(number))
+    && items(version, /^\s*[-*•]\s/).length >= bullets.length;
 }
 
 // ---- 5.4 The dash rule: the writer's text and their own switch win ----
@@ -128,16 +135,18 @@ export const REPLY_SLOTS = [
   'Not sure yet: a short honest reply that asks the one thing needed to decide.',
 ];
 
-/** The last 3 non-empty lines of the screen, capped at 300 characters: what the reply answers. */
-export function latestMessage(written: string): string {
-  const lines = written.split(/\r?\n/).filter(line => line.trim());
-  return lines.slice(-3).join('\n').slice(-300);
+export type ScreenText = { text: string; top: number; bottom: number; clickable: boolean };
+
+export function latestMessage(nodes?: ScreenText[], fieldTop?: number): string {
+  if (fieldTop == null) return '';
+  return (nodes ?? []).filter(node => !node.clickable && node.bottom <= fieldTop && node.text.trim())
+    .sort((a, b) => b.bottom - a.bottom)[0]?.text.trim().slice(-300) ?? '';
 }
 
 export type ReplyInput = { latest: string; conversation: string; guide?: string; dashes: 'keep' | 'remove'; avoid?: string[] };
 
 const inputBlock = ({ latest, conversation }: { latest: string; conversation: string }) =>
-  `Latest message:\n${latest}\n\nConversation:\n${conversation.slice(-3000)}`;
+  `${latest ? `Latest message:\n${latest}\n\n` : ''}Conversation:\n${conversation.slice(-3000)}`;
 
 const dashLine = (dashes: 'keep' | 'remove') => dashes === 'keep' ? 'their dashes: keep' : 'their dashes: remove';
 
@@ -205,12 +214,11 @@ export function replySlotPrompt(slot: string, input: ReplyInput): string {
   return replyPrompt({ ...input, slots: [slot] });
 }
 
-/** Cleans and deduplicates model output into at most `count` fresh drafts, keeping order. */
-export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove'): string[] {
-  const accepted: string[] = [];
-  for (const candidate of dedupe(cleanDrafts(candidates, count))) {
+export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove'): (string | null)[] {
+  const accepted: (string | null)[] = [];
+  for (const candidate of cleanDrafts(candidates, count, false, false)) {
     const draft = dashes === 'remove' ? undash(candidate) : candidate;
-    if (accepted.length < count && draft && fresh(draft, [...exclude, ...accepted])) accepted.push(draft);
+    accepted.push(draft && fresh(draft, [...exclude, ...accepted.filter((text): text is string => !!text)]) ? draft : null);
   }
   return accepted;
 }

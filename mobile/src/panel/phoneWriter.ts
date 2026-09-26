@@ -44,19 +44,19 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
 /** Replies: one numbered call, then one retry per empty slot, until 8 s have passed since the tap. */
 async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
-  const input = { latest: latestMessage(request.written), conversation: request.conversation, guide: request.guide };
+  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide };
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
-  const made: string[] = [];
-  const first = acceptReplies(await Native.drafts(phoneReplyPrompt(input), { candidates: 1, maxTokens: 220 }), exclude, 3, dashes);
-  for (const text of first) { exclude.push(text); made.push(text); landed(text, made.length - 1); }
-  for (let slot = made.length; slot < REPLY_SLOTS.length && Date.now() - started <= FILL_MS; slot++) {
+  const made = acceptReplies(await Native.drafts(phoneReplyPrompt(input), { candidates: 1, maxTokens: 220 }), exclude, 3, dashes);
+  made.forEach((text, slot) => { if (text) { exclude.push(text); landed(text, slot); } });
+  for (let slot = 0; slot < REPLY_SLOTS.length && Date.now() - started <= FILL_MS; slot++) {
+    if (made[slot]) continue;
     try {
       const [draft] = acceptReplies([await ask(phoneSlotPrompt(REPLY_SLOTS[slot], input, exclude), 120)], exclude, 1, dashes);
-      if (draft) { exclude.push(draft); made.push(draft); landed(draft, slot); }
+      if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }
-  return made;
+  return made.filter((text): text is string => !!text);
 }
 
 export const phoneWriter = {

@@ -11,7 +11,7 @@ import * as Judge from '../judge';
 import * as Privacy from '../privacy';
 import { CHATGPT_OFF } from '../switch';
 import Native, { type Capture } from '../../../modules/ownvoice-native';
-import { act, render } from '@testing-library/react-native';
+import { act, fireEvent, render } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
@@ -29,7 +29,7 @@ const assertPlain = (shown: string[]) => { expect(shown.length).toBeGreaterThan(
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 const LIST = 'i can bring the stove, 4 chairs\n1. I will bring the stove.\n2. You can bring the tent.';
 const fixture = (over: { typed?: string; written?: string; hasField?: boolean } = {}): Capture =>
-  ({ conversation: over.written ?? SAM, written: over.written ?? SAM, typed: over.typed ?? '', app: 'dev.ownvoice.app', label: 'Ownvoice', at: 0, hasField: over.hasField ?? true });
+  ({ conversation: over.written ?? SAM, written: over.written ?? SAM, nodes: [], fieldTop: null, typed: over.typed ?? '', app: 'dev.ownvoice.app', label: 'Ownvoice', at: 0, hasField: over.hasField ?? true });
 
 const renderPanel = async (writer: ReturnType<typeof stubWriter>, over: { typed?: string; written?: string; hasField?: boolean; none?: boolean } = {}) => {
   native.capture.mockResolvedValue(over.none ? null : fixture(over));
@@ -80,6 +80,23 @@ describe('panel copy', () => {
     const shown = visibleStrings(screen);
     expect(shown.length).toBeGreaterThan(0);
     assertPlain([...shown, ...Object.values(words)]);
+  });
+
+  test('compose cards use post checks even before a model answer', async () => {
+    const screen = await renderPanel(stubWriter(), { typed: 'Read https://example.com', written: '' });
+    expect(visibleStrings(screen)).toContain('Links can mean fewer views');
+  });
+
+  test('two rapid insert taps make one native request', async () => {
+    let settle!: (value: 'on') => void;
+    native.serviceState.mockImplementation(() => new Promise(resolve => { settle = resolve; }));
+    const screen = await renderPanel(stubWriter());
+    const button = screen.getAllByRole('button', { name: words.insert })[0];
+    fireEvent.press(button);
+    fireEvent.press(button);
+    await act(async () => { settle('on'); await Promise.resolve(); });
+    expect(native.serviceState).toHaveBeenCalledTimes(1);
+    expect(native.insert).toHaveBeenCalledTimes(1);
   });
 
   test('no capture shows only its own line', async () => {

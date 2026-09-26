@@ -52,8 +52,7 @@ export default function Home() {
     <Text style={[type.headline, { color: t.text }]}>Ownvoice</Text>
     <Text style={[type.body, { color: t.text }]}>{words.home}</Text>
     <View style={{ alignSelf: 'flex-start', maxWidth: '92%' }}><Card variant="filled" label="Sam">
-      <Text style={[type.body, { color: t.text }]}>Are we still on for Saturday?</Text>
-      <Text style={[type.body, { color: t.text }]}>I can bring the tent if you bring the stove.</Text>
+      <Text style={[type.body, { color: t.text }]}>Are we still on for Saturday?{'\n'}I can bring the tent if you bring the stove.</Text>
     </Card></View>
     <TextInput accessibilityLabel="Message" placeholder="Message" placeholderTextColor={t.muted} value={text} onChangeText={setText} multiline style={[type.body, { minHeight: 56, borderWidth: 1, borderColor: t.outline, borderRadius: 12, padding: space.m, color: t.text }]} />
     <Button kind="filled" label="Turn on Ownvoice" onPress={() => { void native().openAccessibilitySettings().catch(() => {}); }} />

@@ -36,19 +36,19 @@ export async function streamResponses(prompt: string, onText?: (text: string) =>
 /** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt). */
 async function replies(request: DraftRequest, on: WriterEvents): Promise<string[]> {
   const dashes = request.dashes ?? 'remove' as const;
-  const input = { latest: latestMessage(request.written), conversation: request.conversation, guide: request.guide, dashes };
+  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide, dashes };
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
-  const made: string[] = [];
-  const first = acceptReplies(await ask(replyPrompt(input), REPLY_INSTRUCTIONS), exclude, 3, dashes);
-  for (const text of first) { exclude.push(text); made.push(text); landed(text, made.length - 1); }
-  for (let slot = made.length; slot < REPLY_SLOTS.length; slot++) {
+  const made = acceptReplies(await ask(replyPrompt(input), REPLY_INSTRUCTIONS), exclude, 3, dashes);
+  made.forEach((text, slot) => { if (text) { exclude.push(text); landed(text, slot); } });
+  for (let slot = 0; slot < REPLY_SLOTS.length; slot++) {
+    if (made[slot]) continue;
     try {
       const [draft] = acceptReplies(await ask(replySlotPrompt(REPLY_SLOTS[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 1), exclude, 1, dashes);
-      if (draft) { exclude.push(draft); made.push(draft); landed(draft, slot); }
+      if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }
-  return made;
+  return made.filter((text): text is string => !!text);
 }
 
 /** Polish and compose through the C2 rewrite prompt, then the same acceptance rules as the phone. */

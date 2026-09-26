@@ -91,6 +91,8 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
   const [why, setWhy] = useState<number | null>(null);
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const run = useRef(0);
+  const inserting = useRef(false);
+  const [insertBusy, setInsertBusy] = useState(false);
   const kind = useRef<{ message: boolean } | null>(null);
 
   const shown = cards.filter((card): card is Draft => !!card);
@@ -111,11 +113,13 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
     setPhase('writing');
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
-      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, true, RULES, post, person), meaning: null });
+      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, RULES, post, person), meaning: null });
     }
     void writer.write({
       conversation: value.conversation,
       written: value.written,
+      nodes: value.nodes,
+      fieldTop: value.fieldTop ?? undefined,
       typed: value.typed.trim(),
       guide: voiceGuide(RULES, post),
       dashes: dashesFor(RULES, nextMode === 'reply' ? value.written : value.typed),
@@ -129,7 +133,7 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
       fraction: value2 => { if (run.current === id) setFraction(value2); },
       landed: (text, slot, label) => {
         if (run.current !== id) return;
-        const scores = Judge.scoreDraft(text, null, true, RULES, post, person);
+        const scores = Judge.scoreDraft(text, null, !post, RULES, post, person);
         const meaning = label ? Judge.meaning(value.typed, text, null) : null;
         setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
       },
@@ -234,11 +238,15 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>
           <View style={{ flexDirection: 'row', gap: space.s, marginTop: space.s }}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField} onPress={() => {
+            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => {
+              if (inserting.current) return;
+              inserting.current = true;
+              setInsertBusy(true);
               void Native.serviceState().then(state => {
                 if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return; }
-                return Native.insert(card.text).catch(() => {});
-              }).catch(() => { setNote(words.serviceOff); setPhase('failed'); });
+                return Native.insert(card.text);
+              }).catch(() => { setNote(words.serviceOff); setPhase('failed'); })
+                .finally(() => { inserting.current = false; setInsertBusy(false); });
             }} />
             <Button kind="text" label={words.copy} onPress={() => { void Native.copy(card.text).catch(() => {}); }} />
           </View>

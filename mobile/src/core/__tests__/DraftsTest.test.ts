@@ -54,12 +54,13 @@ test('the two real-phone polish cards collapse to one', () => {
 test('yes and no stay two choices', () => {
   expect(dedupe(['Yes, Saturday works.', "No, Saturday doesn't work for me."])).toHaveLength(2);
   expect(nearDuplicate('Yes, Saturday works.', "No, Saturday doesn't work for me.")).toBe(false);
+  expect(nearDuplicate('Yes, Saturday works; I can bring the stove', 'No, Saturday works; I can bring the stove')).toBe(false);
 });
 
 test('acceptReplies cleans, dedupes and respects the avoid list', () => {
   const raw = ['Yep, still on for Saturday. 👍', 'Yeah, still on for Saturday.', 'Not sure yet — what time works?'];
-  expect(acceptReplies(raw, [], 3)).toEqual(['Yep, still on for Saturday. 👍', 'Not sure yet, what time works?']);
-  expect(acceptReplies(raw, ['Yep, still on for Saturday. 👍'], 3)).toHaveLength(1);
+  expect(acceptReplies(raw, [], 3)).toEqual(['Yep, still on for Saturday. 👍', null, 'Not sure yet, what time works?']);
+  expect(acceptReplies(raw, ['Yep, still on for Saturday. 👍'], 3)).toEqual([null, null, 'Not sure yet, what time works?']);
 });
 
 // ---- 5.2 Keep the writer's formatting ----
@@ -69,7 +70,9 @@ test('layoutKept: a list stays a list with the same markers', () => {
   expect(layoutKept(qa, 'I can bring the stove.\n1. I will bring the stove.\n2. You can bring the tent.')).toBe(true);
   expect(layoutKept(qa, 'I can bring the stove, and you the tent.')).toBe(false);
   expect(layoutKept(qa, 'I can bring the stove.\n- I will bring the stove.\n- You can bring the tent.')).toBe(false);
+  expect(layoutKept(qa, 'I can bring the stove.\n1. I will bring the stove.')).toBe(false);
   expect(layoutKept('Bring:\n- the tent\n- the stove', 'Bring:\n- the tent\n- the stove, packed')).toBe(true);
+  expect(layoutKept('Bring:\n- the tent\n- the stove', 'Bring:\n- the tent')).toBe(false);
   expect(layoutKept('Bring:\n- the tent\n- the stove', 'Bring the tent and the stove.')).toBe(false);
   expect(layoutKept('One line only.', 'One single line.')).toBe(true);
 });
@@ -116,10 +119,18 @@ test('the reply prompt answers every point, offers no blanks, and carries the sl
   expect(prompt).toContain('Output only JSON: {"drafts"');
 });
 
-test('latestMessage keeps the last 3 non-empty lines, capped at 300 characters', () => {
-  expect(latestMessage('a\n\nb\n\nc\n\nd')).toBe('b\nc\nd');
-  expect(latestMessage('x'.repeat(400))).toHaveLength(300);
-  expect(latestMessage('')).toBe('');
+test('nearest non-clickable message above the field wins over practice controls', () => {
+  const nodes = [
+    { text: 'Sam', top: 100, bottom: 120, clickable: false },
+    { text: 'Are we still on for Saturday?\nI can bring the tent if you bring the stove.', top: 125, bottom: 170, clickable: false },
+    { text: 'Turn on Ownvoice', top: 210, bottom: 230, clickable: true },
+    { text: 'Recent activity', top: 300, bottom: 320, clickable: true },
+    { text: 'Clear last screen', top: 330, bottom: 350, clickable: true },
+  ];
+  expect(latestMessage(nodes, 200)).toBe(nodes[1].text);
+  expect(latestMessage(nodes.slice(2), 200)).toBe('');
+  expect(latestMessage([{ text: 'x'.repeat(400), top: 0, bottom: 1, clickable: false }], 200)).toHaveLength(300);
+  expect(replyPrompt({ ...input, latest: latestMessage(nodes.slice(2), 200) })).not.toContain('Latest message:');
 });
 
 test('slot retries carry one slot and the avoid list', () => {

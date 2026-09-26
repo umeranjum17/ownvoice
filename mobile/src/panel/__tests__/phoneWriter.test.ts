@@ -13,6 +13,8 @@ const LIST = 'I can bring the stove.\n1. I will bring the stove.\n2. You can bri
 const request = (over: { conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[] } = {}) => ({
   conversation: over.conversation ?? SAM,
   written: over.written ?? SAM,
+  nodes: [{ text: over.written ?? SAM, top: 100, bottom: 180, clickable: false }],
+  fieldTop: 200,
   typed: over.typed ?? '',
   dashes: over.dashes ?? ('remove' as const),
   avoid: over.avoid,
@@ -76,6 +78,17 @@ test('near-duplicate replies are dropped and their slots refilled with the shown
   expect(retry).toContain("Don't repeat these: Yep, still on for Saturday. 👍.");
   expect(retry).toContain('Give a different answer: decline or suggest a change, kindly, still answering each point.');
   expect(landed.map(([, slot]) => slot)).toEqual([0, 1, 2]);
+});
+
+test('a rejected middle reply refills the decline slot without shifting the unsure slot', async () => {
+  native.drafts.mockResolvedValue(['Draft 1: Yes, Saturday works; I can bring the stove.\nDraft 2: Yeah, Saturday works; I can bring the stove.\nDraft 3: Not sure yet, what time?']);
+  native.ask.mockResolvedValue('No, Saturday works; I can bring the stove.');
+  const landed: number[] = [];
+  const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });
+  expect(native.ask).toHaveBeenCalledTimes(1);
+  expect(native.ask.mock.calls[0][1]).toContain('Give a different answer');
+  expect(landed).toEqual([0, 2, 1]);
+  expect(drafts).toEqual(['Yes, Saturday works; I can bring the stove.', 'No, Saturday works; I can bring the stove.', 'Not sure yet, what time?']);
 });
 
 test('at least one reply that is not a plain yes survives, and retries stop after 8 seconds', async () => {
@@ -180,7 +193,7 @@ test('a version that stays flattened after its fix is dropped', async () => {
     return 'Still one flat line, again.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toEqual(['I can bring the stove.\n1. I will bring the stove.', 'Third:\n1. different\n2. version there']);
+  expect(drafts).toEqual(['Third:\n1. different\n2. version there']);
 });
 
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
