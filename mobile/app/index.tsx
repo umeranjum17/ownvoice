@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
+import { router } from 'expo-router';
 import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
 import { Row } from '../src/ui/Row';
 import { space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { DEFAULT_ON } from '../src/core/privacy';
+import { store } from '../src/core/store';
 import type { TapFact } from '../modules/ownvoice-native';
 
 type Rules = { paused: boolean; on: string[]; off: string[] };
@@ -20,6 +22,9 @@ export default function Home() {
   const pending = useRef(Promise.resolve());
   useEffect(() => {
     void native().bubbleRules().then(setRules).catch(() => {});
+    // Setup opens on launch until it's done or the service is on (S6); the service also returns
+    // here through the ownvoice://setup deep link while it is still going.
+    if (!store.get('setup-done')) void native().serviceState().then((s: string) => { if (s !== 'on') router.replace('/setup'); }).catch(() => {});
   }, []);
   const change = (update: (current: Rules) => Rules) => {
     pending.current = pending.current.then(async () => {

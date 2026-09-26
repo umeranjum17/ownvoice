@@ -12,6 +12,7 @@ import android.graphics.PixelFormat
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.InsetDrawable
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -41,6 +42,8 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var offApps: Set<String> = emptySet()
     val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
     @Volatile var paused = false
+    /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. Never saved. */
+    @Volatile var practice = false
     @Volatile var panelIsOpen = false
     @Volatile var onInserted: ((Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
@@ -67,7 +70,7 @@ class OwnvoiceService : AccessibilityService() {
     set(value) { panelIsOpen = value; if (value) main.post(restoreBubble); updateBubble() }
 
   private fun px(dp: Int) = (dp * resources.displayMetrics.density).toInt()
-  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON))
+  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON) || (practice && app == packageName))
   private val night get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
   private fun colour(id: Int, fallback: Int) = if (android.os.Build.VERSION.SDK_INT >= 31) getColor(id) else fallback
 
@@ -96,7 +99,10 @@ class OwnvoiceService : AccessibilityService() {
     onServiceChange?.invoke("on")
     if (prefs.getBoolean("comeBack", false)) {
       prefs.edit().remove("comeBack").apply()
-      packageManager.getLaunchIntentForPackage(packageName)?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)?.let { startActivity(it) }
+      // Setup comes back to the front by itself once the service connects (B10), the way Kotlin's
+      // service started SetupActivity directly; a deep link reaches the setup screen through the router.
+      startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("ownvoice://setup"))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
     }
   }
 

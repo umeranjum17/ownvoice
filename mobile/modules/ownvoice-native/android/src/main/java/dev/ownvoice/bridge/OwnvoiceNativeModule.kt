@@ -27,10 +27,33 @@ class OwnvoiceNativeModule : Module() {
       val me = ComponentName(context, OwnvoiceService::class.java).flattenToString()
       context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(":settings:fragment_args_key", me))
     }.runOnQueue(Queues.MAIN)
+    AsyncFunction("setPractice") { on: Boolean ->
+      OwnvoiceService.practice = on
+      OwnvoiceService.instance?.updateBubble()
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("openAppInfo") {
+      context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        .setData(android.net.Uri.fromParts("package", context.packageName, null)))
+    }.runOnQueue(Queues.MAIN)
     AsyncFunction("launcherApps") {
       val pm = context.packageManager
+      val size = (40 * context.resources.displayMetrics.density).toInt()
       pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0)
-        .map { mapOf("app" to it.activityInfo.packageName, "label" to it.loadLabel(pm).toString()) }
+        .map { info ->
+          val icon = runCatching {
+            val drawable = info.loadIcon(pm)
+            val bitmap = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bitmap)
+            drawable.setBounds(0, 0, canvas.width, canvas.height)
+            drawable.draw(canvas)
+            val bytes = java.io.ByteArrayOutputStream()
+            bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, bytes)
+            bitmap.recycle()
+            android.util.Base64.encodeToString(bytes.toByteArray(), android.util.Base64.NO_WRAP)
+          }.getOrNull()
+          mapOf("app" to info.activityInfo.packageName, "label" to info.loadLabel(pm).toString(), "icon" to icon)
+        }
         .distinctBy { it["app"] }
         .sortedBy { it["label"]?.lowercase() }
     }.runOnQueue(Queues.MAIN)
@@ -74,6 +97,11 @@ class OwnvoiceNativeModule : Module() {
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("closePanel") { PanelActivity.current?.finish() }.runOnQueue(Queues.MAIN)
     AsyncFunction("modelStatus") Coroutine { -> PhoneModel.status() }
+    AsyncFunction("stubWriter") {
+      // e2e seam (plan §3.5): the emulator has no phone model; the device driver turns this on so the
+      // panel has drafts to insert. It is a system setting no user ever sets, never shown anywhere.
+      Settings.Global.getInt(context.contentResolver, "ownvoice_stub_writer", 0) == 1
+    }.runOnQueue(Queues.MAIN)
     AsyncFunction("downloadModel") Coroutine { ->
       try { PhoneModel.download { fraction -> sendEvent("onModelProgress", mapOf("fraction" to fraction)) } }
       catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }

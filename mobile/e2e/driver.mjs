@@ -22,6 +22,8 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 execFileSync('adb', ['-s', serial, 'logcat', '-c']);
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'pm', 'clear', pkg);
+// The stub writer stands in for the phone model this emulator does not have.
+adb('shell', 'settings', 'put', 'global', 'ownvoice_stub_writer', '1');
 // Reinstall kills the process without rebinding this service; toggle only this emulator's service entry.
 const enabled = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const services = new Set(enabled === 'null' ? [] : enabled.split(':'));
@@ -67,12 +69,35 @@ const visibleLine = (label, state = '') => {
         return text.includes(label.toLowerCase()) && text.includes(state.toLowerCase());
       });
       if (line) return [Math.round((line.left + line.right) / 2), Math.round((line.top + line.bottom) / 2)];
+      // Filled pills read only with a raw-line pass on the same band.
+      const raw = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '13', 'tsv'], { input: execFileSync('magick', ['png:', ...(top ? ['-crop', `${width}x150+0+${top}`, '+repage'] : []), 'png:-'], { input: image }), encoding: 'utf8' });
+      const words = raw.split('\n').slice(1).map(row => row.split('\t')).filter(columns => columns.length >= 12 && columns[11].trim());
+      const rawText = words.map(columns => columns[11]).join(' ').toLowerCase();
+      if (words.length && rawText.includes(label.toLowerCase()) && rawText.includes(state.toLowerCase())) {
+        const left = Math.min(...words.map(c => Number(c[6])));
+        const right = Math.max(...words.map(c => Number(c[6]) + Number(c[8])));
+        const wordTop = Math.min(...words.map(c => Number(c[7]))) + top;
+        const bottom = Math.max(...words.map(c => Number(c[7]) + Number(c[9]))) + top;
+        return [Math.round((left + right) / 2), Math.round((wordTop + bottom) / 2)];
+      }
     }
     if (attempt < 7) execFileSync('sleep', ['1']);
   }
   throw new Error(`Could not find visible ${label} ${state}.`);
 };
 const tapText = (label, state) => tap(...visibleLine(label, state));
+// The Insert pill defeats OCR; Copy beside it reads, and Insert sits a fixed step to its left.
+const tapInsertButton = () => {
+  const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
+  const tops = [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)].reverse();
+  for (const top of tops) {
+    const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
+    const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
+    const word = tsv.split('\n').slice(1).map(row => row.split('\t')).find(columns => columns.length >= 12 && columns[11].trim().toLowerCase() === 'copy');
+    if (word) { tap(Number(word[6]) - 215, Number(word[7]) + Number(word[9]) / 2 + top); return; }
+  }
+  throw new Error('Could not find the Copy button beside Insert.');
+};
 const bubble = () => tap(width - Math.round(90 * width / 1080), Math.round(height * .53));
 const bubbleVisible = () => {
   const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
@@ -84,6 +109,47 @@ const expectBubble = (visible, label) => {
   if (bubbleVisible() !== visible) throw new Error(`Bubble visibility did not match ${label}.`);
 };
 
+// Title and its On/Off subtitle land on separate OCR lines; pair them by position.
+const findRowWithState = (label, state) => {
+  const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
+  const lines = [];
+  const tops = [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)];
+  for (const top of tops) {
+    const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
+    const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
+    const groups = new Map();
+    for (const row of tsv.split('\n').slice(1)) {
+      const columns = row.split('\t');
+      if (columns.length < 12 || !columns[11].trim()) continue;
+      const key = columns.slice(0, 5).join(':');
+      const line = groups.get(key) ?? { words: [], left: Infinity, top: Infinity, bottom: 0 };
+      line.words.push(columns[11]);
+      line.left = Math.min(line.left, Number(columns[6]));
+      line.top = Math.min(line.top, Number(columns[7]) + top);
+      line.bottom = Math.max(line.bottom, Number(columns[7]) + Number(columns[9]) + top);
+      groups.set(key, line);
+    }
+    for (const line of groups.values()) lines.push({ text: line.words.join(' ').toLowerCase(), left: line.left, top: line.top, bottom: line.bottom });
+  }
+  const wanted = label.toLowerCase();
+  return lines.find(line => line.text.includes(wanted)
+    && lines.some(other => other !== line && other.text.includes(state.toLowerCase())
+      && other.top >= line.top && other.top - line.top < 120 && other.left < 400));
+};
+
+// Walk a fresh Chrome profile through its first-run screens once, before any flows need its fields.
+execFileSync('adb', ['-s', serial, 'shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://example.com']);
+await wait(3500);
+for (let round = 0; round < 4; round++) {
+  const chromeText = execFileSync('tesseract', ['stdin', 'stdout'], { input: execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 }), encoding: 'utf8' }).toLowerCase();
+  if (chromeText.includes('make chrome your own')) tapText('Use without an account');
+  else if (chromeText.includes('notifications make things')) tap(643, 1751); // 'No thanks' sits at a fixed spot; OCR misses it on the dimmed sheet.
+  else break;
+  await wait(1500);
+}
+adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+await wait(3000);
+
 const chooseApp = async (label, prior) => {
   tapText('Where the bubble shows');
   await wait(400);
@@ -93,13 +159,20 @@ const chooseApp = async (label, prior) => {
   await wait(500);
   adb('shell', 'input', 'keyevent', '4'); // Hide the keyboard before tapping the filtered result.
   await wait(300);
-  tapText(label, prior);
+  let row;
+  for (let attempt = 0; attempt < 8 && !row; attempt++) {
+    row = findRowWithState(label, prior);
+    if (!row) await wait(1000);
+  }
+  if (!row) throw new Error(`Could not find the ${label} row (${prior}).`);
+  tap(Math.min(Math.round(row.left + 200), Math.round(width / 2)), Math.round((row.top + row.bottom) / 2));
   await wait(400);
-  visibleLine(label, prior === 'Off' ? 'On' : 'Off');
+  if (!findRowWithState(label, prior === 'Off' ? 'On' : 'Off')) throw new Error(`The ${label} row did not switch.`);
   tapText('Back');
   await wait(700);
   visibleLine('Pause for now');
 };
+
 await chooseApp('Ownvoice (new)', 'Off');
 expectBubble(true, 'test app enabled');
 await chooseApp('Chrome', 'Off');
@@ -112,7 +185,7 @@ await wait(6500);
 bubble();
 await wait(1200);
 visibleLine('Polish your message');
-tapText('Insert');
+tapInsertButton();
 await wait(1800);
 snap('rn-inserted');
 
@@ -135,10 +208,12 @@ const page = createServer((_request, response) => response.end(readFileSync(new 
 await new Promise(resolve => page.listen(0, '127.0.0.1', resolve));
 const { port } = page.address();
 execFileSync('adb', ['-s', serial, 'reverse', `tcp:${port}`, `tcp:${port}`]);
-const insertWebField = async (name, y) => {
+const insertWebField = async (name, heading) => {
   execFileSync('adb', ['-s', serial, 'shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${port}`]);
   await wait(3500);
-  tap(Math.round(width / 2), y);
+  // The field sits under its heading; the heading OCRs reliably, the field itself is borderless.
+  const [, headingY] = visibleLine(heading);
+  tap(Math.round(width / 2), headingY + 230);
   await wait(500);
   type(`${name} multiline draft`);
   await wait(4500);
@@ -147,12 +222,12 @@ const insertWebField = async (name, y) => {
   await wait(1200);
   visibleLine('Polish your message');
   if (name === 'contenteditable') snap('chrome-panel');
-  tapText('Insert');
+  tapInsertButton();
   await wait(1800);
   if (name === 'contenteditable') snap('chrome-inserted');
 };
-await insertWebField('textarea', Math.round(height * .45));
-await insertWebField('contenteditable', Math.round(height * .8));
+await insertWebField('textarea', 'Textarea');
+await insertWebField('contenteditable', 'Message');
 page.close();
 execFileSync('adb', ['-s', serial, 'reverse', '--remove', `tcp:${port}`]);
 const inserted = adb('logcat', '-d', '-s', 'OwnvoiceNative:I');
