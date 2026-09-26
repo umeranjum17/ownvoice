@@ -29,11 +29,12 @@ export async function chatgptEnabled(store: SwitchStore, fetcher: typeof fetch =
   let release!: () => void;
   lastUpdate = new Promise(resolve => { release = resolve; });
   await previous;
+  let unsaved: 'on' | 'off' | null = null;
   try {
     const current = await store.get();
     const same = current && flag?.payload?.seq === current.seq && flag.payload.chatgpt === current.chatgpt;
     if (await verify(flag, publicKey, (current?.seq ?? 0) - (same ? 1 : 0)))
-      await store.set({ seq: flag.payload.seq, chatgpt: flag.payload.chatgpt, fetchedAt: Math.max(now, current?.fetchedAt ?? now) }).catch(() => {});
+      await store.set({ seq: flag.payload.seq, chatgpt: flag.payload.chatgpt, fetchedAt: Math.max(now, current?.fetchedAt ?? now) }).catch(() => { unsaved = flag.payload.chatgpt; });
   } finally { release(); }
-  return (await store.get())?.chatgpt !== 'off';
+  return unsaved ? unsaved === 'on' : (await store.get())?.chatgpt !== 'off';
 }

@@ -83,6 +83,23 @@ test('remote switch vectors: valid, signature, app, rollback, version; failures 
   expect(await chatgptEnabled({ get: async () => null, set: async () => {} }, async () => { throw Error(); }, 100, publicKey)).toBe(true);
 });
 
+test.each([
+  ['on', 'off', false],
+  ['off', 'on', true],
+] as const)('a verified %s-to-%s choice governs this tap when saving fails', async (before, after, enabled) => {
+  const publicKey = b64(await ed.getPublicKeyAsync(privateKey));
+  let state: SwitchState = { seq: 1, chatgpt: before, fetchedAt: 0 };
+  const set = jest.fn(async (value: SwitchState) => { state = value; });
+  set.mockRejectedValueOnce(new Error('storage unavailable'));
+  const store: SwitchStore = { get: async () => state, set };
+  const fetcher = jest.fn(async () => ({ ok: true, json: async () => signed({ v: 1, app: 'ownvoice', seq: 2, chatgpt: after }) } as Response));
+  expect(await chatgptEnabled(store, fetcher, CACHE_MS + 1, publicKey)).toBe(enabled);
+  expect(state).toEqual({ seq: 1, chatgpt: before, fetchedAt: 0 });
+  expect(await chatgptEnabled(store, fetcher, CACHE_MS + 2, publicKey)).toBe(enabled);
+  expect(state).toEqual({ seq: 2, chatgpt: after, fetchedAt: CACHE_MS + 2 });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
 test.each([4, 3])('a delayed sequence %i cannot overwrite a newer off flag', async oldSeq => {
   const publicKey = b64(await ed.getPublicKeyAsync(privateKey));
   let state: SwitchState = { seq: 3, chatgpt: 'on', fetchedAt: 0 };
