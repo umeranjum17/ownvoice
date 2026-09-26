@@ -3,12 +3,13 @@ import { NativeModule, requireNativeModule } from 'expo';
 export type ServiceState = 'on' | 'off' | 'stuck';
 import type { ScreenText } from '../../../src/core/drafts';
 export type Capture = { conversation: string; written: string; nodes: ScreenText[]; fieldTop: number | null; typed: string; app: string; label: string; at: number; hasField: boolean };
-export type TapFact = { at: number; app: string; label: string; screen: boolean; typed: boolean; replying: boolean };
+export type TapFact = { id: string; at: number; app: string; label: string; screen: boolean; typed: boolean; replying: boolean };
 export type ModelStatus = 'available' | 'downloadable' | 'downloading' | 'unavailable';
 type Events = {
   onServiceChange: (event: { state: ServiceState }) => void;
   onInserted: (event: { ok: boolean; newlinesLost: boolean; practice: boolean }) => void;
   onModelProgress: (event: { fraction: number }) => void;
+  onModelSettled: (event: Record<string, never>) => void;
   onModelPartial: (event: { id: string; text: string }) => void;
 };
 declare class OwnvoiceNativeModule extends NativeModule<Events> {
@@ -25,6 +26,7 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   capture(): Promise<Capture | null>;
   forget(): Promise<void>;
   takeTapFacts(): Promise<TapFact[]>;
+  ackTapFacts(ids: string[]): Promise<void>;
   clearTapFacts(): Promise<void>;
   copy(text: string): Promise<void>;
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;

@@ -6,7 +6,7 @@ import Voice, { foundLines } from '../voice';
 import Reads from '../reads';
 import Native, { type TapFact } from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
-import { readLog } from '../../src/core/readLog';
+import { readLog, syncReadLog } from '../../src/core/readLog';
 import { loadVoice } from '../../src/core/voice';
 
 jest.mock('../../modules/ownvoice-native', () => ({
@@ -14,7 +14,7 @@ jest.mock('../../modules/ownvoice-native', () => ({
   default: {
     serviceState: jest.fn(), turnOff: jest.fn(), modelStatus: jest.fn(), downloadModel: jest.fn(),
     bubbleRules: jest.fn(), setBubbleRules: jest.fn(), launcherApps: jest.fn(), takeTapFacts: jest.fn(),
-    clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(),
+    ackTapFacts: jest.fn(), clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(),
   },
 }));
 
@@ -32,10 +32,12 @@ const apps = [
   { app: 'com.netflix.netflix', label: 'Netflix', icon: null },
   { app: 'com.android.chrome', label: 'Chrome', icon: null },
 ];
-const fact = (over: Partial<TapFact> = {}): TapFact => ({ at: Date.now(), app: 'com.whatsapp', label: 'WhatsApp', screen: true, typed: false, replying: true, ...over });
+let sequence = 0;
+const fact = (over: Partial<TapFact> = {}): TapFact => ({ id: String(++sequence), at: Date.now(), app: 'com.whatsapp', label: 'WhatsApp', screen: true, typed: false, replying: true, ...over });
 
 beforeEach(() => {
   kv.clear();
+  sequence = 0;
   kv.set('setup-done', '"done"');
   jest.clearAllMocks();
   native.serviceState.mockResolvedValue('on');
@@ -44,6 +46,7 @@ beforeEach(() => {
   native.setBubbleRules.mockResolvedValue(undefined);
   native.launcherApps.mockResolvedValue(apps);
   native.takeTapFacts.mockResolvedValue([]);
+  native.ackTapFacts.mockResolvedValue(undefined);
   native.clearTapFacts.mockResolvedValue(undefined);
   native.forget.mockResolvedValue(undefined);
   native.turnOff.mockResolvedValue(undefined);
@@ -99,12 +102,33 @@ test('a completed download refreshes the card and a downloadable phone can retry
   expect(await screen.findByText(words.statusReady)).toBeTruthy();
 });
 
+test('a setup download finishing refreshes Home without a foreground change', async () => {
+  let settled!: () => void;
+  (native.addListener as jest.Mock).mockImplementation((name, callback) => {
+    if (name === 'onModelSettled') settled = callback;
+    return { remove: () => {} };
+  });
+  native.modelStatus.mockResolvedValueOnce('downloading').mockResolvedValue('available');
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.statusGettingReady)).toBeTruthy();
+  await act(async () => { settled(); });
+  expect(await screen.findByText(words.statusReady)).toBeTruthy();
+});
+
 test('the card pauses, and the switch hides the bubble everywhere', async () => {
   const screen = await homeCopy();
   await act(async () => { fireEvent(screen.getByLabelText(words.powerRow), 'valueChange', false); });
   expect(native.turnOff).toHaveBeenCalled();
   fireEvent.press(screen.getByText(words.rowPause));
   await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalledWith({ ...rules, paused: true }));
+});
+
+test('a failed power-off keeps the switch on and tells the user', async () => {
+  native.turnOff.mockRejectedValueOnce(new Error('cannot turn off'));
+  const screen = await homeCopy();
+  fireEvent(screen.getByLabelText(words.powerRow), 'valueChange', false);
+  expect(await screen.findByText(words.failed)).toBeTruthy();
+  expect(screen.getByLabelText(words.powerRow).props.value).toBe(true);
 });
 
 test('a dropped service asks to be turned back on', async () => {
@@ -141,6 +165,18 @@ test('a fresh phone has nothing to show yet', async () => {
   expect(screen.getByText(words.noApps)).toBeTruthy();
   expect(screen.getByText(words.noPhrases)).toBeTruthy();
   expect(screen.getByText(words.nothingWeek)).toBeTruthy();
+});
+
+test('returning to Home refreshes voice, apps, and reads without backgrounding', async () => {
+  const screen = await homeCopy();
+  kv.set('voice', JSON.stringify({ never: ['delve'], noDashes: false, statementEndings: false, note: '' }));
+  kv.set('reads', JSON.stringify([{ time: Date.now(), app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }]));
+  native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.android.chrome'], off: ['com.google.android.gm', 'com.whatsapp'] });
+  const focus = (jest.requireMock('expo-router').useFocusEffect as jest.Mock).mock.calls.at(-1)[0];
+  await act(async () => { focus(); });
+  expect(await screen.findByText('1 phrase you never say')).toBeTruthy();
+  expect(screen.getByText(words.onceWeek)).toBeTruthy();
+  expect(screen.getByText('Chrome')).toBeTruthy();
 });
 
 test('the rows come back fresh whenever the app is in front', async () => {
@@ -300,6 +336,31 @@ test('a failed native wipe keeps saved choices and offers a retry', async () => 
   expect(loadVoice().never).toEqual(['delve']);
   fireEvent.press(screen.getByText(words.wipe));
   await waitFor(() => expect(readLog()).toEqual([]));
+});
+
+test('a failed JS write leaves native taps unacknowledged for retry', async () => {
+  const tap = fact();
+  native.takeTapFacts.mockResolvedValue([tap]);
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const set = jest.spyOn(storage, 'setItemSync').mockImplementationOnce(() => { throw new Error('disk full'); });
+  try {
+    await expect(syncReadLog()).rejects.toThrow('disk full');
+    expect(native.ackTapFacts).not.toHaveBeenCalled();
+    expect(readLog()).toEqual([]);
+    await syncReadLog();
+    expect(native.ackTapFacts).toHaveBeenCalledWith([tap.id]);
+    expect(readLog()).toHaveLength(1);
+  } finally { set.mockRestore(); }
+});
+
+test('an acknowledgement failure cannot duplicate an already saved tap', async () => {
+  const tap = fact();
+  native.takeTapFacts.mockResolvedValue([tap]);
+  native.ackTapFacts.mockRejectedValueOnce(new Error('ack failed'));
+  await expect(syncReadLog()).rejects.toThrow('ack failed');
+  expect(readLog()).toHaveLength(1);
+  await syncReadLog();
+  expect(readLog()).toHaveLength(1);
 });
 
 test('Home includes taps still waiting in the phone', async () => {

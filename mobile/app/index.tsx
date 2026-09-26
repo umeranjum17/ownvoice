@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Row } from '../src/ui/Row';
 import { Switch } from '../src/ui/Switch';
 import { Progress } from '../src/ui/Progress';
@@ -41,6 +41,7 @@ export default function Home() {
   const [apps, setApps] = useState<App[]>([]);
   const [phrases, setPhrases] = useState(0);
   const [week, setWeek] = useState(0);
+  const [powerFailed, setPowerFailed] = useState(false);
   const busy = useRef(Promise.resolve());
   const readsBusy = useRef(Promise.resolve());
 
@@ -58,12 +59,16 @@ export default function Home() {
 
   useEffect(() => {
     if (!store.get('setup-done')) { router.replace('/setup'); return; }
-    reload();
     const shown = AppState.addEventListener('change', state => { if (state === 'active') reload(); });
     const serviceChange = Native.addListener('onServiceChange', ({ state }) => setService(state));
     const modelProgress = Native.addListener('onModelProgress', ({ fraction: f }) => setFraction(f));
-    return () => { shown.remove(); serviceChange.remove(); modelProgress.remove(); };
+    const modelSettled = Native.addListener('onModelSettled', () => { void Native.modelStatus().then(setModel).catch(() => {}); });
+    return () => { shown.remove(); serviceChange.remove(); modelProgress.remove(); modelSettled.remove(); };
   }, [reload]);
+
+  useFocusEffect(useCallback(() => {
+    if (store.get('setup-done')) reload();
+  }, [reload]));
 
   const changeRules = (update: (current: Rules) => Rules) => {
     busy.current = busy.current.then(async () => {
@@ -74,8 +79,9 @@ export default function Home() {
   };
   // The switch is the phone's own: turning it on goes to the permission screen, off stops the service.
   const power = (want: boolean) => {
+    setPowerFailed(false);
     if (want) router.push('/setup');
-    else { void Native.turnOff().then(reload).catch(() => {}); }
+    else { void Native.turnOff().then(reload).catch(() => { reload(); setPowerFailed(true); }); }
   };
   const retry = () => { void Native.downloadModel().catch(() => {}).finally(reload); };
 
@@ -102,6 +108,7 @@ export default function Home() {
       </View>
       {on && model !== 'available' && !problem && <View style={{ marginTop: space.m }}><Progress fraction={fraction} /></View>}
       {(problem !== null || model === 'downloadable') && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
+      {powerFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
       {service === 'stuck' && <Text accessibilityRole="button" onPress={() => router.push('/setup')} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.turnBackOn}</Text>}
     </View>
 

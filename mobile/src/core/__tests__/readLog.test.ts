@@ -6,9 +6,10 @@ import type { TapFact } from '../../../modules/ownvoice-native';
 
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 const NOW = 1_800_000_000_000;
-const fact = (over: Partial<TapFact> = {}): TapFact => ({ at: NOW, app: 'com.whatsapp', label: 'WhatsApp', screen: true, typed: false, replying: true, ...over });
+let sequence = 0;
+const fact = (over: Partial<TapFact> = {}): TapFact => ({ id: String(++sequence), at: NOW, app: 'com.whatsapp', label: 'WhatsApp', screen: true, typed: false, replying: true, ...over });
 
-beforeEach(() => kv.clear());
+beforeEach(() => { kv.clear(); sequence = 0; });
 
 // PrivacyTest's keep and summary cases, through the log that shows them (checklist H5, 2.8).
 test('the log keeps 30 days and drops anything older', () => {
