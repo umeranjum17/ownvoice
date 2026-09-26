@@ -41,7 +41,7 @@ export default function Home() {
   const [apps, setApps] = useState<App[]>([]);
   const [phrases, setPhrases] = useState(0);
   const [week, setWeek] = useState(0);
-  const [powerFailed, setPowerFailed] = useState(false);
+  const [settingsFailed, setSettingsFailed] = useState(false);
   const busy = useRef(Promise.resolve());
   const readsBusy = useRef(Promise.resolve());
 
@@ -77,13 +77,14 @@ export default function Home() {
       const next = update(await Native.bubbleRules());
       await Native.setBubbleRules(next);
       setRules(next);
-    }).catch(() => {});
+      setSettingsFailed(false);
+    }).catch(() => setSettingsFailed(true));
   };
   // The switch is the phone's own: turning it on goes to the permission screen, off stops the service.
   const power = (want: boolean) => {
-    setPowerFailed(false);
+    setSettingsFailed(false);
     if (want) router.push('/setup');
-    else { void Native.turnOff().then(reload).catch(() => { reload(); setPowerFailed(true); }); }
+    else { void Native.turnOff().then(reload).catch(() => { reload(); setSettingsFailed(true); }); }
   };
   const retry = () => { void Native.downloadModel().catch(() => {}).finally(reload); };
 
@@ -110,7 +111,7 @@ export default function Home() {
       </View>
       {on && model !== 'available' && !problem && <View style={{ marginTop: space.m }}><Progress fraction={fraction} /></View>}
       {problem !== null && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
-      {powerFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
+      {settingsFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
       {service === 'stuck' && <Text accessibilityRole="button" onPress={() => router.push('/setup')} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.turnBackOn}</Text>}
     </View>
 

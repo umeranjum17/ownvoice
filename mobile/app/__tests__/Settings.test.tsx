@@ -140,6 +140,17 @@ test('a failed power-off keeps the switch on and tells the user', async () => {
   expect(screen.getByLabelText(words.powerRow).props.value).toBe(true);
 });
 
+test('a failed pause choice stays off, explains the failure, and can be retried', async () => {
+  native.setBubbleRules.mockRejectedValueOnce(new Error('could not save'));
+  const screen = await homeCopy();
+  fireEvent.press(screen.getByText(words.rowPause));
+  expect(await screen.findByText(words.failed)).toBeTruthy();
+  expect(native.setBubbleRules).toHaveBeenCalledWith({ ...rules, paused: true });
+  fireEvent.press(screen.getByText(words.rowPause));
+  await waitFor(() => expect(screen.queryByText(words.failed)).toBeNull());
+  expect(native.setBubbleRules).toHaveBeenCalledTimes(2);
+});
+
 test('a dropped service asks to be turned back on', async () => {
   native.serviceState.mockResolvedValue('stuck');
   const screen = await show(<Home />);
@@ -228,6 +239,19 @@ test('quick app choices build on each completed write', async () => {
   await act(async () => { finish(); });
   expect(saved.on).toEqual(expect.arrayContaining(['com.netflix.netflix', 'com.android.chrome', 'com.google.android.gm']));
   expect(saved.off).toEqual([]);
+});
+
+test('a failed app choice stays off, explains the failure, and can be retried', async () => {
+  native.setBubbleRules.mockRejectedValueOnce(new Error('could not save'));
+  const screen = await show(<Apps />);
+  await screen.findByText('Chrome');
+  fireEvent.press(screen.getByText('Chrome'));
+  expect(await screen.findByText(words.failed)).toBeTruthy();
+  expect(screen.getByLabelText('Chrome').props.value).toBe(false);
+  fireEvent.press(screen.getByText('Chrome'));
+  await waitFor(() => expect(screen.queryByText(words.failed)).toBeNull());
+  expect(screen.getByLabelText('Chrome').props.value).toBe(true);
+  expect(native.setBubbleRules).toHaveBeenCalledTimes(2);
 });
 
 test('the list narrows as you type', async () => {

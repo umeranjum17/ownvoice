@@ -18,6 +18,7 @@ export default function Apps() {
   const [rules, setRules] = useState<Rules | null>(null);
   const [apps, setApps] = useState<App[]>([]);
   const [filter, setFilter] = useState('');
+  const [saveFailed, setSaveFailed] = useState(false);
   const busy = useRef(Promise.resolve());
   useEffect(() => {
     void Native.bubbleRules().then(setRules).catch(() => {});
@@ -33,7 +34,8 @@ export default function Apps() {
       const next = { ...current, on, off };
       await Native.setBubbleRules(next);
       setRules(next);
-    }).catch(() => {});
+      setSaveFailed(false);
+    }).catch(() => setSaveFailed(true));
   };
   const order = (a: App, b: App) => Number(showsBubble(rules, b.app)) - Number(showsBubble(rules, a.app)) || a.label.localeCompare(b.label);
   const shown = apps.filter(({ label }) => label.toLowerCase().includes(filter.toLowerCase())).sort(order);
@@ -42,6 +44,7 @@ export default function Apps() {
   return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, gap: space.m, paddingBottom: space.xxl }} keyboardShouldPersistTaps="always">
     <Text style={[type.headline, { color: t.text }]}>{words.rowApps}</Text>
     <Text style={[type.body, { color: t.muted, marginBottom: space.s }]}>{words.appsScreenNote}</Text>
+    {saveFailed && <Text style={[type.body, { color: t.text }]}>{words.failed}</Text>}
     <TextInput accessibilityLabel={words.findAnApp} placeholder={words.findAnApp} placeholderTextColor={t.muted} value={filter} onChangeText={setFilter}
       style={[type.body, { color: t.text, borderColor: t.outline, borderWidth: 1, borderRadius: shape.card, padding: space.m }]} />
     <View style={group}>

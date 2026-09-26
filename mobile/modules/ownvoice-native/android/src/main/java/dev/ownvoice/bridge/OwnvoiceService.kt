@@ -26,6 +26,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.TextView
+import android.widget.Toast
 import kotlin.math.roundToInt
 
 internal fun accessibleText(text: CharSequence?, isShowingHintText: Boolean): String? =
@@ -64,8 +65,7 @@ class OwnvoiceService : AccessibilityService() {
         }
       }
       val kept = facts.filter { System.currentTimeMillis() - it.at < KEEP_MS }
-      if (kept.size != facts.size) {
-        check(prefs.edit().putString(FACTS, kept.joinToString("\n", transform = ::factLine)).commit())
+      if (kept.size != facts.size && prefs.edit().putString(FACTS, kept.joinToString("\n", transform = ::factLine)).commit()) {
         facts.clear(); facts.addAll(kept)
       }
     }
@@ -199,11 +199,13 @@ class OwnvoiceService : AccessibilityService() {
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null)
     val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), java.util.UUID.randomUUID().toString())
-    synchronized(facts) {
+    val saved = synchronized(facts) {
       restoreFacts(this@OwnvoiceService)
-      facts += fact
-      check(prefs.edit().putString(FACTS, facts.joinToString("\n", transform = ::factLine)).commit())
+      val ok = prefs.edit().putString(FACTS, (facts + fact).joinToString("\n", transform = ::factLine)).commit()
+      if (ok) facts += fact
+      ok
     }
+    if (!saved) Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show()
     if (lines.isEmpty() && field == null) return say("No text on this screen.")
     capture = reading
     startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
