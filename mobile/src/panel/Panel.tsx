@@ -121,7 +121,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     void (async () => {
       let path: WriterRoute;
       try { path = writer ? { writer, note: null } : await select(value.app); }
-      catch { path = { writer: phoneWriter, note: words.fallback }; }
+      catch { path = { writer: phoneWriter, note: words.phoneWrote }; }
       if (run.current !== id) return;
       let sent = false;
 

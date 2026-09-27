@@ -100,7 +100,8 @@ test('a pending request records the send before it finishes', async () => {
 test('a failed route selection uses the phone and leaves Writing', async () => {
   const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => { throw new Error('switch store failed'); });
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
-  expect(shown(screen)).toContain(words.fallback);
+  expect(shown(screen)).toContain(words.phoneWrote);
+  expect(shown(screen)).not.toContain(words.fallback);
   expect(sentTap()).toEqual([]);
 });
 
@@ -109,6 +110,8 @@ test('a failed native sent mark keeps drafting on the phone', async () => {
   const screen = await open({ chatgpt: () => writer('ChatGPT') });
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(shown(screen)).not.toContain('ChatGPT one');
+  expect(shown(screen)).toContain(words.phoneWrote);
+  expect(shown(screen)).not.toContain(words.fallback);
   expect(sentTap()).toEqual(['tap-1']);
 });
 
