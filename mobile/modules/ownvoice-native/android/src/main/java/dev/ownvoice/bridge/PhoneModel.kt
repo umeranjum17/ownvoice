@@ -81,7 +81,7 @@ internal object PhoneModel {
     model.generateContentStream(request).collect { response ->
       response.candidates.firstOrNull()?.text?.let { delta -> text.append(delta); partial(delta) }
     }
-    return text.toString().trim().ifEmpty { throw IllegalStateException("Empty answer") }
+    return text.toString().trim()
   }
 
   suspend fun drafts(prompt: String, candidates: Int, maxTokens: Int): List<String> {

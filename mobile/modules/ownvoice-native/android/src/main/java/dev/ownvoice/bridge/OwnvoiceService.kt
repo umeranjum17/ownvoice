@@ -43,6 +43,9 @@ internal fun conversationText(text: CharSequence?, hint: Boolean, action: Boolea
 internal fun isControl(buttonAncestor: Boolean, className: String?): Boolean =
   buttonAncestor || className?.endsWith("Button") == true
 
+internal fun includeScreenNode(hasText: Boolean, hasDescription: Boolean, action: Boolean, editable: Boolean): Boolean =
+  !editable && (hasText || action && hasDescription)
+
 class OwnvoiceService : AccessibilityService() {
   companion object {
     const val TAG = "OwnvoiceNative"
@@ -344,7 +347,7 @@ class OwnvoiceService : AccessibilityService() {
       val conversation = if (text != null) conversationText(node.text ?: node.contentDescription, node.isShowingHintText, action) else null
       if (conversation != null && lines.lastOrNull() != conversation) lines += conversation
       text?.let {
-        if (node.text != null && !node.isEditable) {
+        if (includeScreenNode(node.text != null, node.contentDescription != null, action, node.isEditable)) {
           if (conversation != null) written += it
           val bounds = Rect()
           node.getBoundsInScreen(bounds)

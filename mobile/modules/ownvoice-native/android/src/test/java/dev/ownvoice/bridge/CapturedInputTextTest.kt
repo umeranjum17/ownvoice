@@ -22,6 +22,9 @@ class CapturedInputTextTest {
     assertEquals("Back", conversationText("Back", false, isControl(false, "android.widget.TextView")))
     assertEquals("Send", conversationText("Send", false, isControl(false, "android.widget.TextView")))
     assertEquals(null, conversationText("Send", false, isControl(true, "android.widget.TextView")))
+    assertEquals(true, includeScreenNode(false, true, true, false))
+    assertEquals(false, includeScreenNode(false, true, false, false))
+    assertEquals(false, includeScreenNode(false, true, true, true))
   }
 
   @Test fun controlsAndTheirChildrenNeverBecomeConversation() {

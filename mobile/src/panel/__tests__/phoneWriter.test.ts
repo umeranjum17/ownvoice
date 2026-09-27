@@ -246,6 +246,14 @@ test('the shown avoid list never comes back (Write new ones)', async () => {
   expect(native.ask.mock.calls[0][1]).toContain("Don't repeat these: Yep, still on for Saturday.");
 });
 
+test('an empty completed stream retries the missing slots', async () => {
+  native.draftStream.mockResolvedValue('');
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('Say yes or agree')
+    ? 'Yes, Saturday works; I can bring the stove.' : '');
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works; I can bring the stove.'] });
+  expect(native.ask).toHaveBeenCalledTimes(3);
+});
+
 test('no usable reply at all resolves empty instead of throwing', async () => {
   native.drafts.mockResolvedValue(['Here are three versions:']);
   native.ask.mockResolvedValue('“Here is the reply:”');
