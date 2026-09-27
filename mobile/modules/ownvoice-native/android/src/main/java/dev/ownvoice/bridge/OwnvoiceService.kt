@@ -42,7 +42,7 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var instance: OwnvoiceService? = null
     @Volatile var onApps: Set<String> = emptySet()
     @Volatile var offApps: Set<String> = emptySet()
-    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b")
+    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b", "com.Slack", "com.reddit.frontpage")
     @Volatile var paused = false
     /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. Never saved. */
     @Volatile var practice = false
