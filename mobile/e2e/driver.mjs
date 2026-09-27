@@ -113,20 +113,23 @@ const expectBubble = (visible, label) => {
 const findRowWithState = (label, state) => {
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
   const lines = [];
-  const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: image, encoding: 'utf8' });
-  const groups = new Map();
-  for (const row of tsv.split('\n').slice(1)) {
-    const columns = row.split('\t');
-    if (columns.length < 12 || !columns[11].trim()) continue;
-    const key = columns.slice(0, 5).join(':');
-    const line = groups.get(key) ?? { words: [], left: Infinity, top: Infinity, bottom: 0 };
-    line.words.push(columns[11]);
-    line.left = Math.min(line.left, Number(columns[6]));
-    line.top = Math.min(line.top, Number(columns[7]));
-    line.bottom = Math.max(line.bottom, Number(columns[7]) + Number(columns[9]));
-    groups.set(key, line);
+  for (const top of bands) {
+    const input = crop(image, top);
+    const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
+    const groups = new Map();
+    for (const row of tsv.split('\n').slice(1)) {
+      const columns = row.split('\t');
+      if (columns.length < 12 || !columns[11].trim()) continue;
+      const key = columns.slice(0, 5).join(':');
+      const line = groups.get(key) ?? { words: [], left: Infinity, top: Infinity, bottom: 0 };
+      line.words.push(columns[11]);
+      line.left = Math.min(line.left, Number(columns[6]));
+      line.top = Math.min(line.top, Number(columns[7]) + top);
+      line.bottom = Math.max(line.bottom, Number(columns[7]) + Number(columns[9]) + top);
+      groups.set(key, line);
+    }
+    for (const line of groups.values()) lines.push({ text: line.words.join(' ').toLowerCase(), left: line.left, top: line.top, bottom: line.bottom });
   }
-  for (const line of groups.values()) lines.push({ text: line.words.join(' ').toLowerCase(), left: line.left, top: line.top, bottom: line.bottom });
   const wanted = label.toLowerCase();
   return lines.find(line => line.text.includes(wanted)
     && lines.some(other => other !== line && other.text.includes(state.toLowerCase())
@@ -189,12 +192,15 @@ visibleLine('Polish your message');
 tapInsertButton();
 await wait(1800);
 snap('rn-inserted');
-adb('shell', 'input', 'keyevent', '4');
-await wait(500);
-const afterBack = execFileSync('tesseract', ['stdin', 'stdout'], { input: execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 }), encoding: 'utf8' }).toLowerCase();
-if (!afterBack.includes('where the bubble shows') && !afterBack.includes('pause for now')) {
+for (let back = 0; back < 3; back++) {
+  const focus = adb('shell', 'dumpsys', 'window').split('\n').find(line => line.includes('mCurrentFocus')) ?? '';
+  if (!focus.includes(pkg) || !focus.includes('MainActivity')) throw new Error(`Expected Ownvoice in front: ${focus}`);
+  const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
+  const title = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '6'], { input: execFileSync('magick', ['png:', '-crop', `${width}x${Math.min(height, Math.round(140 * density))}+0+0`, '+repage', 'png:-'], { input: image }), encoding: 'utf8' }).toLowerCase().split('\n').map(line => line.trim());
+  if (title.includes('ownvoice')) break;
+  if (!title.includes('your voice')) throw new Error('Could not identify the Ownvoice screen before Back.');
   adb('shell', 'input', 'keyevent', '4');
-  await wait(400);
+  await wait(500);
 }
 visibleLine('Where the bubble shows');
 
