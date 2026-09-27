@@ -3,7 +3,7 @@ import { words } from '../../core/words';
 import { phoneWriter } from '../phoneWriter';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
-  modelStatus: jest.fn(), downloadModel: jest.fn(), drafts: jest.fn(), ask: jest.fn(),
+  modelStatus: jest.fn(), downloadModel: jest.fn(), drafts: jest.fn(), draftStream: jest.fn(), addListener: jest.fn(), ask: jest.fn(),
 } }));
 
 const native = Native as jest.Mocked<typeof Native>;
@@ -28,6 +28,8 @@ beforeEach(() => {
   clock = 1000;
   jest.spyOn(Date, 'now').mockImplementation(() => clock);
   native.modelStatus.mockResolvedValue('available');
+  native.addListener.mockReturnValue({ remove: jest.fn() } as never);
+  native.draftStream.mockImplementation(async (_id, prompt, _maxTokens) => (await native.drafts(prompt, { candidates: 1, maxTokens: 220 })).join('\n'));
 });
 
 afterEach(() => { (Date.now as unknown as jest.SpyInstance).mockRestore(); });
@@ -68,8 +70,26 @@ test('the Sam message reaches the phone model as Latest message above Conversati
   expect(prompt).toContain('Say yes or agree, and answer each point.');
   expect(prompt).toContain(`Conversation:\n${SAM}`);
   expect(options).toEqual({ candidates: 1, maxTokens: 220 });
+  expect(native.draftStream).toHaveBeenCalledTimes(1);
   expect(landed.map(([, slot]) => slot)).toEqual([0, 1, 2]);
   expect(landed.every(([text]) => text.includes('stove'))).toBe(true);
+});
+
+test('first complete streamed card lands before the stand-in full response', async () => {
+  let partial: ((event: { id: string; text: string }) => void) | undefined;
+  native.addListener.mockImplementation((_name, callback) => { partial = callback as typeof partial; return { remove: jest.fn() } as never; });
+  const landedAt: number[] = [];
+  native.draftStream.mockImplementation(async (id) => {
+    setClock(3400);
+    partial?.({ id, text: 'Draft 1: Yes, Saturday works; I can bring the stove.\nDraft 2:' });
+    expect(landedAt).toEqual([3400]); // 2.4 s, not the full-response 23 s
+    setClock(24000);
+    partial?.({ id, text: ' No, could we move it?\nDraft 3: What time Saturday?' });
+    return 'Draft 1: Yes, Saturday works; I can bring the stove.\nDraft 2: No, could we move it?\nDraft 3: What time Saturday?';
+  });
+  await phoneWriter.write(request(), { landed: () => landedAt.push(Date.now()) });
+  expect(landedAt[0]).toBe(3400);
+  expect(landedAt.length).toBeGreaterThanOrEqual(2);
 });
 
 test('exact duplicate replies are dropped and their slots refilled with the shown texts off-limits', async () => {
@@ -106,13 +126,62 @@ test('a rejected middle reply refills the decline slot without shifting the unsu
   expect(drafts).toEqual(['Yes, Saturday works; I can bring the stove.', 'No, Saturday works; I can bring the stove.', 'Not sure yet, what time?']);
 });
 
-test('mixed labelled and unlabelled replies retain their slots without retries', async () => {
-  native.drafts.mockResolvedValue(['Draft 1: Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
+test('one streamed response retains all labelled slots without retries', async () => {
+  native.drafts.mockResolvedValue(['Draft 1: Yes, I can bring it.\nDraft 2: No, could we change the day?\nDraft 3: Not sure; what time?']);
   const landed: number[] = [];
   const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });
   expect(drafts).toEqual(['Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
   expect(landed).toEqual([0, 1, 2]);
   expect(native.ask).not.toHaveBeenCalled();
+});
+
+test('unlabelled continuation lines stay with their explicit draft', async () => {
+  native.drafts.mockImplementation(async () => {
+    setClock(24000);
+    return ['Draft 1: Saturday works.\nI can bring the stove.\nSee you there.'];
+  });
+  native.ask.mockResolvedValue('');
+  const { drafts } = await phoneWriter.write(request());
+  expect(drafts).toEqual(['Saturday works.\nI can bring the stove.\nSee you there.']);
+  expect(native.ask).toHaveBeenCalledTimes(2);
+});
+
+test('inline labels fill their numbered slots after the time limit', async () => {
+  native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes. Draft 2: No. Draft 3: Maybe.']; });
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes.', 'No.', 'Maybe.'] });
+});
+
+test('a late single labelled reply retries both missing slots', async () => {
+  native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes, Saturday works.']; });
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('Give a different answer')
+    ? 'No, could we meet Sunday?' : 'What time on Saturday?');
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works.', 'No, could we meet Sunday?', 'What time on Saturday?'] });
+  expect(native.ask).toHaveBeenCalledTimes(2);
+});
+
+test('a labelled multiline reply keeps its continuation while streaming', async () => {
+  let partial: ((event: { id: string; text: string }) => void) | undefined;
+  native.addListener.mockImplementation((_name, callback) => { partial = callback as typeof partial; return { remove: jest.fn() } as never; });
+  const landed: [string, number][] = [];
+  native.draftStream.mockImplementation(async id => {
+    partial?.({ id, text: 'Draft 1: Saturday works.\nI can bring the stove.\nDraft 2: No, Sunday?\nDraft 3:' });
+    return 'Draft 1: Saturday works.\nI can bring the stove.\nDraft 2: No, Sunday?\nDraft 3: What time?';
+  });
+  const { drafts } = await phoneWriter.write(request(), { landed: (text, slot) => landed.push([text, slot]) });
+  expect(drafts).toEqual(['Saturday works.\nI can bring the stove.', 'No, Sunday?', 'What time?']);
+  expect(landed).toEqual(drafts.map((text, slot) => [text, slot]));
+});
+
+test('an unlabelled line after two labels continues the second draft', async () => {
+  native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes.\nDraft 2: No.\nWhat time?']; });
+  native.ask.mockResolvedValue('');
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes.', 'No.\nWhat time?'] });
+});
+
+test('the last labelled reply can span lines without becoming another slot', async () => {
+  native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes, Saturday works.\nDraft 2: No, Sunday?\nI can bring the stove then.']; });
+  native.ask.mockResolvedValue('');
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works.', 'No, Sunday?\nI can bring the stove then.'] });
 });
 
 test('missing labelled first slot is retried without moving the other replies', async () => {
@@ -124,6 +193,16 @@ test('missing labelled first slot is retried without moving the other replies', 
   expect(native.ask.mock.calls[0][1]).toContain('Say yes or agree');
   expect(landed).toEqual([1, 2, 0]);
   expect(drafts).toEqual(['Yes, Saturday works.', 'No, Saturday is out.', 'Not sure yet, what time?']);
+});
+
+test('only a captured Skip button removes its exact draft line', async () => {
+  native.drafts.mockResolvedValue(['Draft 1: Yes, Saturday works. I will bring the stove.\nSkip\nDraft 2: No, could we meet Sunday?\nDraft 3: What time Saturday?']);
+  const captured = { ...request(), nodes: [
+    ...request().nodes,
+    { text: 'Skip', left: 0, top: 300, bottom: 330, clickable: true },
+  ] };
+  expect((await phoneWriter.write(captured)).drafts[0]).toBe('Yes, Saturday works. I will bring the stove.');
+  expect((await phoneWriter.write(request())).drafts[0]).toBe('Yes, Saturday works. I will bring the stove.\nSkip');
 });
 
 test('practice controls after the message are not sent as the latest message', async () => {
@@ -170,6 +249,14 @@ test('the shown avoid list never comes back (Write new ones)', async () => {
   expect(native.ask.mock.calls[0][1]).toContain("Don't repeat these: Yep, still on for Saturday.");
 });
 
+test('an empty completed stream retries the missing slots', async () => {
+  native.draftStream.mockResolvedValue('');
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('Say yes or agree')
+    ? 'Yes, Saturday works; I can bring the stove.' : '');
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works; I can bring the stove.'] });
+  expect(native.ask).toHaveBeenCalledTimes(3);
+});
+
 test('no usable reply at all resolves empty instead of throwing', async () => {
   native.drafts.mockResolvedValue(['Here are three versions:']);
   native.ask.mockResolvedValue('“Here is the reply:”');
@@ -180,6 +267,17 @@ test('no usable reply at all resolves empty instead of throwing', async () => {
 test('a hard failure surfaces as plain words', async () => {
   native.drafts.mockRejectedValue(new Error('9'));
   await expect(phoneWriter.write(request())).rejects.toThrow(words.busy);
+});
+
+test('download does not spend the reply-fill window', async () => {
+  native.modelStatus.mockResolvedValue('downloadable');
+  native.downloadModel.mockImplementation(async () => { setClock(20000); });
+  native.drafts.mockResolvedValue(['Draft 1: Yes, I can bring the stove.']);
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('Give a different answer')
+    ? 'No, could we meet Sunday?' : 'What time on Saturday?');
+  const { drafts } = await phoneWriter.write(request());
+  expect(drafts).toEqual(['Yes, I can bring the stove.', 'No, could we meet Sunday?', 'What time on Saturday?']);
+  expect(native.ask).toHaveBeenCalledTimes(2);
 });
 
 test('the model gets downloaded once, with the progress note before writing', async () => {
@@ -210,7 +308,7 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
 test('a polish of the numbered list keeps the list, after one layout fix', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove, and you the tent."]}';
-    if (prompt.includes('Keep their line breaks and list exactly.')) return 'Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.';
+    if (prompt.includes('Keep exactly 3 lines')) return 'Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.';
     if (prompt.includes('Tighter:')) return 'Saturday works.\n1. I bring the stove.\n2. Tent is yours.';
     return 'Stove and tent split:\n1. The stove is mine to bring.\n2. The tent is yours to bring.';
   });
@@ -234,13 +332,19 @@ test('every shown card keeps the list; a fix that duplicates a shown card is dro
   }
 });
 
-test('a version that stays flattened after its fix is dropped', async () => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) => {
-    if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove, and you the tent.","I can bring the stove.\n1. I will bring the stove.","Third:\n1. different\n2. version there"]}';
-    return 'Still one flat line, again.';
-  });
+test('flattened versions stay out after the single layout retry', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
+    ? '{"versions":["Flat stove and tent plan."]}' : 'Still one flat line, again.');
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toEqual(['Third:\n1. different\n2. version there']);
+  expect(drafts).toEqual([]);
+  expect(native.ask).toHaveBeenCalledTimes(6);
+});
+
+test('no accepted polish leaves the original out of cleaned-up cards', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
+    ? '{"versions":["unchanged input"]}' : 'unchanged input');
+  const { drafts } = await phoneWriter.write(request({ typed: 'unchanged input' }));
+  expect(drafts).toEqual([]);
 });
 
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {

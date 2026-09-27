@@ -5,7 +5,7 @@ import type { Rules } from './slop';
 
 const count = 3;
 const numbered = /(?:^|\s)(?:(?:draft|option|version)\s*)?([1-3])[.):]\s+/gi;
-const labelled = /(?:^|\s)(?:draft|option|version)\s*([1-3])[.):]\s*/gi;
+export const replyLabels = /(?:^|\s)(?:draft|option|version)\s*([1-3])[.):]\s*/gi;
 
 function unquote(text: string) {
   return text.replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
@@ -28,7 +28,7 @@ function parts(text: string, polishing: boolean) {
   const value = body(input, polishing);
   if (polishing) return [value];
   const explicit = /\b(?:versions?|options?|drafts?)\b/i.test(input.split(/\r?\n/, 1)[0]) && value !== input;
-  const pattern = explicit ? numbered : labelled;
+  const pattern = explicit ? numbered : replyLabels;
   const markers: { start: number; end: number }[] = [];
   for (const match of value.matchAll(pattern)) markers.push({ start: match.index! + match[0].search(/\S/), end: match.index! + match[0].length });
   if (markers.length > 1 && !value.slice(0, markers[0].start).trim()) {
@@ -56,6 +56,11 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
     }
   }
   return drafts;
+}
+
+export function preserveFragment(original: string, text: string): string {
+  return /^[\p{L}\p{N}]+$/u.test(original.trim())
+    ? text.replace(/[.。]\s*$/, '') : text;
 }
 
 // ---- 5.3 Duplicates ----
@@ -197,17 +202,23 @@ export function replySlotPrompt(slot: string, input: ReplyInput): string {
   return replyPrompt({ ...input, slots: [slot] });
 }
 
-export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove'): (string | null)[] {
+export function stripControlLines(text: string, controls: string[]): string {
+  const labels = new Set(controls.map(label => label.trim()).filter(Boolean));
+  return text.split(/\r?\n/).filter(line => !labels.has(line.trim())).join('\n').trim();
+}
+
+export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = []): (string | null)[] {
   const accepted: (string | null)[] = Array(count).fill(null);
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
-    const draft = dashes === 'remove' ? undash(text) : text;
+    const clean = stripControlLines(text, controls);
+    const draft = dashes === 'remove' ? undash(clean) : clean;
     if (draft && fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
   };
   for (const candidate of candidates) {
     const source = body(unquote(candidate), false);
-    const markers = [...source.matchAll(labelled)];
+    const markers = [...source.matchAll(replyLabels)];
     if (count > 1 && markers.length && !source.slice(0, markers[0].index).trim()) {
       markers.forEach((marker, i) => {
         const text = source.slice(marker.index! + marker[0].length, markers[i + 1]?.index ?? source.length);

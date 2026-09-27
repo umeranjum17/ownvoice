@@ -56,12 +56,13 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide, dashes };
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
-  const made = acceptReplies(await ask(replyPrompt(input), REPLY_INSTRUCTIONS, 'drafts', 3, on), exclude, 3, dashes);
+  const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
+  const made = acceptReplies(await ask(replyPrompt(input), REPLY_INSTRUCTIONS, 'drafts', 3, on), exclude, 3, dashes, controls);
   made.forEach((text, slot) => { if (text) { exclude.push(text); landed(text, slot); } });
   for (let slot = 0; slot < REPLY_SLOTS.length; slot++) {
     if (made[slot]) continue;
     try {
-      const [draft] = acceptReplies(await ask(replySlotPrompt(REPLY_SLOTS[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes);
+      const [draft] = acceptReplies(await ask(replySlotPrompt(REPLY_SLOTS[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes, controls);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; }
   }

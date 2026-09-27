@@ -207,9 +207,9 @@ export default function Setup() {
         {inserted ? words.tryDone : serviceOn ? words.tryInsert : words.tryTurnOnFirst}
       </Text>
       <View style={[styles.chat, { backgroundColor: t.card }]}>
-        <Text style={[type.title, { color: t.text, marginBottom: space.m }]}>{words.practiceFriend}</Text>
-        <Text style={[type.body, styles.received, { backgroundColor: t.yours, color: t.text }]}>{words.practiceMessage1}</Text>
-        <Text style={[type.body, styles.received, { backgroundColor: t.yours, color: t.text }]}>{words.practiceMessage2}</Text>
+        <Text testID="practice-line-friend" style={[type.title, { color: t.text, marginBottom: space.m }]}>{words.practiceFriend}</Text>
+        <Text testID="practice-line-first" style={[type.body, styles.received, { backgroundColor: t.yours, color: t.text }]}>{words.practiceMessage1}</Text>
+        <Text testID="practice-line-second" style={[type.body, styles.received, { backgroundColor: t.yours, color: t.text }]}>{words.practiceMessage2}</Text>
         <TextInput
           ref={field}
           accessibilityLabel={words.practiceField}

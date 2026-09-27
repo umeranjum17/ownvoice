@@ -1,6 +1,6 @@
 import {
   REPLY_SLOTS, acceptReplies, cleanDrafts, dashDecision, dashesFor, latestMessage,
-  layoutKept, norm, phoneReplyPrompt, phoneSlotPrompt, replyPrompt, replySlotPrompt, undash, versionAcceptor,
+  layoutKept, norm, phoneReplyPrompt, phoneSlotPrompt, preserveFragment, replyPrompt, replySlotPrompt, stripControlLines, undash, versionAcceptor,
 } from '../drafts';
 import { versionsList } from '../judge';
 
@@ -29,6 +29,24 @@ test('keeps a numbered or bulleted message intact unless explicitly labelled as 
   expect(cleanDrafts(['Here are the snacks:\nApples and pears.'])).toEqual(['Here are the snacks:\nApples and pears.']);
   expect(cleanDrafts(["Sure, here's a reply: Sounds good."])).toEqual(['Sounds good.']);
   expect(cleanDrafts(['Version 1: “Here are three versions:”'])).toEqual([]);
+});
+
+test('a control-only draft line and leaked practice navigation are removed', () => {
+  expect(stripControlLines('Yes, I can bring the stove.\nSend\nSkip', ['Send', 'Skip'])).toBe('Yes, I can bring the stove.');
+  expect(acceptReplies(['Draft 1: Saturday works.\nPost'], [], 3, 'remove', ['Post'])).toEqual(['Saturday works.']);
+  expect(acceptReplies(['Draft 1: Reply\nBack'], [], 3, 'remove', [])).toEqual(['Reply\nBack']);
+  expect(stripControlLines('Reply\nreply', ['Reply'])).toBe('reply');
+  expect(stripControlLines('Saturday works. Skip.', ['Skip'])).toBe('Saturday works. Skip.');
+});
+
+test('only a single word loses added final punctuation', () => {
+  expect(preserveFragment('meeting', 'meeting.')).toBe('meeting');
+  expect(preserveFragment('meeting,', 'Meeting,.')).toBe('Meeting,.');
+  expect(preserveFragment('why', 'Why?')).toBe('Why?');
+  expect(preserveFragment('wow', 'Wow!')).toBe('Wow!');
+  expect(preserveFragment('see you Saturday', 'See you Saturday!')).toBe('See you Saturday!');
+  expect(preserveFragment('can you come', 'Can you come?')).toBe('Can you come?');
+  expect(preserveFragment('Are you coming?', 'Are you coming?')).toBe('Are you coming?');
 });
 
 // ---- 5.3 Duplicates ----
@@ -199,6 +217,7 @@ test('versionAcceptor drops a version equal to the writer text and near-duplicat
   expect(first).toBe('I can be there at 7.');
   expect(acceptor.accept('I can be there at 7 o clock', 1, versionsList[1].label)).toBe('I can be there at 7 o clock');
   expect(acceptor.results).toEqual([{ text: 'I can be there at 7.', slot: 0, label: versionsList[0].label }, { text: 'I can be there at 7 o clock', slot: 1, label: versionsList[1].label }]);
+  expect(versionAcceptor('see you Saturday', 'remove', []).accept('See you on Saturday!', 0)).toBe('See you on Saturday!');
 });
 
 test('versionAcceptor queues a flattened list for one fix, then drops it', () => {

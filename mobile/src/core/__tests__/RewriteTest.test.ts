@@ -16,4 +16,13 @@ test('continuesMissingVersionsAfterOneFallbackFails',async()=>{const calls:strin
 test('triesLaterFallbacksAfterTheFirstFails',async()=>{const calls:string[]=[];const error=new Error('Your phone is busy. Try again in a moment.');const engine:RewriteEngine={async ask(prompt){if(prompt.includes('{"versions"'))return 'not json';const version=versionsList.find(v=>prompt.includes(v.ask))!;calls.push(version.name);if(version.name==='LIGHT')throw error;return version.name;}};const got=await rewrite(engine,'ya im in','','',()=>{});expect(calls).toEqual(['LIGHT','TIGHTER','FIRST']);expect(got.map(([v,t])=>[v.name,t])).toEqual([['TIGHTER','TIGHTER'],['FIRST','FIRST']]);await expect(rewrite({ask:async prompt=>{if(prompt.includes('{"versions"'))return 'not json';throw error;}},'ya im in','','',()=>{})).rejects.toBe(error);});
 test('anErrorBeforeAnyVersionReachesTheUser',async()=>{await expect(run(new Fake(null))).rejects.toBeInstanceOf(Error);});
 // Slice 8 (R3): the selection-menu chips and their prompts, word for word from the Kotlin Judge.Rewrite and Judge.rewritePrompt.
-test('selectionChipsUseTheKotlinLabelsAsksAndPrompt',()=>{expect([Rewrite.TIGHTEN,Rewrite.PLAINER,Rewrite.GRAMMAR]).toEqual(['Shorter','Simpler','Fix spelling']);expect(rewriteAsk[Rewrite.TIGHTEN]).toBe('Make it shorter and tighter. Cut filler, keep every point');expect(rewriteAsk[Rewrite.PLAINER]).toBe('Say it in plainer, simpler words');expect(rewriteAsk[Rewrite.GRAMMAR]).toBe('Fix only spelling, grammar and punctuation. Change nothing else');expect(selectionRewritePrompt('Hey there',rewriteAsk[Rewrite.TIGHTEN])).toBe("Rewrite the text below. Make it shorter and tighter. Cut filler, keep every point. Keep its meaning, facts, language and tone. Don't add anything new. Output only the rewritten text.\n\nText:\nHey there");expect(selectionRewritePrompt('Hi','Fix it','no dashes')).toContain("Follow the writer's rules: no dashes ");});
+test('selection chips deliver the full-stop instruction only for Fix spelling',()=>{
+  expect([Rewrite.TIGHTEN,Rewrite.PLAINER,Rewrite.GRAMMAR]).toEqual(['Shorter','Simpler','Fix spelling']);
+  expect(selectionRewritePrompt('Hi',Rewrite.TIGHTEN)).toContain(rewriteAsk[Rewrite.TIGHTEN]);
+  expect(selectionRewritePrompt('Hi',Rewrite.PLAINER)).toContain(rewriteAsk[Rewrite.PLAINER]);
+  expect(selectionRewritePrompt('Hi',Rewrite.GRAMMAR)).toContain(rewriteAsk[Rewrite.GRAMMAR]);
+  expect(selectionRewritePrompt('Hi',Rewrite.GRAMMAR)).toContain('If the input is a single word without punctuation, do not add a full stop.');
+  expect(selectionRewritePrompt('Hi',Rewrite.TIGHTEN)).not.toContain('do not add a full stop');
+  expect(selectionRewritePrompt('Hi',Rewrite.PLAINER)).not.toContain('do not add a full stop');
+  expect(selectionRewritePrompt('Hi',Rewrite.GRAMMAR,'no dashes')).toContain("Follow the writer's rules: no dashes ");
+});

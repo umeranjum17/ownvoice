@@ -11,4 +11,29 @@ class CapturedInputTextTest {
     assertEquals("Reply", capturedInputText("Reply", false))
     assertEquals("", capturedInputText(null, false))
   }
+
+  @Test fun clickableRowsKeepMessageChildrenButButtonsStayControls() {
+    assertEquals(false, isControl(false, "android.widget.TextView"))
+    assertEquals(false, isControl(false, "android.view.ViewGroup"))
+    assertEquals(true, isControl(false, "android.widget.Button"))
+    assertEquals(true, isControl(false, "android.widget.ImageButton"))
+    assertEquals(true, isControl(true, "android.widget.TextView"))
+    assertEquals("Reply", conversationText("Reply", false, isControl(false, "android.widget.TextView")))
+    assertEquals("Back", conversationText("Back", false, isControl(false, "android.widget.TextView")))
+    assertEquals("Send", conversationText("Send", false, isControl(false, "android.widget.TextView")))
+    assertEquals(null, conversationText("Send", false, isControl(true, "android.widget.TextView")))
+    assertEquals(true, includeScreenNode(false, true, true, false))
+    assertEquals(false, includeScreenNode(false, true, false, false))
+    assertEquals(false, includeScreenNode(false, true, true, true))
+    assertEquals(true, includePracticeText(true, true, null))
+    assertEquals(true, includePracticeText(true, false, "practice-line-second"))
+    assertEquals(false, includePracticeText(true, false, "setup-note"))
+  }
+
+  @Test fun controlsAndTheirChildrenNeverBecomeConversation() {
+    assertEquals(null, conversationText("Skip", false, true))
+    assertEquals(null, conversationText("Clickable child", false, true))
+    assertEquals(null, conversationText("Message", true, false))
+    assertEquals("Sam: Can you bring the stove?", conversationText(" Sam: Can you bring the stove? ", false, false))
+  }
 }

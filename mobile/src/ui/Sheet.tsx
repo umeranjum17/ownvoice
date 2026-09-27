@@ -56,7 +56,7 @@ export function Sheet({ title, note, mood, onClose, children, cover, onCloseCove
   const dismiss = () => (covered ? onCloseCover?.() : close());
 
   return <View style={styles.scrim}>
-    <Pressable accessibilityLabel="Close" style={styles.outside} onPress={dismiss} />
+    <Pressable accessible={false} style={styles.outside} onPress={dismiss} />
     <Animated.View accessibilityViewIsModal style={[styles.sheet, {
       backgroundColor: t.sheet, borderTopLeftRadius: shape.sheet, borderTopRightRadius: shape.sheet,
       transform: [{ translateY: slide }], opacity: fade, paddingBottom: insets.bottom + 8,
