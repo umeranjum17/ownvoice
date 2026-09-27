@@ -274,25 +274,24 @@ function Welcome({ onContinue }: { onContinue: () => void }) {
   }, [reduced, wave]);
   return <View style={styles.welcome}>
     <View style={{ flex: 1 }} />
-    <Animated.View style={{ transform: [{ rotate: wave.interpolate({ inputRange: [0, 1], outputRange: ['-5deg', '5deg'] }) }] }}>
+    <Animated.View style={{ alignSelf: 'center', transform: [{ rotate: wave.interpolate({ inputRange: [0, 1], outputRange: ['-5deg', '5deg'] }) }] }}>
       <Dot mood="hello" size={96} />
     </Animated.View>
     <Text style={[type.headline, styles.centre, { color: t.text, marginTop: space.l }]}>{words.welcomeTitle}</Text>
     <View style={{ flex: 1 }} />
-    <View style={styles.wide}><Button kind="filled" label={words.continueLabel} onPress={onContinue} /></View>
+    <Button kind="filled" label={words.continueLabel} onPress={onContinue} />
   </View>;
 }
 
 const styles = StyleSheet.create({
   page: { flexGrow: 1, paddingHorizontal: 18, paddingBottom: 28 },
   centre: { textAlign: 'center' as const },
-  welcome: { flex: 1, alignItems: 'center' },
+  welcome: { flex: 1 },
   actions: { flexDirection: 'row', justifyContent: 'center', gap: space.m, marginTop: space.m, flexWrap: 'wrap' },
   chat: { borderRadius: 24, padding: space.l, gap: space.s },
   received: { alignSelf: 'flex-start', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, overflow: 'hidden' },
   field: { minHeight: 48, marginRight: 34, marginTop: space.xs, borderWidth: 1, borderRadius: 24, paddingHorizontal: space.l, paddingVertical: space.m, textAlignVertical: 'top' },
   skip: { alignItems: 'center' },
   grow: { flex: 1, minHeight: space.xxl },
-  wide: { alignSelf: 'stretch' },
   appIcon: { width: 40, height: 40, borderRadius: 10 },
 });

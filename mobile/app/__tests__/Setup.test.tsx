@@ -1,5 +1,5 @@
 import React from 'react';
-import { AccessibilityInfo, BackHandler } from 'react-native';
+import { AccessibilityInfo, BackHandler, StyleSheet } from 'react-native';
 import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -106,6 +106,8 @@ test('welcomeStartsTheDownloadAndMovesToPermission', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
   const screen = await renderSetup();
   expect(await screen.findByText(words.welcomeTitle)).toBeTruthy();
+  const continueButton = screen.getByRole('button', { name: words.continueLabel });
+  expect(StyleSheet.flatten(continueButton.parent?.props.style).alignItems).toBeUndefined();
   await waitFor(() => expect(native.downloadModel).toHaveBeenCalled());
   await fireEvent.press(screen.getByText(words.continueLabel));
   expect(await screen.findByText(words.permissionTitle)).toBeTruthy();
@@ -373,7 +375,7 @@ test('practiceLetsTheBubbleWorkOnlyThereAndEndsOnInsert', async () => {
   expect(screen.queryByText(words.tryDone)).toBeNull();
   events.onInserted?.({ ok: true, newlinesLost: false, practice: true });
   expect(await screen.findByText(words.tryDone)).toBeTruthy();
-  expect(screen.getByText(words.continueLabel)).toBeTruthy();
+  expect(screen.getByRole('button', { name: words.continueLabel })).toBeTruthy();
   expect(screen.queryByText(words.skip)).toBeNull();
   await screen.unmount();
   await waitFor(() => expect(native.setPractice).toHaveBeenLastCalledWith(false));

@@ -380,7 +380,8 @@ class OwnvoiceService : AccessibilityService() {
   }
   private fun finishInsert(text: String, ok: Boolean, newlinesLost: Boolean, done: (Boolean, Boolean) -> Unit) {
     Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost")
-    if (ok) say(if (newlinesLost) "Inserted. Check it looks right before sending." else "Inserted. Send it yourself.")
+    if (ok && insertingPractice) restoreBubble.run() // Setup's own line carries the success message above Continue.
+    else if (ok) say(if (newlinesLost) "Inserted. Check it looks right before sending." else "Inserted. Send it yourself.")
     else { getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text)); say("Couldn't insert. Copied, paste it.") }
     forget()
     inserting = false
