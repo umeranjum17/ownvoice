@@ -31,7 +31,7 @@ export default function Rewrite() {
   const theme = useTheme();
   const [input, setInput] = useState<{ text: string; editable: boolean } | null>(null);
   const [choice, setChoice] = useState<Judge.Rewrite | null>(null);
-  const [result, setResult] = useState<{ text: string; meaning: Judge.Check | null; scores: Judge.Scores } | null>(null);
+  const [result, setResult] = useState<{ text: string; meaning: Judge.Check | null; scores: Judge.Scores; verdict: Judge.Verdict | null } | null>(null);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const run = useRef(0); // a newer tap drops the earlier answer, as JudgeActivity's job cancel does
@@ -56,11 +56,12 @@ export default function Rewrite() {
       if (id !== run.current) return;
       if (!text) { setNote("Couldn't rewrite that. Try again."); return; }
       setNote(input.editable ? 'Replace your text with it, or copy it.' : 'Copy it, then paste it where you like.');
-      setResult({ text, meaning: Judge.meaning(input.text, text, null), scores: Judge.scoreDraft(text, null, true, rules) });
+      setResult({ text, meaning: Judge.meaning(input.text, text, null), scores: Judge.scoreDraft(text, null, true, rules), verdict: null });
       setBusy(false);
       const answer = stub === null ? await Native.ask(`rewrite-check-${Date.now()}`, Judge.rewriteCheckPrompt(input.text, text), { maxTokens: 80 }).catch(() => null) : null;
       if (id !== run.current) return;
-      setResult({ text, meaning: Judge.meaning(input.text, text, answer), scores: Judge.scoreDraft(text, answer, true, rules) });
+      const scores = Judge.scoreDraft(text, answer, true, rules);
+      setResult({ text, meaning: Judge.meaning(input.text, text, answer), scores, verdict: answer && scores.generic !== null && scores.specific !== null ? Judge.verdict(scores) : null });
     } catch (error) {
       if (id !== run.current) return;
       setNote(message(errorCode(error)));
@@ -81,7 +82,7 @@ export default function Rewrite() {
         <Card variant="outlined">
           <Marked text={result.text} hits={result.scores.hits} />
           <MeaningLine check={result.meaning} same="Same meaning as yours" />
-          <VerdictLine verdict={Judge.verdict(result.scores)} />
+          <VerdictLine verdict={result.verdict} />
           <View style={{ flexDirection: 'row', gap: space.s, marginTop: space.m }}>
             {input!.editable ? <Button kind="filled" label="Replace" onPress={() => { void Native.finishRewrite(result.text, true); }} /> : null}
             <Button kind={input!.editable ? 'text' : 'filled'} label="Copy" onPress={() => { void Native.finishRewrite(result.text, false); }} />

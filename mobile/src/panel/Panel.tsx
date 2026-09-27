@@ -260,8 +260,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       return <View key={slot} style={{ marginBottom: space.m }}>
         <Card variant="outlined" label={card.label}>
           <Marked text={card.text} hits={card.scores.hits} />
-          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-            <View style={{ flex: 1 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <View style={{ flex: 1, paddingTop: verdict ? space.s : card.meaning ? 2 : 0 }}>
               {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <VerdictLine verdict={verdict} /> : null}
             </View>
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
