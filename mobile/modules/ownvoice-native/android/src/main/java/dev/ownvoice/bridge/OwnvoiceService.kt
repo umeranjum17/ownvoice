@@ -123,7 +123,12 @@ class OwnvoiceService : AccessibilityService() {
   private val screenH get() = resources.displayMetrics.heightPixels
   /** The overlay is laid out inside the area below the status bar, so the bubble's y is counted from there. */
   private val areaH get() = screenH - statusBarPx
-  private val bubbleSize get() = params.height.takeIf { it > 0 } ?: px(52)
+  private val bubbleSize get(): Int {
+    if (params.height > 0) return params.height
+    bubble.measure(View.MeasureSpec.makeMeasureSpec(screenW, View.MeasureSpec.AT_MOST),
+      View.MeasureSpec.makeMeasureSpec(areaH, View.MeasureSpec.AT_MOST))
+    return bubble.measuredHeight
+  }
   var panelOpen: Boolean
     get() = panelIsOpen
     // When the panel opens, put idle back (the bubble is hidden then), so closing it never leaves the tap mood on the bubble.
@@ -202,7 +207,7 @@ class OwnvoiceService : AccessibilityService() {
     val show = !panelIsOpen && allowed(app)
     bubble.visibility = if (show) View.VISIBLE else View.GONE
     if (!show) return
-    if (resting) { spot = spots.spotFor(app.orEmpty(), areaH, bubbleSize); place() }
+    spot = spots.spotFor(app.orEmpty(), areaH, px(52)); place()
     if (!prefs.getBoolean("tipShown", false)) {
       prefs.edit().putBoolean("tipShown", true).apply()
       say(TIP, 6000)
@@ -226,12 +231,12 @@ class OwnvoiceService : AccessibilityService() {
       MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
         val wasDrag = dragging || BubblePlacement.isDrag(event.rawX - downX, event.rawY - downY, px(BubblePlacement.SLOP_DP))
         dragging = false
-        if (event.actionMasked == MotionEvent.ACTION_CANCEL) { place(); return true }
+        if (event.actionMasked == MotionEvent.ACTION_CANCEL) { updateBubble(); return true }
         if (wasDrag) {
           moveTo(leftAtDown + (event.rawX - downX).roundToInt(), topAtDown + (event.rawY - downY).roundToInt())
           spot = BubbleSpot(BubblePlacement.edge(params.x + bubble.width / 2, screenW), params.y)
           currentApp()?.let { spots.remember(it, spot) }
-          place()
+          updateBubble()
         } else bubble.performClick()
         return true
       }
@@ -389,7 +394,7 @@ class OwnvoiceService : AccessibilityService() {
     bubble.setCompoundDrawablesRelative(moodDrawable(message), null, null, null)
     bubble.compoundDrawablePadding = px(8)
     bubble.setPadding(px(18), px(10), px(18), px(10)); params.width = WindowManager.LayoutParams.WRAP_CONTENT; params.height = WindowManager.LayoutParams.WRAP_CONTENT
-    wm.updateViewLayout(bubble, params); notes.postDelayed(restoreBubble, forMs)
+    updateBubble(); notes.postDelayed(restoreBubble, forMs)
   }
 
   /** A 20 dp mood at the start of the pill: done for inserted and copied, check for look-before-sending. */
