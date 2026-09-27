@@ -2,7 +2,7 @@ import { CHATGPT_OFF } from './switch';
 import { words } from './words';
 import type { ScreenText } from './drafts';
 
-export type DraftRequest = { conversation: string; written: string; app?: string; nodes?: ScreenText[]; fieldTop?: number; typed: string; guide?: string; dashes?: 'keep' | 'remove'; avoid?: string[] };
+export type DraftRequest = { conversation: string; written: string; nodes?: ScreenText[]; fieldTop?: number; typed: string; guide?: string; dashes?: 'keep' | 'remove'; avoid?: string[] };
 export type WriterState = 'downloading' | 'writing';
 export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
 export type Choice = { drafts: string[]; reason?: string };

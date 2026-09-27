@@ -225,7 +225,7 @@ test('a later reply request rechecks permission before sending', async () => {
 test('reply cleanup uses only control labels in the capture', async () => {
   const originalFetch = global.fetch;
   global.fetch = jest.fn(async () => ({ ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"drafts":["Yes.\\nSkip","No.","Maybe."]}' })}\n\n${event({ type: 'response.completed' })}`) } as Response));
-  const input: DraftRequest = { app: 'dev.ownvoice.next', conversation: 'Sam: Saturday?', written: 'Sam: Saturday?', typed: '' };
+  const input: DraftRequest = { conversation: 'Sam: Saturday?', written: 'Sam: Saturday?', typed: '' };
   try {
     expect((await chatgptWriter.write({ ...input, nodes: [{ text: 'Skip', left: 0, top: 30, bottom: 40, clickable: true }] })).drafts[0]).toBe('Yes.');
     expect((await chatgptWriter.write(input)).drafts[0]).toBe('Yes.\nSkip');

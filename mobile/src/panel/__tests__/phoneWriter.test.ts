@@ -10,8 +10,7 @@ const native = Native as jest.Mocked<typeof Native>;
 
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 const LIST = 'I can bring the stove.\n1. I will bring the stove.\n2. You can bring the tent.';
-const request = (over: { app?: string; conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; nodes?: { text: string; left: number; top: number; bottom: number; clickable: boolean }[]; fieldTop?: number } = {}) => ({
-  app: over.app,
+const request = (over: { conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; nodes?: { text: string; left: number; top: number; bottom: number; clickable: boolean }[]; fieldTop?: number } = {}) => ({
   conversation: over.conversation ?? SAM,
   written: over.written ?? SAM,
   nodes: over.nodes ?? [{ text: over.written ?? SAM, left: 0, top: 100, bottom: 180, clickable: false }],
@@ -198,12 +197,12 @@ test('missing labelled first slot is retried without moving the other replies', 
 
 test('only a captured Skip button removes its exact draft line', async () => {
   native.drafts.mockResolvedValue(['Draft 1: Yes, Saturday works. I will bring the stove.\nSkip\nDraft 2: No, could we meet Sunday?\nDraft 3: What time Saturday?']);
-  const captured = { ...request({ app: 'dev.ownvoice.next' }), nodes: [
+  const captured = { ...request(), nodes: [
     ...request().nodes,
     { text: 'Skip', left: 0, top: 300, bottom: 330, clickable: true },
   ] };
   expect((await phoneWriter.write(captured)).drafts[0]).toBe('Yes, Saturday works. I will bring the stove.');
-  expect((await phoneWriter.write(request({ app: 'dev.ownvoice.next' }))).drafts[0]).toBe('Yes, Saturday works. I will bring the stove.\nSkip');
+  expect((await phoneWriter.write(request())).drafts[0]).toBe('Yes, Saturday works. I will bring the stove.\nSkip');
 });
 
 test('practice controls after the message are not sent as the latest message', async () => {

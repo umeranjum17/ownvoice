@@ -138,7 +138,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         const choice = await path.writer.write({
           conversation: value.conversation,
           written: value.written,
-          app: value.app,
           nodes: value.nodes,
           fieldTop: value.fieldTop ?? undefined,
           typed: value.typed.trim(),
