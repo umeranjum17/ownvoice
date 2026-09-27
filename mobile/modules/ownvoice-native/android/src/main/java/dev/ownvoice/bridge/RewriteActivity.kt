@@ -48,14 +48,14 @@ class RewriteActivity : ReactActivity() {
    * Hands the rewrite back to the app and copies it too: Chrome drops the page's selection when
    * another activity comes to the front, so it may ignore the result or insert it at the caret.
    */
-  fun finishRewrite(text: String?) {
+  fun finishRewrite(text: String?, replace: Boolean) {
     if (text == null) {
       Log.i(OwnvoiceService.TAG, "rewrite closed")
       finish()
       return
     }
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", text))
-    if (editable) {
+    if (replace && editable) {
       setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text))
       Toast.makeText(this, "Replaced. Also copied, in case the app didn't take it.", Toast.LENGTH_SHORT).show()
       Log.i(OwnvoiceService.TAG, "rewrite returned sha=${sha(text)}")

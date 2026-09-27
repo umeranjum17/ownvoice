@@ -7,6 +7,8 @@ import Native from '../../../modules/ownvoice-native';
 import Rewrite from '../Rewrite';
 import { technicalWords, words } from '../../core/words';
 import { message } from '../../core/nano';
+import { saveVoice, wipeVoice } from '../../core/voice';
+import { NO_RULES } from '../../core/slop';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
@@ -41,7 +43,7 @@ const visibleStrings = (screen: { toJSON: () => unknown }): string[] => {
 
 const SELECTION = 'I think we should move the call to Tuesday. Really.';
 
-beforeEach(() => { jest.clearAllMocks(); });
+beforeEach(() => { jest.clearAllMocks(); wipeVoice(); });
 
 test('empty selection shows only the plain hint (R2)', async () => {
   const screen = await renderRewrite({ text: '   ', editable: true });
@@ -71,7 +73,7 @@ test('Replace returns the chosen version and copies it (R4)', async () => {
   expect(shown).toContain('Replace your text with it, or copy it.');
   expect(shown).toContain("If the app doesn't take it, it's copied too. Just paste.");
   fireEvent.press(screen.getByRole('button', { name: 'Replace' }));
-  expect(native.finishRewrite).toHaveBeenCalledWith('Move the call to Tuesday.');
+  expect(native.finishRewrite).toHaveBeenCalledWith('Move the call to Tuesday.', true);
   expect(shown.filter(x => technicalWords.test(x))).toEqual([]);
 });
 
@@ -93,7 +95,40 @@ test('read-only offers only Copy (R4)', async () => {
   expect(visibleStrings(screen)).toContain('Copy it, then paste it where you like.');
   expect(visibleStrings(screen)).not.toContain("If the app doesn't take it, it's copied too. Just paste.");
   fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
-  expect(native.finishRewrite).toHaveBeenCalledWith('Moved to Tuesday.');
+  expect(native.finishRewrite).toHaveBeenCalledWith('Moved to Tuesday.', false);
+});
+
+test('editable Copy never returns a replacement', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Tuesday works.');
+  const screen = await renderRewrite({ text: SELECTION, editable: true });
+  fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy());
+  fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
+  expect(native.finishRewrite).toHaveBeenCalledWith('Tuesday works.', false);
+});
+
+test('result is usable while the optional check is pending', async () => {
+  native.ask.mockImplementation((_id: string, prompt: string) => prompt.startsWith('Compare a rewrite')
+    ? new Promise<string>(() => {}) : Promise.resolve('Tuesday works.'));
+  const screen = await renderRewrite({ text: SELECTION, editable: true });
+  fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy());
+  expect(visibleStrings(screen)).toContain('Tuesday works.');
+  fireEvent.press(screen.getByRole('button', { name: 'Replace' }));
+  expect(native.finishRewrite).toHaveBeenCalledWith('Tuesday works.', true);
+});
+
+test('saved writing rules guide and flag the rewrite', async () => {
+  saveVoice({ ...NO_RULES, never: ['cheers mate'], noDashes: true, note: 'short, lowercase' });
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite')
+    ? 'GENERIC: 0\nSPECIFICITY: 10\nMEANING: pass' : 'cheers mate');
+  const screen = await renderRewrite({ text: 'cheers mate — see you soon', editable: true });
+  expect(screen.getByText('cheers mate')).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
+  await waitFor(() => expect(visibleStrings(screen)).toContain('cheers mate'));
+  expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-/), expect.stringContaining("Follow the writer's rules: No em dashes. How they write: short, lowercase"), { maxTokens: 256 });
+  expect(visibleStrings(screen)).toContain("Doesn't sound like you");
+  wipeVoice();
 });
 
 test('an empty rewrite asks for a retry in plain words', async () => {
@@ -114,7 +149,7 @@ test('a writer failure shows its plain error line', async () => {
 test('closing hands nothing back', async () => {
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Close' }));
-  await waitFor(() => expect(native.finishRewrite).toHaveBeenCalledWith(null)); // onClose lands after the fade-out
+  await waitFor(() => expect(native.finishRewrite).toHaveBeenCalledWith(null, false)); // onClose lands after the fade-out
 });
 
 test('a newer chip tap drops the earlier answer', async () => {
