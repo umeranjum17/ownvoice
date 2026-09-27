@@ -216,7 +216,9 @@ const run = async mode => {
   const row = await findLine(rows[rows.length - 1]);
   tap(Math.round(width / 2), row.bottom + 230);
   await wait(1500);
-  await waitForLine('stays on this phone');
+  await waitForLine('write with chatgpt'); // app choices lead to the optional offer, not straight home
+  await tapText('Not'); // OCR reads the narrow Not now pill as “Not nhow” on this profile
+  await waitForLine('where the bubble shows');
   snap(tag('06-home'));
 };
 
