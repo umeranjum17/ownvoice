@@ -3,14 +3,15 @@ import { words } from '../../core/words';
 import { phoneWriter } from '../phoneWriter';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
-  modelStatus: jest.fn(), downloadModel: jest.fn(), drafts: jest.fn(), ask: jest.fn(),
+  modelStatus: jest.fn(), downloadModel: jest.fn(), drafts: jest.fn(), draftStream: jest.fn(), addListener: jest.fn(), ask: jest.fn(),
 } }));
 
 const native = Native as jest.Mocked<typeof Native>;
 
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 const LIST = 'I can bring the stove.\n1. I will bring the stove.\n2. You can bring the tent.';
-const request = (over: { conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; nodes?: { text: string; left: number; top: number; bottom: number; clickable: boolean }[]; fieldTop?: number } = {}) => ({
+const request = (over: { app?: string; conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; nodes?: { text: string; left: number; top: number; bottom: number; clickable: boolean }[]; fieldTop?: number } = {}) => ({
+  app: over.app,
   conversation: over.conversation ?? SAM,
   written: over.written ?? SAM,
   nodes: over.nodes ?? [{ text: over.written ?? SAM, left: 0, top: 100, bottom: 180, clickable: false }],
@@ -28,6 +29,8 @@ beforeEach(() => {
   clock = 1000;
   jest.spyOn(Date, 'now').mockImplementation(() => clock);
   native.modelStatus.mockResolvedValue('available');
+  native.addListener.mockReturnValue({ remove: jest.fn() } as never);
+  native.draftStream.mockImplementation(async (_id, prompt, _maxTokens) => (await native.drafts(prompt, { candidates: 1, maxTokens: 220 })).join('\n'));
 });
 
 afterEach(() => { (Date.now as unknown as jest.SpyInstance).mockRestore(); });
@@ -68,8 +71,26 @@ test('the Sam message reaches the phone model as Latest message above Conversati
   expect(prompt).toContain('Say yes or agree, and answer each point.');
   expect(prompt).toContain(`Conversation:\n${SAM}`);
   expect(options).toEqual({ candidates: 1, maxTokens: 220 });
+  expect(native.draftStream).toHaveBeenCalledTimes(1);
   expect(landed.map(([, slot]) => slot)).toEqual([0, 1, 2]);
   expect(landed.every(([text]) => text.includes('stove'))).toBe(true);
+});
+
+test('first complete streamed card lands before the stand-in full response', async () => {
+  let partial: ((event: { id: string; text: string }) => void) | undefined;
+  native.addListener.mockImplementation((_name, callback) => { partial = callback as typeof partial; return { remove: jest.fn() } as never; });
+  const landedAt: number[] = [];
+  native.draftStream.mockImplementation(async (id) => {
+    setClock(3400);
+    partial?.({ id, text: 'Draft 1: Yes, Saturday works; I can bring the stove.\nDraft 2:' });
+    expect(landedAt).toEqual([3400]); // 2.4 s, not the full-response 23 s
+    setClock(24000);
+    partial?.({ id, text: ' No, could we move it?\nDraft 3: What time Saturday?' });
+    return 'Draft 1: Yes, Saturday works; I can bring the stove.\nDraft 2: No, could we move it?\nDraft 3: What time Saturday?';
+  });
+  await phoneWriter.write(request(), { landed: () => landedAt.push(Date.now()) });
+  expect(landedAt[0]).toBe(3400);
+  expect(landedAt.length).toBeGreaterThanOrEqual(2);
 });
 
 test('exact duplicate replies are dropped and their slots refilled with the shown texts off-limits', async () => {
@@ -106,8 +127,8 @@ test('a rejected middle reply refills the decline slot without shifting the unsu
   expect(drafts).toEqual(['Yes, Saturday works; I can bring the stove.', 'No, Saturday works; I can bring the stove.', 'Not sure yet, what time?']);
 });
 
-test('mixed labelled and unlabelled replies retain their slots without retries', async () => {
-  native.drafts.mockResolvedValue(['Draft 1: Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
+test('one streamed response retains all labelled slots without retries', async () => {
+  native.drafts.mockResolvedValue(['Draft 1: Yes, I can bring it.\nDraft 2: No, could we change the day?\nDraft 3: Not sure; what time?']);
   const landed: number[] = [];
   const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });
   expect(drafts).toEqual(['Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
@@ -124,6 +145,12 @@ test('missing labelled first slot is retried without moving the other replies', 
   expect(native.ask.mock.calls[0][1]).toContain('Say yes or agree');
   expect(landed).toEqual([1, 2, 0]);
   expect(drafts).toEqual(['Yes, Saturday works.', 'No, Saturday is out.', 'Not sure yet, what time?']);
+});
+
+test('practice reply drops the leaked Skip control while retaining Sam’s answer', async () => {
+  native.drafts.mockResolvedValue(['Draft 1: Yes, Saturday works. I will bring the stove. Skip.\nDraft 2: No, could we meet Sunday?\nDraft 3: What time Saturday?']);
+  const { drafts } = await phoneWriter.write(request({ app: 'dev.ownvoice.next' }));
+  expect(drafts[0]).toBe('Yes, Saturday works. I will bring the stove.');
 });
 
 test('practice controls after the message are not sent as the latest message', async () => {
@@ -210,7 +237,7 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
 test('a polish of the numbered list keeps the list, after one layout fix', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove, and you the tent."]}';
-    if (prompt.includes('Keep their line breaks and list exactly.')) return 'Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.';
+    if (prompt.includes('Keep exactly 3 lines')) return 'Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.';
     if (prompt.includes('Tighter:')) return 'Saturday works.\n1. I bring the stove.\n2. Tent is yours.';
     return 'Stove and tent split:\n1. The stove is mine to bring.\n2. The tent is yours to bring.';
   });
@@ -224,30 +251,32 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Saturday plan:\\n1. I bring the stove.\\n2. You bring the tent, please.","Saturday plan:\\n1. Stove: mine.\\n2. Tent: yours."]}';
+    if (prompt.startsWith('Rewrite this one line')) return prompt.endsWith('I will bring the stove.') ? 'I bring the stove.' : prompt.endsWith('You can bring the tent.') ? 'You bring the tent.' : 'Saturday plan:';
     return 'Saturday plan:\n1. Stove: mine.\n2. Tent: yours.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toHaveLength(2);
+  expect(drafts).toHaveLength(3);
   for (const draft of drafts) {
     expect(draft).toMatch(/1\. /);
     expect(draft).toMatch(/2\. /);
   }
 });
 
-test('a version that stays flattened after its fix is dropped', async () => {
+test('a version that stays flattened after its fix gets a line-by-line rewrite', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove, and you the tent.","I can bring the stove.\n1. I will bring the stove.","Third:\n1. different\n2. version there"]}';
     return 'Still one flat line, again.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toEqual(['Third:\n1. different\n2. version there']);
+  expect(drafts).toContain('Third:\n1. different\n2. version there');
+  expect(drafts.some(draft => draft.includes('1. ') && draft.includes('2. '))).toBe(true);
 });
 
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
   native.ask.mockResolvedValueOnce('{"versions":["Yours — dashed","Yours — dashed, kept."]}')
     .mockResolvedValue('Yours — dashed');
   const { drafts } = await phoneWriter.write(request({ typed: 'yours — dashed', dashes: 'keep' }));
-  expect(drafts).toEqual(['Yours — dashed, kept.']);
+  expect(drafts).toEqual(['Yours — dashed, kept']);
 });
 
 test('their dash rule is removed by the writer even when the model leaks one', async () => {

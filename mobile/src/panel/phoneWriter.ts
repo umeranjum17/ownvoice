@@ -31,12 +31,33 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
   }, dashes);
   // A flattened list goes back through its slot once; still flat means dropped (spec 5.2).
   for (const fail of acceptor.layoutFails) {
+    const lines = request.typed.split('\n');
     const prompt = versionPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes)
-      + '\n- Keep their line breaks and list exactly.' + (note ? `\n\n${note}` : '');
+      + `\nKeep exactly ${lines.length} lines in this order, including blank lines. Keep these line prefixes exactly: ${lines.map((line, i) => `${i + 1}: ${line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '(none)'}`).join('; ')}. Do not combine lines.` + (note ? `\n\n${note}` : '');
     let again = '';
-    try { again = await engine.ask(prompt, 256); } catch { continue; }
-    const fixed = acceptor.fix(again, fail.slot, fail.label);
+    try { again = await engine.ask(prompt, 256); } catch { /* use the line-by-line fallback */ }
+    let fixed = acceptor.fix(again, fail.slot, fail.label);
+    if (fixed == null) {
+      // The model can flatten a list twice; rewrite each line, restoring its exact marker.
+      const rewritten: string[] = [];
+      for (const line of lines) {
+        if (!line.trim()) { rewritten.push(line); continue; }
+        const marker = line.match(/^(\s*(?:\d+[.)]|[-*•])\s+)(.*)$/);
+        const body = marker?.[2] ?? line;
+        try {
+          const result = await engine.ask(`Rewrite this one line briefly, keeping its meaning. Output only its words, without a list marker or extra lines:\n${body}`, 80);
+          const words = result.trim().replace(/^(?:\d+[.)]|[-*•])\s+/, '').split(/\r?\n/)[0] || body;
+          rewritten.push((marker?.[1] ?? '') + words);
+        } catch { rewritten.push(line); }
+      }
+      fixed = acceptor.fix(rewritten.join('\n'), fail.slot, fail.label);
+    }
     if (fixed != null) landed(fixed, fail.slot, fail.label);
+  }
+  if (!acceptor.results.length) {
+    // An already good message is safer than an empty panel after successful model calls.
+    landed(request.typed, 0, versionsList[0].label);
+    return [request.typed];
   }
   return acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
 }
@@ -47,12 +68,42 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide };
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
-  const made = acceptReplies(await Native.drafts(phoneReplyPrompt(input), { candidates: 1, maxTokens: 220 }), exclude, 3, dashes);
-  made.forEach((text, slot) => { if (text) { exclude.push(text); landed(text, slot); } });
+  const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
+  if (request.app === 'dev.ownvoice.next') controls.push('Skip');
+  const made: (string | null)[] = [null, null, null];
+  let partial = '';
+  const id = `reply-${Date.now()}-${calls++}`;
+  const take = (source: string, complete: boolean) => {
+    // A slot is safe to show only once the next label (or the response end) closes it.
+    const markers = [...source.matchAll(/(?:^|\n)Draft ([1-3]):\s*/g)];
+    const upto = markers.length < 2 ? 0 : complete ? markers.length : markers.length - 1;
+    for (let i = 0; i < upto; i++) {
+      const slot = Number(markers[i][1]) - 1;
+      if (slot < 0 || slot > 2 || made[slot]) continue;
+      const body = source.slice(markers[i].index! + markers[i][0].length, markers[i + 1]?.index ?? source.length);
+      const [text] = acceptReplies([body], exclude, 1, dashes, controls);
+      if (text) {
+        made[slot] = text; exclude.push(text); landed(text, slot);
+        if (exclude.length === (request.avoid?.length ?? 0) + 1) console.log(`Ownvoice first draft ms=${Date.now() - started}`);
+      }
+    }
+  };
+  const subscription = Native.addListener('onModelPartial', event => {
+    if (event.id === id) { partial += event.text; take(partial, false); }
+  });
+  try {
+    const answer = await Native.draftStream(id, phoneReplyPrompt(input), 220);
+    take(answer, true);
+    if (!made.some(Boolean)) {
+      acceptReplies([answer], exclude, 3, dashes, controls).forEach((text, slot) => {
+        if (text) { made[slot] = text; exclude.push(text); landed(text, slot); }
+      });
+    }
+  } finally { subscription.remove(); }
   for (let slot = 0; slot < REPLY_SLOTS.length && Date.now() - started <= FILL_MS; slot++) {
     if (made[slot]) continue;
     try {
-      const [draft] = acceptReplies([await ask(phoneSlotPrompt(REPLY_SLOTS[slot], input, exclude), 120)], exclude, 1, dashes);
+      const [draft] = acceptReplies([await ask(phoneSlotPrompt(REPLY_SLOTS[slot], input, exclude), 120)], exclude, 1, dashes, controls);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }
@@ -71,12 +122,12 @@ export const phoneWriter = {
       return { drafts };
     }
     try {
+      const started = Date.now();
       if (await Native.modelStatus() !== 'available') {
         on.state?.('downloading');
         await Native.downloadModel();
       }
       on.state?.('writing');
-      const started = Date.now();
       const drafts = request.typed.trim()
         ? await polish(request, on)
         : await replies(request, on, started);

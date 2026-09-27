@@ -139,6 +139,14 @@ test('an empty rewrite asks for a retry in plain words', async () => {
   await waitFor(() => expect(visibleStrings(screen)).toContain("Couldn't rewrite that. Try again."));
 });
 
+test('Fix spelling leaves a selected single word without a full stop', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? '' : 'meeting.');
+  const screen = await renderRewrite({ text: 'meeting', editable: false });
+  fireEvent.press(screen.getByRole('button', { name: 'Fix spelling' }));
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy());
+  expect(visibleStrings(screen)).not.toContain('meeting.');
+});
+
 test('a writer failure shows its plain error line', async () => {
   native.ask.mockRejectedValue(new Error('HTTP 9 too much'));
   const screen = await renderRewrite({ text: SELECTION, editable: true });

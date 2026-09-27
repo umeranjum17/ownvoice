@@ -126,6 +126,21 @@ class OwnvoiceNativeModule : Module() {
         }
       } catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
     }
+    AsyncFunction("draftStream") Coroutine { id: String, prompt: String, maxTokens: Int ->
+      try {
+        val started = android.os.SystemClock.elapsedRealtime()
+        var first = true
+        val answer = PhoneModel.draftStream(prompt, maxTokens) { delta ->
+          if (first) {
+            first = false
+            android.util.Log.d(OwnvoiceService.TAG, "draft first token ms=${android.os.SystemClock.elapsedRealtime() - started}")
+          }
+          sendEvent("onModelPartial", mapOf("id" to id, "text" to delta))
+        }
+        android.util.Log.d(OwnvoiceService.TAG, "draft complete ms=${android.os.SystemClock.elapsedRealtime() - started}")
+        answer
+      } catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
+    }
     AsyncFunction("drafts") Coroutine { prompt: String, options: Map<String, Any?> ->
       try {
         PhoneModel.drafts(prompt, (options["candidates"] as? Number)?.toInt() ?: 3,

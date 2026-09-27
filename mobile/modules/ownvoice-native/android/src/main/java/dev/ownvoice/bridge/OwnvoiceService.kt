@@ -1,6 +1,7 @@
 package dev.ownvoice.bridge
 
 import android.accessibilityservice.AccessibilityService
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -35,6 +36,9 @@ internal fun accessibleText(text: CharSequence?, isShowingHintText: Boolean): St
 
 internal fun capturedInputText(text: CharSequence?, isShowingHintText: Boolean): String =
   accessibleText(text, isShowingHintText).orEmpty()
+
+internal fun conversationText(text: CharSequence?, hint: Boolean, action: Boolean): String? =
+  if (action) null else accessibleText(text, hint)?.trim()?.takeIf { it.isNotEmpty() }
 
 class OwnvoiceService : AccessibilityService() {
   companion object {
@@ -141,6 +145,7 @@ class OwnvoiceService : AccessibilityService() {
 
   override fun onServiceConnected() {
     super.onServiceConnected()
+    serviceInfo = serviceInfo.apply { flags = flags or AccessibilityServiceInfo.FLAG_REPORT_VIEW_IDS }
     paused = prefs.getBoolean("paused", false)
     onApps = prefs.getStringSet("on", emptySet()).orEmpty()
     offApps = prefs.getStringSet("off", emptySet()).orEmpty()
@@ -294,7 +299,10 @@ class OwnvoiceService : AccessibilityService() {
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     val nodes = mutableListOf<ScreenText>()
-    (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written, nodes) }
+    val practiceField = app == packageName && field?.contentDescription?.toString() == "Practice message"
+    // Only the chat containing the practice field is conversation; setup instructions live outside it.
+    (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written, nodes, practiceField) }
+    Log.d(TAG, "capture practice=$practiceField conversationLines=${lines.size} clickableNodes=${nodes.count { it.clickable }}")
     val fieldBounds = Rect()
     field?.getBoundsInScreen(fieldBounds)
     val typed = capturedInputText(field?.text, field?.isShowingHintText == true)
@@ -324,14 +332,17 @@ class OwnvoiceService : AccessibilityService() {
     }
     return find(focus)
   }
-  private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>) {
+  private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>, practice: Boolean) {
     fun walk(node: AccessibilityNodeInfo, clickable: Boolean) {
       if (node == skip || !node.isVisibleToUser) return
       val action = clickable || node.isClickable || node.className?.toString()?.endsWith("Button") == true
-      accessibleText(node.text ?: node.contentDescription, node.isShowingHintText)?.trim()?.takeIf { it.isNotEmpty() }?.let {
-        if (lines.lastOrNull() != it) lines += it
+      val text = if (practice && node.viewIdResourceName?.startsWith("practice-line-") != true) null
+        else accessibleText(node.text ?: node.contentDescription, node.isShowingHintText)?.trim()?.takeIf { it.isNotEmpty() }
+      val conversation = if (text != null) conversationText(node.text ?: node.contentDescription, node.isShowingHintText, action) else null
+      if (conversation != null && lines.lastOrNull() != conversation) lines += conversation
+      text?.let {
         if (node.text != null && !node.isEditable) {
-          written += it
+          if (conversation != null) written += it
           val bounds = Rect()
           node.getBoundsInScreen(bounds)
           val density = resources.displayMetrics.density

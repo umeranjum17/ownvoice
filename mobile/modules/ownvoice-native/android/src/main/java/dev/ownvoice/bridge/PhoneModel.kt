@@ -71,6 +71,19 @@ internal object PhoneModel {
     return text.toString().trim().ifEmpty { throw IllegalStateException("Empty answer") }
   }
 
+  suspend fun draftStream(prompt: String, maxTokens: Int, partial: (String) -> Unit): String {
+    val request = generateContentRequest(TextPart(prompt)) {
+      temperature = 0.9f
+      topK = 40
+      maxOutputTokens = maxTokens
+    }
+    val text = StringBuilder()
+    model.generateContentStream(request).collect { response ->
+      response.candidates.firstOrNull()?.text?.let { delta -> text.append(delta); partial(delta) }
+    }
+    return text.toString().trim().ifEmpty { throw IllegalStateException("Empty answer") }
+  }
+
   suspend fun drafts(prompt: String, candidates: Int, maxTokens: Int): List<String> {
     val request = generateContentRequest(TextPart(prompt)) {
       temperature = 0.9f

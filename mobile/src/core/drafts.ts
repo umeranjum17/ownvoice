@@ -58,6 +58,11 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
   return drafts;
 }
 
+export function preserveFragment(original: string, text: string): string {
+  return !/[.!?。！？]\s*$/.test(original.trim()) && original.trim().split(/\s+/).length <= 4
+    ? text.replace(/[.!?。！？]+\s*$/, '') : text;
+}
+
 // ---- 5.3 Duplicates ----
 
 export function norm(text: string): string {
@@ -197,12 +202,19 @@ export function replySlotPrompt(slot: string, input: ReplyInput): string {
   return replyPrompt({ ...input, slots: [slot] });
 }
 
-export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove'): (string | null)[] {
+export function stripControlLines(text: string, controls: string[]): string {
+  const labels = new Set(controls.map(norm).filter(Boolean));
+  const cleaned = text.split(/\r?\n/).filter(line => !labels.has(norm(line))).join('\n').trim();
+  return labels.has('skip') ? cleaned.replace(/(?<=[.!?])\s+Skip\.\s*$/i, '').trim() : cleaned;
+}
+
+export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = []): (string | null)[] {
   const accepted: (string | null)[] = Array(count).fill(null);
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
-    const draft = dashes === 'remove' ? undash(text) : text;
+    const clean = stripControlLines(text, controls);
+    const draft = dashes === 'remove' ? undash(clean) : clean;
     if (draft && fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
   };
   for (const candidate of candidates) {
@@ -232,7 +244,7 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
   const shown: string[] = [];
   const results: AcceptedVersion[] = [];
   const layoutFails: { slot: number; label?: string }[] = [];
-  const clean = (text: string) => (dashes === 'remove' ? undash(text) : text).trim();
+  const clean = (text: string) => preserveFragment(original, dashes === 'remove' ? undash(text) : text).trim();
   const distinct = (text: string) => norm(text) !== norm(original) && fresh(text, [...shown, ...avoid]);
   const usable = (text: string) => distinct(text) && layoutKept(original, text);
   return {

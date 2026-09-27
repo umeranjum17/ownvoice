@@ -13,6 +13,8 @@ npm test -- --ci
 
 ## Checks
 
+On the practice screen the native capture reads only the chat containing the message field; in other apps clickable controls are excluded from conversation text. The phone writer streams one labelled three-reply response and shows each completed card before the full response; `OwnvoiceNative` debug logs record first-token and full-response milliseconds, and the JS log records first-card milliseconds. A stand-in stream test simulates a first card at 2.4 s and a full response at 23 s; these are not real-model measurements. Chrome can lose its contenteditable selection while the rewrite activity is in front: Ownvoice returns the standard `ACTION_PROCESS_TEXT` result and copies the result, but Chrome may insert it at the caret rather than replacing the original selection. Paste the copied text if Chrome does not replace it.
+
 The ported core checks are in `src/core/__tests__/`; the phone writer has checks in `src/panel/__tests__/`, setup and settings in `app/__tests__/`, and the draft-quality rules in `src/core/__tests__/DraftsTest.test.ts`. The ChatGPT response and switch helpers have tests in `src/chatgpt/__tests__/` and `src/core/__tests__`. Earlier panel emulator evidence: [`reports/OWNVOICE-RN-05.md`](reports/OWNVOICE-RN-05.md). Run the commands above for the current suite.
 
 ## Android build and device checks
