@@ -22,6 +22,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
       body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
     };
     await on?.sent?.();
+    if (on?.beforeSend && !(await on.beforeSend())) throw new Error('App choice changed');
     const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', request);
     if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
     if (!response.body) throw new Error('ChatGPT did not answer.');

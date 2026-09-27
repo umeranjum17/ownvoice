@@ -6,6 +6,7 @@ import Native from '../../../modules/ownvoice-native';
 import { codexAuth, reportFailure, signOut } from '../accounts';
 import { session } from '../session';
 import { phoneWriter } from '../../panel/phoneWriter';
+import { words } from '../../core/words';
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
@@ -133,7 +134,7 @@ test.each([1, 2])('an unreadable switch on read %i uses the phone without losing
   try {
     const route = await gptRoute('com.twitter.android', fetcher);
     expect(route.writer).toBe(phoneWriter);
-    expect(route.note).toBe(CHATGPT_OFF);
+    expect(route.note).toBe(words.switchUnavailable);
     expect(fetcher).toHaveBeenCalledTimes(failedRead === 1 ? 0 : 1);
     expect(kv.get('chatgpt-switch')).toEqual(JSON.stringify({ seq: 1, chatgpt: 'off', fetchedAt: 0 }));
   } finally {
@@ -156,7 +157,7 @@ test('a switch read failure during verification cannot reuse an earlier on choic
     const route = await gptRoute('com.twitter.android', fetcher);
     expect(fetcher).toHaveBeenCalledTimes(1);
     expect(route.writer).toBe(phoneWriter);
-    expect(route.note).toBe(CHATGPT_OFF);
+    expect(route.note).toBe(words.switchUnavailable);
   } finally {
     get.mockRestore();
   }
@@ -181,6 +182,66 @@ test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the R
     global.fetch = originalFetch;
     get?.mockRestore();
   }
+});
+
+test('an unreadable switch without a verified off choice uses a neutral phone reason', async () => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
+    if (key === 'chatgpt-switch') throw new Error('unavailable');
+    return kv.get(key as string) ?? null;
+  });
+  try {
+    const route = await gptRoute('com.twitter.android', offline);
+    expect(route.writer).toBe(phoneWriter);
+    expect(route.note).toBe(words.switchUnavailable);
+  } finally { get.mockRestore(); }
+});
+
+test('a pending consent save cannot restore choices after sign-out', async () => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  const readyState = await session.current();
+  let release!: (state: typeof readyState) => void;
+  const current = jest.spyOn(session, 'current').mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+  try {
+    const saving = saveGptApps({ on: ['com.Slack'] });
+    await session.signOut();
+    release(readyState);
+    expect(await saving).toBe(false);
+    expect(gptApps()).toBeNull();
+  } finally { current.mockRestore(); }
+});
+
+test('pending logout blocks a credentialed send even with stale choices and ready status', async () => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  const route = await gptRoute('com.twitter.android', offline);
+  let releaseAuth!: (auth: { access: string; accountId: string }) => void;
+  let authStarted!: () => void;
+  const started = new Promise<void>(resolve => { authStarted = resolve; });
+  (codexAuth as jest.Mock).mockImplementationOnce(() => {
+    authStarted();
+    return new Promise(resolve => { releaseAuth = resolve; });
+  });
+  let releaseLogout!: () => void;
+  (signOut as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => { releaseLogout = resolve; }));
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  const sent = jest.fn();
+  try {
+    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent });
+    await started;
+    const clear = jest.spyOn(store, 'set').mockImplementationOnce(() => { throw new Error('full'); });
+    const leaving = session.signOut();
+    clear.mockRestore();
+    expect(gptChoice('com.twitter.android')).toBe(true);
+    expect(await saveGptApps({ on: [] })).toBe(false);
+    releaseAuth({ access: 'fixture-access', accountId: 'fixture-account' });
+    expect(await writing).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
+    releaseLogout();
+    await leaving;
+  } finally { global.fetch = originalFetch; }
 });
 
 test('sign-out blocks an in-flight send even when clearing app choices fails', async () => {

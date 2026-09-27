@@ -6,6 +6,14 @@ export const NAME = 'ChatGPT';
 export const GPT_APPS_KEY = 'chatgpt-apps';
 
 export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
+let signingOut = 0;
+let signOutEpoch = 0;
+export const signOutGuard = () => ({ active: signingOut > 0, epoch: signOutEpoch });
+const leaving = async (run: () => Promise<GptState>): Promise<GptState> => {
+  signingOut++;
+  signOutEpoch++;
+  try { return await run(); } finally { signingOut--; }
+};
 const MOCK_CODE = 'KQPT-MXVD';
 const MOCK_WAIT_MS = 9000;
 
@@ -47,9 +55,11 @@ const live = () => require('./accounts') as typeof import('./accounts');
 
 const real: Session = {
   current: async () => {
+    if (signingOut) return nothing;
     const a = live();
     await a.refresh().catch(() => {});
-    return stateOf(a.signInState(), await a.status().catch(() => null));
+    const state = stateOf(a.signInState(), await a.status().catch(() => null));
+    return signingOut ? nothing : state;
   },
   start: async () => {
     store.set(GPT_APPS_KEY, null);
@@ -61,11 +71,11 @@ const real: Session = {
     live().cancelSignIn();
     return { ...nothing, note: say('signIn.cancelled', { name: NAME }) };
   },
-  signOut: async () => {
+  signOut: () => leaving(async () => {
     try { store.set(GPT_APPS_KEY, null); } catch {}
     await live().signOut();
     return { ...nothing, note: say('status.signedOut', { name: NAME }) };
-  },
+  }),
 };
 
 let startedAt = 0;
@@ -73,7 +83,7 @@ let connectedAt = 0;
 
 const mock: Session = {
   current: async () => {
-    if (!startedAt) return { ...nothing };
+    if (signingOut || !startedAt) return { ...nothing };
     if (Date.now() - startedAt < MOCK_WAIT_MS) return waiting();
     connectedAt = startedAt;
     return connected();
@@ -88,12 +98,12 @@ const mock: Session = {
     startedAt = 0;
     return { ...nothing, note: say('signIn.cancelled', { name: NAME }) };
   },
-  signOut: async () => {
+  signOut: () => leaving(async () => {
     startedAt = 0;
     connectedAt = 0;
     store.set(GPT_APPS_KEY, null);
     return { ...nothing, note: say('status.signedOut', { name: NAME }) };
-  },
+  }),
 };
 
 const waiting = (): GptState => ({ signedIn: false, waiting: true, code: MOCK_CODE, url: null, note: say('signIn.waitingUrl', { name: NAME }), resting: null });

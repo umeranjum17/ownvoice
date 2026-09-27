@@ -4,13 +4,17 @@ import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch'
 import { store } from '../core/store';
 import { routeWriters, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
-import { GPT_APPS_KEY, mocked, session } from './session';
+import { words } from '../core/words';
+import { GPT_APPS_KEY, mocked, session, signOutGuard } from './session';
 
 export type GptApps = { on: string[] };
 
 export const gptApps = (strict = false): GptApps | null => store.get<GptApps>(GPT_APPS_KEY, strict);
 export async function saveGptApps(apps: GptApps): Promise<boolean> {
-  if (!(await session.current()).signedIn) return false;
+  const before = signOutGuard();
+  if (before.active || !(await session.current()).signedIn) return false;
+  const after = signOutGuard();
+  if (after.active || after.epoch !== before.epoch) return false;
   store.set(GPT_APPS_KEY, apps);
   return true;
 }
@@ -26,18 +30,23 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   const state = await session.current();
   const rules = await Native.bubbleRules().catch(() => null);
   const allowed = !!rules && !rules.paused && chatgptAllowed(showsBubble(app, rules), gptChoice(app));
-  const enabled = state.signedIn && allowed && (mocked || await chatgptEnabled(switchStore, fetcher).catch(() => false));
-  return routeWriters({
+  let switchFailed = false;
+  const enabled = state.signedIn && allowed && (mocked || await chatgptEnabled(switchStore, fetcher).catch(() => { switchFailed = true; return false; }));
+  const route = routeWriters({
     signedIn: state.signedIn,
     allowed,
     enabled,
     note: state.resting,
     chatgpt: () => ({ write: async (request, on = {}) => {
       const beforeSend = async () => {
+        const before = signOutGuard();
+        if (before.active) return false;
         const current = await Native.bubbleRules().catch(() => null);
-        return !!current && !current.paused && chatgptAllowed(showsBubble(app, current), gptChoice(app))
-          && (mocked || await currentSwitch(switchStore).then(choice => choice?.chatgpt !== 'off', () => false))
-          && (await session.current()).signedIn;
+        if (!current || current.paused || !chatgptAllowed(showsBubble(app, current), gptChoice(app))) return false;
+        if (!mocked && !(await currentSwitch(switchStore).then(choice => choice?.chatgpt !== 'off', () => false))) return false;
+        const signedIn = (await session.current()).signedIn;
+        const after = signOutGuard();
+        return signedIn && !after.active && after.epoch === before.epoch;
       };
       if (mocked) {
         if (!(await beforeSend())) throw new Error('App choice changed');
@@ -51,4 +60,5 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
     },
     phone: phoneWriter,
   });
+  return switchFailed ? { ...route, note: words.switchUnavailable } : route;
 }
