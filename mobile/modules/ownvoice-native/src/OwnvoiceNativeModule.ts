@@ -3,7 +3,7 @@ import { NativeModule, requireNativeModule } from 'expo';
 export type ServiceState = 'on' | 'off' | 'stuck';
 import type { ScreenText } from '../../../src/core/drafts';
 export type Capture = { conversation: string; written: string; nodes: ScreenText[]; fieldTop: number | null; typed: string; app: string; label: string; at: number; id: string; hasField: boolean };
-export type TapFact = { id: string; at: number; app: string; label: string; screen: boolean; typed: boolean; replying: boolean; sent: boolean; legacySummary?: string | null };
+export type TapFact = { id: string; at: number; app: string; label: string; screen: boolean; typed: boolean; replying: boolean; sent: boolean };
 export type ModelStatus = 'available' | 'downloadable' | 'downloading' | 'unavailable';
 type Events = {
   onServiceChange: (event: { state: ServiceState }) => void;
@@ -27,7 +27,6 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   forget(): Promise<void>;
   takeTapFacts(): Promise<TapFact[]>;
   markTapSent(id: string): Promise<void>;
-  importReadHistory(rows: { id: string; time: number; app: string; label: string; summary: string }[]): Promise<void>;
   clearTapFacts(): Promise<void>;
   copy(text: string): Promise<void>;
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;

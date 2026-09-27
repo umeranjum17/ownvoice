@@ -2,7 +2,8 @@ import React from 'react';
 import { render, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Panel from '../Panel';
-import Native, { type Capture } from '../../../modules/ownvoice-native';
+import Native, { type Capture, type TapFact } from '../../../modules/ownvoice-native';
+import { syncReadLog } from '../../core/readLog';
 import { words } from '../../core/words';
 import { CHATGPT_OFF } from '../../core/switch';
 import { routeWriters, type Writer } from '../../core/writers';
@@ -19,7 +20,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({
     addListener: jest.fn(() => ({ remove: () => {} })),
     capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(),
     modelStatus: jest.fn(async () => 'available'), ask: jest.fn(), closePanel: jest.fn(), bubbleRules: jest.fn(),
-    markTapSent: jest.fn(async () => {}),
+    markTapSent: jest.fn(async () => {}), takeTapFacts: jest.fn(),
   },
 }));
 
@@ -59,6 +60,20 @@ test('ChatGPT writes, the drafts say nothing about it, and the read log notes th
   await waitFor(() => expect(shown(screen)).toContain('ChatGPT one'));
   expect(shown(screen)).not.toContain(CHATGPT_OFF);
   expect(shown(screen)).not.toContain(words.fallback);
+  expect(sentTap()).toEqual(['tap-1']);
+  expect(kv.has('reads')).toBe(false);
+});
+
+test('one tap keeps one native fact after a repeated send and phone fallback', async () => {
+  const facts: TapFact[] = [{ id: 'tap-1', at: Date.now(), app: 'com.twitter.android', label: 'X', screen: true, typed: false, replying: true, sent: false }];
+  native.markTapSent.mockImplementation(async id => { const fact = facts.find(f => f.id === id); if (fact) fact.sent = true; });
+  native.takeTapFacts.mockImplementation(async () => facts);
+  const screen = await open({ chatgpt: () => broken });
+  await waitFor(() => expect(shown(screen)).toContain('Phone one'));
+  const rows = await syncReadLog();
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({ id: 'tap-1', app: 'com.twitter.android', summary: 'Suggested replies. Read the chat on screen. Sent to ChatGPT.' });
+  expect(await syncReadLog()).toEqual(rows);
   expect(sentTap()).toEqual(['tap-1']);
   expect(kv.has('reads')).toBe(false);
 });

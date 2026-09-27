@@ -83,10 +83,9 @@ class OwnvoiceNativeModule : Module() {
       OwnvoiceService.instance?.captured()?.let { c -> mapOf("conversation" to c.conversation, "written" to c.written, "typed" to c.typed, "app" to c.app, "label" to c.label, "at" to c.at, "id" to c.id, "hasField" to (c.input != null), "fieldTop" to c.fieldTop, "nodes" to c.nodes.map { mapOf("text" to it.text, "left" to it.left, "top" to it.top, "bottom" to it.bottom, "clickable" to it.clickable) }) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("takeTapFacts") {
-      OwnvoiceService.savedFacts(context).map { mapOf("at" to it.at, "app" to it.app, "label" to it.label, "screen" to it.screen, "typed" to it.typed, "replying" to it.replying, "id" to it.id, "sent" to it.sent, "legacySummary" to it.legacySummary) }
+      OwnvoiceService.savedFacts(context).map { mapOf("at" to it.at, "app" to it.app, "label" to it.label, "screen" to it.screen, "typed" to it.typed, "replying" to it.replying, "id" to it.id, "sent" to it.sent) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("markTapSent") { id: String -> OwnvoiceService.markTapSent(context, id) }.runOnQueue(Queues.MAIN)
-    AsyncFunction("importReadHistory") { rows: List<Map<String, Any?>> -> OwnvoiceService.importReadHistory(context, rows) }.runOnQueue(Queues.MAIN)
     AsyncFunction("clearTapFacts") {
       OwnvoiceService.clearSavedFacts(context)
     }.runOnQueue(Queues.MAIN)

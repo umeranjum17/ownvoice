@@ -1,6 +1,5 @@
 import Native, { type TapFact } from '../../../modules/ownvoice-native';
 import { KEEP_MS } from '../privacy';
-const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 import { readLog, recordFacts, syncReadLog, wipeReadLog } from '../readLog';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: { takeTapFacts: jest.fn(), clearTapFacts: jest.fn() } }));
@@ -28,13 +27,6 @@ test('empty and typed taps disclose only metadata; 30-day retention is applied',
   const rows = recordFacts([fact({ screen: false, replying: false }), fact({ typed: true, replying: false, screen: false }), fact({ at: NOW - KEEP_MS })], NOW);
   expect(rows.map(r => r.summary)).toEqual(['Nothing to help with. Nothing was on screen.', 'Polished your message. Read your message.']);
   expect(JSON.stringify(rows)).not.toMatch(/Sam|tent|stove/i);
-});
-
-test('wipe removes even malformed legacy history', async () => {
-  kv.set('reads', 'invalid');
-  await wipeReadLog();
-  expect(kv.has('reads')).toBe(false);
-  expect(native.clearTapFacts).toHaveBeenCalled();
 });
 
 test('failed refresh keeps the last native snapshot; failed wipe leaves it intact', async () => {

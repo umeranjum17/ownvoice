@@ -6,7 +6,7 @@ import Voice, { foundLines } from '../voice';
 import Reads from '../reads';
 import Native, { type TapFact } from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
-import { readLog, syncReadLog } from '../../src/core/readLog';
+import { readLog } from '../../src/core/readLog';
 import { loadVoice } from '../../src/core/voice';
 
 jest.mock('../../modules/ownvoice-native', () => ({
@@ -14,7 +14,7 @@ jest.mock('../../modules/ownvoice-native', () => ({
   default: {
     serviceState: jest.fn(), turnOff: jest.fn(), modelStatus: jest.fn(), downloadModel: jest.fn(),
     bubbleRules: jest.fn(), setBubbleRules: jest.fn(), launcherApps: jest.fn(), takeTapFacts: jest.fn(),
-    importReadHistory: jest.fn(), clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(),
+    clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(),
   },
 }));
 
@@ -48,7 +48,6 @@ beforeEach(() => {
   native.setBubbleRules.mockResolvedValue(undefined);
   native.launcherApps.mockResolvedValue(apps);
   native.takeTapFacts.mockResolvedValue([]);
-  native.importReadHistory.mockResolvedValue(undefined);
   native.clearTapFacts.mockResolvedValue(undefined);
   native.forget.mockResolvedValue(undefined);
   native.turnOff.mockResolvedValue(undefined);
@@ -416,29 +415,6 @@ test('a failed native wipe keeps saved choices and offers a retry', async () => 
   await waitFor(() => expect(readLog()).toEqual([]));
 });
 
-test('prior JavaScript history is imported once, then removed', async () => {
-  const prior = [{ id: 'old', time: Date.now(), app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }];
-  kv.set('reads', JSON.stringify(prior));
-  native.takeTapFacts.mockResolvedValue([fact({ id: 'old', legacySummary: prior[0].summary })]);
-  await syncReadLog();
-  expect(native.importReadHistory).toHaveBeenCalledWith(prior);
-  expect(kv.has('reads')).toBe(false);
-  await syncReadLog();
-  expect(native.importReadHistory).toHaveBeenCalledTimes(1);
-  expect(readLog()).toHaveLength(1);
-});
-
-test('failed native import leaves old history for retry', async () => {
-  const prior = [{ time: Date.now(), app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }];
-  kv.set('reads', JSON.stringify(prior));
-  native.importReadHistory.mockRejectedValueOnce(new Error('full'));
-  await expect(syncReadLog()).rejects.toThrow('full');
-  expect(kv.has('reads')).toBe(true);
-  await syncReadLog();
-  expect(native.importReadHistory).toHaveBeenCalledTimes(2);
-  expect(kv.has('reads')).toBe(false);
-});
-
 test('Home includes taps still waiting in the phone', async () => {
   native.takeTapFacts.mockResolvedValueOnce([fact()]).mockResolvedValue([]);
   const screen = await homeCopy();
@@ -447,7 +423,6 @@ test('Home includes taps still waiting in the phone', async () => {
 });
 
 test('an entry older than 30 days has already gone', async () => {
-  native.takeTapFacts.mockResolvedValue([]);
   native.takeTapFacts.mockResolvedValue([fact({ at: Date.now() - 31 * 24 * 3600_000 })]);
   const screen = await show(<Reads />);
   expect(screen.getByText(words.nothingRead)).toBeTruthy();
