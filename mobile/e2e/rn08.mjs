@@ -1,5 +1,4 @@
 // OWNVOICE-RN-08 emulator evidence driver (adapted from e2e/rn05.mjs helpers).
-// Emulator-only: refuses any serial that is not emulator-*. Never touches a phone.
 // Proves rows R1-R5 with the release build and the build-flagged stand-in writer:
 // direct process-text and share intents (not the selection-menu chooser), the three chips,
 // Replace returning the chosen version
@@ -11,7 +10,10 @@ import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 
 const serial = process.env.ANDROID_SERIAL;
-if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (phones are refused).');
+const avdName = process.env.OWNVOICE_AVD_NAME?.trim();
+if (!/^emulator-\d+$/.test(serial ?? '') || !avdName) throw new Error('Set ANDROID_SERIAL to an emulator and OWNVOICE_AVD_NAME to its owned AVD name.');
+const actualAvd = execFileSync('adb', ['-s', serial, 'emu', 'avd', 'name'], { encoding: 'utf8' }).trim().split(/\r?\n/)[0];
+if (actualAvd !== avdName) throw new Error(`Refusing ${serial}: AVD ${actualAvd} does not match ${avdName}.`);
 const apk = process.argv[2];
 if (!apk) throw new Error('Pass the release APK path.');
 const out = process.argv[3] ?? 'reports/rn08';
@@ -114,10 +116,6 @@ const bubbleVisible = () => {
   return window?.match(/mViewVisibility=(0x[0-9a-f]+)/)?.[1] === '0x0';
 };
 const scrollSheet = async () => { shell('input', 'swipe', '540', '2000', '540', '900', '400'); await wait(700); }; // the Replace/Copy row sits under the fold in the sheet's scroll view
-/** Taps the row's filled button (Replace editable, Copy read-only). Tesseract only ever reads a
- *  filled pill when the crop is mostly pill, so: find the pill as the band's dominant non-background
- *  colour, OCR the tight crop to confirm the label, and fall back to tapping the pill's own centre —
- *  it is the only filled button in that band. */
 const parsePx = out => {
   const pat = /^\s*(\d+),(\d+):\s*\((\d+),(\d+),(\d+)/;
   const px = [];
@@ -134,15 +132,22 @@ const wordsPresent = async (label, tries = 1) => {
   }
   return false;
 };
-const tapButtonRow = async (label, verdict = 'Sounds natural') => {
+const tapButtonRow = async (label, result) => {
   const lower = label.toLowerCase();
+  const lastWord = result.trim().split(/\s+/).at(-1).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
   for (let attempt = 0; attempt < 5; attempt++) {
-    const group = screenClusters().find(g => g.text.includes(verdict.toLowerCase()));
+    const groups = screenClusters();
+    const chip = groups.find(g => g.text.includes('fix spelling'));
+    const group = chip && groups.find(g => g.top > chip.bottom && g.words.some(w => w.text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '') === lastWord));
     if (group) {
+      const exact = groups.find(g => g.top > group.bottom && g.text.trim() === lower);
+      if (exact) { tap((exact.left + exact.right) / 2, (exact.top + exact.bottom) / 2); return; }
       const y0 = group.bottom + 10;
+      const bandHeight = Math.min(160, height - y0 - 80);
+      if (bandHeight <= 0) { await wait(600); continue; }
       const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 });
       const bg = parsePx(execFileSync('magick', ['png:', '-crop', '10x10+950+' + (y0 + 60), '+repage', 'txt:-'], { input: image, encoding: 'utf8' }))[0].slice(2);
-      const band = parsePx(execFileSync('magick', ['png:', '-crop', `${width}x160+0+${y0}`, '+repage', 'txt:-'], { input: image, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
+      const band = parsePx(execFileSync('magick', ['png:', '-crop', `${width}x${bandHeight}+0+${y0}`, '+repage', 'txt:-'], { input: image, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
       const far = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) > 90;
       const counts = new Map();
       for (const [, , r, g, b] of band) { if (!far([r, g, b], bg)) continue; const k = `${r},${g},${b}`; counts.set(k, (counts.get(k) || 0) + 1); }
@@ -172,7 +177,7 @@ const tapButtonRow = async (label, verdict = 'Sounds natural') => {
     }
     await wait(600);
   }
-  throw new Error(`Could not find the ${label} button under the ${verdict} card`);
+  throw new Error(`Could not find the ${label} button below the rewrite`);
 };
 const back = async () => { shell('input', 'keyevent', '4'); await wait(900); };
 const clearLog = () => execFileSync('adb', ['-s', serial, 'logcat', '-c']);
@@ -288,7 +293,7 @@ for (const mode of ['no', 'yes']) {
 
   // R4: Replace returns the chosen version (fingerprinted in the log) and copies it too.
   clearLog();
-  await tapButtonRow('Replace');
+  await tapButtonRow('Replace', SHORT);
   await wait(500);
   await shot(`08-04-replaced-toast-${scheme}`);
   if (!logcat().includes(`rewrite returned sha=${sha(SHORT)}`)) throw new Error(`Replace did not return the chosen version (${scheme})`);
@@ -302,7 +307,7 @@ for (const mode of ['no', 'yes']) {
   await scrollSheet(); // bring the Copy row into view for the shot and the tap
   await shot(`08-05-result-readonly-${scheme}`);
   clearLog();
-  await tapButtonRow('Copy');
+  await tapButtonRow('Copy', PLAIN);
   await wait(500);
   if (!logcat().includes(`rewrite copied sha=${sha(PLAIN)}`)) throw new Error(`read-only Copy did not copy the chosen version (${scheme})`);
 

@@ -3,11 +3,13 @@
 Rows R1–R5 of the rewrite sheet plus the three drafts-panel fixes from the visual review,
 on the worktree-owned `ov-rn-8` AVD (Android 16, API 36 google_apis x86_64, release APK of
 `dev.ownvoice.next` built with `EXPO_PUBLIC_E2E_STUB=1`). No physical phone was touched;
-every adb command targeted `emulator-5558`, and the driver refuses non-`emulator-*` serials.
+every adb command in that historical capture targeted `emulator-5558`. The current driver requires both an emulator serial and a matching `OWNVOICE_AVD_NAME` before it touches the device.
+
+These screenshots were captured before the later rewrite-verdict and Why? alignment changes. They are historical evidence, not screenshots of the current candidate. Refresh the light/dark release-build captures on an owned AVD after building the current candidate; this worktree session has neither the release APK nor the original `emulator-5558`.
 
 ## What ran
 
-`node e2e/rn08.mjs <release-apk> reports/rn08` — a fresh clean install per scenario (prefs
+The original `node e2e/rn08.mjs <release-apk> reports/rn08` run used `ANDROID_SERIAL=emulator-5558` and a fresh clean install per scenario. Future runs must also set `OWNVOICE_AVD_NAME=ov-rn-8`. (prefs
 seeded through `su`, the RN `setup-done` kv row seeded after first boot, the accessibility
 service re-toggled per AGENTS.md, night mode forced with the twilight schedule disabled):
 
