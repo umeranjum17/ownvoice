@@ -18,6 +18,7 @@ export const words = {
   noVersions:'Couldn\'t polish that this time. Try again.',
   serviceOff:'Ownvoice is off. Use Copy instead.',
   fallback:'ChatGPT didn\'t answer. This phone wrote these instead.',
+  phoneWrote:'This phone wrote these.',
   switchUnavailable:'ChatGPT could not be reached this time. This phone wrote these.',
   chatgptFailed:'ChatGPT didn\'t answer this time.',
   tryAgain:'Try again',

@@ -176,7 +176,10 @@ test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the R
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   try {
-    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({
+      drafts: ['phone one', 'phone two', 'phone three'],
+      reason: mode === 'off' ? CHATGPT_OFF : words.switchUnavailable,
+    });
     expect(global.fetch).not.toHaveBeenCalled();
   } finally {
     global.fetch = originalFetch;
@@ -236,7 +239,7 @@ test('pending logout blocks a credentialed send even with stale choices and read
     expect(gptChoice('com.twitter.android')).toBe(true);
     expect(await saveGptApps({ on: [] })).toBe(false);
     releaseAuth({ access: 'fixture-access', accountId: 'fixture-account' });
-    expect(await writing).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(global.fetch).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
     releaseLogout();
@@ -270,9 +273,43 @@ test('sign-out blocks an in-flight send even when clearing app choices fails', a
     expect(gptChoice('com.twitter.android')).toBe(true);
     expect(signOut).toHaveBeenCalledTimes(1);
     release({ access: 'fixture-access', accountId: 'fixture-account' });
-    expect(await writing).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(global.fetch).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+test('a choice withdrawn while the tap is marked gives a phone-only reason', async () => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  const route = await gptRoute('com.twitter.android', offline);
+  let releaseMark!: () => void;
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => { markStarted = resolve; });
+  const sent = jest.fn(() => {
+    markStarted();
+    return new Promise<void>(resolve => { releaseMark = resolve; });
+  });
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  try {
+    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent });
+    await started;
+    await saveGptApps({ on: [] });
+    releaseMark();
+    expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(global.fetch).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+test('a started request that fails says ChatGPT did not answer', async () => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  const route = await gptRoute('com.twitter.android', offline);
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn(async () => { throw new Error('offline'); });
+  try {
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.fallback });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
 
@@ -314,7 +351,7 @@ test('choice withdrawn during the switch wait is rechecked before sending', asyn
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   try {
-    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(global.fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
@@ -329,7 +366,7 @@ test.each([
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   try {
-    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(global.fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });

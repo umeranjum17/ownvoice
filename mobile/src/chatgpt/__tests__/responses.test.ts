@@ -113,8 +113,8 @@ test('authentication and pre-send rejection never mark a tap', async () => {
   const sent = jest.fn();
   try {
     (codexAuth as jest.Mock).mockRejectedValueOnce(new Error('no account'));
-    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent })).rejects.toThrow(words.chatgptFailed);
-    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent, beforeSend: async () => false })).rejects.toThrow(words.chatgptFailed);
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent })).rejects.toThrow(words.phoneWrote);
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent, beforeSend: async () => false })).rejects.toThrow(words.phoneWrote);
     expect(fetch).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
@@ -161,7 +161,7 @@ test('permission withdrawn while marking a tap prevents the fetch', async () => 
     const writing = chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { beforeSend, sent });
     await started;
     releaseMark();
-    await expect(writing).rejects.toThrow(words.chatgptFailed);
+    await expect(writing).rejects.toThrow(words.phoneWrote);
     expect(beforeSend).toHaveBeenCalledTimes(2);
     expect(sent).toHaveBeenCalledTimes(1);
     expect(fetch).not.toHaveBeenCalled();
@@ -175,8 +175,8 @@ test('a later reply request rechecks permission before sending', async () => {
   const beforeSend = jest.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValue(false);
   const sent = jest.fn();
   try {
-    await expect(chatgptWriter.write({ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' }, { beforeSend, sent })).resolves.toEqual({ drafts: ['No thanks'] });
-    expect(beforeSend).toHaveBeenCalledTimes(4);
+    await expect(chatgptWriter.write({ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' }, { beforeSend, sent })).rejects.toThrow(words.phoneWrote);
+    expect(beforeSend).toHaveBeenCalledTimes(3);
     expect(sent).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }

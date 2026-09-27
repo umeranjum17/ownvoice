@@ -7,15 +7,16 @@ export type WriterState = 'downloading' | 'writing';
 export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; beforeSend?: () => Promise<boolean> };
 export type Choice = { drafts: string[]; reason?: string };
 export interface Writer { write(request: DraftRequest, on?: WriterEvents): Promise<Choice> }
+export class SendVeto extends Error {}
 
 export async function withPhoneFallback(primary: Writer, phone: Writer, request: DraftRequest, on?: WriterEvents, fallbackNote?: () => Promise<string | null>): Promise<Choice> {
   try {
     const { drafts } = await primary.write(request, on);
     if (drafts.length !== 3 || drafts.some(draft => !draft.trim())) throw new Error('empty');
     return { drafts };
-  } catch {
+  } catch (error) {
     on?.reset?.();
-    const reason = await fallbackNote?.().catch(() => null);
+    const reason = error instanceof SendVeto ? error.message : await fallbackNote?.().catch(() => null);
     return { ...(await phone.write(request, on)), reason: reason ?? words.fallback };
   }
 }

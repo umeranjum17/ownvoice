@@ -1,8 +1,8 @@
 import Native from '../../modules/ownvoice-native';
 import { chatgptAllowed, showsBubble } from '../core/privacy';
-import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
+import { CHATGPT_OFF, chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
 import { store } from '../core/store';
-import { routeWriters, type WriterRoute } from '../core/writers';
+import { routeWriters, SendVeto, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
 import { GPT_APPS_KEY, mocked, session, signOutGuard } from './session';
@@ -43,13 +43,16 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
         if (before.active) return false;
         const current = await Native.bubbleRules().catch(() => null);
         if (!current || current.paused || !chatgptAllowed(showsBubble(app, current), gptChoice(app))) return false;
-        if (!mocked && !(await currentSwitch(switchStore).then(choice => choice?.chatgpt !== 'off', () => false))) return false;
+        if (!mocked) {
+          const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(words.switchUnavailable); });
+          if (choice?.chatgpt === 'off') throw new SendVeto(CHATGPT_OFF);
+        }
         const signedIn = (await session.current()).signedIn;
         const after = signOutGuard();
         return signedIn && !after.active && after.epoch === before.epoch;
       };
       if (mocked) {
-        if (!(await beforeSend())) throw new Error('App choice changed');
+        if (!(await beforeSend())) throw new SendVeto(words.phoneWrote);
         return require('../panel/stubWriter').stubWriter().write(request, on);
       }
       return require('./responses').chatgptWriter.write(request, { ...on, beforeSend });
