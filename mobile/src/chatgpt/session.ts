@@ -109,4 +109,12 @@ const mock: Session = {
 const waiting = (): GptState => ({ signedIn: false, waiting: true, code: MOCK_CODE, url: null, note: say('signIn.waitingUrl', { name: NAME }), resting: null });
 const connected = (): GptState => ({ signedIn: !!connectedAt, waiting: false, code: null, url: null, note: say('status.ready', { name: NAME }), resting: null });
 
-export const session: Session = mocked ? mock : real;
+const underlying = mocked ? mock : real;
+let lastSession: GptState = nothing;
+export const sessionNow = () => lastSession;
+export const session: Session = {
+  current: async () => { const state = await underlying.current(); lastSession = state; return state; },
+  start: async () => { lastSession = nothing; const state = await underlying.start(); lastSession = state; return state; },
+  cancel: async () => { lastSession = nothing; const state = await underlying.cancel(); lastSession = state; return state; },
+  signOut: async () => { lastSession = nothing; const state = await underlying.signOut(); lastSession = state; return state; },
+};

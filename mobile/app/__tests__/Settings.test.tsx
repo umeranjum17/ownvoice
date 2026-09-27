@@ -1,4 +1,5 @@
 import { AppState } from 'react-native';
+import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import Home from '../index';
 import Apps from '../apps';
@@ -6,6 +7,7 @@ import Voice, { foundLines } from '../voice';
 import Reads from '../reads';
 import Native, { type TapFact } from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
+import { space } from '../../src/ui/theme';
 import { readLog } from '../../src/core/readLog';
 import { loadVoice } from '../../src/core/voice';
 
@@ -63,6 +65,12 @@ const homeCopy = async () => {
   return screen;
 };
 
+test('Home places its title beneath the status bar inset', async () => {
+  const screen = await render(<SafeAreaInsetsContext.Provider value={{ top: 32, bottom: 0, left: 0, right: 0 }}><Home /></SafeAreaInsetsContext.Provider>);
+  const page = screen.toJSON() as unknown as { props: { contentContainerStyle: unknown } };
+  expect(page.props.contentContainerStyle).toEqual(expect.arrayContaining([expect.objectContaining({ paddingTop: 32 + space.xl })]));
+});
+
 // ---- H1: the status card ----
 test('the card says off, with the switch waiting for the permission screen', async () => {
   native.serviceState.mockResolvedValue('off');
@@ -80,6 +88,15 @@ test('the card gets ready with a bar, never a number', async () => {
   expect(await screen.findByText(words.statusGettingReady)).toBeTruthy();
   expect(screen.getByText(words.gettingReady)).toBeTruthy();
   expect(screen.toJSON()).not.toContain('%');
+});
+
+test('off hides Try again even when the model is not ready', async () => {
+  native.serviceState.mockResolvedValue('off');
+  native.modelStatus.mockResolvedValue('downloadable');
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.statusOff)).toBeTruthy();
+  expect(screen.queryByText(words.tryAgain)).toBeNull();
+  expect(native.downloadModel).not.toHaveBeenCalled();
 });
 
 test('a phone that cannot write offers Try again in plain words', async () => {

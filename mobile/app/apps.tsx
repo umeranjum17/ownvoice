@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { Image, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../src/ui/Button';
 import { Row } from '../src/ui/Row';
 import { Switch } from '../src/ui/Switch';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble } from './index';
+import { saveBubbleRules } from '../src/chatgpt/settings';
 import Native from '../modules/ownvoice-native';
 
 type Rules = { paused: boolean; on: string[]; off: string[] };
@@ -15,6 +17,7 @@ type App = { app: string; label: string; icon: string | null };
 /** Where the bubble shows: one switch per app with a launcher icon, switched-on ones first. */
 export default function Apps() {
   const t = useTheme();
+  const inset = useSafeAreaInsets().top;
   const [rules, setRules] = useState<Rules | null>(null);
   const [apps, setApps] = useState<App[]>([]);
   const [filter, setFilter] = useState('');
@@ -32,7 +35,7 @@ export default function Apps() {
       const off = current.off.filter(x => x !== app);
       if (showsBubble(current, app)) off.push(app); else on.push(app);
       const next = { ...current, on, off };
-      await Native.setBubbleRules(next);
+      await saveBubbleRules(next);
       setRules(next);
       setSaveFailed(false);
     }).catch(() => setSaveFailed(true));
@@ -41,7 +44,7 @@ export default function Apps() {
   const shown = apps.filter(({ label }) => label.toLowerCase().includes(filter.toLowerCase())).sort(order);
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, gap: space.m, paddingBottom: space.xxl }} keyboardShouldPersistTaps="always">
+  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, paddingTop: inset + space.xl, gap: space.m, paddingBottom: space.xxl }} keyboardShouldPersistTaps="always">
     <Text style={[type.headline, { color: t.text }]}>{words.rowApps}</Text>
     <Text style={[type.body, { color: t.muted, marginBottom: space.s }]}>{words.appsScreenNote}</Text>
     {saveFailed && <Text style={[type.body, { color: t.text }]}>{words.failed}</Text>}

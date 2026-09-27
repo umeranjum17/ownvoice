@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { File } from 'expo-file-system';
 import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
@@ -29,6 +30,7 @@ export function foundLines(found: Found): string {
 /** Your voice: the never-say list, a few rules and a "how I write" note, kept on this phone. */
 export default function Voice() {
   const t = useTheme();
+  const inset = useSafeAreaInsets().top;
   const [rules, setRules] = useState<Rules>(loadVoice);
   const [neverText, setNeverText] = useState(() => loadVoice().never.join('\n'));
   const [preview, setPreview] = useState('');
@@ -56,7 +58,7 @@ export default function Voice() {
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
   const field = { color: t.text, backgroundColor: t.yours, borderRadius: shape.card, padding: space.l, textAlignVertical: 'top' as const };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, gap: space.m, paddingBottom: space.xxl }} keyboardShouldPersistTaps="always">
+  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, paddingTop: inset + space.xl, gap: space.m, paddingBottom: space.xxl }} keyboardShouldPersistTaps="always">
     <Text style={[type.headline, { color: t.text }]}>{words.rowVoice}</Text>
     <Text style={[type.body, { color: t.muted, marginBottom: space.s }]}>{words.voiceNote}</Text>
     <Button kind="text" label={words.importFile} onPress={() => { void pick(); }} />

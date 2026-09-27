@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../src/ui/Button';
 import { Row } from '../src/ui/Row';
 import { shape, space, type, useTheme } from '../src/ui/theme';
@@ -13,6 +14,7 @@ import Native from '../modules/ownvoice-native';
 /** What Ownvoice read: one line per bubble tap, kept on this phone for 30 days, and one tap to wipe it all. */
 export default function Reads() {
   const t = useTheme();
+  const inset = useSafeAreaInsets().top;
   const [reads, setReads] = useState<Read[]>([]);
   const [error, setError] = useState(false);
   const pending = useRef<Promise<void>>(Promise.resolve());
@@ -44,7 +46,7 @@ export default function Reads() {
   };
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, gap: space.m, paddingBottom: space.xxl }}>
+  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, paddingTop: inset + space.xl, gap: space.m, paddingBottom: space.xxl }}>
     <Text style={[type.headline, { color: t.text }]}>{words.rowReads}</Text>
     <Text style={[type.body, { color: t.muted, marginBottom: space.s }]}>{words.readsNote}</Text>
     <View style={styles.actions}>

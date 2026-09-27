@@ -1,5 +1,6 @@
+import { classify } from '@byokit/accounts';
 import { store } from '../../core/store';
-import { gptChoice, gptApps, saveGptApps, gptRoute } from '../settings';
+import { gptChoice, gptApps, saveGptApps, saveBubbleRules, gptRoute } from '../settings';
 import { status } from '../accounts';
 import { CHATGPT_OFF } from '../../core/switch';
 import Native from '../../../modules/ownvoice-native';
@@ -10,7 +11,7 @@ import { words } from '../../core/words';
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
-  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })) },
+  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}) },
 }));
 jest.mock('../accounts', () => ({
   reportFailure: jest.fn(async () => null),
@@ -34,6 +35,11 @@ beforeEach(() => {
   jest.clearAllMocks();
   native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: ['com.reddit.frontpage'] });
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
+});
+
+test('byokit 0.3.1 treats undated rate limits as temporary', () => {
+  expect(classify('429 Too many requests')).toMatchObject({ kind: 'rate_limit' });
+  expect(classify('rate_limit_exceeded')).toMatchObject({ kind: 'rate_limit' });
 });
 
 test('only signed-in saved choices permit ChatGPT', async () => {
@@ -298,6 +304,33 @@ test('a choice withdrawn while the tap is marked gives a phone-only reason', asy
     releaseMark();
     expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(sent).toHaveBeenCalledTimes(1);
+    expect(global.fetch).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+test('a saved pause during the final native re-check cannot be overwritten by its stale result', async () => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  const route = await gptRoute('com.twitter.android', offline);
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  const oldRules = { paused: false, on: [], off: ['com.reddit.frontpage'] };
+  let finish!: (rules: typeof oldRules) => void;
+  let reading!: () => void;
+  const started = new Promise<void>(resolve => { reading = resolve; });
+  native.bubbleRules.mockImplementationOnce(async () => oldRules).mockImplementationOnce(() => {
+    reading();
+    return new Promise(resolve => { finish = resolve; });
+  });
+  const sent = jest.fn(async () => {});
+  const unsent = jest.fn(async () => {});
+  try {
+    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent, unsent });
+    await started;
+    await saveBubbleRules({ ...oldRules, paused: true });
+    finish(oldRules);
+    expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(unsent).toHaveBeenCalledTimes(1);
     expect(global.fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });

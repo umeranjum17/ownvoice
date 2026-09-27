@@ -13,6 +13,7 @@ import * as Onboarding from '../src/core/onboarding';
 import type { Step } from '../src/core/onboarding';
 import { store } from '../src/core/store';
 import { completeSetup } from '../src/core/setup-completion';
+import { saveBubbleRules } from '../src/chatgpt/settings';
 import Native from '../modules/ownvoice-native';
 
 type Saved = { step: Step; inserted: boolean };
@@ -72,7 +73,7 @@ export default function Setup() {
     const on = rules.on.filter(app => !shownApps.has(app));
     const off = rules.off.filter(app => !shownApps.has(app));
     for (const { app } of shown) (picked[app] ?? true ? on : off).push(app);
-    await Native.setBubbleRules({ paused: rules.paused, on, off });
+    await saveBubbleRules({ paused: rules.paused, on, off });
   };
 
   const finish = async (leaving = false) => {
