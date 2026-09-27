@@ -1,7 +1,7 @@
-jest.mock('../accounts', () => ({ codexAuth: async () => ({ access: 'fixture-access', accountId: 'fixture-account' }), reportFailure: jest.fn(async () => ({ kind: 'rate_limit', until: 0 })) }));
+jest.mock('../accounts', () => ({ codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })), reportFailure: jest.fn(async () => ({ kind: 'rate_limit', until: 0 })) }));
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 import { chatgptWriter, streamResponses } from '../responses';
-import { reportFailure } from '../accounts';
+import { codexAuth, reportFailure } from '../accounts';
 import { words } from '../../core/words';
 import { readDraftStream } from '../../core/responses-stream';
 import type { DraftRequest } from '../../core/writers';
@@ -103,6 +103,45 @@ test.each(retryCases)('account failure during a slot retry stops further request
     await expect(chatgptWriter.write(request)).rejects.toThrow(words.chatgptFailed);
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(reported).toHaveBeenCalledWith('429 Too many requests');
+  } finally { global.fetch = originalFetch; }
+});
+
+test('authentication and pre-send rejection never mark a tap', async () => {
+  const originalFetch = global.fetch;
+  const fetch = jest.fn();
+  global.fetch = fetch;
+  const sent = jest.fn();
+  try {
+    (codexAuth as jest.Mock).mockRejectedValueOnce(new Error('no account'));
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent })).rejects.toThrow(words.chatgptFailed);
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent, beforeSend: async () => false })).rejects.toThrow(words.chatgptFailed);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+test('a fetch started then failing leaves the tap marked', async () => {
+  const originalFetch = global.fetch;
+  const order: string[] = [];
+  let releaseMark!: () => void;
+  let markStarted!: () => void;
+  const started = new Promise<void>(resolve => { markStarted = resolve; });
+  const sent = jest.fn(() => {
+    order.push('sent');
+    markStarted();
+    return new Promise<void>(resolve => { releaseMark = resolve; });
+  });
+  const fetch = jest.fn(async () => { order.push('fetch'); throw new Error('offline'); });
+  global.fetch = fetch;
+  try {
+    const writing = chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent });
+    await started;
+    expect(fetch).not.toHaveBeenCalled();
+    releaseMark();
+    await expect(writing).rejects.toThrow(words.chatgptFailed);
+    expect(order).toEqual(['sent', 'fetch']);
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
 

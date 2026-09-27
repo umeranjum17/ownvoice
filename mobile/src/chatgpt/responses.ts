@@ -17,11 +17,12 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
   const auth = await codexAuth();
   try {
     if (on?.beforeSend && !(await on.beforeSend())) throw new Error('App choice changed');
-    on?.sent?.();
-    const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', {
+    const request = {
       method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
       body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
-    });
+    };
+    await on?.sent?.();
+    const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', request);
     if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
     if (!response.body) throw new Error('ChatGPT did not answer.');
     return await readDraftStream(response.body, key, onText, count);

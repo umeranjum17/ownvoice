@@ -57,6 +57,37 @@ test('the switch is checked only after a signed-in app choice', async () => {
   expect(route.writer).not.toBe(before.writer);
 });
 
+test('the emulator stand-in drafts without marking a send', async () => {
+  const originalFlag = process.env.EXPO_PUBLIC_E2E_GPT;
+  const originalFetch = global.fetch;
+  const start = Date.now();
+  let mockRoute!: typeof gptRoute;
+  let mockSession!: typeof import('../session').session;
+  try {
+    process.env.EXPO_PUBLIC_E2E_GPT = '1';
+    jest.isolateModules(() => {
+      mockRoute = require('../settings').gptRoute;
+      mockSession = require('../session').session;
+    });
+    await mockSession.start();
+    const now = jest.spyOn(Date, 'now').mockReturnValue(start + 10_000);
+    try {
+      await saveGptApps({ on: ['com.twitter.android'] });
+      const route = await mockRoute('com.twitter.android');
+      const sent = jest.fn();
+      global.fetch = jest.fn();
+      const choice = await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent });
+      expect(choice.drafts).toHaveLength(3);
+      expect(sent).not.toHaveBeenCalled();
+      expect(global.fetch).not.toHaveBeenCalled();
+    } finally { now.mockRestore(); }
+  } finally {
+    if (originalFlag === undefined) delete process.env.EXPO_PUBLIC_E2E_GPT;
+    else process.env.EXPO_PUBLIC_E2E_GPT = originalFlag;
+    global.fetch = originalFetch;
+  }
+});
+
 test('a workplace chat stays with the phone unless it is switched on', async () => {
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.Slack'], off: [] });
   const before = await gptRoute('com.Slack', offline);

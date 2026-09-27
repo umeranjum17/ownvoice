@@ -40,7 +40,6 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
       };
       if (mocked) {
         if (!(await beforeSend())) throw new Error('App choice changed');
-        on.sent?.();
         return require('../panel/stubWriter').stubWriter().write(request, on);
       }
       return require('./responses').chatgptWriter.write(request, { ...on, beforeSend });

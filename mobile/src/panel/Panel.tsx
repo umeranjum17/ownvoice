@@ -135,7 +135,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           dashes: dashesFor(rules, nextMode === 'reply' ? value.written : value.typed),
           avoid,
         }, {
-          sent: () => { if (!sent) { sent = true; void Native.markTapSent(value.id).catch(() => {}); } },
+          sent: () => { if (!sent) { sent = true; return Native.markTapSent(value.id).catch(() => {}); } },
           state: state => {
             if (run.current !== id) return;
             setNote(state === 'downloading' ? words.gettingReady : words.writing);
