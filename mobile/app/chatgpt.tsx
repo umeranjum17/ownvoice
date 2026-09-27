@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Linking, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
 import { Row } from '../src/ui/Row';
@@ -14,6 +15,7 @@ import Native from '../modules/ownvoice-native';
  *  and byokit's plain sentences for what happened. Everything here is optional; the phone writes without it. */
 export default function ChatGpt() {
   const t = useTheme();
+  const inset = useSafeAreaInsets().top;
   const [state, setState] = useState<GptState | null>(null);
   const live = useRef(true);
   const show = (next: GptState) => { if (live.current) setState(next); };
@@ -48,7 +50,7 @@ export default function ChatGpt() {
   };
 
   const signedIn = !!state?.signedIn;
-  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, gap: space.l }}>
+  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, paddingTop: inset + space.xl, gap: space.l }}>
     <Text style={[type.headline, { color: t.text }]}>{words.gptTitle}</Text>
     {signedIn
       ? <>
@@ -73,10 +75,10 @@ export default function ChatGpt() {
           <Text style={[type.body, { color: t.muted, paddingTop: space.s }]}>{state.note}</Text>
         </Card>}
         <Button kind="filled" disabled={state?.waiting} label={words.gptButton} onPress={start} />
-        {state?.waiting ? <Button kind="text" label={words.gptCancel} onPress={() => { void session.cancel().then(show).catch(() => show(nothing)); }} /> : null}
+        {state?.waiting ? <Button kind="text" label={words.gptCancel} onPress={() => { void session.cancel().then(show).catch(() => show(nothing)).finally(() => router.back()); }} /> : null}
         {!state?.waiting && state?.note ? <Text style={[type.body, { color: t.text }]}>{state.note}</Text> : null}
         <Text style={[type.note, { color: t.muted }]}>{CHATGPT_TERMS}</Text>
       </>}
-    <Button kind="text" label={words.back} onPress={() => { router.back(); }} />
+    {!state?.waiting && <Button kind="text" label={words.back} onPress={() => { router.back(); }} />}
   </ScrollView>;
 }

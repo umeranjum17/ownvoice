@@ -54,12 +54,14 @@ test('the code is shown big, can be copied, and can be given up on', async () =>
   await fireEvent.press(screen.getByText(words.gptButton));
   await waitFor(() => expect(screen.queryByText('KQPT-MXVD')).toBeTruthy());
   expect(screen.getByText(waiting.note ?? '')).toBeTruthy();
+  expect(screen.queryByText(words.back)).toBeNull();
   await fireEvent.press(screen.getByText(words.copy));
   expect(native.copy).toHaveBeenCalledWith('KQPT-MXVD');
   fake.cancel.mockImplementation(async () => (reports = { ...nothing, note: 'Sign-in stopped. Nothing was kept.' }));
   await fireEvent.press(screen.getByText(words.gptCancel));
   await waitFor(() => expect(screen.queryByText('KQPT-MXVD')).toBeNull());
   expect(screen.getByText('Sign-in stopped. Nothing was kept.')).toBeTruthy();
+  expect(router.back).toHaveBeenCalledTimes(1);
 });
 
 test('a failed sign-in says what happened and offers the button again', async () => {

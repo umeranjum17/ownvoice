@@ -170,6 +170,28 @@ test('permission withdrawn while marking a tap prevents the fetch', async () => 
   } finally { global.fetch = originalFetch; }
 });
 
+test('the synchronous last gate vetoes a change after the async re-check', async () => {
+  const originalFetch = global.fetch;
+  const fetch = jest.fn();
+  global.fetch = fetch;
+  let allowed = true;
+  const beforeSend = jest.fn().mockResolvedValueOnce(true).mockImplementationOnce(async () => {
+    queueMicrotask(() => { allowed = false; });
+    return true;
+  });
+  const beforeFetch = jest.fn(() => allowed);
+  const sent = jest.fn();
+  const unsent = jest.fn();
+  try {
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { beforeSend, beforeFetch, sent, unsent })).rejects.toThrow(words.phoneWrote);
+    expect(beforeSend).toHaveBeenCalledTimes(2);
+    expect(beforeFetch).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(unsent).toHaveBeenCalledTimes(1);
+    expect(fetch).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
 test('a failed native mark prevents every request', async () => {
   const originalFetch = global.fetch;
   const fetch = jest.fn();

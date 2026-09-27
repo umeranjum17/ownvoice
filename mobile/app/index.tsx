@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Row } from '../src/ui/Row';
 import { Switch } from '../src/ui/Switch';
 import { Progress } from '../src/ui/Progress';
@@ -10,6 +11,7 @@ import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { store } from '../src/core/store';
 import { readLog, syncReadLog } from '../src/core/readLog';
 import { loadVoice } from '../src/core/voice';
+import { saveBubbleRules } from '../src/chatgpt/settings';
 import Native, { type ModelStatus, type ServiceState } from '../modules/ownvoice-native';
 
 type Rules = { paused: boolean; on: string[]; off: string[] };
@@ -34,6 +36,7 @@ export function appsLine(labels: string[]): string {
 /** Home: whether Ownvoice is on and ready, then plain rows for where it works, your voice, what it read and pause. */
 export default function Home() {
   const t = useTheme();
+  const inset = useSafeAreaInsets().top;
   const [rules, setRules] = useState<Rules | null>(null);
   const [service, setService] = useState<ServiceState>('off');
   const [model, setModel] = useState<ModelStatus>('available');
@@ -75,7 +78,7 @@ export default function Home() {
   const changeRules = (update: (current: Rules) => Rules) => {
     busy.current = busy.current.then(async () => {
       const next = update(await Native.bubbleRules());
-      await Native.setBubbleRules(next);
+      await saveBubbleRules(next);
       setRules(next);
       setSettingsFailed(false);
     }).catch(() => setSettingsFailed(true));
@@ -97,7 +100,7 @@ export default function Home() {
   const shown = apps.filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={styles.page}>
+  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={[styles.page, { paddingTop: inset + space.xl }]}>
     <Text style={[type.headline, { color: t.text }]}>{words.homeTitle}</Text>
     <Text style={[type.body, { color: t.text, marginBottom: space.l }]}>{words.home}</Text>
     <Text style={[type.note, { color: t.muted }]}>{words.privacyNote}</Text>
@@ -112,7 +115,7 @@ export default function Home() {
         <Switch accessibilityLabel={words.powerRow} value={on} onValueChange={power} />
       </View>
       {on && model !== 'available' && !problem && <View style={{ marginTop: space.m }}><Progress fraction={fraction} /></View>}
-      {problem !== null && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
+      {on && problem !== null && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
       {settingsFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
       {service === 'stuck' && <Text accessibilityRole="button" onPress={() => router.push('/setup')} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.turnBackOn}</Text>}
     </View>

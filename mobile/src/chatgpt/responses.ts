@@ -26,6 +26,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
     await on?.sent?.();
     marked = true;
     if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
+    if (on?.beforeFetch && !on.beforeFetch()) throw new SendVeto(words.phoneWrote);
     started = true;
     on?.started?.();
     const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', request);

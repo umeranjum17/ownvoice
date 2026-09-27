@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../src/ui/Button';
 import { Row } from '../src/ui/Row';
 import { space, type, useTheme } from '../src/ui/theme';
@@ -15,6 +16,7 @@ type App = { app: string; label: string };
 
 export default function GptApps() {
   const t = useTheme();
+  const inset = useSafeAreaInsets().top;
   const [apps, setApps] = useState<App[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [doneError, setDoneError] = useState<string | null>(null);
@@ -35,7 +37,7 @@ export default function GptApps() {
   };
   useEffect(load, []);
 
-  return <View style={{ flex: 1, padding: space.xl, gap: space.l, backgroundColor: t.sheet }}>
+  return <View style={{ flex: 1, padding: space.xl, paddingTop: inset + space.xl, gap: space.l, backgroundColor: t.sheet }}>
     <Text style={[type.title, { color: t.text }]}>{words.gptAppsQuestion}</Text>
     <Text style={[type.body, { color: t.muted }]}>{words.gptAppsNote}</Text>
     <ScrollView keyboardShouldPersistTaps="always">
