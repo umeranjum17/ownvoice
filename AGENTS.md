@@ -15,6 +15,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - The listening bubble mood lasts under a second (read is instant, panel draws fast). Catch it with `adb shell screenrecord` plus ffmpeg frame extraction, not `screencap`.
 - No user-facing string may carry technical words (model names, scores, "characters"); `PlainWordsTest` checks the app's messages, check names, verdicts, read log and `strings.xml` for them, so new user-facing text needs a case there, and the technical detail belongs in `README.md`.
 - To hand the app a file on the phone (for example a voice profile for the share import), write it with `adb shell run-as dev.ownvoice.app` into the app's `files/` and share `file:///data/data/dev.ownvoice.app/files/...`. The app can't read a folder `adb shell` creates under `/sdcard/Android/data`.
+- The e2e drivers match screens by OCR, so a user-facing copy change can stale their markers silently (rn08 expected a Home title that #24 renamed). After touching strings, grep `mobile/e2e` for the old text; `rn08.mjs` taps the Home 'Your voice' row by fixed coordinates because tesseract slices that row under the floating bubble. Emulator proof of the numbered-list polish: `ANDROID_SERIAL=emulator-NNNN node e2e/polish-list.mjs <apk> <dir>` (the e2e stub drives the real pipeline for multi-line notes).
 
 ## Maintaining this file
 
