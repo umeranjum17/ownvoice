@@ -18,6 +18,7 @@ printf '%s\\n' "$*" >> "$RN08_ADB_LOG"
 case "$*" in
   '-s emulator-5600 emu avd name') printf 'owned_avd\\nOK\\n' ;;
   '-s emulator-5600 shell wm size') printf 'Physical size: 1080x2400\\n' ;;
+  '-s emulator-5600 shell pm list packages dev.ownvoice.next') printf 'package:dev.ownvoice.next\\n' ;;
   '-s emulator-5600 shell input keyevent KEYCODE_WAKEUP'|'-s emulator-5600 shell svc power stayon true'|'-s emulator-5600 shell settings put system screen_off_timeout 1800000'|'-s emulator-5600 uninstall dev.ownvoice.next') : ;;
   '-s emulator-5600 install '*) printf 'Success\\n' ;;
   '-s emulator-5600 shell pm path dev.ownvoice.next') printf 'package:/data/app/base.apk\\n' ;;

@@ -40,7 +40,7 @@ const install = (...options) => {
 };
 
 mkdirSync(out, { recursive: true });
-const [width, height] = shell('wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+const [width, height] = [...shell('wm', 'size').matchAll(/(\d+)x(\d+)/g)].at(-1).slice(1).map(Number);
 const cropTop = 100; // exclude the status bar
 const shot = async name => {
   const raw = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 });
@@ -211,7 +211,7 @@ const rebindService = async () => {
 
 const freshSetup = async (mode = 'no') => { // a clean install per scenario: the prefs and task stack start known
   wake();
-  execFileSync('adb', ['-s', serial, 'uninstall', pkg], { stdio: 'ignore' });
+  if (shell('pm', 'list', 'packages', pkg).split('\n').includes(`package:${pkg}`)) execFileSync('adb', ['-s', serial, 'uninstall', pkg], { stdio: 'ignore' });
   install('-t');
   shell('am', 'force-stop', 'com.android.settings');
   shell('cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off'); // the emulator's twilight schedule would otherwise re-enable night over 'no' (current host time is inside it)
@@ -274,7 +274,7 @@ const openPanel = async () => {
   for (let i = 0; i < 3; i++) {
     tap(width - 90 * width / 1080, height / 2);
     await wait(4000); // stub: fixed drafts land at once
-    if (shell('dumpsys', 'window').includes('PanelActivity')) return;
+    if (await waitForFocus('PanelActivity', 3)) return;
   }
   throw new Error('the panel never opened from the bubble tap');
 };
@@ -365,7 +365,10 @@ const openStockField = async () => {
   openPage();
   if (await textPresent('Use without an account', 4)) { await tapText('Use without an account'); openPage(); }
   if (await textPresent('No thanks', 2)) { await tapText('No thanks'); openPage(); }
-  if (!(await waitForFocus('com.android.chrome')) || !(await textPresent('stock please', 8))) throw new Error('Chrome practice field did not load in front');
+  if (!(await waitForFocus('com.android.chrome'))) throw new Error('Chrome practice field did not load in front');
+  const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p']);
+  const field = execFileSync('magick', ['png:', '-crop', '600x150+190+200', '+repage', 'png:-'], { input: image });
+  if (!execFileSync('tesseract', ['stdin', 'stdout', '--psm', '6'], { input: field, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).includes('stock please')) throw new Error('Chrome practice field did not load in front');
   await focusField();
   if (shell('settings', 'get', 'secure', 'accessibility_enabled').trim() !== '1') await rebindService();
 };
@@ -396,7 +399,13 @@ await back();
 await freshSetup('yes');
 await openStockField();
 await openPanel();
-for (let i = 0; i < 5; i++) { shell('input', 'swipe', '540', '1900', '540', '1350', '600'); await wait(700); } // gentle sweeps so the stock card's verdict line is on screen for the shot
+let darkStock = false, darkNatural = false;
+for (let i = 0; i < 9 && !(darkStock && darkNatural); i++) {
+  darkNatural ||= await textPresent('Sounds natural', 1);
+  darkStock ||= await wordsPresent('A bit stock');
+  if (!(darkStock && darkNatural)) { shell('input', 'swipe', '540', '1900', '540', '1350', '600'); await wait(700); }
+}
+if (!darkStock || !darkNatural || !(await waitForFocus('PanelActivity', 1))) throw new Error('dark differing verdict panel did not stay visible');
 await shot('08-13-panel-differing-verdicts-dark');
 await back();
 page.close();
