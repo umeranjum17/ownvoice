@@ -40,11 +40,8 @@ internal fun capturedInputText(text: CharSequence?, isShowingHintText: Boolean):
 internal fun conversationText(text: CharSequence?, hint: Boolean, action: Boolean): String? =
   if (action) null else accessibleText(text, hint)?.trim()?.takeIf { it.isNotEmpty() }
 
-private val controlLabels = setOf("send", "send message", "post", "skip", "clear last screen")
-private fun isControlLabel(label: CharSequence?) = (label?.toString()?.trim()?.lowercase() ?: "") in controlLabels
-
-internal fun isControl(buttonAncestor: Boolean, button: Boolean, clickable: Boolean, childCount: Int, description: CharSequence?): Boolean =
-  buttonAncestor || button || (clickable && (childCount == 0 || isControlLabel(description)))
+internal fun isControl(buttonAncestor: Boolean, className: String?): Boolean =
+  buttonAncestor || className?.endsWith("Button") == true
 
 class OwnvoiceService : AccessibilityService() {
   companion object {
@@ -341,9 +338,8 @@ class OwnvoiceService : AccessibilityService() {
   private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>, practice: Boolean) {
     fun walk(node: AccessibilityNodeInfo, buttonAncestor: Boolean) {
       if (node == skip || !node.isVisibleToUser) return
-      val button = node.className?.toString()?.endsWith("Button") == true
+      val action = isControl(buttonAncestor, node.className?.toString())
       val label = accessibleText(node.text ?: node.contentDescription, node.isShowingHintText)?.trim()?.takeIf { it.isNotEmpty() }
-      val action = isControl(buttonAncestor, button, node.isClickable, node.childCount, node.contentDescription)
       val text = if (practice && node.viewIdResourceName?.startsWith("practice-line-") != true) null else label
       val conversation = if (text != null) conversationText(node.text ?: node.contentDescription, node.isShowingHintText, action) else null
       if (conversation != null && lines.lastOrNull() != conversation) lines += conversation
@@ -356,7 +352,7 @@ class OwnvoiceService : AccessibilityService() {
           nodes += ScreenText(it, (bounds.left / density).roundToInt(), (bounds.top / density).roundToInt(), (bounds.bottom / density).roundToInt(), action)
         }
       }
-      for (i in 0 until node.childCount) node.getChild(i)?.let { walk(it, buttonAncestor || button || (node.isClickable && isControlLabel(node.contentDescription))) }
+      for (i in 0 until node.childCount) node.getChild(i)?.let { walk(it, action) }
     }
     walk(root, false)
   }

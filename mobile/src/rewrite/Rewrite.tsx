@@ -53,7 +53,8 @@ export default function Rewrite() {
     setNote(words.writing);
     const stub = process.env.EXPO_PUBLIC_E2E_STUB === '1' ? stubRewrite(input.text, how) : null;
     try {
-      const text = preserveFragment(input.text, stub ?? Judge.clean(await Native.ask(`rewrite-${Date.now()}`, Judge.selectionRewritePrompt(input.text, Judge.rewriteAsk[how], Voice.guide(rules, false)), { maxTokens: 256 })));
+      const rewritten = stub ?? Judge.clean(await Native.ask(`rewrite-${Date.now()}`, Judge.selectionRewritePrompt(input.text, Judge.rewriteAsk[how], Voice.guide(rules, false)), { maxTokens: 256 }));
+      const text = how === Judge.Rewrite.GRAMMAR ? preserveFragment(input.text, rewritten) : rewritten;
       if (id !== run.current) return;
       if (!text) { setNote("Couldn't rewrite that. Try again."); return; }
       setNote(input.editable ? 'Replace your text with it, or copy it.' : 'Copy it, then paste it where you like.');

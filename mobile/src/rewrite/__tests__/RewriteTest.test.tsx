@@ -147,6 +147,15 @@ test('Fix spelling leaves a selected single word without a full stop', async () 
   expect(visibleStrings(screen)).not.toContain('meeting.');
 });
 
+test.each(['Shorter', 'Simpler'])('%s keeps a single-word rewrite’s full stop', async how => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? '' : 'Meeting.');
+  const screen = await renderRewrite({ text: 'meeting', editable: false });
+  fireEvent.press(screen.getByRole('button', { name: how }));
+  await waitFor(() => expect(visibleStrings(screen)).toContain('Meeting.'));
+  fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
+  expect(native.finishRewrite).toHaveBeenCalledWith('Meeting.', false);
+});
+
 test('a writer failure shows its plain error line', async () => {
   native.ask.mockRejectedValue(new Error('HTTP 9 too much'));
   const screen = await renderRewrite({ text: SELECTION, editable: true });
