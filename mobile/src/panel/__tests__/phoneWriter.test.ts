@@ -136,14 +136,19 @@ test('one streamed response retains all labelled slots without retries', async (
   expect(native.ask).not.toHaveBeenCalled();
 });
 
-test('mixed labelled and unlabelled replies fill missing slots after the time limit', async () => {
+test('unlabelled continuation lines stay with their explicit draft', async () => {
   native.drafts.mockImplementation(async () => {
     setClock(24000);
-    return ['Draft 1: Yes, I can bring it.\nNo, could we change the day?\nNot sure; what time?'];
+    return ['Draft 1: Saturday works.\nI can bring the stove.\nSee you there.'];
   });
   const { drafts } = await phoneWriter.write(request());
-  expect(drafts).toEqual(['Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
+  expect(drafts).toEqual(['Saturday works.\nI can bring the stove.\nSee you there.']);
   expect(native.ask).not.toHaveBeenCalled();
+});
+
+test('inline labels fill their numbered slots after the time limit', async () => {
+  native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes. Draft 2: No. Draft 3: Maybe.']; });
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes.', 'No.', 'Maybe.'] });
 });
 
 test('a late single labelled reply is retained', async () => {
@@ -163,6 +168,11 @@ test('a labelled multiline reply keeps its continuation while streaming', async 
   const { drafts } = await phoneWriter.write(request(), { landed: (text, slot) => landed.push([text, slot]) });
   expect(drafts).toEqual(['Saturday works.\nI can bring the stove.', 'No, Sunday?', 'What time?']);
   expect(landed).toEqual(drafts.map((text, slot) => [text, slot]));
+});
+
+test('an unlabelled line after two labels continues the second draft', async () => {
+  native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes.\nDraft 2: No.\nWhat time?']; });
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes.', 'No.\nWhat time?'] });
 });
 
 test('the last labelled reply can span lines without becoming another slot', async () => {

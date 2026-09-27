@@ -39,6 +39,7 @@ test('a control-only draft line and leaked practice navigation are removed', () 
 
 test('only a single word loses added final punctuation', () => {
   expect(preserveFragment('meeting', 'meeting.')).toBe('meeting');
+  expect(preserveFragment('meeting,', 'Meeting,.')).toBe('Meeting,.');
   expect(preserveFragment('why', 'Why?')).toBe('Why?');
   expect(preserveFragment('wow', 'Wow!')).toBe('Wow!');
   expect(preserveFragment('see you Saturday', 'See you Saturday!')).toBe('See you Saturday!');
@@ -214,6 +215,7 @@ test('versionAcceptor drops a version equal to the writer text and near-duplicat
   expect(first).toBe('I can be there at 7.');
   expect(acceptor.accept('I can be there at 7 o clock', 1, versionsList[1].label)).toBe('I can be there at 7 o clock');
   expect(acceptor.results).toEqual([{ text: 'I can be there at 7.', slot: 0, label: versionsList[0].label }, { text: 'I can be there at 7 o clock', slot: 1, label: versionsList[1].label }]);
+  expect(versionAcceptor('see you Saturday', 'remove', []).accept('See you on Saturday!', 0)).toBe('See you on Saturday!');
 });
 
 test('versionAcceptor queues a flattened list for one fix, then drops it', () => {

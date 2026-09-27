@@ -5,7 +5,7 @@ import type { Rules } from './slop';
 
 const count = 3;
 const numbered = /(?:^|\s)(?:(?:draft|option|version)\s*)?([1-3])[.):]\s+/gi;
-const labelled = /(?:^|\s)(?:draft|option|version)\s*([1-3])[.):]\s*/gi;
+export const replyLabels = /(?:^|\s)(?:draft|option|version)\s*([1-3])[.):]\s*/gi;
 
 function unquote(text: string) {
   return text.replace(/^"([\s\S]*)"$/, '$1').replace(/^“([\s\S]*)”$/, '$1')
@@ -28,7 +28,7 @@ function parts(text: string, polishing: boolean) {
   const value = body(input, polishing);
   if (polishing) return [value];
   const explicit = /\b(?:versions?|options?|drafts?)\b/i.test(input.split(/\r?\n/, 1)[0]) && value !== input;
-  const pattern = explicit ? numbered : labelled;
+  const pattern = explicit ? numbered : replyLabels;
   const markers: { start: number; end: number }[] = [];
   for (const match of value.matchAll(pattern)) markers.push({ start: match.index! + match[0].search(/\S/), end: match.index! + match[0].length });
   if (markers.length > 1 && !value.slice(0, markers[0].start).trim()) {
@@ -59,8 +59,8 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
 }
 
 export function preserveFragment(original: string, text: string): string {
-  return !/[.!?。！？]\s*$/.test(original.trim()) && original.trim().split(/\s+/).length === 1
-    ? text.replace(/[.。]+\s*$/, '') : text;
+  return /^[\p{L}\p{N}]+$/u.test(original.trim())
+    ? text.replace(/[.。]\s*$/, '') : text;
 }
 
 // ---- 5.3 Duplicates ----
@@ -219,7 +219,7 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   };
   for (const candidate of candidates) {
     const source = body(unquote(candidate), false);
-    const markers = [...source.matchAll(labelled)];
+    const markers = [...source.matchAll(replyLabels)];
     if (count > 1 && markers.length && !source.slice(0, markers[0].index).trim()) {
       markers.forEach((marker, i) => {
         const text = source.slice(marker.index! + marker[0].length, markers[i + 1]?.index ?? source.length);
@@ -244,7 +244,7 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
   const shown: string[] = [];
   const results: AcceptedVersion[] = [];
   const layoutFails: { slot: number; label?: string }[] = [];
-  const clean = (text: string) => preserveFragment(original, dashes === 'remove' ? undash(text) : text).trim();
+  const clean = (text: string) => (dashes === 'remove' ? undash(text) : text).trim();
   const distinct = (text: string) => norm(text) !== norm(original) && fresh(text, [...shown, ...avoid]);
   const usable = (text: string) => distinct(text) && layoutKept(original, text);
   return {
