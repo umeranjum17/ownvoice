@@ -1,6 +1,6 @@
 import Native from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
-import { acceptReplies, avoidLine, cleanDrafts, latestMessage, phoneReplyPrompt, phoneSlotPrompt, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
+import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
 import { rewrite, versionPrompt, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
@@ -34,32 +34,16 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
     const lines = request.typed.split('\n');
     const prompt = versionPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes)
       + `\nKeep exactly ${lines.length} lines in this order, including blank lines. Keep these line prefixes exactly: ${lines.map((line, i) => `${i + 1}: ${line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '(none)'}`).join('; ')}. Do not combine lines.` + (note ? `\n\n${note}` : '');
-    let again = '';
-    try { again = await engine.ask(prompt, 256); } catch { /* use the line-by-line fallback */ }
-    let fixed = acceptor.fix(again, fail.slot, fail.label);
-    if (fixed == null) {
-      // The model can flatten a list twice; rewrite each line, restoring its exact marker.
-      const rewritten: string[] = [];
-      for (const line of lines) {
-        if (!line.trim()) { rewritten.push(line); continue; }
-        const marker = line.match(/^(\s*(?:\d+[.)]|[-*•])\s+)(.*)$/);
-        const body = marker?.[2] ?? line;
-        try {
-          const result = await engine.ask(`Rewrite this one line briefly, keeping its meaning. Output only its words, without a list marker or extra lines:\n${body}`, 80);
-          const line = result.trim().replace(/^(?:\d+[.)]|[-*•])\s+/, '').split(/\r?\n/)[0];
-          const words = cleanDrafts([line], 1)[0] || body;
-          rewritten.push((marker?.[1] ?? '') + words);
-        } catch { rewritten.push(line); }
-      }
-      fixed = acceptor.fix(rewritten.join('\n'), fail.slot, fail.label);
-    }
-    if (fixed != null) landed(fixed, fail.slot, fail.label);
+    try {
+      const fixed = acceptor.fix(await engine.ask(prompt, 256), fail.slot, fail.label);
+      if (fixed != null) landed(fixed, fail.slot, fail.label);
+    } catch { continue; }
   }
   return acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
 }
 
 /** Replies: one numbered call, then one retry per empty slot, until 8 s have passed since the tap. */
-async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
+async function replies(request: DraftRequest, on: WriterEvents, started: number, fillStarted: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide };
   const landed = on.landed ?? (() => {});
@@ -86,7 +70,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     const answer = await Native.draftStream(id, phoneReplyPrompt(input), 220);
     take(answer, true);
   } finally { subscription.remove(); }
-  for (let slot = 0; slot < REPLY_SLOTS.length && Date.now() - started <= FILL_MS; slot++) {
+  for (let slot = 0; slot < REPLY_SLOTS.length && Date.now() - fillStarted <= FILL_MS; slot++) {
     if (made[slot]) continue;
     try {
       const [draft] = acceptReplies([await ask(phoneSlotPrompt(REPLY_SLOTS[slot], input, exclude), 120)], exclude, 1, dashes, controls);
@@ -114,9 +98,10 @@ export const phoneWriter = {
         await Native.downloadModel();
       }
       on.state?.('writing');
+      const fillStarted = Date.now();
       const drafts = request.typed.trim()
         ? await polish(request, on)
-        : await replies(request, on, started);
+        : await replies(request, on, started, fillStarted);
       return { drafts };
     } catch (error) {
       throw new Error(message(errorCode(error)));

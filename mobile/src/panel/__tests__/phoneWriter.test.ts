@@ -253,6 +253,17 @@ test('a hard failure surfaces as plain words', async () => {
   await expect(phoneWriter.write(request())).rejects.toThrow(words.busy);
 });
 
+test('download does not spend the reply-fill window', async () => {
+  native.modelStatus.mockResolvedValue('downloadable');
+  native.downloadModel.mockImplementation(async () => { setClock(20000); });
+  native.drafts.mockResolvedValue(['Draft 1: Yes, I can bring the stove.']);
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('Give a different answer')
+    ? 'No, could we meet Sunday?' : 'What time on Saturday?');
+  const { drafts } = await phoneWriter.write(request());
+  expect(drafts).toEqual(['Yes, I can bring the stove.', 'No, could we meet Sunday?', 'What time on Saturday?']);
+  expect(native.ask).toHaveBeenCalledTimes(2);
+});
+
 test('the model gets downloaded once, with the progress note before writing', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
   const states: string[] = [];
@@ -295,41 +306,22 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Saturday plan:\\n1. I bring the stove.\\n2. You bring the tent, please.","Saturday plan:\\n1. Stove: mine.\\n2. Tent: yours."]}';
-    if (prompt.startsWith('Rewrite this one line')) return prompt.endsWith('I will bring the stove.') ? 'I bring the stove.' : prompt.endsWith('You can bring the tent.') ? 'You bring the tent.' : 'Saturday plan:';
     return 'Saturday plan:\n1. Stove: mine.\n2. Tent: yours.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toHaveLength(3);
+  expect(drafts).toHaveLength(2);
   for (const draft of drafts) {
     expect(draft).toMatch(/1\. /);
     expect(draft).toMatch(/2\. /);
   }
 });
 
-test('a version that stays flattened after its fix gets a line-by-line rewrite', async () => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) => {
-    if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove, and you the tent.","I can bring the stove.\n1. I will bring the stove.","Third:\n1. different\n2. version there"]}';
-    return 'Still one flat line, again.';
-  });
+test('flattened versions stay out after the single layout retry', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
+    ? '{"versions":["Flat stove and tent plan."]}' : 'Still one flat line, again.');
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toContain('Third:\n1. different\n2. version there');
-  expect(drafts.some(draft => draft.includes('1. ') && draft.includes('2. '))).toBe(true);
-});
-
-test('line retries strip model labels before restoring list markers', async () => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) => {
-    if (prompt.includes('{"versions"')) return '{"versions":["Flat stove and tent plan."]}';
-    if (prompt.includes('Keep exactly 3 lines')) return 'Still flat.';
-    if (prompt.startsWith('Rewrite this one line')) {
-      if (prompt.endsWith('I will bring the stove.')) return 'Draft 1: I bring the stove.';
-      if (prompt.endsWith('You can bring the tent.')) return 'Option 2: You bring the tent.';
-      return 'Version 1: Stove is on me.';
-    }
-    return '';
-  });
-  const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toContain('Stove is on me.\n1. I bring the stove.\n2. You bring the tent.');
-  expect(drafts.join('\n')).not.toMatch(/(?:Draft|Option|Version) [123]:/);
+  expect(drafts).toEqual([]);
+  expect(native.ask).toHaveBeenCalledTimes(6);
 });
 
 test('no accepted polish leaves the original out of cleaned-up cards', async () => {
