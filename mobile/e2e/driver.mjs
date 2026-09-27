@@ -10,7 +10,7 @@ if (!apk) throw new Error('Pass the release APK path.');
 const out = resolve(process.argv[3] ?? 'e2e/artifacts');
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
-const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
+const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
 const snap = name => {
   const path = resolve(out, `${name}.png`);
   mkdirSync(dirname(path), { recursive: true });
@@ -42,12 +42,14 @@ const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1)
 const density = Number(adb('shell', 'wm', 'density').match(/(\d+)/)?.[1]) / 160;
 const tap = (x, y) => adb('shell', 'input', 'tap', String(x), String(y));
 const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
+const bands = [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75).filter(top => top < height)];
+const crop = (image, top) => top ? execFileSync('magick', ['png:', '-crop', `${width}x${Math.min(150, height - top)}+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
 const visibleLine = (label, state = '') => {
   for (let attempt = 0; attempt < 8; attempt++) {
     const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
     // Tesseract misses white-on-blue buttons when it segments the whole screen.
-    for (const top of [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)]) {
-      const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
+    for (const top of bands) {
+      const input = crop(image, top);
       const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
       const lines = new Map();
       for (const row of tsv.split('\n').slice(1)) {
@@ -68,7 +70,7 @@ const visibleLine = (label, state = '') => {
       });
       if (line) return [Math.round((line.left + line.right) / 2), Math.round((line.top + line.bottom) / 2)];
       // Filled pills read only with a raw-line pass on the same band.
-      const raw = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '13', 'tsv'], { input: execFileSync('magick', ['png:', ...(top ? ['-crop', `${width}x150+0+${top}`, '+repage'] : []), 'png:-'], { input: image }), encoding: 'utf8' });
+      const raw = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '13', 'tsv'], { input, encoding: 'utf8' });
       const words = raw.split('\n').slice(1).map(row => row.split('\t')).filter(columns => columns.length >= 12 && columns[11].trim());
       const rawText = words.map(columns => columns[11]).join(' ').toLowerCase();
       if (words.length && rawText.includes(label.toLowerCase()) && rawText.includes(state.toLowerCase())) {
@@ -87,18 +89,23 @@ const tapText = (label, state) => tap(...visibleLine(label, state));
 // The Insert pill defeats OCR; Copy beside it reads, and Insert sits a fixed step to its left.
 const tapInsertButton = () => {
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
-  const tops = [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)].reverse();
+  const tops = [...bands].reverse();
   for (const top of tops) {
-    const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
+    const input = crop(image, top);
     const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
     const word = tsv.split('\n').slice(1).map(row => row.split('\t')).find(columns => columns.length >= 12 && columns[11].trim().toLowerCase() === 'copy');
     if (word) { tap(Number(word[6]) - 215, Number(word[7]) + Number(word[9]) / 2 + top); return; }
   }
   throw new Error('Could not find the Copy button beside Insert.');
 };
-const bubble = () => tap(width - Math.round(90 * width / 1080), Math.round(height * .53));
+const bubbleWindow = () => adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
+const bubble = () => {
+  const frame = bubbleWindow()?.match(/frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
+  if (!frame) throw new Error('Could not locate the Ownvoice bubble.');
+  tap(Math.round((Number(frame[1]) + Number(frame[3])) / 2), Math.round((Number(frame[2]) + Number(frame[4])) / 2));
+};
 const bubbleVisible = () => {
-  const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
+  const window = bubbleWindow();
   const visibility = window?.match(/mViewVisibility=(0x[0-9a-f]+)/)?.[1];
   if (!visibility) throw new Error('Could not inspect the Ownvoice overlay window.');
   return visibility === '0x0';
@@ -111,9 +118,8 @@ const expectBubble = (visible, label) => {
 const findRowWithState = (label, state) => {
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
   const lines = [];
-  const tops = [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)];
-  for (const top of tops) {
-    const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
+  for (const top of bands) {
+    const input = crop(image, top);
     const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
     const groups = new Map();
     for (const row of tsv.split('\n').slice(1)) {
@@ -155,8 +161,7 @@ await wait(3000);
 const chooseApp = async (label, prior) => {
   tapText('Where the bubble shows');
   await wait(400);
-  const [, noteY] = visibleLine('In apps that are off');
-  tap(Math.round(width / 2), Math.round(noteY + 36 * density));
+  tapText('Find an app');
   type(label.split(' ')[0]);
   await wait(500);
   adb('shell', 'input', 'keyevent', '4'); // Hide the keyboard before tapping the filtered result.
@@ -172,15 +177,17 @@ const chooseApp = async (label, prior) => {
   if (!findRowWithState(label, prior === 'Off' ? 'On' : 'Off')) throw new Error(`The ${label} row did not switch.`);
   tapText('Back');
   await wait(700);
-  visibleLine('Pause for now');
+  visibleLine('Where the bubble shows');
 };
 
 await chooseApp('Ownvoice (new)', 'Off');
 expectBubble(true, 'test app enabled');
 await chooseApp('Chrome', 'Off');
 
-// A focused input keeps its owning app in front when the accessibility overlay is tapped.
-tap(Math.round(width / 2), Math.round(height * .47));
+// Use the editable writing note as the native React Native field.
+tapText('Your voice');
+await wait(500);
+tapText('For example: short sentences');
 await wait(500);
 type('React multiline draft');
 await wait(6500);
@@ -190,16 +197,33 @@ visibleLine('Polish your message');
 tapInsertButton();
 await wait(1800);
 snap('rn-inserted');
+if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) {
+  adb('shell', 'input', 'keyevent', '4');
+  await wait(500);
+}
+for (let back = 0; back < 3; back++) {
+  const focus = adb('shell', 'dumpsys', 'window').split('\n').find(line => line.includes('mCurrentFocus')) ?? '';
+  if (!focus.includes(pkg) || !focus.includes('MainActivity')) throw new Error(`Expected Ownvoice in front: ${focus}`);
+  const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
+  const title = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '6'], { input: execFileSync('magick', ['png:', '-crop', `${width}x${Math.min(height, Math.round(140 * density))}+0+0`, '+repage', 'png:-'], { input: image }), encoding: 'utf8' }).toLowerCase().split('\n').map(line => line.trim());
+  if (title.includes('ownvoice')) break;
+  if (!title.includes('your voice')) throw new Error('Could not identify the Ownvoice screen before Back.');
+  adb('shell', 'input', 'keyevent', '4');
+  await wait(500);
+}
+visibleLine('Where the bubble shows');
 
 // The home controls verify that pause and per-app off rules hide the overlay.
-adb('shell', 'input', 'keyevent', '4'); // Dismiss the keyboard so all controls are reachable.
+adb('shell', 'input', 'swipe', String(width / 2), String(height * .8), String(width / 2), String(height * .35), '350');
 await wait(400);
 tapText('Pause for now');
 await wait(700);
 expectBubble(false, 'paused');
-tapText('Resume');
+tapText('Pause for now');
 await wait(700);
 expectBubble(true, 'resumed');
+adb('shell', 'input', 'swipe', String(width / 2), String(height * .3), String(width / 2), String(height * .8), '350');
+await wait(400);
 await chooseApp('Ownvoice (new)', 'On');
 expectBubble(false, 'app turned off');
 await chooseApp('Ownvoice (new)', 'Off');
@@ -222,9 +246,9 @@ const insertWebField = async (name, heading) => {
   if (name === 'contenteditable') snap('chrome-bubble');
   bubble();
   await wait(1200);
-  visibleLine('Polish your message');
+  visibleLine('Polish your post');
   if (name === 'contenteditable') snap('chrome-panel');
-  tapInsertButton();
+  tapText('Use this');
   await wait(1800);
   if (name === 'contenteditable') snap('chrome-inserted');
 };
