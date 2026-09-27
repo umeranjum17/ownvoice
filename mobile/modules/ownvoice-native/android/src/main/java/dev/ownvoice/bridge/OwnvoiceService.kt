@@ -214,7 +214,7 @@ class OwnvoiceService : AccessibilityService() {
     }
   }
 
-  /** Drag the bubble along the edge; a press that never moved stays the tap that opens the panel. */
+  /** Move the bubble, snapping it to an edge on release; a press without movement remains a tap. */
   private fun onBubbleTouch(event: MotionEvent): Boolean {
     when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
