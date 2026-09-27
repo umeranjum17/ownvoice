@@ -106,6 +106,7 @@ class OwnvoiceNativeModule : Module() {
       }
       service.insert(text) { ok, newlinesLost -> promise.resolve(mapOf("ok" to ok, "newlinesLost" to newlinesLost)) }
     }.runOnQueue(Queues.MAIN)
+    AsyncFunction("sharedMarkdown") { RewriteActivity.current?.sharedMarkdown() }
     Function("rewriteInput") {
       val activity = RewriteActivity.current ?: return@Function null
       mapOf("text" to activity.selectedText, "editable" to activity.editable)

@@ -16,7 +16,7 @@ jest.mock('../../modules/ownvoice-native', () => ({
   default: {
     serviceState: jest.fn(), turnOff: jest.fn(), modelStatus: jest.fn(), downloadModel: jest.fn(),
     bubbleRules: jest.fn(), setBubbleRules: jest.fn(), launcherApps: jest.fn(), takeTapFacts: jest.fn(),
-    clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(),
+    clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(), sharedMarkdown: jest.fn(), finishRewrite: jest.fn(),
   },
 }));
 
@@ -286,6 +286,18 @@ test('an import previews what it found before adding anything', async () => {
   fireEvent.press(screen.getByText(words.addThese));
   await waitFor(() => expect(loadVoice().never).toEqual(['delve', 'circle back']));
   expect(screen.getByText(words.added)).toBeTruthy();
+});
+
+test('a markdown share previews and adds through Your voice without a picker', async () => {
+  native.sharedMarkdown.mockResolvedValue('# Never say\n- "circle back"\n\nNo em dashes.');
+  const screen = await show(<Voice shared />);
+  expect(await screen.findByText(/“circle back”/)).toBeTruthy();
+  expect(loadVoice().never).toEqual([]);
+  expect(picker.pickFileAsync).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByText(words.addThese));
+  await waitFor(() => expect(loadVoice()).toEqual(expect.objectContaining({ never: ['circle back'], noDashes: true })));
+  fireEvent.press(screen.getByText(words.back));
+  expect(native.finishRewrite).toHaveBeenCalledWith(null, false);
 });
 
 test('an import includes phrases beyond the first 5,000 lines', async () => {

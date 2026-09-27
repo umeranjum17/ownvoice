@@ -3,6 +3,7 @@ package dev.ownvoice.bridge
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -13,7 +14,7 @@ import java.security.MessageDigest
 
 /** React Native surface launched from Android's selection and share actions (R1). */
 class RewriteActivity : ReactActivity() {
-  override fun getMainComponentName() = "rewrite"
+  override fun getMainComponentName() = if (isMarkdownShare) "voiceImport" else "rewrite"
   override fun createReactActivityDelegate(): ReactActivityDelegate = DefaultReactActivityDelegate(this, mainComponentName, true)
 
   override fun onCreate(savedInstanceState: Bundle?) {
@@ -34,6 +35,16 @@ class RewriteActivity : ReactActivity() {
   override fun onStop() {
     OwnvoiceService.instance?.panelOpen = false
     super.onStop()
+  }
+
+  private val isMarkdownShare: Boolean
+    get() = intent.action == Intent.ACTION_SEND && intent.type in setOf("text/markdown", "text/x-markdown")
+
+  fun sharedMarkdown(): String? {
+    if (!isMarkdownShare) return null
+    val uri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+    return if (uri != null) contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+      else intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
   }
 
   /** What the selection menu or share handed us (R1, R2). */

@@ -4,6 +4,8 @@ import { AppRegistry } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Panel from './src/panel/Panel';
 import Rewrite from './src/rewrite/Rewrite';
+import Voice from './app/voice';
 const wrap = Component => () => React.createElement(SafeAreaProvider, null, React.createElement(Component));
 AppRegistry.registerComponent('panel', () => wrap(Panel));
 AppRegistry.registerComponent('rewrite', () => wrap(Rewrite));
+AppRegistry.registerComponent('voiceImport', () => wrap(() => React.createElement(Voice, { shared: true })));
