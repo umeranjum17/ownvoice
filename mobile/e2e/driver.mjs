@@ -192,6 +192,10 @@ visibleLine('Polish your message');
 tapInsertButton();
 await wait(1800);
 snap('rn-inserted');
+if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) {
+  adb('shell', 'input', 'keyevent', '4');
+  await wait(500);
+}
 for (let back = 0; back < 3; back++) {
   const focus = adb('shell', 'dumpsys', 'window').split('\n').find(line => line.includes('mCurrentFocus')) ?? '';
   if (!focus.includes(pkg) || !focus.includes('MainActivity')) throw new Error(`Expected Ownvoice in front: ${focus}`);
