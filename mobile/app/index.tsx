@@ -102,9 +102,7 @@ export default function Home() {
 
   return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={[styles.page, { paddingTop: inset + space.xl }]}>
     <Text style={[type.headline, { color: t.text }]}>{words.homeTitle}</Text>
-    <Text style={[type.body, { color: t.text, marginBottom: space.l }]}>{words.home}</Text>
-    <Text style={[type.note, { color: t.muted }]}>{words.privacyNote}</Text>
-    <Text style={[type.note, { color: t.muted }]}>{words.switchNote}</Text>
+    <Text style={[type.body, { color: t.muted, marginBottom: space.l }]}>{words.home}</Text>
 
     <View style={[styles.status, { backgroundColor: green ? t.primaryContainer : t.group }]}>
       <View style={styles.statusHead}>
@@ -121,6 +119,7 @@ export default function Home() {
     </View>
 
     <View style={group}>
+      <Row title={words.rowWriting} onPress={() => router.push('/writing')} />
       <Row title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
       <Row title={words.rowVoice} subtitle={phrases === 0 ? words.noPhrases : phrases === 1 ? `1 ${words.phraseOne}` : `${phrases} ${words.phraseMany}`} onPress={() => router.push('/voice')} />
       <Row title={words.rowReads} subtitle={week === 0 ? words.nothingWeek : week === 1 ? words.onceWeek : `${week} ${words.timesWeek}`} onPress={() => router.push('/reads')} />
