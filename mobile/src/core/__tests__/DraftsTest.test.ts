@@ -37,9 +37,10 @@ test('a control-only draft line and leaked practice navigation are removed', () 
   expect(stripControlLines('Saturday works. Skip.', ['Skip'])).toBe('Saturday works.');
 });
 
-test('short fragments keep the writer’s missing final punctuation', () => {
+test('only a single word loses added final punctuation', () => {
   expect(preserveFragment('meeting', 'meeting.')).toBe('meeting');
-  expect(preserveFragment('see you Saturday', 'See you Saturday!')).toBe('See you Saturday');
+  expect(preserveFragment('see you Saturday', 'See you Saturday!')).toBe('See you Saturday!');
+  expect(preserveFragment('can you come', 'Can you come?')).toBe('Can you come?');
   expect(preserveFragment('Are you coming?', 'Are you coming?')).toBe('Are you coming?');
 });
 
@@ -208,9 +209,9 @@ test('versionAcceptor drops a version equal to the writer text and near-duplicat
   expect(acceptor.accept('See you at 7!', 0, versionsList[0].label)).toBeNull();
   expect(acceptor.accept('see you at 7', 1, versionsList[1].label)).toBeNull();
   const first = acceptor.accept('I can be there at 7.', 0, versionsList[0].label);
-  expect(first).toBe('I can be there at 7');
+  expect(first).toBe('I can be there at 7.');
   expect(acceptor.accept('I can be there at 7 o clock', 1, versionsList[1].label)).toBe('I can be there at 7 o clock');
-  expect(acceptor.results).toEqual([{ text: 'I can be there at 7', slot: 0, label: versionsList[0].label }, { text: 'I can be there at 7 o clock', slot: 1, label: versionsList[1].label }]);
+  expect(acceptor.results).toEqual([{ text: 'I can be there at 7.', slot: 0, label: versionsList[0].label }, { text: 'I can be there at 7 o clock', slot: 1, label: versionsList[1].label }]);
 });
 
 test('versionAcceptor queues a flattened list for one fix, then drops it', () => {

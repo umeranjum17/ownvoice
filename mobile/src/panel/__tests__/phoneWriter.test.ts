@@ -136,6 +136,16 @@ test('one streamed response retains all labelled slots without retries', async (
   expect(native.ask).not.toHaveBeenCalled();
 });
 
+test('mixed labelled and unlabelled replies fill missing slots after the time limit', async () => {
+  native.drafts.mockImplementation(async () => {
+    setClock(24000);
+    return ['Draft 1: Yes, I can bring it.\nNo, could we change the day?\nNot sure; what time?'];
+  });
+  const { drafts } = await phoneWriter.write(request());
+  expect(drafts).toEqual(['Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
+  expect(native.ask).not.toHaveBeenCalled();
+});
+
 test('missing labelled first slot is retried without moving the other replies', async () => {
   native.drafts.mockResolvedValue(['Draft 2: No, Saturday is out.\nDraft 3: Not sure yet, what time?']);
   native.ask.mockResolvedValue('Yes, Saturday works.');
@@ -272,11 +282,34 @@ test('a version that stays flattened after its fix gets a line-by-line rewrite',
   expect(drafts.some(draft => draft.includes('1. ') && draft.includes('2. '))).toBe(true);
 });
 
+test('line retries strip model labels before restoring list markers', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => {
+    if (prompt.includes('{"versions"')) return '{"versions":["Flat stove and tent plan."]}';
+    if (prompt.includes('Keep exactly 3 lines')) return 'Still flat.';
+    if (prompt.startsWith('Rewrite this one line')) {
+      if (prompt.endsWith('I will bring the stove.')) return 'Draft 1: I bring the stove.';
+      if (prompt.endsWith('You can bring the tent.')) return 'Option 2: You bring the tent.';
+      return 'Version 1: Stove is on me.';
+    }
+    return '';
+  });
+  const { drafts } = await phoneWriter.write(request({ typed: LIST }));
+  expect(drafts).toContain('Stove is on me.\n1. I bring the stove.\n2. You bring the tent.');
+  expect(drafts.join('\n')).not.toMatch(/(?:Draft|Option|Version) [123]:/);
+});
+
+test('no accepted polish leaves the original out of cleaned-up cards', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
+    ? '{"versions":["unchanged input"]}' : 'unchanged input');
+  const { drafts } = await phoneWriter.write(request({ typed: 'unchanged input' }));
+  expect(drafts).toEqual([]);
+});
+
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
   native.ask.mockResolvedValueOnce('{"versions":["Yours — dashed","Yours — dashed, kept."]}')
     .mockResolvedValue('Yours — dashed');
   const { drafts } = await phoneWriter.write(request({ typed: 'yours — dashed', dashes: 'keep' }));
-  expect(drafts).toEqual(['Yours — dashed, kept']);
+  expect(drafts).toEqual(['Yours — dashed, kept.']);
 });
 
 test('their dash rule is removed by the writer even when the model leaks one', async () => {

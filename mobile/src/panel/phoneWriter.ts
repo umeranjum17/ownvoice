@@ -1,6 +1,6 @@
 import Native from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
-import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
+import { acceptReplies, avoidLine, cleanDrafts, latestMessage, phoneReplyPrompt, phoneSlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
 import { rewrite, versionPrompt, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
@@ -46,18 +46,14 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
         const body = marker?.[2] ?? line;
         try {
           const result = await engine.ask(`Rewrite this one line briefly, keeping its meaning. Output only its words, without a list marker or extra lines:\n${body}`, 80);
-          const words = result.trim().replace(/^(?:\d+[.)]|[-*•])\s+/, '').split(/\r?\n/)[0] || body;
+          const line = result.trim().replace(/^(?:\d+[.)]|[-*•])\s+/, '').split(/\r?\n/)[0];
+          const words = cleanDrafts([line], 1)[0] || body;
           rewritten.push((marker?.[1] ?? '') + words);
         } catch { rewritten.push(line); }
       }
       fixed = acceptor.fix(rewritten.join('\n'), fail.slot, fail.label);
     }
     if (fixed != null) landed(fixed, fail.slot, fail.label);
-  }
-  if (!acceptor.results.length) {
-    // An already good message is safer than an empty panel after successful model calls.
-    landed(request.typed, 0, versionsList[0].label);
-    return [request.typed];
   }
   return acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
 }
@@ -81,7 +77,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
       const slot = Number(markers[i][1]) - 1;
       if (slot < 0 || slot > 2 || made[slot]) continue;
       const body = source.slice(markers[i].index! + markers[i][0].length, markers[i + 1]?.index ?? source.length);
-      const [text] = acceptReplies([body], exclude, 1, dashes, controls);
+      const [text] = acceptReplies([markers.length < 3 ? body.split(/\r?\n/)[0] : body], exclude, 1, dashes, controls);
       if (text) {
         made[slot] = text; exclude.push(text); landed(text, slot);
         if (exclude.length === (request.avoid?.length ?? 0) + 1) console.log(`Ownvoice first draft ms=${Date.now() - started}`);
@@ -93,9 +89,24 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   });
   try {
     const answer = await Native.draftStream(id, phoneReplyPrompt(input), 220);
-    take(answer, true);
-    if (!made.some(Boolean)) {
-      acceptReplies([answer], exclude, 3, dashes, controls).forEach((text, slot) => {
+    const markers = [...answer.matchAll(/(?:^|\n)Draft ([1-3]):\s*/g)];
+    if (markers.length && markers.length < 3 && answer.split(/\r?\n/).length > markers.length) {
+      const reserved = new Set(markers.map(marker => Number(marker[1]) - 1));
+      let next = 0;
+      let seen = false;
+      for (const line of answer.split(/\r?\n/)) {
+        const label = line.match(/^Draft ([1-3]):\s*/);
+        if (label) { seen = true; next = Number(label[1]) - 1; }
+        else if (!seen) continue;
+        else while (reserved.has(next) || made[next]) next++;
+        const slot = next++;
+        if (made[slot] || slot > 2) continue;
+        const [text] = acceptReplies([label ? line.slice(label[0].length) : line], exclude, 1, dashes, controls);
+        if (text) { made[slot] = text; exclude.push(text); landed(text, slot); }
+      }
+    } else {
+      take(answer, true);
+      if (!markers.length) acceptReplies([answer], exclude, 3, dashes, controls).forEach((text, slot) => {
         if (text) { made[slot] = text; exclude.push(text); landed(text, slot); }
       });
     }
