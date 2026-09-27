@@ -1,8 +1,7 @@
 // OWNVOICE-RN-08 emulator evidence driver (adapted from e2e/rn05.mjs helpers).
 // Proves rows R1-R5 with the release build and the build-flagged stand-in writer:
 // direct process-text and share intents (not the selection-menu chooser), the three chips,
-// Replace returning the chosen version
-// (logcat fingerprint, never the text), read-only offering only Copy, a new number
+// Replace returning a changed version into an editable field, read-only offering only Copy, a new number
 // warned, the bubble hidden while the sheet shows, and the drafts panel's verdict note.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -279,9 +278,26 @@ const openPanel = async () => {
   throw new Error('the panel never opened from the bubble tap');
 };
 
-const SELECTION = 'I think we should move the call to Tuesday.';
+const SELECTION = 'I think we should move the call to Tuesday. Really.';
 const SHORT = 'I think we should move the call to Tuesday.';
-const PLAIN = 'We should move the call to Tuesday.';
+const PLAIN = 'We should move the call to Tuesday. Really.';
+const RECEIVER_ORIGINAL = 'Move Tuesday. Really.';
+const RECEIVER_SHORT = 'Move Tuesday.';
+
+const openEditableSelection = async () => {
+  await tapText('Your voice');
+  const label = screenClusters().find(g => g.text.trim() === 'how i write');
+  if (!label) throw new Error('Your voice editable field did not appear');
+  const x = width / 2, y = label.bottom + 80;
+  tap(x, y);
+  shell('input', 'text', RECEIVER_ORIGINAL.replaceAll(' ', '%s'));
+  await wait(800);
+  if (!(await textPresent(RECEIVER_ORIGINAL))) throw new Error('editable receiver was not filled');
+  shell('input', 'swipe', String(x), String(y), String(x), String(y), '1100');
+  await tapText('Select all');
+  await tapText('Ownvoice');
+  if (!(await waitForFocus('RewriteActivity'))) throw new Error('editable selection did not open Ownvoice');
+};
 
 for (const mode of ['no', 'yes']) {
   const scheme = mode === 'no' ? 'light' : 'dark';
@@ -303,12 +319,24 @@ for (const mode of ['no', 'yes']) {
   await scrollSheet(); // bring the Replace/Copy row into view for the shot and the tap
   await shot(`08-03-result-editable-${scheme}`);
 
-  // R4: Replace returns the chosen version (fingerprinted in the log) and copies it too.
   clearLog();
   await tapButtonRow('Replace', SHORT);
   await wait(500);
   await shot(`08-04-replaced-toast-${scheme}`);
   if (!logcat().includes(`rewrite returned sha=${sha(SHORT)}`)) throw new Error(`Replace did not return the chosen version (${scheme})`);
+
+  await freshSetup(mode);
+  await openEditableSelection();
+  if (!(await textPresent(RECEIVER_ORIGINAL))) throw new Error(`selected editor text missing (${scheme})`);
+  await tapText('Shorter');
+  if (!(await textPresent('Replace your text with it'))) throw new Error(`editable selection did not rewrite (${scheme})`);
+  await scrollSheet();
+  clearLog();
+  await tapButtonRow('Replace', RECEIVER_SHORT);
+  await wait(900);
+  if (!(await waitForFocus('.MainActivity')) || !(await textPresent(RECEIVER_SHORT)) || await textPresent(RECEIVER_ORIGINAL))
+    throw new Error(`Replace did not update the receiving editable selection (${scheme})`);
+  if (!logcat().includes(`rewrite returned sha=${sha(RECEIVER_SHORT)}`)) throw new Error(`Replace did not return the changed text (${scheme})`);
 
   // R4: a read-only share offers only Copy.
   await openRewrite({ text: SELECTION, action: 'android.intent.action.SEND', readonly: true });
