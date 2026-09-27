@@ -5,7 +5,7 @@
 // (logcat fingerprint, never the text), read-only offering only Copy, a new number
 // warned, the bubble hidden while the sheet shows, and the drafts panel's verdict note.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 
@@ -24,6 +24,20 @@ const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding
 const shell = (...args) => { const r = adb('shell', ...args); console.error(`[${new Date().toISOString().slice(11, 19)}] shell:`, args.join(' ').slice(0, 90)); return r; };
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const wake = () => { shell('input', 'keyevent', 'KEYCODE_WAKEUP'); shell('svc', 'power', 'stayon', 'true'); shell('settings', 'put', 'system', 'screen_off_timeout', '1800000'); };
+const waitForFocus = async (packageName, tries = 8) => {
+  for (let i = 0; i < tries; i++) {
+    if (shell('dumpsys', 'window').split('\n').some(l => l.includes('mCurrentFocus') && l.includes(packageName))) return true;
+    if (i < tries - 1) await wait(600);
+  }
+  return false;
+};
+const expectedApkSha = createHash('sha256').update(readFileSync(apk)).digest('hex');
+const install = (...options) => {
+  execFileSync('adb', ['-s', serial, 'install', ...options, apk], { stdio: 'inherit' });
+  const path = shell('pm', 'path', pkg).split('\n').find(line => line.startsWith('package:') && line.trim().endsWith('/base.apk'))?.trim().slice(8);
+  const installedSha = path && shell('sha256sum', path).trim().split(/\s+/)[0];
+  if (installedSha !== expectedApkSha) throw new Error('Installed APK differs from release build; refusing to test a stale install.');
+};
 
 mkdirSync(out, { recursive: true });
 const [width, height] = shell('wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
@@ -195,13 +209,10 @@ const rebindService = async () => {
   if (!shell('settings', 'get', 'secure', 'enabled_accessibility_services').includes(component) || shell('settings', 'get', 'secure', 'accessibility_enabled').trim() !== '1') throw new Error('service not enabled');
 };
 
-execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
-await rebindService();
-
 const freshSetup = async (mode = 'no') => { // a clean install per scenario: the prefs and task stack start known
   wake();
   execFileSync('adb', ['-s', serial, 'uninstall', pkg], { stdio: 'ignore' });
-  execFileSync('adb', ['-s', serial, 'install', '-t', apk], { stdio: 'ignore' });
+  install('-t');
   shell('am', 'force-stop', 'com.android.settings');
   shell('cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off'); // the emulator's twilight schedule would otherwise re-enable night over 'no' (current host time is inside it)
   shell('cmd', 'uimode', 'night', mode);
@@ -229,8 +240,8 @@ XML`], { stdio: 'ignore' });
   shell('input', 'keyevent', 'KEYCODE_HOME');
   await wait(500);
   shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
-  await wait(4000);
-  if (!shell('dumpsys', 'window').split('\n').some(l => l.includes('mCurrentFocus') && l.includes('ownvoice.next'))) throw new Error('freshSetup: the app did not come to the front');
+  await wait(4000); // allow Expo to create the kv-store before seeding it
+  if (!(await waitForFocus(pkg))) throw new Error('freshSetup: the app did not come to the front');
   // the RN home swaps to /setup until setup-done sits in the expo-sqlite kv-store; seed it after first boot made the db, then cold-restart
   shell('su', '0', 'sqlite3', '/data/data/dev.ownvoice.next/files/SQLite/ExpoSQLiteStorage', `"INSERT OR REPLACE INTO storage(key,value) VALUES('setup-done','true');"`);
   shell('am', 'force-stop', pkg);
@@ -238,6 +249,7 @@ XML`], { stdio: 'ignore' });
   await rebindService();
   shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
   await wait(4500);
+  if (!(await waitForFocus(pkg))) throw new Error('freshSetup: the app did not return to the front');
   if (!(await textPresent('Your writing helper', 3))) {
     await back(); // service connection can surface the onboarding deep link after home opens
     if (!(await textPresent('Your writing helper', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
@@ -349,10 +361,11 @@ await back();
 const page = createServer((_, response) => { response.setHeader('Content-Type', 'text/html'); response.end('<meta name="viewport" content="width=device-width, initial-scale=1"><label>Message <textarea>stock please</textarea></label>'); });
 await new Promise(resolve => page.listen(0, '0.0.0.0', resolve));
 const openStockField = async () => {
-  shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://10.0.2.2:${page.address().port}/`, 'com.android.chrome');
-  if (await textPresent('Use without an account', 4)) await tapText('Use without an account');
-  if (await textPresent('No thanks', 2)) await tapText('No thanks');
-  if (!(await textPresent('stock please', 8))) throw new Error('Chrome practice field did not load');
+  const openPage = () => shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://10.0.2.2:${page.address().port}/`, 'com.android.chrome');
+  openPage();
+  if (await textPresent('Use without an account', 4)) { await tapText('Use without an account'); openPage(); }
+  if (await textPresent('No thanks', 2)) { await tapText('No thanks'); openPage(); }
+  if (!(await waitForFocus('com.android.chrome')) || !(await textPresent('stock please', 8))) throw new Error('Chrome practice field did not load in front');
   await focusField();
   if (shell('settings', 'get', 'secure', 'accessibility_enabled').trim() !== '1') await rebindService();
 };
