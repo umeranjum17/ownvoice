@@ -262,3 +262,42 @@ test('reply mode sends the C2 reply prompt; polish sends the rewrite prompt', as
     expect(bodies.at(-1)).not.toContain('Latest message:');
   } finally { global.fetch = originalFetch; }
 });
+
+const LIST_NOTE = 'I can bring the stove.\n1. I will pack the tent\n2. Meet Saturday at noon';
+const polishStream = (versions: string[]) => body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions }) })}\n\n${event({ type: 'response.completed' })}`);
+
+test('a flattened list slot goes back row by row and lands with the writer\'s markers', async () => {
+  const originalFetch = global.fetch;
+  const fetch = jest.fn()
+    .mockResolvedValueOnce({ ok: true, body: polishStream(['I can bring the stove.\n1. The stove is mine to bring.\n2. The tent and Saturday are sorted.', 'One flat line, again.', 'I can bring the stove.\n1. The tent gets packed by me.\n2. Saturday at noon, then.']) })
+    .mockResolvedValueOnce({ ok: true, body: polishStream(['Row 1: The stove is on me.\nRow 2: The tent gets packed by me.\nRow 3: Saturday at noon it is.']) });
+  try {
+    global.fetch = fetch as unknown as typeof fetch;
+    await expect(chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: LIST_NOTE })).resolves.toEqual({
+      drafts: [
+        'I can bring the stove.\n1. The stove is mine to bring.\n2. The tent and Saturday are sorted.',
+        'The stove is on me.\n1. The tent gets packed by me.\n2. Saturday at noon it is.',
+        'I can bring the stove.\n1. The tent gets packed by me.\n2. Saturday at noon, then.',
+      ],
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const payload = JSON.parse(String((fetch.mock.calls[1][1] as RequestInit).body)) as { input: { content: { text: string }[] }[] };
+    expect(payload.input[0].content[0].text).toContain('Rewrite each row of THEIR text on its own.');
+    expect(payload.input[0].content[0].text).toContain('Their text, by row:\nRow 1: I can bring the stove.\nRow 2: 1. I will pack the tent\nRow 3: 2. Meet Saturday at noon');
+  } finally { global.fetch = originalFetch; }
+});
+
+test('a rescue answer without rows, or echoing the original, stays out', async () => {
+  const originalFetch = global.fetch;
+  const fetch = jest.fn()
+    .mockResolvedValueOnce({ ok: true, body: polishStream(['Still one flat answer.', 'I can bring the stove.\n1. The tent is mine to pack.\n2. Saturday at noon, then.', 'Another flat one here.']) })
+    .mockResolvedValueOnce({ ok: true, body: polishStream(['Still one flat line, no rows.']) })
+    .mockResolvedValueOnce({ ok: true, body: polishStream(['Row 1: I can bring the stove.\nRow 2: 1. I will pack the tent\nRow 3: 2. Meet Saturday at noon']) });
+  try {
+    global.fetch = fetch as unknown as typeof fetch;
+    await expect(chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: LIST_NOTE })).resolves.toEqual({
+      drafts: ['I can bring the stove.\n1. The tent is mine to pack.\n2. Saturday at noon, then.'],
+    });
+    expect(fetch).toHaveBeenCalledTimes(3);
+  } finally { global.fetch = originalFetch; }
+});

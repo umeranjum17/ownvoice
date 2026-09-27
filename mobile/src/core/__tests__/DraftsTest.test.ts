@@ -240,8 +240,8 @@ test('rebuildLines puts a row-by-row rescue back on the original lines', () => {
   // Marker drift ('1)' or '-') is re-applied as the writer's own marker.
   expect(rebuildLines(note, 'Row 1: Bring the tent along\nRow 2: 1) Stove gets packed\nRow 3: - Saturday noon it is'))
     .toBe('Bring the tent along\n1. Stove gets packed\n2. Saturday noon it is');
-  // A wrapped row continues its row; blank lines stay where they were.
-  expect(rebuildLines('Hi\n\n1. First\n2. Second', 'Row 1: Hello there\nRow 2: First things\nfirst\nRow 3: Second one'))
+  // A wrapped row continues its row; rows count blank lines too, as lineRetryPrompt numbers them.
+  expect(rebuildLines('Hi\n\n1. First\n2. Second', 'Row 1: Hello there\nRow 3: First things\nfirst\nRow 4: Second one'))
     .toBe('Hello there\n\n1. First things first\n2. Second one');
   // Missing rows fall back to their original lines; unknown extra rows are ignored.
   expect(rebuildLines(note, 'Row 2: Stove gets packed'))
@@ -251,6 +251,16 @@ test('rebuildLines puts a row-by-row rescue back on the original lines', () => {
   expect(rebuildLines(note, 'one flat answer, no rows')).toBeNull();
   expect(rebuildLines(note, note)).toBeNull();
   expect(rebuildLines('Just a line', 'Row 1: 1. A listed line')).toBe('A listed line');
+});
+
+test('rebuildLines numbers a blank line the way the prompt does, so content lands on its own line', () => {
+  const note = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
+  const echoed = 'Row 1: Quick update\nRow 2:\nRow 3: The stove gets packed\nRow 4: Saturday we meet';
+  expect(rebuildLines(note, echoed)).toBe('Quick update\n\n1. The stove gets packed\n2. Saturday we meet');
+  expect(layoutKept(note, rebuildLines(note, echoed)!)).toBe(true);
+  // A row with no content falls back to its line's original text; nothing is emptied.
+  expect(rebuildLines(note, 'Row 1: Quick update\nRow 2:\nRow 3:\nRow 4: Saturday we meet'))
+    .toBe('Quick update\n\n1. Pack the stove\n2. Saturday we meet');
 });
 
 test('versionAcceptor undashes when the table says so, and honours avoid', () => {

@@ -57,7 +57,7 @@ const passInputs = image => { // one screencap, OCR'd whole, in 150px strips (ps
 };
 const ocrPass = ({ input, top, psm }) => {
   const found = [];
-  const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(psm ? ['--psm', psm === true ? '7' : psm] : []), 'tsv'], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+  const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(psm ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
   for (const row of tsv.split('\n').slice(1)) {
     const c = row.split('\t');
     if (c.length < 12 || !c[11].trim()) continue;

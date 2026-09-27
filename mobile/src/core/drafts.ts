@@ -94,9 +94,11 @@ const rowLine = /^\s*row\s*(\d+)\s*[.:)-]\s*(.*)$/i;
 /**
  * Rebuilds a row-by-row rescue (see judge.lineRetryPrompt) onto the original lines: the
  * original's blank lines and list markers win, so the layout is kept by construction even when
- * the model flattened the list or drifted its markers. Only "Row N:" lines count as rows, so a
- * plain whole-text answer never masquerades as one; missing rows fall back to the original
- * line, and no rows at all means the answer was unusable and null drops the version.
+ * the model flattened the list or drifted its markers. Rows are numbered over every original
+ * line, blank ones included, exactly as lineRetryPrompt numbers them, and a blank original line
+ * is returned unchanged. Only "Row N:" lines count as rows, so a plain whole-text answer never
+ * masquerades as one; a missing or empty row falls back to its original line, and no rows at
+ * all means the answer was unusable and null drops the version.
  */
 export function rebuildLines(original: string, answer: string): string | null {
   const rows = new Map<number, string>();
@@ -109,10 +111,10 @@ export function rebuildLines(original: string, answer: string): string | null {
   if (!rows.size) return null;
   let row = 0;
   return original.split(/\r?\n/).map(line => {
-    if (!line.trim()) return line;
     row++;
+    if (!line.trim()) return line;
     const marker = line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '';
-    const content = rows.get(row) ?? line.slice(marker.length).trim();
+    const content = (rows.get(row) || line.slice(marker.length).trim()).trim();
     return marker + content.replace(leadingMarker, '');
   }).join('\n');
 }

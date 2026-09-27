@@ -2,8 +2,8 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { classify } from '@byokit/accounts';
 import { codexAuth, reportFailure } from './accounts';
 import { readDraftStream } from '../core/responses-stream';
-import { acceptReplies, avoidLine, latestMessage, replyPrompt, replySlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
-import { rewritePrompt, versionPrompt, versionsList } from '../core/judge';
+import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
+import { lineRetryPrompt, rewritePrompt, versionsList } from '../core/judge';
 import { words } from '../core/words';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 
@@ -82,11 +82,11 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
     if (clean != null) landed(clean, slot, versionsList[slot].label);
   });
   for (const fail of acceptor.layoutFails) {
-    const prompt = versionPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes)
-      + '\n- Keep their line breaks and list exactly.' + (note ? `\n\n${note}` : '');
-    let again: string[] = [];
-    try { again = await ask(prompt, VERSION_INSTRUCTIONS, 'versions', 1, on); } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; continue; }
-    const fixed = acceptor.fix(again[0] ?? '', fail.slot, fail.label);
+    let rebuilt: string | null;
+    try {
+      rebuilt = rebuildLines(request.typed, (await ask(lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', 1, on))[0] ?? '');
+    } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; continue; }
+    const fixed = rebuilt != null ? acceptor.fix(rebuilt, fail.slot, fail.label) : null;
     if (fixed != null) landed(fixed, fail.slot, fail.label);
   }
   return acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
