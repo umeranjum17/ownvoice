@@ -19,6 +19,8 @@ class BubblePlacementTest {
 
   @Test fun draggedBubbleAlwaysStaysOnScreen() {
     assertEquals(0, BubblePlacement.clampTop(-400, h, dot))
+    // The overlay starts at screen y=30, but the status bar ends at y=63.
+    assertEquals(33, BubblePlacement.clampTop(-400, h, dot, 33))
     assertEquals(h - dot, BubblePlacement.clampTop(h + 400, h, dot))
     assertEquals(h - dot, BubblePlacement.clampTop(h - dot, h, dot))
     assertEquals(0, BubblePlacement.clampLeft(-10, w, dot))

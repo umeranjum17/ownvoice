@@ -244,11 +244,20 @@ class OwnvoiceService : AccessibilityService() {
     return false
   }
 
+  /** The overlay's origin can lie inside the status bar (e.g. y=30 when the bar ends at 63). */
+  private fun topInset(): Int {
+    if (!bubble.isLaidOut) return statusBarPx
+    val location = IntArray(2)
+    bubble.getLocationOnScreen(location)
+    return (statusBarPx - (location[1] - params.y)).coerceAtLeast(0)
+  }
+
   /** Follow the finger while dragging, kept wholly on the screen. */
   private fun moveTo(left: Int, top: Int) {
+    val inset = topInset()
     params.gravity = Gravity.TOP or Gravity.START
     params.x = BubblePlacement.clampLeft(left, screenW, bubble.width)
-    params.y = BubblePlacement.clampTop(top, areaH, bubble.height)
+    params.y = BubblePlacement.clampTop(top, areaH, bubble.height, inset)
     wm.updateViewLayout(bubble, params)
   }
 
@@ -258,7 +267,7 @@ class OwnvoiceService : AccessibilityService() {
     val keyboard = keyboardTop()?.minus(statusBarPx)?.takeIf { it > 0 && focusedField() != null }
     params.gravity = Gravity.TOP or (if (spot.edge == BubbleEdge.Left) Gravity.START else Gravity.END)
     params.x = px(8)
-    params.y = BubblePlacement.restTop(spot.top, areaH, bubbleSize, keyboard, px(8))
+    params.y = BubblePlacement.clampTop(BubblePlacement.restTop(spot.top, areaH, bubbleSize, keyboard, px(8)), areaH, bubbleSize, topInset())
     wm.updateViewLayout(bubble, params)
   }
 

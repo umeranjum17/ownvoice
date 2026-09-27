@@ -21,7 +21,7 @@ object BubblePlacement {
   fun edge(centerX: Int, screenW: Int): BubbleEdge = if (centerX < screenW / 2) BubbleEdge.Left else BubbleEdge.Right
 
   /** How far down a dragged bubble may sit: wholly inside the area it is laid out in. */
-  fun clampTop(top: Int, areaH: Int, size: Int): Int = top.coerceIn(0, max(0, areaH - size))
+  fun clampTop(top: Int, areaH: Int, size: Int, inset: Int = 0): Int = top.coerceIn(inset, max(inset, areaH - size))
 
   /** How far from the left a dragged bubble may be, so none of it leaves the screen. */
   fun clampLeft(left: Int, screenW: Int, size: Int): Int = left.coerceIn(0, max(0, screenW - size))
