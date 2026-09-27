@@ -26,6 +26,9 @@ export const mode=(typed:string,written:string):Mode=>typed.trim()?'COMPOSE':rep
 export const replying=(written:string)=>written.split(/\r?\n/).some(l=>l.trim().split(/\s+/).length>=4);
 export const WRITE_FIRST=words.writeFirst;
 export enum Rewrite{TIGHTEN='Shorter',PLAINER='Simpler',GRAMMAR='Fix spelling'}
+export const rewriteAsk:Record<Rewrite,string>={[Rewrite.TIGHTEN]:'Make it shorter and tighter. Cut filler, keep every point',[Rewrite.PLAINER]:'Say it in plainer, simpler words',[Rewrite.GRAMMAR]:'Fix only spelling, grammar and punctuation. Change nothing else'};
+/** The selection-menu rewrite prompt (Judge.rewritePrompt in the Kotlin app's RewriteActivity). */
+export function selectionRewritePrompt(text:string,ask:string,guide=''){return `Rewrite the text below. ${ask}. Keep its meaning, facts, language and tone. ${guide?`Follow the writer's rules: ${guide} `:''}Don't add anything new. Output only the rewritten text.\n\nText:\n${text}`;}
 export enum Boost{TIGHTER='Shorter',PLAINER='More like you',DETAIL='Start with a detail'}
 const REWRITE_RULES=`Rules for every version:\n- Keep every fact, number, name, plan and promise; add none. Never add experience, results, promises, "we" or anything they didn't write. Don't answer anything they didn't answer.\n- Keep their stance and their voice: same language, same casing, no more formal than they wrote. A chat stays a chat.\n- Cut template phrasing: hype words ("game-changer", "excited to announce"), "in today's world", "not just X, it's Y" and "more than just", "I'd love to hear your thoughts", "let me know your thoughts", flattery openers ("Great post", "Great question"), hashtag lists. Don't add long dashes (—).\n- Keep their layout: the same line breaks and paragraphs; a list stays a list with the same markers (1. 2. or -); keep their emoji.\n- If a sentence is only template, drop it.`;
 const dashRule=(dashes:'keep'|'remove')=>`- their dashes: ${dashes}`;

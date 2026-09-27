@@ -13,3 +13,11 @@ mobile/android/
 .npmcache/
 .fm-logs/
 .fm-env.sh
+.work-home/
+.task-home/
+mobile/.avd/
+mobile/.emu-home/
+mobile/.build-*.log
+mobile/.rn08.log
+mobile/.rn08.pid
+mobile/.run08.sh

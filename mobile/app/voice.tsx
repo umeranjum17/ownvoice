@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { File } from 'expo-file-system';
+import Native from '../modules/ownvoice-native';
 import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
 import { Row } from '../src/ui/Row';
@@ -28,7 +29,7 @@ export function foundLines(found: Found): string {
 }
 
 /** Your voice: the never-say list, a few rules and a "how I write" note, kept on this phone. */
-export default function Voice() {
+export default function Voice({ shared = false }: { shared?: boolean }) {
   const t = useTheme();
   const inset = useSafeAreaInsets().top;
   const [rules, setRules] = useState<Rules>(loadVoice);
@@ -41,12 +42,22 @@ export default function Voice() {
     try { saveVoice(next); setRules(next); setSaveFailed(false); return true; }
     catch { setSaveFailed(true); return false; }
   };
-  const show = (markdown: string) => {
+  const show = useCallback((markdown: string) => {
     const found = parse(markdown);
     if (!found.never.length && !found.noDashes && !found.statementEndings) { setPreview(words.foundNothing); setPending(null); return; }
     setPending(found);
     setPreview(foundLines(found));
-  };
+  }, []);
+  useEffect(() => {
+    if (!shared) return;
+    let active = true;
+    Native.sharedMarkdown().then(markdown => {
+      if (!active) return;
+      if (markdown == null) { setPreview(words.cantOpen); setPending(null); }
+      else show(markdown);
+    }).catch(() => { if (active) { setPreview(words.cantOpen); setPending(null); } });
+    return () => { active = false; };
+  }, [shared, show]);
   const pick = async () => {
     // Markdown has no MIME type every file manager agrees on, so offer any file.
     try {
@@ -86,7 +97,7 @@ export default function Voice() {
     <TextInput accessibilityLabel={words.neverSay} placeholder={words.neverSayHint} placeholderTextColor={t.muted} multiline
       value={neverText} onChangeText={text => { if (change({ ...rules, never: text.split('\n').map(x => x.trim()).filter(Boolean) })) setNeverText(text); }} style={[type.body, field, styles.wide]} />
     <Text style={[type.body, { color: t.muted, marginTop: space.m }]}>{words.wipeElsewhere}</Text>
-    <Button kind="text" label={words.back} onPress={() => router.back()} />
+    <Button kind="text" label={words.back} onPress={() => { if (shared) void Native.finishRewrite(null, false); else router.back(); }} />
   </ScrollView>;
 }
 

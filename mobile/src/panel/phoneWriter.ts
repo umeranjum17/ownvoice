@@ -1,5 +1,5 @@
 import Native from '../../modules/ownvoice-native';
-import { message } from '../core/nano';
+import { errorCode, message } from '../core/nano';
 import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
 import { rewrite, versionPrompt, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
@@ -62,7 +62,11 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
 export const phoneWriter = {
   async write(request: DraftRequest, on: WriterEvents = {}): Promise<Choice> {
     if (process.env.EXPO_PUBLIC_E2E_STUB === '1') {
-      const drafts = ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
+      // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
+      // the verdict line (cards differ) as well as the hidden shared note (cards agree).
+      const drafts = request.typed.includes('stock')
+        ? ['Yes, still on.', 'Saturday works.', "Let's delve in; at the end of the day, moving forward."]
+        : ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
       drafts.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts };
     }
@@ -78,8 +82,7 @@ export const phoneWriter = {
         : await replies(request, on, started);
       return { drafts };
     } catch (error) {
-      const code = Number(String(error).match(/(?:^|\D)(-?\d{1,3})(?:\D|$)/)?.[1]);
-      throw new Error(message(Number.isFinite(code) ? code : -107));
+      throw new Error(message(errorCode(error)));
     }
   },
 } satisfies Writer;

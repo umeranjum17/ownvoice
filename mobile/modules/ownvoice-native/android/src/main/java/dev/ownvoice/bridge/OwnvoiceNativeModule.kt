@@ -106,6 +106,12 @@ class OwnvoiceNativeModule : Module() {
       }
       service.insert(text) { ok, newlinesLost -> promise.resolve(mapOf("ok" to ok, "newlinesLost" to newlinesLost)) }
     }.runOnQueue(Queues.MAIN)
+    AsyncFunction("sharedMarkdown") { RewriteActivity.current?.sharedMarkdown() }
+    Function("rewriteInput") {
+      val activity = RewriteActivity.current ?: return@Function null
+      mapOf("text" to activity.selectedText, "editable" to activity.editable, "markdown" to activity.markdownShare)
+    }
+    AsyncFunction("finishRewrite") { text: String?, replace: Boolean -> RewriteActivity.current?.finishRewrite(text, replace) }.runOnQueue(Queues.MAIN)
     AsyncFunction("closePanel") { PanelActivity.current?.finish() }.runOnQueue(Queues.MAIN)
     AsyncFunction("modelStatus") Coroutine { -> PhoneModel.status() }
     AsyncFunction("downloadModel") Coroutine { ->
