@@ -11,7 +11,7 @@ every adb command targeted `emulator-5558`, and the driver refuses non-`emulator
 seeded through `su`, the RN `setup-done` kv row seeded after first boot, the accessibility
 service re-toggled per AGENTS.md, night mode forced with the twilight schedule disabled):
 
-1. **Empty selection (R2)** — launched straight at `RewriteActivity` from Android's
+1. **Empty selection (R2)** — launched straight at `RewriteActivity` with Android's
    process-text intent; the sheet shows only "Select some text first, then choose
    Ownvoice." (`OWNVOICE-RN-08-01-empty-*`).
 2. **Selection + chips (R2/R3)** — the "You selected" card with the promise note, and the
@@ -28,14 +28,18 @@ service re-toggled per AGENTS.md, night mode forced with the twilight schedule d
 6. **Bubble (R5)** — the bubble is hidden while the sheet shows (checked via the overlay
    window's `mViewVisibility`, never UiAutomator) and returns after the sheet closes
    (`-07-bubble-hidden-while-sheet`).
-7. **Drafts panel** — when every card would say the same thing ("Sounds natural"), the
+7. **Drafts panel** — the differing-card case opens a locally served Chrome textarea with
+   “stock please” and focuses it before tapping the bubble (rather than matching “message” in
+   Home's explanatory copy). When every card would say the same thing ("Sounds natural"), the
    verdict note is dropped (`-08`/`-11-panel-shared-note-hidden-*`); when cards differ,
    every card keeps its line — "A bit stock: 3 phrases you could say more simply" beside
    "Sounds natural" (`-10`/`-13-panel-differing-verdicts-*`); the **Why?** button rides the
    card's baseline and the cover no longer reads as an error — it says what was checked:
    "The lines above come from reading your writing." (`-09`/`-12-why-cover-checked-line-*`).
 
-Light and dark throughout. The driver targets controls by screenshot OCR only; tesseract 5.5
+Light and dark throughout. The intent-driven rewrite checks do not themselves exercise the
+Android selection-menu chooser; that needs a separate on-device interaction. The driver targets
+controls by screenshot OCR only; tesseract 5.5
 dropped the word-confidence format the earlier drivers used, so this one reads TSV per OCR
 pass (whole, 150 px strips, a pure-white-pixel pass for filled buttons in light, and a hard
 grey-threshold pass for them in dark), clusters each pass alone, finds a filled button as the

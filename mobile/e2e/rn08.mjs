@@ -1,12 +1,14 @@
 // OWNVOICE-RN-08 emulator evidence driver (adapted from e2e/rn05.mjs helpers).
 // Emulator-only: refuses any serial that is not emulator-*. Never touches a phone.
 // Proves rows R1-R5 with the release build and the build-flagged stand-in writer:
-// selection-menu and share entry, the three chips, Replace returning the chosen version
+// direct process-text and share intents (not the selection-menu chooser), the three chips,
+// Replace returning the chosen version
 // (logcat fingerprint, never the text), read-only offering only Copy, a new number
 // warned, the bubble hidden while the sheet shows, and the drafts panel's verdict note.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 
 const serial = process.env.ANDROID_SERIAL;
 if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (phones are refused).');
@@ -172,8 +174,6 @@ const tapButtonRow = async (label, verdict = 'Sounds natural') => {
   }
   throw new Error(`Could not find the ${label} button under the ${verdict} card`);
 };
-const type = text => shell('input', 'text', text.replaceAll(' ', '%s'));
-const enter = () => shell('input', 'keyevent', '66');
 const back = async () => { shell('input', 'keyevent', '4'); await wait(900); };
 const clearLog = () => execFileSync('adb', ['-s', serial, 'logcat', '-c']);
 const logcat = () => adb('logcat', '-d', '-s', 'OwnvoiceNative:I');
@@ -187,7 +187,7 @@ const rebindService = async () => {
   await wait(1500);
   shell('settings', 'put', 'secure', 'enabled_accessibility_services', [...services].join(':'));
   await wait(1500);
-  if (!shell('settings', 'get', 'secure', 'enabled_accessibility_services').includes(component)) throw new Error('service not enabled');
+  if (!shell('settings', 'get', 'secure', 'enabled_accessibility_services').includes(component) || shell('settings', 'get', 'secure', 'accessibility_enabled').trim() !== '1') throw new Error('service not enabled');
 };
 
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
@@ -233,7 +233,10 @@ XML`], { stdio: 'ignore' });
   await rebindService();
   shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
   await wait(4500);
-  if (!(await textPresent('Message', 3))) throw new Error('freshSetup: the practice field never showed (setup not seeded?)');
+  if (!(await textPresent('Your writing helper', 3))) {
+    await back(); // service connection can surface the onboarding deep link after home opens
+    if (!(await textPresent('Your writing helper', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
+  }
 };
 
 const openRewrite = async ({ action = 'android.intent.action.PROCESS_TEXT', text, readonly = false }) => {
@@ -249,7 +252,7 @@ const openRewrite = async ({ action = 'android.intent.action.PROCESS_TEXT', text
   await wait(2500); // the sheet slides up and reads its intent
   if (!shell('dumpsys', 'window').includes('RewriteActivity')) throw new Error(`the rewrite sheet did not open for "${text}"`);
 };
-const focusField = async () => { await tapText('Message'); await wait(900); };
+const focusField = async () => { await tapText('Message'); await wait(900); }; // only on the Chrome practice page
 const openPanel = async () => {
   for (let i = 0; i < 3; i++) {
     tap(width - 90 * width / 1080, height / 2);
@@ -326,7 +329,6 @@ if (!bubbleVisible()) throw new Error('the bubble did not come back after the sh
 
 // The drafts panel's shared verdict note: three clean cards say the same thing, so the note hides.
 await freshSetup('no');
-await focusField();
 await openPanel();
 if (await textPresent('Sounds natural')) throw new Error('the shared verdict note showed on identical cards');
 await shot('08-08-panel-shared-note-hidden-light');
@@ -337,12 +339,20 @@ await shot('08-09-why-cover-checked-line-light');
 await back(); // the cover closes first
 await back();
 
-// Cards that differ keep every verdict line.
+// Cards that differ keep every verdict line. A real editable Chrome field supplies the draft;
+// the home page's prose about a "message box" is not a field.
+const page = createServer((_, response) => { response.setHeader('Content-Type', 'text/html'); response.end('<meta name="viewport" content="width=device-width, initial-scale=1"><label>Message <textarea>stock please</textarea></label>'); });
+await new Promise(resolve => page.listen(0, '0.0.0.0', resolve));
+const openStockField = async () => {
+  shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://10.0.2.2:${page.address().port}/`, 'com.android.chrome');
+  if (await textPresent('Use without an account', 4)) await tapText('Use without an account');
+  if (await textPresent('No thanks', 2)) await tapText('No thanks');
+  if (!(await textPresent('stock please', 8))) throw new Error('Chrome practice field did not load');
+  await focusField();
+  if (shell('settings', 'get', 'secure', 'accessibility_enabled').trim() !== '1') await rebindService();
+};
 await freshSetup('no');
-await focusField();
-type('stock please');
-await enter();
-await wait(400);
+await openStockField();
 await openPanel();
 // three cards are taller than the sheet; sweep the list while checking every verdict line shows
 let sawStock = false, sawNatural = false;
@@ -358,7 +368,6 @@ await back();
 
 // The same two panel states in dark.
 await freshSetup('yes');
-await focusField();
 await openPanel();
 await shot('08-11-panel-shared-note-hidden-dark');
 await tapText('Why?');
@@ -367,13 +376,11 @@ await shot('08-12-why-cover-checked-line-dark');
 await back();
 await back();
 await freshSetup('yes');
-await focusField();
-type('stock please');
-await enter();
-await wait(400);
+await openStockField();
 await openPanel();
 for (let i = 0; i < 5; i++) { shell('input', 'swipe', '540', '1900', '540', '1350', '600'); await wait(700); } // gentle sweeps so the stock card's verdict line is on screen for the shot
 await shot('08-13-panel-differing-verdicts-dark');
 await back();
+page.close();
 
 console.log(`Screenshots saved to ${out}. Rewrite R1-R5, Replace and Copy fingerprints, the new-number warning, the hidden bubble and the panel verdict note all check out.`);
