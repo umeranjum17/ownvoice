@@ -204,8 +204,7 @@ export function replySlotPrompt(slot: string, input: ReplyInput): string {
 
 export function stripControlLines(text: string, controls: string[]): string {
   const labels = new Set(controls.map(norm).filter(Boolean));
-  const cleaned = text.split(/\r?\n/).filter(line => !labels.has(norm(line))).join('\n').trim();
-  return labels.has('skip') ? cleaned.replace(/(?<=[.!?])\s+Skip\.\s*$/i, '').trim() : cleaned;
+  return labels.has('skip') ? text.replace(/(?:(?<=[.!?])\s+|(?:^|\n))Skip\.\s*$/i, '').trim() : text.trim();
 }
 
 export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = []): (string | null)[] {

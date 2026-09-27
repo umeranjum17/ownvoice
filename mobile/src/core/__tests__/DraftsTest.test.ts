@@ -32,8 +32,9 @@ test('keeps a numbered or bulleted message intact unless explicitly labelled as 
 });
 
 test('a control-only draft line and leaked practice navigation are removed', () => {
-  expect(stripControlLines('Yes, I can bring the stove.\nSend\nSkip.', ['Send', 'Skip'])).toBe('Yes, I can bring the stove.');
-  expect(acceptReplies(['Draft 1: Saturday works.\nPost'], [], 3, 'remove', ['Post'])).toEqual(['Saturday works.']);
+  expect(stripControlLines('Yes, I can bring the stove.\nSend\nSkip.', ['Send', 'Skip'])).toBe('Yes, I can bring the stove.\nSend');
+  expect(acceptReplies(['Draft 1: Saturday works.\nPost'], [], 3, 'remove', ['Post'])).toEqual(['Saturday works.\nPost']);
+  expect(acceptReplies(['Draft 1: Reply\nBack'], [], 3, 'remove', ['Reply', 'Back'])).toEqual(['Reply\nBack']);
   expect(stripControlLines('Saturday works. Skip.', ['Skip'])).toBe('Saturday works.');
 });
 

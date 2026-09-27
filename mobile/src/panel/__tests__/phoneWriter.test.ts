@@ -141,9 +141,10 @@ test('unlabelled continuation lines stay with their explicit draft', async () =>
     setClock(24000);
     return ['Draft 1: Saturday works.\nI can bring the stove.\nSee you there.'];
   });
+  native.ask.mockResolvedValue('');
   const { drafts } = await phoneWriter.write(request());
   expect(drafts).toEqual(['Saturday works.\nI can bring the stove.\nSee you there.']);
-  expect(native.ask).not.toHaveBeenCalled();
+  expect(native.ask).toHaveBeenCalledTimes(2);
 });
 
 test('inline labels fill their numbered slots after the time limit', async () => {
@@ -151,10 +152,12 @@ test('inline labels fill their numbered slots after the time limit', async () =>
   await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes.', 'No.', 'Maybe.'] });
 });
 
-test('a late single labelled reply is retained', async () => {
+test('a late single labelled reply retries both missing slots', async () => {
   native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes, Saturday works.']; });
-  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works.'] });
-  expect(native.ask).not.toHaveBeenCalled();
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('Give a different answer')
+    ? 'No, could we meet Sunday?' : 'What time on Saturday?');
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works.', 'No, could we meet Sunday?', 'What time on Saturday?'] });
+  expect(native.ask).toHaveBeenCalledTimes(2);
 });
 
 test('a labelled multiline reply keeps its continuation while streaming', async () => {
@@ -172,11 +175,13 @@ test('a labelled multiline reply keeps its continuation while streaming', async 
 
 test('an unlabelled line after two labels continues the second draft', async () => {
   native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes.\nDraft 2: No.\nWhat time?']; });
+  native.ask.mockResolvedValue('');
   await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes.', 'No.\nWhat time?'] });
 });
 
 test('the last labelled reply can span lines without becoming another slot', async () => {
   native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes, Saturday works.\nDraft 2: No, Sunday?\nI can bring the stove then.']; });
+  native.ask.mockResolvedValue('');
   await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works.', 'No, Sunday?\nI can bring the stove then.'] });
 });
 

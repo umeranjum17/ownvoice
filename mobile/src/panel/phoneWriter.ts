@@ -42,8 +42,8 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
   return acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
 }
 
-/** Replies: one numbered call, then one retry per empty slot, until 8 s have passed since the tap. */
-async function replies(request: DraftRequest, on: WriterEvents, started: number, fillStarted: number): Promise<string[]> {
+/** Replies: one numbered call, then one retry per empty slot within 8 s of its answer. */
+async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide };
   const landed = on.landed ?? (() => {});
@@ -70,6 +70,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number,
     const answer = await Native.draftStream(id, phoneReplyPrompt(input), 220);
     take(answer, true);
   } finally { subscription.remove(); }
+  const fillStarted = Date.now();
   for (let slot = 0; slot < REPLY_SLOTS.length && Date.now() - fillStarted <= FILL_MS; slot++) {
     if (made[slot]) continue;
     try {
@@ -98,10 +99,9 @@ export const phoneWriter = {
         await Native.downloadModel();
       }
       on.state?.('writing');
-      const fillStarted = Date.now();
       const drafts = request.typed.trim()
         ? await polish(request, on)
-        : await replies(request, on, started, fillStarted);
+        : await replies(request, on, started);
       return { drafts };
     } catch (error) {
       throw new Error(message(errorCode(error)));

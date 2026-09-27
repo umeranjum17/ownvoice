@@ -14,14 +14,16 @@ class CapturedInputTextTest {
 
   @Test fun clickableRowsKeepMessageChildrenButButtonsStayControls() {
     assertEquals(false, isControl(false, false, true, 1, "Sam: Can you bring the stove?"))
-    assertEquals(false, isControl(false, false, false, 0, "Sam: Can you bring the stove?"))
+    assertEquals(false, isControl(false, false, false, 0, "Reply"))
+    assertEquals(false, isControl(false, false, false, 0, "Back"))
     assertEquals(true, isControl(false, true, true, 1, "Send"))
     assertEquals(true, isControl(true, false, false, 0, "Arrow"))
     assertEquals(true, isControl(false, false, true, 0, "Send"))
     assertEquals(true, isControl(false, false, true, 1, "Send"))
-    assertEquals(true, isControl(false, false, false, 0, "Send"))
-    assertEquals("Can you bring the stove?", conversationText("Can you bring the stove?", false, isControl(false, false, false, 0, "Can you bring the stove?")))
-    assertEquals(null, conversationText("Send", false, isControl(false, false, false, 0, "Send")))
+    assertEquals(false, isControl(false, false, false, 0, "Send"))
+    assertEquals("Reply", conversationText("Reply", false, isControl(false, false, false, 0, null)))
+    assertEquals("Back", conversationText("Back", false, isControl(false, false, false, 0, null)))
+    assertEquals(null, conversationText("Send", false, isControl(false, false, true, 1, "Send")))
   }
 
   @Test fun controlsAndTheirChildrenNeverBecomeConversation() {
