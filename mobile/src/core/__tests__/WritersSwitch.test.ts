@@ -1,5 +1,5 @@
 import { withPhoneFallback, Writer } from '../writers';
-import { CACHE_MS, chatgptEnabled, Flag, SwitchState, SwitchStore, verify } from '../switch';
+import { CACHE_MS, chatgptEnabled, currentSwitch, Flag, SwitchState, SwitchStore, verify } from '../switch';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
 import { randomBytes } from 'node:crypto';
@@ -81,6 +81,40 @@ test('remote switch vectors: valid, signature, app, rollback, version; failures 
   expect(await chatgptEnabled(store, async () => ({ ok: true, json: async () => signed({ ...base, seq: 4, chatgpt: 'on' }) } as Response), 100 + 2 * CACHE_MS, publicKey)).toBe(true);
   expect(state).toEqual({ seq: 4, chatgpt: 'on', fetchedAt: 100 + 2 * CACHE_MS });
   expect(await chatgptEnabled({ get: async () => null, set: async () => {} }, async () => { throw Error(); }, 100, publicKey)).toBe(true);
+});
+
+test.each([
+  ['on', 'off', false],
+  ['off', 'on', true],
+] as const)('a verified %s-to-%s choice governs this tap when saving fails', async (before, after, enabled) => {
+  const publicKey = b64(await ed.getPublicKeyAsync(privateKey));
+  let state: SwitchState = { seq: 1, chatgpt: before, fetchedAt: 0 };
+  const set = jest.fn(async (value: SwitchState) => { state = value; });
+  set.mockRejectedValueOnce(new Error('storage unavailable'));
+  const store: SwitchStore = { get: async () => state, set };
+  const fetcher = jest.fn(async () => ({ ok: true, json: async () => signed({ v: 1, app: 'ownvoice', seq: 2, chatgpt: after }) } as Response));
+  expect(await chatgptEnabled(store, fetcher, CACHE_MS + 1, publicKey)).toBe(enabled);
+  expect(state).toEqual({ seq: 1, chatgpt: before, fetchedAt: 0 });
+  expect((await currentSwitch(store))?.chatgpt).toBe(after);
+  expect(await chatgptEnabled(store, fetcher, CACHE_MS + 2, publicKey)).toBe(enabled);
+  expect(state).toEqual({ seq: 1, chatgpt: before, fetchedAt: 0 });
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(await chatgptEnabled(store, async () => { throw Error('offline'); }, 2 * CACHE_MS + 1, publicKey)).toBe(enabled);
+  expect(await chatgptEnabled(store, fetcher, 2 * CACHE_MS + 2, publicKey)).toBe(enabled);
+  expect(state).toEqual({ seq: 2, chatgpt: after, fetchedAt: 2 * CACHE_MS + 2 });
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});
+
+test('an older signed on flag cannot override an unsaved newer off choice', async () => {
+  const publicKey = b64(await ed.getPublicKeyAsync(privateKey));
+  let state: SwitchState = { seq: 1, chatgpt: 'on', fetchedAt: 0 };
+  const store: SwitchStore = { get: async () => state, set: jest.fn(async value => { state = value; }).mockRejectedValueOnce(new Error('full')) };
+  const off = await signed({ v: 1, app: 'ownvoice', seq: 3, chatgpt: 'off' });
+  expect(await chatgptEnabled(store, async () => ({ ok: true, json: async () => off } as Response), CACHE_MS + 1, publicKey)).toBe(false);
+  const olderOn = await signed({ v: 1, app: 'ownvoice', seq: 2, chatgpt: 'on' });
+  expect(await chatgptEnabled(store, async () => ({ ok: true, json: async () => olderOn } as Response), 2 * CACHE_MS + 2, publicKey)).toBe(false);
+  expect(state.chatgpt).toBe('on');
+  expect((await currentSwitch(store))?.chatgpt).toBe('off');
 });
 
 test.each([4, 3])('a delayed sequence %i cannot overwrite a newer off flag', async oldSeq => {

@@ -11,26 +11,39 @@ export type SwitchState = { seq: number; chatgpt: 'on' | 'off'; fetchedAt: numbe
 export type SwitchStore = { get(): Promise<SwitchState | null>; set(state: SwitchState): Promise<void> };
 const bytes = (s: string) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 let lastUpdate: Promise<void> = Promise.resolve();
+// ponytail: unsaved verified choices last only this process; after restart an offline fetch uses the older stored choice.
+const lastVerified = new WeakMap<SwitchStore, SwitchState>();
+export async function currentSwitch(store: SwitchStore): Promise<SwitchState | null> {
+  const saved = await store.get();
+  const verified = lastVerified.get(store);
+  return verified && verified.seq > (saved?.seq ?? 0) ? verified : saved;
+}
 export async function verify(flag: Flag, publicKey: string, previousSeq: number): Promise<boolean> {
   if (flag?.payload?.v !== 1 || Object.keys(flag.payload).length !== 4 || flag.payload.app !== 'ownvoice' || !Number.isSafeInteger(flag.payload.seq) || flag.payload.seq <= previousSeq || !['on', 'off'].includes(flag.payload.chatgpt)) return false;
   try { return await ed.verify(bytes(flag.sig), new TextEncoder().encode(JSON.stringify(flag.payload)), bytes(publicKey)); } catch { return false; }
 }
 export async function chatgptEnabled(store: SwitchStore, fetcher: typeof fetch = fetch, now = Date.now(), publicKey = SWITCH_PUBLIC_KEY): Promise<boolean> {
-  const prior = await store.get();
+  const prior = await currentSwitch(store);
   if (!publicKey || prior && now - prior.fetchedAt < CACHE_MS) return prior?.chatgpt !== 'off';
+  let response: Response;
+  try { response = await fetcher(SWITCH_URL, { method: 'GET', signal: AbortSignal.timeout(3000) }); }
+  catch { return (await currentSwitch(store))?.chatgpt !== 'off'; }
+  if (!response.ok) return (await currentSwitch(store))?.chatgpt !== 'off';
+  let flag: Flag;
+  try { flag = await response.json() as Flag; }
+  catch { return (await currentSwitch(store))?.chatgpt !== 'off'; }
+  const previous = lastUpdate;
+  let release!: () => void;
+  lastUpdate = new Promise(resolve => { release = resolve; });
+  await previous;
   try {
-    const response = await fetcher(SWITCH_URL, { method: 'GET', signal: AbortSignal.timeout(3000) });
-    if (!response.ok) return (await store.get())?.chatgpt !== 'off';
-    const flag = await response.json() as Flag;
-    const previous = lastUpdate;
-    let release!: () => void;
-    lastUpdate = new Promise(resolve => { release = resolve; });
-    await previous;
-    try {
-      const current = await store.get();
-      const same = current && flag?.payload?.seq === current.seq && flag.payload.chatgpt === current.chatgpt;
-      if (await verify(flag, publicKey, (current?.seq ?? 0) - (same ? 1 : 0))) await store.set({ seq: flag.payload.seq, chatgpt: flag.payload.chatgpt, fetchedAt: Math.max(now, current?.fetchedAt ?? now) });
-    } finally { release(); }
-  } catch { /* Keep the last verified choice. */ }
-  return (await store.get())?.chatgpt !== 'off';
+    const current = await currentSwitch(store);
+    const same = current && flag?.payload?.seq === current.seq && flag.payload.chatgpt === current.chatgpt;
+    if (await verify(flag, publicKey, (current?.seq ?? 0) - (same ? 1 : 0))) {
+      const choice = { seq: flag.payload.seq, chatgpt: flag.payload.chatgpt, fetchedAt: Math.max(now, current?.fetchedAt ?? now) };
+      lastVerified.set(store, choice);
+      await store.set(choice).catch(() => {});
+    }
+  } finally { release(); }
+  return (await currentSwitch(store))?.chatgpt !== 'off';
 }

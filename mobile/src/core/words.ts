@@ -1,4 +1,4 @@
-export const CHATGPT_TERMS = 'Uses your ChatGPT plan. OpenAI may change this at any time.';
+export const CHATGPT_TERMS = 'Uses your ChatGPT plan.';
 export const technicalWords = /(?:gemini|gemma|\bnano\b|aicore|ml ?kit|\bllm\b|\bmodel\b|\/100|\/10\b|judge|slop|characters|\bprompt|\btokens?\b|on-device|gpt-\d|codex|openai api|responses|%|\bpercent\b|\(\d{3}\))/i;
 export const plainReason = (reason: string) => !technicalWords.test(reason) && !/\d/.test(reason) && reason.trim().split(/\s+/).length <= 12;
 export const words = {
@@ -18,6 +18,8 @@ export const words = {
   noVersions:'Couldn\'t polish that this time. Try again.',
   serviceOff:'Ownvoice is off. Use Copy instead.',
   fallback:'ChatGPT didn\'t answer. This phone wrote these instead.',
+  phoneWrote:'This phone wrote these.',
+  switchUnavailable:'ChatGPT could not be reached this time. This phone wrote these.',
   chatgptFailed:'ChatGPT didn\'t answer this time.',
   tryAgain:'Try again',
   writeNew:'Write new ones',
@@ -38,7 +40,9 @@ export const words = {
   requestTooLarge:'That chat is too long. Scroll to the latest messages and tap again.',
   systemUpdate:'Your phone needs an update first. Open Settings › System updates, then try again.',
   failed:'Something went wrong. Try again.',
-  home:'Your writing helper. It stays on this phone.',
+  home:'Your writing helper. It writes on this phone, or with your ChatGPT plan.',
+  privacyNote:'With the phone’s own writer, nothing leaves your phone. If you sign in to ChatGPT, the chat on your screen and what you typed are sent to ChatGPT to write your drafts.',
+  switchNote:'Ownvoice checks now and then whether ChatGPT is allowed to write. That check carries no name and no message.',
   permission:'On the next screen, tap Ownvoice, then switch on “Use Ownvoice”:',
   welcomeTitle:'Write replies that sound like you.',
   continueLabel:'Continue',
@@ -46,8 +50,8 @@ export const words = {
   permissionSubtitle:'Android calls this “accessibility”. It’s the only way a helper can read a chat and fill in a message box for you.',
   promiseTap:'Reads only when you tap the bubble',
   promiseTapNote:'Never in the background',
-  promisePhone:'Stays on this phone',
-  promisePhoneNote:'Nothing is sent anywhere',
+  promisePhone:'Choose who writes your drafts',
+  promisePhoneNote:'Nothing leaves your phone unless you sign in to ChatGPT',
   promiseSend:'You always press Send',
   promiseSendNote:'Ownvoice never sends for you',
   switchRowApp:'Ownvoice',
@@ -68,6 +72,22 @@ export const words = {
   practiceMessage2:'I can bring the tent if you bring the stove.',
   practiceField:'Practice message',
   practiceNote:'It’s only practice: nothing here goes to anyone.',
+  gptTitle:'Write with ChatGPT',
+  gptNote:'ChatGPT writes your drafts with the plan you already pay for. This phone writes them if ChatGPT can’t.',
+  gptButton:'Continue with ChatGPT',
+  gptOpenPage:'Open the ChatGPT page',
+  gptCancel:'Cancel',
+  gptSignOut:'Sign out of ChatGPT',
+  gptApps:'Apps that can use ChatGPT',
+  gptAppsQuestion:'Which apps can use ChatGPT?',
+  gptAppsNote:'ChatGPT writes only in the apps you switch on. The rest are written on this phone.',
+  gptAppsUnavailable:'Couldn’t load your choices. Try again.',
+  gptAppsSaveFailed:'Couldn’t save that. Try again.',
+  gptAppsSignIn:'Sign in to ChatGPT again, then try Done.',
+  gptSignedInNow:'ChatGPT is connected.',
+  readsTitle:'What Ownvoice read',
+  gptSignOutFailed:'Couldn’t sign out. Try again.',
+  gptPageFailed:'Couldn’t open the ChatGPT page. Try the button again.',
   skip:'Skip',
   appsTitle:'Where should I help?',
   appsNote:'The bubble shows only in these apps. You can change this any time.',
@@ -132,7 +152,7 @@ export const words = {
   wipeElsewhere:'Wipe everything, under What Ownvoice read, deletes these too.',
 
   // What Ownvoice read (ReadsActivity).
-  readsNote:'Each time you tap the bubble, Ownvoice notes the app, the time and what it helped with. Never any of your text. This list stays on this phone and each entry is deleted after 30 days.',
+  readsNote:'Each time you tap the bubble, Ownvoice notes the app, the time, what it helped with and whether ChatGPT saw the screen. Never any of your text. This list stays on this phone and each entry is deleted after 30 days.',
   wipe:'Wipe everything',
   wipeVoiceNote:'Wipe everything also deletes Your voice.',
   nothingRead:'Nothing read in the last 30 days.',

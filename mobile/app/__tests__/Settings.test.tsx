@@ -6,7 +6,7 @@ import Voice, { foundLines } from '../voice';
 import Reads from '../reads';
 import Native, { type TapFact } from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
-import { readLog, syncReadLog } from '../../src/core/readLog';
+import { readLog } from '../../src/core/readLog';
 import { loadVoice } from '../../src/core/voice';
 
 jest.mock('../../modules/ownvoice-native', () => ({
@@ -14,7 +14,7 @@ jest.mock('../../modules/ownvoice-native', () => ({
   default: {
     serviceState: jest.fn(), turnOff: jest.fn(), modelStatus: jest.fn(), downloadModel: jest.fn(),
     bubbleRules: jest.fn(), setBubbleRules: jest.fn(), launcherApps: jest.fn(), takeTapFacts: jest.fn(),
-    ackTapFacts: jest.fn(), clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(),
+    clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(),
   },
 }));
 
@@ -33,7 +33,7 @@ const apps = [
   { app: 'com.android.chrome', label: 'Chrome', icon: null },
 ];
 let sequence = 0;
-const fact = (over: Partial<TapFact> = {}): TapFact => ({ id: String(++sequence), at: Date.now(), app: 'com.whatsapp', label: 'WhatsApp', screen: true, typed: false, replying: true, ...over });
+const fact = (over: Partial<TapFact> = {}): TapFact => ({ id: String(++sequence), at: Date.now(), app: 'com.whatsapp', label: 'WhatsApp', screen: true, typed: false, replying: true, sent: false, ...over });
 
 beforeEach(() => {
   kv.clear();
@@ -48,7 +48,6 @@ beforeEach(() => {
   native.setBubbleRules.mockResolvedValue(undefined);
   native.launcherApps.mockResolvedValue(apps);
   native.takeTapFacts.mockResolvedValue([]);
-  native.ackTapFacts.mockResolvedValue(undefined);
   native.clearTapFacts.mockResolvedValue(undefined);
   native.forget.mockResolvedValue(undefined);
   native.turnOff.mockResolvedValue(undefined);
@@ -162,10 +161,7 @@ test('a dropped service asks to be turned back on', async () => {
 // ---- H2: the rows ----
 test('the rows say where it shows, how many phrases and what it read this week', async () => {
   kv.set('voice', JSON.stringify({ never: ['delve', 'circle back'], noDashes: false, statementEndings: false, note: '' }));
-  kv.set('reads', JSON.stringify([
-    { time: Date.now() - 3600_000, app: 'com.whatsapp', label: 'WhatsApp', summary: 'Suggested replies. Read the chat on screen.' },
-    { time: Date.now() - 7200_000, app: 'com.whatsapp', label: 'WhatsApp', summary: 'Suggested replies. Read the chat on screen.' },
-  ]));
+  native.takeTapFacts.mockResolvedValue([fact({ at: Date.now() - 3600_000 }), fact({ at: Date.now() - 7200_000 })]);
   const screen = await homeCopy();
   expect(screen.getByText('WhatsApp and Netflix')).toBeTruthy();   // chosen app plus one default, Gmail switched off
   expect(screen.getByText('2 phrases you never say')).toBeTruthy();
@@ -175,7 +171,7 @@ test('the rows say where it shows, how many phrases and what it read this week',
 
 test('one phrase and one read read as one', async () => {
   kv.set('voice', JSON.stringify({ never: ['delve'], noDashes: false, statementEndings: false, note: '' }));
-  kv.set('reads', JSON.stringify([{ time: Date.now() - 3600_000, app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }]));
+  native.takeTapFacts.mockResolvedValue([fact({ at: Date.now() - 3600_000 })]);
   const screen = await homeCopy();
   expect(screen.getByText('1 phrase you never say')).toBeTruthy();
   expect(screen.getByText(words.onceWeek)).toBeTruthy();
@@ -192,7 +188,7 @@ test('a fresh phone has nothing to show yet', async () => {
 test('returning to Home refreshes voice, apps, and reads without backgrounding', async () => {
   const screen = await homeCopy();
   kv.set('voice', JSON.stringify({ never: ['delve'], noDashes: false, statementEndings: false, note: '' }));
-  kv.set('reads', JSON.stringify([{ time: Date.now(), app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }]));
+  native.takeTapFacts.mockResolvedValue([fact()]);
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.android.chrome'], off: ['com.google.android.gm', 'com.whatsapp'] });
   const focus = (jest.requireMock('expo-router').useFocusEffect as jest.Mock).mock.calls.at(-1)[0];
   await act(async () => { focus(); });
@@ -206,7 +202,7 @@ test('the rows come back fresh whenever the app is in front', async () => {
   const spy = jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, cb) => { shown = cb as never; return { remove: () => {} }; });
   const screen = await homeCopy();
   expect(screen.getByText(words.nothingWeek)).toBeTruthy();
-  kv.set('reads', JSON.stringify([{ time: Date.now() - 3600_000, app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }]));
+  native.takeTapFacts.mockResolvedValue([fact({ at: Date.now() - 3600_000 })]);
   await act(async () => { shown!('active'); });
   await waitFor(() => expect(screen.getByText(words.onceWeek)).toBeTruthy());
   screen.unmount();
@@ -382,7 +378,7 @@ test('a tap is logged with the app and the time, and never any text', async () =
   await waitFor(() => expect(readLog().length).toBe(1));
   expect(screen.getByText('Suggested replies in WhatsApp')).toBeTruthy();
   expect(screen.getByText(/Read the chat on screen · Today, /)).toBeTruthy();
-  expect(JSON.stringify(kv.get('reads'))).not.toMatch(/Sam|tent|stove/i);
+  expect(kv.has('reads')).toBe(false);
 });
 
 test('an empty log says so in plain words', async () => {
@@ -419,46 +415,6 @@ test('a failed native wipe keeps saved choices and offers a retry', async () => 
   await waitFor(() => expect(readLog()).toEqual([]));
 });
 
-test('a failed JS write leaves native taps unacknowledged for retry', async () => {
-  const tap = fact();
-  native.takeTapFacts.mockResolvedValue([tap]);
-  const storage = jest.requireMock('expo-sqlite/kv-store').default;
-  const set = jest.spyOn(storage, 'setItemSync').mockImplementationOnce(() => { throw new Error('disk full'); });
-  try {
-    await expect(syncReadLog()).rejects.toThrow('disk full');
-    expect(native.ackTapFacts).not.toHaveBeenCalled();
-    expect(readLog()).toEqual([]);
-    await syncReadLog();
-    expect(native.ackTapFacts).toHaveBeenCalledWith([tap.id]);
-    expect(readLog()).toHaveLength(1);
-  } finally { set.mockRestore(); }
-});
-
-test('a failed log read never replaces history or acknowledges the tap', async () => {
-  const prior = [{ id: 'old', time: Date.now(), app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }];
-  kv.set('reads', JSON.stringify(prior));
-  native.takeTapFacts.mockResolvedValue([fact()]);
-  const storage = jest.requireMock('expo-sqlite/kv-store').default;
-  const get = jest.spyOn(storage, 'getItemSync').mockImplementationOnce(() => { throw new Error('read failed'); });
-  try {
-    await expect(syncReadLog()).rejects.toThrow('read failed');
-    expect(native.ackTapFacts).not.toHaveBeenCalled();
-    expect(JSON.parse(kv.get('reads')!)).toEqual(prior);
-    await syncReadLog();
-    expect(readLog()).toHaveLength(2);
-  } finally { get.mockRestore(); }
-});
-
-test('an acknowledgement failure cannot duplicate an already saved tap', async () => {
-  const tap = fact();
-  native.takeTapFacts.mockResolvedValue([tap]);
-  native.ackTapFacts.mockRejectedValueOnce(new Error('ack failed'));
-  await expect(syncReadLog()).rejects.toThrow('ack failed');
-  expect(readLog()).toHaveLength(1);
-  await syncReadLog();
-  expect(readLog()).toHaveLength(1);
-});
-
 test('Home includes taps still waiting in the phone', async () => {
   native.takeTapFacts.mockResolvedValueOnce([fact()]).mockResolvedValue([]);
   const screen = await homeCopy();
@@ -467,8 +423,7 @@ test('Home includes taps still waiting in the phone', async () => {
 });
 
 test('an entry older than 30 days has already gone', async () => {
-  native.takeTapFacts.mockResolvedValue([]);
-  kv.set('reads', JSON.stringify([{ time: Date.now() - 31 * 24 * 3600_000, app: 'a', label: 'A', summary: 'Suggested replies. Nothing was on screen.' }]));
+  native.takeTapFacts.mockResolvedValue([fact({ at: Date.now() - 31 * 24 * 3600_000 })]);
   const screen = await show(<Reads />);
   expect(screen.getByText(words.nothingRead)).toBeTruthy();
 });

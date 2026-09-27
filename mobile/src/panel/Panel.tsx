@@ -4,10 +4,11 @@ import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import { dashesFor } from '../core/drafts';
+import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide, loadVoice } from '../core/voice';
 import { words } from '../core/words';
 import type { Check, Scores } from '../core/judge';
-import type { Writer } from '../core/writers';
+import type { Writer, WriterRoute } from '../core/writers';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { MeaningLine } from '../ui/MeaningLine';
@@ -74,20 +75,21 @@ function WhyCover({ draft, checks, who }: { draft: Draft; checks: WhyState; who:
   </View>;
 }
 
-export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}) {
+export default function Panel({ writer, select = gptRoute }: { writer?: Writer; select?: (app: string) => Promise<WriterRoute> } = {}) {
   const t = useTheme();
   const [capture, setCapture] = useState<Capture | null>(null);
   const [mode, setMode] = useState<Mode | null>(null);
   const [phase, setPhase] = useState<Phase>('loading');
   const [note, setNote] = useState<string | null>(null);
   const [fraction, setFraction] = useState<number | null>(null);
-  const [fallback, setFallback] = useState(false);
+  const [reason, setReason] = useState<string | null>(null);
   const [who, setWho] = useState<string | null>(null);
   const [yours, setYours] = useState<Draft | null>(null);
   const [cards, setCards] = useState<(Draft | null)[]>([null, null, null]);
   const [why, setWhy] = useState<number | null>(null);
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const run = useRef(0);
+  const startedTap = useRef<string | null>(null);
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
   const kind = useRef<{ message: boolean } | null>(null);
@@ -104,52 +106,66 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
     setMode(nextMode);
     setCards([null, null, null]);
     setYours(null);
-    setFallback(false);
+    setReason(null);
     setFraction(null);
     setWhy(null);
-    if (nextMode === 'empty') { setNote(null); setPhase('ready'); return; }
+    if (nextMode === 'empty') {
+      setNote(null); setPhase('ready'); return;
+    }
     setNote(words.writing);
     setPhase('writing');
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
       setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, rules, post, person), meaning: null });
     }
-    void writer.write({
-      conversation: value.conversation,
-      written: value.written,
-      nodes: value.nodes,
-      fieldTop: value.fieldTop ?? undefined,
-      typed: value.typed.trim(),
-      guide: voiceGuide(rules, post),
-      dashes: dashesFor(rules, nextMode === 'reply' ? value.written : value.typed),
-      avoid,
-    }, {
-      state: state => {
-        if (run.current !== id) return;
-        setNote(state === 'downloading' ? words.gettingReady : words.writing);
-        if (state === 'writing') setFraction(null);
-      },
-      fraction: value2 => { if (run.current === id) setFraction(value2); },
-      reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
-      landed: (text, slot, label) => {
-        if (run.current !== id) return;
-        const scores = Judge.scoreDraft(text, null, !post, rules, post, person);
-        const meaning = label ? Judge.meaning(value.typed, text, null) : null;
-        setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
-      },
-    }).then(({ reason }) => {
+    void (async () => {
+      let path: WriterRoute;
+      try { path = writer ? { writer, note: null } : await select(value.app); }
+      catch { path = { writer: phoneWriter, note: words.phoneWrote }; }
       if (run.current !== id) return;
-      setFraction(null);
-      setFallback(!!reason);
-      setNote(null);
-      setPhase('ready');
-    }).catch((error: unknown) => {
-      if (run.current !== id) return;
-      setFraction(null);
-      setNote(error instanceof Error ? error.message : words.failed);
-      setPhase('failed');
-    });
-  }, [writer]);
+      let sent = false;
+
+      try {
+        const choice = await path.writer.write({
+          conversation: value.conversation,
+          written: value.written,
+          nodes: value.nodes,
+          fieldTop: value.fieldTop ?? undefined,
+          typed: value.typed.trim(),
+          guide: voiceGuide(rules, post),
+          dashes: dashesFor(rules, nextMode === 'reply' ? value.written : value.typed),
+          avoid,
+        }, {
+          sent: async () => { if (!sent) { await Native.markTapSent(value.id); sent = true; } },
+          unsent: async () => { if (sent && startedTap.current !== value.id) { await Native.unmarkTapSent(value.id); sent = false; } },
+          started: () => { startedTap.current = value.id; },
+          state: state => {
+            if (run.current !== id) return;
+            setNote(state === 'downloading' ? words.gettingReady : words.writing);
+            if (state === 'writing') setFraction(null);
+          },
+          fraction: value2 => { if (run.current === id) setFraction(value2); },
+          reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
+          landed: (text, slot, label) => {
+            if (run.current !== id) return;
+            const scores = Judge.scoreDraft(text, null, !post, rules, post, person);
+            const meaning = label ? Judge.meaning(value.typed, text, null) : null;
+            setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
+          },
+        });
+        if (run.current !== id) return;
+        setFraction(null);
+        setReason(choice.reason ?? path.note);
+        setNote(null);
+        setPhase('ready');
+      } catch (error) {
+        if (run.current !== id) return;
+        setFraction(null);
+        setNote(error instanceof Error ? error.message : words.failed);
+        setPhase('failed');
+      }
+    })();
+  }, [writer, select]);
 
   useEffect(() => {
     const progress = Native.addListener('onModelProgress', ({ fraction: value }) => setFraction(value));
@@ -265,6 +281,6 @@ export default function Panel({ writer = phoneWriter }: { writer?: Writer } = {}
         <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} />
       </View>
       : null}
-    {fallback && shown.length ? <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{words.fallback}</Text> : null}
+    {reason && shown.length ? <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{reason}</Text> : null}
   </Sheet>;
 }

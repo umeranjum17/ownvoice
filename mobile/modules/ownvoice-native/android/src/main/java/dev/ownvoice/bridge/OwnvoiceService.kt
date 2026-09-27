@@ -54,14 +54,14 @@ class OwnvoiceService : AccessibilityService() {
     private const val DAY_MS = 24L * 60 * 60 * 1000
     private const val TIP = "Tap for reply ideas, or to polish what you wrote."
 
-    private fun factLine(f: TapFact) = listOf(f.at, f.app.replace(Regex("[\\t\\r\\n]"), " "), f.label.replace(Regex("[\\t\\r\\n]"), " "), f.screen, f.typed, f.replying, f.id).joinToString("\t")
+    private fun factLine(f: TapFact) = listOf(f.at, f.app.replace(Regex("[\\t\\r\\n]"), " "), f.label.replace(Regex("[\\t\\r\\n]"), " "), f.screen, f.typed, f.replying, f.id, f.sent).joinToString("\t")
     // ponytail: If the service never runs, old facts remain until its next start.
     private fun restoreFacts(context: android.content.Context) {
       val prefs = context.getSharedPreferences("ownvoice-native", MODE_PRIVATE)
       if (facts.isEmpty()) prefs.getString(FACTS, "").orEmpty().lineSequence().filter { it.isNotBlank() }.forEach { line ->
         val parts = line.split('\t')
-        if (parts.size == 7) parts[0].toLongOrNull()?.let { at ->
-          facts += TapFact(at, parts[1], parts[2], parts[3].toBoolean(), parts[4].toBoolean(), parts[5].toBoolean(), parts[6])
+        if (parts.size == 7 || parts.size == 8) parts[0].toLongOrNull()?.let { at ->
+          facts += TapFact(at, parts[1], parts[2], parts[3].toBoolean(), parts[4].toBoolean(), parts[5].toBoolean(), parts[6], parts.getOrNull(7) == "true")
         }
       }
       val kept = facts.filter { System.currentTimeMillis() - it.at < KEEP_MS }
@@ -73,22 +73,27 @@ class OwnvoiceService : AccessibilityService() {
       restoreFacts(context)
       facts.toList()
     }
-    fun acknowledgeFacts(context: android.content.Context, ids: List<String>) = synchronized(facts) {
+    private fun setTapSent(context: android.content.Context, id: String, sent: Boolean) = synchronized(facts) {
       restoreFacts(context)
-      check(facts.take(ids.size).map { it.id } == ids)
-      val kept = facts.drop(ids.size)
-      check(context.getSharedPreferences("ownvoice-native", MODE_PRIVATE).edit().putString(FACTS, kept.joinToString("\n", transform = ::factLine)).commit())
-      facts.clear(); facts.addAll(kept)
+      val index = facts.indexOfFirst { it.id == id }
+      check(index >= 0)
+      if (facts[index].sent != sent) {
+        val updated = facts.toMutableList().also { it[index] = it[index].copy(sent = sent) }
+        check(context.getSharedPreferences("ownvoice-native", MODE_PRIVATE).edit().putString(FACTS, updated.joinToString("\n", transform = ::factLine)).commit())
+        facts.clear(); facts.addAll(updated)
+      }
     }
+    fun markTapSent(context: android.content.Context, id: String) = setTapSent(context, id, true)
+    fun unmarkTapSent(context: android.content.Context, id: String) = setTapSent(context, id, false)
     fun clearSavedFacts(context: android.content.Context) = synchronized(facts) {
       check(context.getSharedPreferences("ownvoice-native", MODE_PRIVATE).edit().remove(FACTS).commit())
       facts.clear()
     }
   }
 
-  data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String)
+  data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false)
   data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean)
-  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val nodes: List<ScreenText>, val fieldTop: Int?)
+  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String)
   private val main = Handler(Looper.getMainLooper())
   private val notes = Handler(Looper.getMainLooper())
   private lateinit var wm: WindowManager
@@ -197,15 +202,16 @@ class OwnvoiceService : AccessibilityService() {
     field?.getBoundsInScreen(fieldBounds)
     val typed = capturedInputText(field?.text, field?.isShowingHintText == true)
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
-    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null)
-    val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), java.util.UUID.randomUUID().toString())
+    val id = java.util.UUID.randomUUID().toString()
+    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id)
+    val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), id)
     val saved = synchronized(facts) {
       restoreFacts(this@OwnvoiceService)
       val ok = prefs.edit().putString(FACTS, (facts + fact).joinToString("\n", transform = ::factLine)).commit()
       if (ok) facts += fact
       ok
     }
-    if (!saved) Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show()
+    if (!saved) { Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show(); restoreBubble.run(); return }
     if (lines.isEmpty() && field == null) return say("No text on this screen.")
     capture = reading
     startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
