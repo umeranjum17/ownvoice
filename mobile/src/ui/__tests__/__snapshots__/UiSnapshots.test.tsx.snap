@@ -1350,7 +1350,6 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
     }
   >
     <View
-      accessibilityLabel="Close"
       accessibilityState={
         {
           "busy": undefined,
@@ -1368,7 +1367,7 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
           "text": undefined,
         }
       }
-      accessible={true}
+      accessible={false}
       collapsable={false}
       focusable={true}
       onBlur={[Function]}
@@ -2065,7 +2064,6 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
     }
   >
     <View
-      accessibilityLabel="Close"
       accessibilityState={
         {
           "busy": undefined,
@@ -2083,7 +2081,7 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
           "text": undefined,
         }
       }
-      accessible={true}
+      accessible={false}
       collapsable={false}
       focusable={true}
       onBlur={[Function]}
@@ -3869,7 +3867,6 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
     }
   >
     <View
-      accessibilityLabel="Close"
       accessibilityState={
         {
           "busy": undefined,
@@ -3887,7 +3884,7 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
           "text": undefined,
         }
       }
-      accessible={true}
+      accessible={false}
       collapsable={false}
       focusable={true}
       onBlur={[Function]}
@@ -4584,7 +4581,6 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
     }
   >
     <View
-      accessibilityLabel="Close"
       accessibilityState={
         {
           "busy": undefined,
@@ -4602,7 +4598,7 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
           "text": undefined,
         }
       }
-      accessible={true}
+      accessible={false}
       collapsable={false}
       focusable={true}
       onBlur={[Function]}
