@@ -72,7 +72,9 @@ class RewriteActivity : ReactActivity() {
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", text))
     if (replace && editable) {
       setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text))
-      Toast.makeText(this, "Replaced. Also copied, in case the app didn't take it.", Toast.LENGTH_SHORT).show()
+      // Chrome may ignore the returned text (it drops the selection while we were up), so the
+      // toast never claims a replacement happened - it states the copy fallback plainly.
+      Toast.makeText(this, RETURNED_TOAST, Toast.LENGTH_SHORT).show()
       Log.i(OwnvoiceService.TAG, "rewrite returned sha=${sha(text)}")
     } else {
       Toast.makeText(this, "Copied.", Toast.LENGTH_SHORT).show()
@@ -85,6 +87,9 @@ class RewriteActivity : ReactActivity() {
     /** The live sheet, so the module reads the intent of the activity that actually opened. */
     @Volatile
     var current: RewriteActivity? = null
+
+    /** What the sheet says after handing a rewrite back: the copy is certain, the replacement is not. */
+    const val RETURNED_TOAST = "Copied. If the app didn't take it, just paste."
 
     /** A stable fingerprint for the on-device test; the text itself never goes to the log. */
     fun sha(text: String) = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }.take(12)

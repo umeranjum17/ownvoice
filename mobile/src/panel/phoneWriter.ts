@@ -1,7 +1,7 @@
 import Native from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
-import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
-import { rewrite, versionPrompt, versionsList } from '../core/judge';
+import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
+import { lineRetryPrompt, rewrite, versionsList, type RewriteEngine } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
 // Drafts on the phone (spec 5): replies fill three fixed slots from one numbered call,
@@ -16,12 +16,13 @@ async function ask(prompt: string, maxTokens: number): Promise<string> {
   return Native.ask(`phone-${Date.now()}-${calls++}`, prompt, { maxTokens });
 }
 
-/** Polish and compose: the C2 rewrite, streamed as versions land, with layout kept and near-duplicates dropped. */
-async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]> {
+/** Polish and compose: the C2 rewrite, streamed as versions land, with layout kept and near-duplicates dropped.
+ *  `script` replaces the phone model (e2e builds only): a flattening answer, then a row-by-row rescue. */
+async function polish(request: DraftRequest, on: WriterEvents, script?: RewriteEngine): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
   const avoid = request.avoid ?? [];
   const note = avoidLine(avoid);
-  const engine = { ask: (prompt: string, maxTokens: number) => ask(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
+  const engine: RewriteEngine = script ?? { ask: (prompt: string, maxTokens: number) => ask(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
   const landed = on.landed ?? (() => {});
   const acceptor = versionAcceptor(request.typed, dashes, avoid);
   await rewrite(engine, request.typed, request.conversation, request.guide ?? '', (version, text) => {
@@ -29,13 +30,12 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
     const clean = acceptor.accept(text, slot, version.label);
     if (clean != null) landed(clean, slot, version.label);
   }, dashes);
-  // A flattened list goes back through its slot once; still flat means dropped (spec 5.2).
+  // A layout-failed slot goes back once, row by row; rebuildLines re-applies the original
+  // markers and blank lines, so a flattened or renumbered list still lands (spec 5.2).
   for (const fail of acceptor.layoutFails) {
-    const lines = request.typed.split('\n');
-    const prompt = versionPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes)
-      + `\nKeep exactly ${lines.length} lines in this order, including blank lines. Keep these line prefixes exactly: ${lines.map((line, i) => `${i + 1}: ${line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '(none)'}`).join('; ')}. Do not combine lines.` + (note ? `\n\n${note}` : '');
     try {
-      const fixed = acceptor.fix(await engine.ask(prompt, 256), fail.slot, fail.label);
+      const rebuilt = rebuildLines(request.typed, await engine.ask(lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes), 256));
+      const fixed = rebuilt != null ? acceptor.fix(rebuilt, fail.slot, fail.label) : null;
       if (fixed != null) landed(fixed, fail.slot, fail.label);
     } catch { continue; }
   }
@@ -83,6 +83,25 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
 export const phoneWriter = {
   async write(request: DraftRequest, on: WriterEvents = {}): Promise<Choice> {
     if (process.env.EXPO_PUBLIC_E2E_STUB === '1') {
+      // The emulator has no phone model; a multi-line note still runs the real polish pipeline
+      // against a scripted model that flattens first and rescues row by row, so the sheet
+      // exercises acceptance and the layout rescue end to end. Never in a distributable build.
+      if (request.typed.includes('\n')) {
+        const script: RewriteEngine = { ask: async prompt => {
+          const rows = [...prompt.matchAll(/^Row \d+: (.+)$/gm)].map(match => match[1].trim());
+          if (!rows.length) {
+            const tail = prompt.slice(prompt.indexOf('Their text:\n') + 12);
+            const flat = tail.slice(0, tail.indexOf('\n\nTheir rules') < 0 ? undefined : tail.indexOf('\n\nTheir rules')).split('\n').join(', ');
+            // A rewording too: a pure line-join normalizes equal to the original and would never queue the rescue.
+            return JSON.stringify({ versions: [`Plan: ${flat}`] });
+          }
+          const body = (line: string) => line.replace(/^\s*(?:\d+[.)]|[-*•])\s+/, '');
+          if (prompt.includes('Tighter:')) return rows.map((line, i) => `Row ${i + 1}: ${i ? body(line).split(' ').slice(0, 3).join(' ') : line}`).join('\n');
+          if (prompt.includes('put the answer first')) return rows.map((line, i) => `Row ${i + 1}: ${i ? body(rows[i - 1]) : body(rows.at(-1)!)}`).join('\n');
+          return rows.map((line, i) => `Row ${i + 1}: ${line}`).join('\n');
+        } };
+        return { drafts: await polish(request, on, script) };
+      }
       // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).
       const drafts = request.typed.includes('stock')

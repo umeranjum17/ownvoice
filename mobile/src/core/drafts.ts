@@ -88,6 +88,35 @@ export function layoutKept(original: string, version: string): boolean {
     && (!original.includes('\n') || nonEmptyLines(version) >= nonEmptyLines(original) - 1);
 }
 
+const leadingMarker = /^\s*(?:\d+[.)]|[-*•])\s+/;
+const rowLine = /^\s*row\s*(\d+)\s*[.:)-]\s*(.*)$/i;
+
+/**
+ * Rebuilds a row-by-row rescue (see judge.lineRetryPrompt) onto the original lines: the
+ * original's blank lines and list markers win, so the layout is kept by construction even when
+ * the model flattened the list or drifted its markers. Only "Row N:" lines count as rows, so a
+ * plain whole-text answer never masquerades as one; missing rows fall back to the original
+ * line, and no rows at all means the answer was unusable and null drops the version.
+ */
+export function rebuildLines(original: string, answer: string): string | null {
+  const rows = new Map<number, string>();
+  let last = 0;
+  for (const line of answer.split(/\r?\n/)) {
+    const row = line.match(rowLine);
+    if (row) { last = Number(row[1]); rows.set(last, row[2].trim()); }
+    else if (last && line.trim() && !leadingMarker.test(line)) rows.set(last, `${rows.get(last)} ${line.trim()}`); // a wrapped row continues
+  }
+  if (!rows.size) return null;
+  let row = 0;
+  return original.split(/\r?\n/).map(line => {
+    if (!line.trim()) return line;
+    row++;
+    const marker = line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '';
+    const content = rows.get(row) ?? line.slice(marker.length).trim();
+    return marker + content.replace(leadingMarker, '');
+  }).join('\n');
+}
+
 // ---- 5.4 The dash rule: the writer's text and their own switch win ----
 
 /** ' — ', '—' and ' – ' become ', ' on any draft the table says must not carry a dash. */

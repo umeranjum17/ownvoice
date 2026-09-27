@@ -10,6 +10,7 @@ const native = Native as jest.Mocked<typeof Native>;
 
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 const LIST = 'I can bring the stove.\n1. I will bring the stove.\n2. You can bring the tent.';
+const TENT = 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon';
 const request = (over: { conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; nodes?: { text: string; left: number; top: number; bottom: number; clickable: boolean }[]; fieldTop?: number } = {}) => ({
   conversation: over.conversation ?? SAM,
   written: over.written ?? SAM,
@@ -43,6 +44,23 @@ test('emulator stub delivers insertable drafts without a phone model', async () 
     expect(result.drafts).toHaveLength(3);
     expect(landed).toEqual(result.drafts.map((text, slot) => [text, slot]));
     expect(native.modelStatus).not.toHaveBeenCalled();
+  } finally {
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_E2E_STUB;
+    else process.env.EXPO_PUBLIC_E2E_STUB = previous;
+  }
+});
+
+test('the e2e stub drives the real polish pipeline for a multi-line note', async () => {
+  const previous = process.env.EXPO_PUBLIC_E2E_STUB;
+  process.env.EXPO_PUBLIC_E2E_STUB = '1';
+  try {
+    native.ask.mockRejectedValue(new Error('no model on the emulator'));
+    const landed: [string, number, string?][] = [];
+    const { drafts } = await phoneWriter.write(request({ typed: TENT }), { landed: (text, slot, label) => landed.push([text, slot, label]) });
+    expect(drafts).toHaveLength(2); // the light touch has nothing to change, so it honestly stays out
+    for (const draft of drafts) { expect(draft).toMatch(/\n1\. /); expect(draft).toMatch(/\n2\. /); }
+    expect(landed.map(([, , label]) => label)).toEqual(['Shorter', 'Main point first']);
+    expect(native.ask).not.toHaveBeenCalled();
   } finally {
     if (previous === undefined) delete process.env.EXPO_PUBLIC_E2E_STUB;
     else process.env.EXPO_PUBLIC_E2E_STUB = previous;
@@ -308,7 +326,7 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
 test('a polish of the numbered list keeps the list, after one layout fix', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove, and you the tent."]}';
-    if (prompt.includes('Keep exactly 3 lines')) return 'Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.';
+    if (prompt.includes('Rewrite each row')) return 'Row 1: Stove is on me.\nRow 2: I will bring the stove.\nRow 3: You can bring the tent.';
     if (prompt.includes('Tighter:')) return 'Saturday works.\n1. I bring the stove.\n2. Tent is yours.';
     return 'Stove and tent split:\n1. The stove is mine to bring.\n2. The tent is yours to bring.';
   });
@@ -316,10 +334,30 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
   expect(drafts).toHaveLength(3);
   expect(drafts[0]).toBe('Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.');
   for (const draft of drafts) { expect(draft).toMatch(/1\. /); expect(draft).toMatch(/2\. /); }
-  expect(native.ask).toHaveBeenCalledTimes(4); // one rewrite call, two slot fallbacks, one layout fix
+  expect(native.ask).toHaveBeenCalledTimes(4); // one rewrite call, two slot fallbacks, one row-by-row layout fix
 });
 
-test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
+test('the row-by-row retry shows the flattened list by rows and lands the writer\'s own markers', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => {
+    if (prompt.includes('{"versions"')) return '{"versions":["Bring the tent, pack the stove, meet Saturday noon."]}';
+    if (prompt.includes('Rewrite each row')) {
+      expect(prompt).toContain('Row 1: Please bring the tent\nRow 2: 1. Pack the stove\nRow 3: 2. Meet Saturday at noon');
+      if (prompt.includes('Tighter:')) return 'Row 1: Bring the tent, please.\nRow 2: 1) Pack the stove.\nRow 3: Saturday at noon, then.';
+      if (prompt.includes('put the answer first')) return 'Row 1: Bring the tent, please.\nRow 2: 1) Stove gets packed.\nRow 3: 2) Saturday noon it is.';
+      return 'Row 1: Bring the tent, please.\nRow 2: 1) Pack the stove.\nRow 3: 2) Meet at noon Saturday.';
+    }
+    return 'Bring the tent, pack the stove, and meet Saturday at noon.';
+  });
+  const landed: [string, number, string?][] = [];
+  const { drafts } = await phoneWriter.write(request({ typed: TENT }), { landed: (text, slot, label) => landed.push([text, slot, label]) });
+  expect(drafts).toHaveLength(3);
+  for (const draft of drafts) { expect(draft).toMatch(/\n1\. /); expect(draft).toMatch(/\n2\. /); }
+  expect(drafts[0]).toBe('Bring the tent, please.\n1. Pack the stove.\n2. Meet at noon Saturday.');
+  expect(landed.map(([, , label]) => label)).toEqual(['Cleaned up', 'Shorter', 'Main point first']);
+  expect(native.ask).toHaveBeenCalledTimes(6); // one rewrite call, two flat fallbacks, three row rescues
+});
+
+test('every shown card keeps the list; a plain answer to the row retry stays out', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Saturday plan:\\n1. I bring the stove.\\n2. You bring the tent, please.","Saturday plan:\\n1. Stove: mine.\\n2. Tent: yours."]}';
     return 'Saturday plan:\n1. Stove: mine.\n2. Tent: yours.';
@@ -332,7 +370,7 @@ test('every shown card keeps the list; a fix that duplicates a shown card is dro
   }
 });
 
-test('flattened versions stay out after the single layout retry', async () => {
+test('flat row answers stay out after the layout rescue', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
     ? '{"versions":["Flat stove and tent plan."]}' : 'Still one flat line, again.');
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));

@@ -236,6 +236,20 @@ await wait(700);
 shell('input', 'keyevent', '4');
 await wait(900);
 
+// Dark polish: the numbered list through the real pipeline (the stub's scripted model flattens, then rescues row by row).
+await freshSetup('yes');
+await focusField();
+type('Please bring the tent');
+await enter();
+type('1. Pack the stove');
+await enter();
+type('2. Meet Saturday at noon');
+await wait(400);
+await openPanel();
+await shot('05-14-polish-list-dark');
+shell('input', 'keyevent', '4');
+await wait(900);
+
 // Compose and empty over a page whose text has no four-word line (served locally, Chrome).
 const { createServer } = await import('node:http');
 let views = 0;

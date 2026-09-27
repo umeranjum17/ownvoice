@@ -1,6 +1,6 @@
 import {
   REPLY_SLOTS, acceptReplies, cleanDrafts, dashDecision, dashesFor, latestMessage,
-  layoutKept, norm, phoneReplyPrompt, phoneSlotPrompt, preserveFragment, replyPrompt, replySlotPrompt, stripControlLines, undash, versionAcceptor,
+  layoutKept, norm, phoneReplyPrompt, phoneSlotPrompt, preserveFragment, rebuildLines, replyPrompt, replySlotPrompt, stripControlLines, undash, versionAcceptor,
 } from '../drafts';
 import { versionsList } from '../judge';
 
@@ -229,6 +229,28 @@ test('versionAcceptor queues a flattened list for one fix, then drops it', () =>
   const fixed = versionAcceptor(list, 'remove', []);
   fixed.accept('I can bring the stove, and you the tent.', 1, versionsList[1].label);
   expect(fixed.fix('I can bring the stove.\n1. I will bring it.\n2. You the tent.', 1, versionsList[1].label)).toBe('I can bring the stove.\n1. I will bring it.\n2. You the tent.');
+});
+
+test('rebuildLines puts a row-by-row rescue back on the original lines', () => {
+  const note = 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon';
+  const rows = 'Row 1: Bring the tent along\nRow 2: Stove gets packed\nRow 3: Saturday noon it is';
+  // A flattened answer gets the original list markers and blank lines back, by construction.
+  expect(rebuildLines(note, rows)).toBe('Bring the tent along\n1. Stove gets packed\n2. Saturday noon it is');
+  expect(layoutKept(note, rebuildLines(note, rows)!)).toBe(true);
+  // Marker drift ('1)' or '-') is re-applied as the writer's own marker.
+  expect(rebuildLines(note, 'Row 1: Bring the tent along\nRow 2: 1) Stove gets packed\nRow 3: - Saturday noon it is'))
+    .toBe('Bring the tent along\n1. Stove gets packed\n2. Saturday noon it is');
+  // A wrapped row continues its row; blank lines stay where they were.
+  expect(rebuildLines('Hi\n\n1. First\n2. Second', 'Row 1: Hello there\nRow 2: First things\nfirst\nRow 3: Second one'))
+    .toBe('Hello there\n\n1. First things first\n2. Second one');
+  // Missing rows fall back to their original lines; unknown extra rows are ignored.
+  expect(rebuildLines(note, 'Row 2: Stove gets packed'))
+    .toBe('Please bring the tent\n1. Stove gets packed\n2. Meet Saturday at noon');
+  expect(rebuildLines(note, 'Row 9: stray row')).toBe(note);
+  // A plain whole-text answer (even a perfect list) is not rows and stays out.
+  expect(rebuildLines(note, 'one flat answer, no rows')).toBeNull();
+  expect(rebuildLines(note, note)).toBeNull();
+  expect(rebuildLines('Just a line', 'Row 1: 1. A listed line')).toBe('A listed line');
 });
 
 test('versionAcceptor undashes when the table says so, and honours avoid', () => {

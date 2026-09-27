@@ -57,7 +57,7 @@ const passInputs = image => { // one screencap, OCR'd whole, in 150px strips (ps
 };
 const ocrPass = ({ input, top, psm }) => {
   const found = [];
-  const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(psm ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+  const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(psm ? ['--psm', psm === true ? '7' : psm] : []), 'tsv'], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
   for (const row of tsv.split('\n').slice(1)) {
     const c = row.split('\t');
     if (c.length < 12 || !c[11].trim()) continue;
@@ -250,9 +250,9 @@ XML`], { stdio: 'ignore' });
   shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
   await wait(4500);
   if (!(await waitForFocus(pkg))) throw new Error('freshSetup: the app did not return to the front');
-  if (!(await textPresent('Your writing helper', 3))) {
+  if (!(await textPresent('Writes on this phone', 3))) {
     await back(); // service connection can surface the onboarding deep link after home opens
-    if (!(await textPresent('Your writing helper', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
+    if (!(await textPresent('Writes on this phone', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
   }
 };
 
@@ -286,7 +286,16 @@ const RECEIVER_ORIGINAL = 'Move Tuesday. Really.';
 const RECEIVER_SHORT = 'Move Tuesday.';
 
 const openEditableSelection = async () => {
-  await tapText('Your voice');
+  // The bubble floats over Home and tesseract segments this row badly (the 150 px strips slice
+  // it, whole-frame modes merge it with neighbouring rows), so tap the row's known Home
+  // position; the 'example' field check below proves the right screen opened.
+  if (!shell('dumpsys', 'window').split('\n').some(l => l.includes('mCurrentFocus') && l.includes('ownvoice.next'))) {
+    wake();
+    shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
+    await wait(3500);
+  }
+  tap(width / 2, 1345);
+  await wait(900);
   let field;
   for (let i = 0; i < 6 && !field; i++) {
     field = screenClusters().find(g => g.text.includes('example') && g.top > 800);
