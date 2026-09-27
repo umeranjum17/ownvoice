@@ -10,7 +10,7 @@ if (!apk) throw new Error('Pass the release APK path.');
 const out = resolve(process.argv[3] ?? 'e2e/artifacts');
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
-const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
+const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
 const snap = name => {
   const path = resolve(out, `${name}.png`);
   mkdirSync(dirname(path), { recursive: true });
@@ -98,9 +98,14 @@ const tapInsertButton = () => {
   }
   throw new Error('Could not find the Copy button beside Insert.');
 };
-const bubble = () => tap(width - Math.round(90 * width / 1080), Math.round(height * .53));
+const bubbleWindow = () => adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
+const bubble = () => {
+  const frame = bubbleWindow()?.match(/frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
+  if (!frame) throw new Error('Could not locate the Ownvoice bubble.');
+  tap(Math.round((Number(frame[1]) + Number(frame[3])) / 2), Math.round((Number(frame[2]) + Number(frame[4])) / 2));
+};
 const bubbleVisible = () => {
-  const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
+  const window = bubbleWindow();
   const visibility = window?.match(/mViewVisibility=(0x[0-9a-f]+)/)?.[1];
   if (!visibility) throw new Error('Could not inspect the Ownvoice overlay window.');
   return visibility === '0x0';
