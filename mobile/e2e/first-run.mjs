@@ -199,6 +199,8 @@ const run = async mode => {
   await tapInsert();
   await wait(2500);
   await waitForLine('press send yourself');
+  const doneText = screenText();
+  if (!doneText.includes('continue') || doneText.includes('inserted. send it yourself')) throw new Error('The practice confirmation obscures Continue.');
   expectPlain('try done');
   snap(tag('04-practice-done'));
   const log = adb('logcat', '-d', '-s', 'OwnvoiceNative:I');
