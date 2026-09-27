@@ -60,7 +60,7 @@ export function cleanDrafts(candidates: string[], limit = count, polishing = fal
 
 export function preserveFragment(original: string, text: string): string {
   return !/[.!?。！？]\s*$/.test(original.trim()) && original.trim().split(/\s+/).length === 1
-    ? text.replace(/[.!?。！？]+\s*$/, '') : text;
+    ? text.replace(/[.。]+\s*$/, '') : text;
 }
 
 // ---- 5.3 Duplicates ----

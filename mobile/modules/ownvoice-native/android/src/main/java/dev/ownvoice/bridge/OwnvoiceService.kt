@@ -40,6 +40,9 @@ internal fun capturedInputText(text: CharSequence?, isShowingHintText: Boolean):
 internal fun conversationText(text: CharSequence?, hint: Boolean, action: Boolean): String? =
   if (action) null else accessibleText(text, hint)?.trim()?.takeIf { it.isNotEmpty() }
 
+internal fun isControl(buttonAncestor: Boolean, button: Boolean, clickable: Boolean, childCount: Int): Boolean =
+  buttonAncestor || button || (clickable && childCount == 0)
+
 class OwnvoiceService : AccessibilityService() {
   companion object {
     const val TAG = "OwnvoiceNative"
@@ -333,9 +336,10 @@ class OwnvoiceService : AccessibilityService() {
     return find(focus)
   }
   private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>, practice: Boolean) {
-    fun walk(node: AccessibilityNodeInfo, clickable: Boolean) {
+    fun walk(node: AccessibilityNodeInfo, buttonAncestor: Boolean) {
       if (node == skip || !node.isVisibleToUser) return
-      val action = clickable || node.isClickable || node.className?.toString()?.endsWith("Button") == true
+      val button = node.className?.toString()?.endsWith("Button") == true
+      val action = isControl(buttonAncestor, button, node.isClickable, node.childCount)
       val text = if (practice && node.viewIdResourceName?.startsWith("practice-line-") != true) null
         else accessibleText(node.text ?: node.contentDescription, node.isShowingHintText)?.trim()?.takeIf { it.isNotEmpty() }
       val conversation = if (text != null) conversationText(node.text ?: node.contentDescription, node.isShowingHintText, action) else null
@@ -349,7 +353,7 @@ class OwnvoiceService : AccessibilityService() {
           nodes += ScreenText(it, (bounds.left / density).roundToInt(), (bounds.top / density).roundToInt(), (bounds.bottom / density).roundToInt(), action)
         }
       }
-      for (i in 0 until node.childCount) node.getChild(i)?.let { walk(it, action) }
+      for (i in 0 until node.childCount) node.getChild(i)?.let { walk(it, buttonAncestor || button) }
     }
     walk(root, false)
   }

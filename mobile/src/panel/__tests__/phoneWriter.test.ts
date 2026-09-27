@@ -146,6 +146,30 @@ test('mixed labelled and unlabelled replies fill missing slots after the time li
   expect(native.ask).not.toHaveBeenCalled();
 });
 
+test('a late single labelled reply is retained', async () => {
+  native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes, Saturday works.']; });
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works.'] });
+  expect(native.ask).not.toHaveBeenCalled();
+});
+
+test('a labelled multiline reply keeps its continuation while streaming', async () => {
+  let partial: ((event: { id: string; text: string }) => void) | undefined;
+  native.addListener.mockImplementation((_name, callback) => { partial = callback as typeof partial; return { remove: jest.fn() } as never; });
+  const landed: [string, number][] = [];
+  native.draftStream.mockImplementation(async id => {
+    partial?.({ id, text: 'Draft 1: Saturday works.\nI can bring the stove.\nDraft 2: No, Sunday?\nDraft 3:' });
+    return 'Draft 1: Saturday works.\nI can bring the stove.\nDraft 2: No, Sunday?\nDraft 3: What time?';
+  });
+  const { drafts } = await phoneWriter.write(request(), { landed: (text, slot) => landed.push([text, slot]) });
+  expect(drafts).toEqual(['Saturday works.\nI can bring the stove.', 'No, Sunday?', 'What time?']);
+  expect(landed).toEqual(drafts.map((text, slot) => [text, slot]));
+});
+
+test('the last labelled reply can span lines without becoming another slot', async () => {
+  native.drafts.mockImplementation(async () => { setClock(24000); return ['Draft 1: Yes, Saturday works.\nDraft 2: No, Sunday?\nI can bring the stove then.']; });
+  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works.', 'No, Sunday?\nI can bring the stove then.'] });
+});
+
 test('missing labelled first slot is retried without moving the other replies', async () => {
   native.drafts.mockResolvedValue(['Draft 2: No, Saturday is out.\nDraft 3: Not sure yet, what time?']);
   native.ask.mockResolvedValue('Yes, Saturday works.');

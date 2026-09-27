@@ -39,6 +39,8 @@ test('a control-only draft line and leaked practice navigation are removed', () 
 
 test('only a single word loses added final punctuation', () => {
   expect(preserveFragment('meeting', 'meeting.')).toBe('meeting');
+  expect(preserveFragment('why', 'Why?')).toBe('Why?');
+  expect(preserveFragment('wow', 'Wow!')).toBe('Wow!');
   expect(preserveFragment('see you Saturday', 'See you Saturday!')).toBe('See you Saturday!');
   expect(preserveFragment('can you come', 'Can you come?')).toBe('Can you come?');
   expect(preserveFragment('Are you coming?', 'Are you coming?')).toBe('Are you coming?');
