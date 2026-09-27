@@ -196,10 +196,14 @@ test('missing labelled first slot is retried without moving the other replies', 
   expect(drafts).toEqual(['Yes, Saturday works.', 'No, Saturday is out.', 'Not sure yet, what time?']);
 });
 
-test('practice reply drops the leaked Skip control while retaining Sam’s answer', async () => {
-  native.drafts.mockResolvedValue(['Draft 1: Yes, Saturday works. I will bring the stove. Skip.\nDraft 2: No, could we meet Sunday?\nDraft 3: What time Saturday?']);
-  const { drafts } = await phoneWriter.write(request({ app: 'dev.ownvoice.next' }));
-  expect(drafts[0]).toBe('Yes, Saturday works. I will bring the stove.');
+test('only a captured Skip button removes its exact draft line', async () => {
+  native.drafts.mockResolvedValue(['Draft 1: Yes, Saturday works. I will bring the stove.\nSkip\nDraft 2: No, could we meet Sunday?\nDraft 3: What time Saturday?']);
+  const captured = { ...request({ app: 'dev.ownvoice.next' }), nodes: [
+    ...request().nodes,
+    { text: 'Skip', left: 0, top: 300, bottom: 330, clickable: true },
+  ] };
+  expect((await phoneWriter.write(captured)).drafts[0]).toBe('Yes, Saturday works. I will bring the stove.');
+  expect((await phoneWriter.write(request({ app: 'dev.ownvoice.next' }))).drafts[0]).toBe('Yes, Saturday works. I will bring the stove.\nSkip');
 });
 
 test('practice controls after the message are not sent as the latest message', async () => {

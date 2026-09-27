@@ -46,6 +46,9 @@ internal fun isControl(buttonAncestor: Boolean, className: String?): Boolean =
 internal fun includeScreenNode(hasText: Boolean, hasDescription: Boolean, action: Boolean, editable: Boolean): Boolean =
   !editable && (hasText || action && hasDescription)
 
+internal fun includePracticeText(practice: Boolean, action: Boolean, viewId: String?): Boolean =
+  !practice || action || viewId?.startsWith("practice-line-") == true
+
 class OwnvoiceService : AccessibilityService() {
   companion object {
     const val TAG = "OwnvoiceNative"
@@ -343,7 +346,7 @@ class OwnvoiceService : AccessibilityService() {
       if (node == skip || !node.isVisibleToUser) return
       val action = isControl(buttonAncestor, node.className?.toString())
       val label = accessibleText(node.text ?: node.contentDescription, node.isShowingHintText)?.trim()?.takeIf { it.isNotEmpty() }
-      val text = if (practice && node.viewIdResourceName?.startsWith("practice-line-") != true) null else label
+      val text = if (includePracticeText(practice, action, node.viewIdResourceName)) label else null
       val conversation = if (text != null) conversationText(node.text ?: node.contentDescription, node.isShowingHintText, action) else null
       if (conversation != null && lines.lastOrNull() != conversation) lines += conversation
       text?.let {

@@ -25,6 +25,9 @@ class CapturedInputTextTest {
     assertEquals(true, includeScreenNode(false, true, true, false))
     assertEquals(false, includeScreenNode(false, true, false, false))
     assertEquals(false, includeScreenNode(false, true, true, true))
+    assertEquals(true, includePracticeText(true, true, null))
+    assertEquals(true, includePracticeText(true, false, "practice-line-second"))
+    assertEquals(false, includePracticeText(true, false, "setup-note"))
   }
 
   @Test fun controlsAndTheirChildrenNeverBecomeConversation() {

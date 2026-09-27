@@ -57,7 +57,6 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
-  if (request.app === 'dev.ownvoice.next') controls.push('Skip');
   const made = acceptReplies(await ask(replyPrompt(input), REPLY_INSTRUCTIONS, 'drafts', 3, on), exclude, 3, dashes, controls);
   made.forEach((text, slot) => { if (text) { exclude.push(text); landed(text, slot); } });
   for (let slot = 0; slot < REPLY_SLOTS.length; slot++) {

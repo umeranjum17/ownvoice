@@ -49,7 +49,6 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
-  if (request.app === 'dev.ownvoice.next') controls.push('Skip');
   const made: (string | null)[] = [null, null, null];
   let partial = '';
   const id = `reply-${Date.now()}-${calls++}`;
