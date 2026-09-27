@@ -3,7 +3,8 @@ import { gptChoice, gptApps, saveGptApps, gptRoute } from '../settings';
 import { status } from '../accounts';
 import { CHATGPT_OFF } from '../../core/switch';
 import Native from '../../../modules/ownvoice-native';
-import { reportFailure } from '../accounts';
+import { codexAuth, reportFailure, signOut } from '../accounts';
+import { session } from '../session';
 import { phoneWriter } from '../../panel/phoneWriter';
 
 jest.mock('../../../modules/ownvoice-native', () => ({
@@ -12,6 +13,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({
 }));
 jest.mock('../accounts', () => ({
   reportFailure: jest.fn(async () => null),
+  signOut: jest.fn(async () => {}),
   codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })),
   refresh: jest.fn(async () => {}),
   signInState: jest.fn(() => null),
@@ -179,6 +181,38 @@ test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the R
     global.fetch = originalFetch;
     get?.mockRestore();
   }
+});
+
+test('sign-out blocks an in-flight send even when clearing app choices fails', async () => {
+  await saveGptApps({ on: ['com.twitter.android'] });
+  const route = await gptRoute('com.twitter.android', offline);
+  let release!: (auth: { access: string; accountId: string }) => void;
+  let authStarted!: () => void;
+  const started = new Promise<void>(resolve => { authStarted = resolve; });
+  (codexAuth as jest.Mock).mockImplementationOnce(() => {
+    authStarted();
+    return new Promise(resolve => { release = resolve; });
+  });
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  const sent = jest.fn();
+  try {
+    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent });
+    await started;
+    const clear = jest.spyOn(store, 'set').mockImplementationOnce(() => { throw new Error('full'); });
+    try {
+      (signOut as jest.Mock).mockImplementationOnce(async () => {
+        ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'signed_out', words: 'Signed out.' });
+      });
+      await session.signOut();
+    } finally { clear.mockRestore(); }
+    expect(gptChoice('com.twitter.android')).toBe(true);
+    expect(signOut).toHaveBeenCalledTimes(1);
+    release({ access: 'fixture-access', accountId: 'fixture-account' });
+    expect(await writing).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
 });
 
 test('a newer off choice blocks a later reply request', async () => {

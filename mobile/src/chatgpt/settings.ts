@@ -36,7 +36,8 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
       const beforeSend = async () => {
         const current = await Native.bubbleRules().catch(() => null);
         return !!current && !current.paused && chatgptAllowed(showsBubble(app, current), gptChoice(app))
-          && (mocked || await currentSwitch(switchStore).then(choice => choice?.chatgpt !== 'off', () => false));
+          && (mocked || await currentSwitch(switchStore).then(choice => choice?.chatgpt !== 'off', () => false))
+          && (await session.current()).signedIn;
       };
       if (mocked) {
         if (!(await beforeSend())) throw new Error('App choice changed');
