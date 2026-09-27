@@ -11,6 +11,7 @@ import { session } from '../../src/chatgpt/session';
 jest.mock('../../src/chatgpt/session', () => ({
   GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
+  signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
   session: { current: jest.fn(async () => ({ signedIn: true })) },
 }));
 
@@ -48,7 +49,7 @@ test('Home choices are staged, then Done returns Home', async () => {
   await fireEvent.press(screen.getByText('Slack'));
   expect(gptApps()).toBeNull();
   await fireEvent.press(screen.getByText(words.done));
-  expect(gptApps()).toEqual({ on: ['com.google.android.gm', 'com.Slack'] });
+  await waitFor(() => expect(gptApps()).toEqual({ on: ['com.google.android.gm', 'com.Slack'] }));
   expect(gptChoice('com.Slack')).toBe(true);
   expect(router.dismissAll).toHaveBeenCalled();
   expect(router.replace).not.toHaveBeenCalled();
