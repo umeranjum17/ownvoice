@@ -161,7 +161,6 @@ class OwnvoiceService : AccessibilityService() {
     wm.addView(bubble, params)
     instance = this
     restoreBubble.run()
-    updateBubble()
     onServiceChange?.invoke("on")
     if (prefs.getBoolean("comeBack", false)) {
       prefs.edit().remove("comeBack").apply()
@@ -277,7 +276,7 @@ class OwnvoiceService : AccessibilityService() {
     ?: windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }?.root
 
   fun readScreen() {
-    val app = currentApp()?.takeIf(::allowed) ?: run { restoreBubble.run(); updateBubble(); return }
+    val app = currentApp()?.takeIf(::allowed) ?: run { restoreBubble.run(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     val nodes = mutableListOf<ScreenText>()
@@ -405,7 +404,7 @@ class OwnvoiceService : AccessibilityService() {
     bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE; bubble.text = ""; bubble.contentDescription = "Ownvoice"
     bubble.setCompoundDrawablesRelative(null, null, null, null)
     showMood(if (Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) R.drawable.ownvoice_mascot_idle_still else R.drawable.ownvoice_mascot_idle)
-    bubble.setPadding(0, 0, 0, 0); params.width = px(52); params.height = px(52); place()
+    bubble.setPadding(0, 0, 0, 0); params.width = px(52); params.height = px(52); updateBubble()
   }
 
   /** Dot on the bubble, centred in the 52 dp tap target, with a small oval shadow. */
