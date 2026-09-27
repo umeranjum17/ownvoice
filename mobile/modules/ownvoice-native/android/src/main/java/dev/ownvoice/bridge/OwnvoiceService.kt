@@ -73,15 +73,18 @@ class OwnvoiceService : AccessibilityService() {
       restoreFacts(context)
       facts.toList()
     }
-    fun markTapSent(context: android.content.Context, id: String) = synchronized(facts) {
+    private fun setTapSent(context: android.content.Context, id: String, sent: Boolean) = synchronized(facts) {
       restoreFacts(context)
       val index = facts.indexOfFirst { it.id == id }
-      if (index >= 0 && !facts[index].sent) {
-        val updated = facts.toMutableList().also { it[index] = it[index].copy(sent = true) }
+      check(index >= 0)
+      if (facts[index].sent != sent) {
+        val updated = facts.toMutableList().also { it[index] = it[index].copy(sent = sent) }
         check(context.getSharedPreferences("ownvoice-native", MODE_PRIVATE).edit().putString(FACTS, updated.joinToString("\n", transform = ::factLine)).commit())
         facts.clear(); facts.addAll(updated)
       }
     }
+    fun markTapSent(context: android.content.Context, id: String) = setTapSent(context, id, true)
+    fun unmarkTapSent(context: android.content.Context, id: String) = setTapSent(context, id, false)
     fun clearSavedFacts(context: android.content.Context) = synchronized(facts) {
       check(context.getSharedPreferences("ownvoice-native", MODE_PRIVATE).edit().remove(FACTS).commit())
       facts.clear()
@@ -208,7 +211,7 @@ class OwnvoiceService : AccessibilityService() {
       if (ok) facts += fact
       ok
     }
-    if (!saved) Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show()
+    if (!saved) { Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show(); restoreBubble.run(); return }
     if (lines.isEmpty() && field == null) return say("No text on this screen.")
     capture = reading
     startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))

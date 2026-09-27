@@ -89,6 +89,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [why, setWhy] = useState<number | null>(null);
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const run = useRef(0);
+  const startedTap = useRef<string | null>(null);
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
   const kind = useRef<{ message: boolean } | null>(null);
@@ -135,7 +136,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           dashes: dashesFor(rules, nextMode === 'reply' ? value.written : value.typed),
           avoid,
         }, {
-          sent: () => { if (!sent) { sent = true; return Native.markTapSent(value.id).catch(() => {}); } },
+          sent: async () => { if (!sent) { await Native.markTapSent(value.id); sent = true; } },
+          unsent: async () => { if (sent && startedTap.current !== value.id) { await Native.unmarkTapSent(value.id); sent = false; } },
+          started: () => { startedTap.current = value.id; },
           state: state => {
             if (run.current !== id) return;
             setNote(state === 'downloading' ? words.gettingReady : words.writing);

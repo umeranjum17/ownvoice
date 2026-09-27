@@ -86,6 +86,7 @@ class OwnvoiceNativeModule : Module() {
       OwnvoiceService.savedFacts(context).map { mapOf("at" to it.at, "app" to it.app, "label" to it.label, "screen" to it.screen, "typed" to it.typed, "replying" to it.replying, "id" to it.id, "sent" to it.sent) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("markTapSent") { id: String -> OwnvoiceService.markTapSent(context, id) }.runOnQueue(Queues.MAIN)
+    AsyncFunction("unmarkTapSent") { id: String -> OwnvoiceService.unmarkTapSent(context, id) }.runOnQueue(Queues.MAIN)
     AsyncFunction("clearTapFacts") {
       OwnvoiceService.clearSavedFacts(context)
     }.runOnQueue(Queues.MAIN)

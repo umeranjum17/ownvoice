@@ -157,14 +157,29 @@ test('permission withdrawn while marking a tap prevents the fetch', async () => 
     return new Promise<void>(resolve => { releaseMark = resolve; });
   });
   const beforeSend = jest.fn().mockResolvedValueOnce(true).mockResolvedValue(false);
+  const unsent = jest.fn(async () => {});
   try {
-    const writing = chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { beforeSend, sent });
+    const writing = chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { beforeSend, sent, unsent });
     await started;
     releaseMark();
     await expect(writing).rejects.toThrow(words.phoneWrote);
     expect(beforeSend).toHaveBeenCalledTimes(2);
     expect(sent).toHaveBeenCalledTimes(1);
+    expect(unsent).toHaveBeenCalledTimes(1);
     expect(fetch).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+test('a failed native mark prevents every request', async () => {
+  const originalFetch = global.fetch;
+  const fetch = jest.fn();
+  global.fetch = fetch;
+  try {
+    const sent = jest.fn(async () => { throw new Error('full'); });
+    const unsent = jest.fn();
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent, unsent })).rejects.toThrow(words.phoneWrote);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(unsent).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
@@ -174,10 +189,12 @@ test('a later reply request rechecks permission before sending', async () => {
   global.fetch = fetch;
   const beforeSend = jest.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(true).mockResolvedValue(false);
   const sent = jest.fn();
+  const unsent = jest.fn();
   try {
-    await expect(chatgptWriter.write({ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' }, { beforeSend, sent })).rejects.toThrow(words.phoneWrote);
+    await expect(chatgptWriter.write({ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' }, { beforeSend, sent, unsent })).rejects.toThrow(words.phoneWrote);
     expect(beforeSend).toHaveBeenCalledTimes(3);
     expect(sent).toHaveBeenCalledTimes(1);
+    expect(unsent).toHaveBeenCalledTimes(1);
     expect(fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });

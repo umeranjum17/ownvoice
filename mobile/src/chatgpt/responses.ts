@@ -15,6 +15,7 @@ const VERSION_INSTRUCTIONS = 'Return the requested three rewrite versions as JSO
 /** One streamed Responses call; the last `count` array entries must all be non-empty strings. */
 async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> {
   let started = false;
+  let marked = false;
   try {
     const auth = await codexAuth();
     if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
@@ -23,13 +24,16 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
       body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
     };
     await on?.sent?.();
+    marked = true;
     if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
     started = true;
+    on?.started?.();
     const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', request);
     if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
     if (!response.body) throw new Error('ChatGPT did not answer.');
     return await readDraftStream(response.body, key, onText, count);
   } catch (error) {
+    if (!started && marked) await on?.unsent?.();
     if (error instanceof SendVeto) throw error;
     if (!started) throw new SendVeto(words.phoneWrote);
     await reportFailure(error instanceof Error ? error.message : String(error)).catch(() => {});

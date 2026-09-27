@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Panel from '../Panel';
 import Native, { type Capture, type TapFact } from '../../../modules/ownvoice-native';
@@ -20,7 +20,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({
     addListener: jest.fn(() => ({ remove: () => {} })),
     capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(),
     modelStatus: jest.fn(async () => 'available'), ask: jest.fn(), closePanel: jest.fn(), bubbleRules: jest.fn(),
-    markTapSent: jest.fn(async () => {}), takeTapFacts: jest.fn(),
+    markTapSent: jest.fn(async () => {}), unmarkTapSent: jest.fn(async () => {}), takeTapFacts: jest.fn(),
   },
 }));
 
@@ -29,13 +29,13 @@ const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>
 
 const writer = (prefix: string): Writer => ({
   write: async (_request, on = {}) => {
-    if (prefix === 'ChatGPT') on.sent?.();
+    if (prefix === 'ChatGPT') { await on.sent?.(); on.started?.(); }
     const drafts = [`${prefix} one`, `${prefix} two`, `${prefix} three`];
     drafts.forEach((text, slot) => on.landed?.(text, slot));
     return { drafts };
   },
 });
-const broken: Writer = { write: async (_request, on) => { on?.sent?.(); on?.sent?.(); throw new Error(words.chatgptFailed); } };
+const broken: Writer = { write: async (_request, on) => { await on?.sent?.(); on?.started?.(); await on?.sent?.(); throw new Error(words.chatgptFailed); } };
 
 const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'> & Partial<Omit<Parameters<typeof routeWriters>[0], 'chatgpt'>>, capture?: Partial<Capture>, select?: (app: string) => Promise<ReturnType<typeof routeWriters>>) => {
   native.capture.mockResolvedValue({
@@ -104,11 +104,39 @@ test('a failed route selection uses the phone and leaves Writing', async () => {
   expect(sentTap()).toEqual([]);
 });
 
-test('a failed native sent mark does not interrupt drafting', async () => {
+test('a failed native sent mark keeps drafting on the phone', async () => {
   native.markTapSent.mockRejectedValueOnce(new Error('full'));
   const screen = await open({ chatgpt: () => writer('ChatGPT') });
-  await waitFor(() => expect(shown(screen)).toContain('ChatGPT one'));
+  await waitFor(() => expect(shown(screen)).toContain('Phone one'));
+  expect(shown(screen)).not.toContain('ChatGPT one');
   expect(sentTap()).toEqual(['tap-1']);
+});
+
+test('a final veto unmarks the native tap before phone fallback', async () => {
+  const facts: TapFact[] = [{ id: 'tap-1', at: Date.now(), app: 'com.twitter.android', label: 'X', screen: true, typed: false, replying: true, sent: false }];
+  native.markTapSent.mockImplementation(async id => { facts.find(f => f.id === id)!.sent = true; });
+  native.unmarkTapSent.mockImplementation(async id => { facts.find(f => f.id === id)!.sent = false; });
+  native.takeTapFacts.mockImplementation(async () => facts);
+  const veto: Writer = { write: async (_request, on) => { await on?.sent?.(); await on?.unsent?.(); throw new Error(words.phoneWrote); } };
+  const screen = await open({ chatgpt: () => veto });
+  await waitFor(() => expect(shown(screen)).toContain('Phone one'));
+  expect((await syncReadLog())[0].summary).not.toContain('Sent to ChatGPT');
+  expect(native.unmarkTapSent).toHaveBeenCalledWith('tap-1');
+});
+
+test('a veto on Write new does not erase an earlier send for the same tap', async () => {
+  let calls = 0;
+  const retry: Writer = { write: async (_request, on) => {
+    await on?.sent?.();
+    if (++calls === 1) { on?.started?.(); on?.landed?.('First draft', 0); return { drafts: ['First draft', 'Second draft', 'Third draft'] }; }
+    await on?.unsent?.();
+    throw new Error(words.phoneWrote);
+  } };
+  const screen = await open({ chatgpt: () => retry });
+  await waitFor(() => expect(shown(screen)).toContain('First draft'));
+  fireEvent.press(screen.getByText(words.writeNew));
+  await waitFor(() => expect(shown(screen)).toContain('Phone one'));
+  expect(native.unmarkTapSent).not.toHaveBeenCalled();
 });
 
 test('the off switch keeps the drafts on the phone and says which wrote them', async () => {
