@@ -25,9 +25,9 @@ const readSaved = (): Saved => {
 };
 
 /** The first run: the welcome, the permission explained kindly, a practice chat that ends in a first
- *  inserted draft, and "Where should I help?". Steps follow the ported step machine in core/onboarding;
- *  leaving by any route (Done, Back, or the step after the last one) counts as done, and the home
- *  switch later opens straight at the permission (Onboarding.first). */
+ *  inserted draft, app choices and an optional ChatGPT offer. Steps follow core/onboarding;
+ *  hardware Back bypasses the offer and completes setup. The home switch later opens at
+ *  permission (Onboarding.first). */
 export default function Setup() {
   const t = useTheme();
   const inset = useSafeAreaInsets().top;

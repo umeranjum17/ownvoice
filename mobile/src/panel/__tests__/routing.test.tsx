@@ -6,7 +6,7 @@ import Native, { type Capture, type TapFact } from '../../../modules/ownvoice-na
 import { syncReadLog } from '../../core/readLog';
 import { words } from '../../core/words';
 import { CHATGPT_OFF } from '../../core/switch';
-import { routeWriters, type Writer } from '../../core/writers';
+import { routeWriters, SendVeto, type Writer } from '../../core/writers';
 
 jest.mock('../phoneWriter', () => ({ phoneWriter: { write: async (_request: unknown, on?: { landed?: (text: string, slot: number) => void }) => {
   const drafts = ['Phone one', 'Phone two', 'Phone three'];
@@ -29,7 +29,10 @@ const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>
 
 const writer = (prefix: string): Writer => ({
   write: async (_request, on = {}) => {
-    if (prefix === 'ChatGPT') { await on.sent?.(); on.started?.(); }
+    if (prefix === 'ChatGPT') {
+      try { await on.sent?.(); } catch { throw new SendVeto(words.phoneWrote); }
+      on.started?.();
+    }
     const drafts = [`${prefix} one`, `${prefix} two`, `${prefix} three`];
     drafts.forEach((text, slot) => on.landed?.(text, slot));
     return { drafts };

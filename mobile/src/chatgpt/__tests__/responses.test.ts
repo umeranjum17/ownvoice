@@ -194,7 +194,8 @@ test('a later reply request rechecks permission before sending', async () => {
     await expect(chatgptWriter.write({ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' }, { beforeSend, sent, unsent })).rejects.toThrow(words.phoneWrote);
     expect(beforeSend).toHaveBeenCalledTimes(3);
     expect(sent).toHaveBeenCalledTimes(1);
-    expect(unsent).toHaveBeenCalledTimes(1);
+    // The later request is vetoed at its first check, before a second mark.
+    expect(unsent).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });

@@ -1,7 +1,7 @@
 import Storage from 'expo-sqlite/kv-store';
 
-// App settings that must survive process death (the plan's kv-store; the equivalent of
-// Kotlin's commit()): setup state, choices and the read log.
+// App settings that must survive process death (the equivalent of Kotlin's commit()).
+// Read history itself is owned by the native service, not this store.
 export const store = {
   get<T>(name: string, strict = false): T | null {
     try {
