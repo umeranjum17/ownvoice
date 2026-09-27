@@ -8,3 +8,8 @@ mobile/node_modules/
 mobile/.expo/
 mobile/android/
 .home/
+.avd/
+.gradle-home/
+.npmcache/
+.fm-logs/
+.fm-env.sh

@@ -19,6 +19,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewOutlineProvider
 import android.view.WindowManager
@@ -96,6 +97,7 @@ class OwnvoiceService : AccessibilityService() {
   data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String)
   private val main = Handler(Looper.getMainLooper())
   private val notes = Handler(Looper.getMainLooper())
+  private val reposition = Runnable { updateBubble() }
   private lateinit var wm: WindowManager
   private lateinit var bubble: TextView
   private lateinit var params: WindowManager.LayoutParams
@@ -106,6 +108,27 @@ class OwnvoiceService : AccessibilityService() {
   private var resting = true
   private var lastPrune = 0L
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
+  private var spot = BubbleSpot(BubbleEdge.Right, 0)
+  private var dragging = false
+  private var downX = 0f
+  private var downY = 0f
+  private var leftAtDown = 0
+  private var topAtDown = 0
+  private val spots by lazy { BubbleSpots({ key -> prefs.getString("bubble:$key", null) }) { key, value -> prefs.edit().putString("bubble:$key", value).commit() } }
+  private val statusBarPx by lazy {
+    val id = resources.getIdentifier("status_bar_height", "dimen", "android")
+    if (id > 0) resources.getDimensionPixelSize(id) else px(24)
+  }
+  private val screenW get() = resources.displayMetrics.widthPixels
+  private val screenH get() = resources.displayMetrics.heightPixels
+  /** The overlay is laid out inside the area below the status bar, so the bubble's y is counted from there. */
+  private val areaH get() = screenH - statusBarPx
+  private val bubbleSize get(): Int {
+    if (params.height > 0) return params.height
+    bubble.measure(View.MeasureSpec.makeMeasureSpec(screenW, View.MeasureSpec.AT_MOST),
+      View.MeasureSpec.makeMeasureSpec(areaH, View.MeasureSpec.AT_MOST))
+    return bubble.measuredHeight
+  }
   var panelOpen: Boolean
     get() = panelIsOpen
     // When the panel opens, put idle back (the bubble is hidden then), so closing it never leaves the tap mood on the bubble.
@@ -133,13 +156,16 @@ class OwnvoiceService : AccessibilityService() {
         val shouldRead = resting || text.toString() == TIP
         if (shouldRead) { showMood(R.drawable.ownvoice_mascot_listening); readScreen() } else restoreBubble.run()
       }
+      setOnTouchListener { _, event -> onBubbleTouch(event) }
     }
     params = WindowManager.LayoutParams(px(52), px(52), WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply { gravity = Gravity.END or Gravity.CENTER_VERTICAL; x = px(8) }
+      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
+      spot = BubbleSpot(BubbleEdge.Right, BubblePlacement.clampTop((areaH - px(52)) / 2, areaH, px(52)))
+      gravity = Gravity.TOP or Gravity.END; x = px(8); y = spot.top
+    }
     wm.addView(bubble, params)
     instance = this
     restoreBubble.run()
-    updateBubble()
     onServiceChange?.invoke("on")
     if (prefs.getBoolean("comeBack", false)) {
       prefs.edit().remove("comeBack").apply()
@@ -155,7 +181,11 @@ class OwnvoiceService : AccessibilityService() {
       synchronized(facts) { restoreFacts(this) }
       lastPrune = System.currentTimeMillis()
     }
-    if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) updateBubble()
+    if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
+      updateBubble()
+      main.removeCallbacks(reposition)
+      main.postDelayed(reposition, 350) // IME bounds settle after the window/focus event.
+    }
   }
   override fun onInterrupt() {}
   override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); if (::bubble.isInitialized && resting) restoreBubble.run() }
@@ -172,13 +202,80 @@ class OwnvoiceService : AccessibilityService() {
 
   fun updateBubble() {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { updateBubble() }; return }
-    if (!::bubble.isInitialized) return
-    val show = !panelIsOpen && allowed(currentApp())
+    if (!::bubble.isInitialized || dragging) return
+    val app = currentApp()
+    val show = !panelIsOpen && allowed(app)
     bubble.visibility = if (show) View.VISIBLE else View.GONE
-    if (show && !prefs.getBoolean("tipShown", false)) {
+    if (!show) return
+    spot = spots.spotFor(app.orEmpty(), areaH, px(52)); place()
+    if (!prefs.getBoolean("tipShown", false)) {
       prefs.edit().putBoolean("tipShown", true).apply()
       say(TIP, 6000)
     }
+  }
+
+  /** Move the bubble, snapping it to an edge on release; a press without movement remains a tap. */
+  private fun onBubbleTouch(event: MotionEvent): Boolean {
+    when (event.actionMasked) {
+      MotionEvent.ACTION_DOWN -> {
+        downX = event.rawX; downY = event.rawY; topAtDown = params.y
+        leftAtDown = if (spot.edge == BubbleEdge.Left) params.x else screenW - bubble.width - params.x
+        dragging = false
+        return true
+      }
+      MotionEvent.ACTION_MOVE -> {
+        if (!dragging && BubblePlacement.isDrag(event.rawX - downX, event.rawY - downY, px(BubblePlacement.SLOP_DP))) dragging = true
+        if (dragging) moveTo(leftAtDown + (event.rawX - downX).roundToInt(), topAtDown + (event.rawY - downY).roundToInt())
+        return true
+      }
+      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+        val wasDrag = dragging || BubblePlacement.isDrag(event.rawX - downX, event.rawY - downY, px(BubblePlacement.SLOP_DP))
+        dragging = false
+        if (event.actionMasked == MotionEvent.ACTION_CANCEL) { updateBubble(); return true }
+        if (wasDrag) {
+          moveTo(leftAtDown + (event.rawX - downX).roundToInt(), topAtDown + (event.rawY - downY).roundToInt())
+          spot = BubbleSpot(BubblePlacement.edge(params.x + bubble.width / 2, screenW), params.y)
+          currentApp()?.let { spots.remember(it, spot) }
+          updateBubble()
+        } else bubble.performClick()
+        return true
+      }
+    }
+    return false
+  }
+
+  /** The overlay's origin can lie inside the status bar (e.g. y=30 when the bar ends at 63). */
+  private fun topInset(): Int {
+    if (!bubble.isLaidOut) return statusBarPx
+    val location = IntArray(2)
+    bubble.getLocationOnScreen(location)
+    return (statusBarPx - (location[1] - params.y)).coerceAtLeast(0)
+  }
+
+  /** Follow the finger while dragging, kept wholly on the screen. */
+  private fun moveTo(left: Int, top: Int) {
+    val inset = topInset()
+    params.gravity = Gravity.TOP or Gravity.START
+    params.x = BubblePlacement.clampLeft(left, screenW, bubble.width)
+    params.y = BubblePlacement.clampTop(top, areaH, bubble.height, inset)
+    wm.updateViewLayout(bubble, params)
+  }
+
+  /** Put the bubble back at its spot, resting above the keyboard when one is up over a field. */
+  private fun place() {
+    if (!::bubble.isInitialized) return
+    val keyboard = keyboardTop()?.minus(statusBarPx)?.takeIf { it > 0 && focusedField() != null }
+    params.gravity = Gravity.TOP or (if (spot.edge == BubbleEdge.Left) Gravity.START else Gravity.END)
+    params.x = px(8)
+    params.y = BubblePlacement.clampTop(BubblePlacement.restTop(spot.top, areaH, bubbleSize, keyboard, px(8)), areaH, bubbleSize, topInset())
+    wm.updateViewLayout(bubble, params)
+  }
+
+  /** The top of the keyboard on screen, or null when none is up. */
+  private fun keyboardTop(): Int? {
+    val ime = windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } ?: return null
+    val bounds = Rect(); ime.getBoundsInScreen(bounds)
+    return bounds.top.takeIf { it > 0 && it < screenH }
   }
 
   fun setRules(pausedNow: Boolean, on: Set<String>, off: Set<String>) {
@@ -193,7 +290,7 @@ class OwnvoiceService : AccessibilityService() {
     ?: windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }?.root
 
   fun readScreen() {
-    val app = currentApp()?.takeIf(::allowed) ?: run { restoreBubble.run(); updateBubble(); return }
+    val app = currentApp()?.takeIf(::allowed) ?: run { restoreBubble.run(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     val nodes = mutableListOf<ScreenText>()
@@ -306,7 +403,7 @@ class OwnvoiceService : AccessibilityService() {
     bubble.setCompoundDrawablesRelative(moodDrawable(message), null, null, null)
     bubble.compoundDrawablePadding = px(8)
     bubble.setPadding(px(18), px(10), px(18), px(10)); params.width = WindowManager.LayoutParams.WRAP_CONTENT; params.height = WindowManager.LayoutParams.WRAP_CONTENT
-    wm.updateViewLayout(bubble, params); notes.postDelayed(restoreBubble, forMs)
+    updateBubble(); notes.postDelayed(restoreBubble, forMs)
   }
 
   /** A 20 dp mood at the start of the pill: done for inserted and copied, check for look-before-sending. */
@@ -321,7 +418,7 @@ class OwnvoiceService : AccessibilityService() {
     bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE; bubble.text = ""; bubble.contentDescription = "Ownvoice"
     bubble.setCompoundDrawablesRelative(null, null, null, null)
     showMood(if (Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) R.drawable.ownvoice_mascot_idle_still else R.drawable.ownvoice_mascot_idle)
-    bubble.setPadding(0, 0, 0, 0); params.width = px(52); params.height = px(52); wm.updateViewLayout(bubble, params)
+    bubble.setPadding(0, 0, 0, 0); params.width = px(52); params.height = px(52); updateBubble()
   }
 
   /** Dot on the bubble, centred in the 52 dp tap target, with a small oval shadow. */
