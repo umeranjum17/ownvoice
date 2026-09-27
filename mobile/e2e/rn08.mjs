@@ -61,11 +61,12 @@ const ocrPass = ({ input, top, psm }) => {
   for (const row of tsv.split('\n').slice(1)) {
     const c = row.split('\t');
     if (c.length < 12 || !c[11].trim()) continue;
-    found.push({ text: c[11], left: Number(c[6]), top: Number(c[7]) + top, right: Number(c[6]) + Number(c[8]), bottom: Number(c[7]) + Number(c[9]) + top });
+    found.push({ text: c[11].trim(), left: Number(c[6]), top: Number(c[7]) + top, right: Number(c[6]) + Number(c[8]), bottom: Number(c[7]) + Number(c[9]) + top });
   }
   return found;
 };
 /** One screencap, every OCR pass clustered on its own: words from different passes never join one line. */
+const readWords = () => ocrPass({ input: execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 }), top: 0, psm: false });
 const screenClusters = () => {
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 });
   return passInputs(image).flatMap(ocrPass2 => clusters(ocrPass(ocrPass2)));
@@ -286,13 +287,13 @@ const RECEIVER_SHORT = 'Move Tuesday.';
 
 const openEditableSelection = async () => {
   await tapText('Your voice');
-  let label;
-  for (let i = 0; i < 6 && !label; i++) {
-    label = screenClusters().find(g => g.text.includes('how') && g.text.includes('write') && g.top > 800 && g.left < width / 2);
-    if (!label) await wait(500);
+  let field;
+  for (let i = 0; i < 6 && !field; i++) {
+    field = screenClusters().find(g => g.text.includes('example') && g.top > 800);
+    if (!field) await wait(500);
   }
-  if (!label) throw new Error('Your voice editable field did not appear');
-  const x = width / 2, y = label.bottom + 80;
+  if (!field) throw new Error('Your voice editable field did not appear');
+  const x = width / 2, y = (field.top + field.bottom) / 2;
   tap(x, y);
   shell('input', 'text', RECEIVER_ORIGINAL.replaceAll(' ', '%s'));
   await wait(800);
@@ -300,22 +301,22 @@ const openEditableSelection = async () => {
   shell('input', 'swipe', String(x), String(y), String(x), String(y), '1100');
   let select;
   for (let i = 0; i < 6 && !select; i++) {
-    select = screenClusters().flatMap(g => g.words).find(w => w.text.toLowerCase().startsWith('select') && w.top > 700);
+    select = readWords().find(w => w.text.toLowerCase().startsWith('select') && w.top > 700);
     if (!select) await wait(500);
   }
   if (!select) throw new Error('Select all action missing');
-  tap((select.left + select.right) / 2, (select.top + select.bottom) / 2); // OCR may join “Select all” into one word.
+  tap((select.left + select.right) / 2, (select.top + select.bottom) / 2);
   let share;
   for (let i = 0; i < 6 && !share; i++) {
-    share = screenClusters().find(g => g.text.includes('share') && g.top > 700);
+    share = readWords().find(w => w.text.toLowerCase().startsWith('share') && w.top > 700);
     if (!share) await wait(500);
   }
   if (!share) throw new Error('selection overflow menu did not appear');
-  tap(width * 0.82, (share.top + share.bottom) / 2); // Android's overflow icon sits at the right end of this toolbar.
+  tap(share.right + 90 * width / 1080, (share.top + share.bottom) / 2); // overflow is immediately after Share, not at the screen edge.
   await wait(500);
   let menuAction;
   for (let i = 0; i < 5 && !menuAction; i++) {
-    menuAction = screenClusters().flatMap(g => g.words).find(w => w.text.toLowerCase() === 'ownvoice' && w.left > width / 3 && w.top > 700 && w.top < 1300);
+    menuAction = readWords().find(w => w.text.toLowerCase() === 'ownvoice' && w.left > width / 3 && w.top > 700 && w.top < 1300);
     if (!menuAction) await wait(500);
   }
   if (!menuAction) throw new Error('Ownvoice selection action missing');
@@ -416,11 +417,10 @@ const openStockField = async () => {
   const openPage = () => shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://10.0.2.2:${page.address().port}/`, 'com.android.chrome');
   openPage();
   if (await textPresent('Use without an account', 4)) { await tapText('Use without an account'); openPage(); }
-  if (await textPresent('No thanks', 2)) { await tapText('No thanks'); openPage(); }
+  if (await textPresent('Chrome notifications', 2)) { tap(width * 0.52, height * 0.73); await wait(800); }
+  else if (await textPresent('No thanks', 2)) { await tapText('No thanks'); openPage(); }
   if (!(await waitForFocus('com.android.chrome'))) throw new Error('Chrome practice field did not load in front');
-  const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p']);
-  const field = execFileSync('magick', ['png:', '-crop', '600x150+190+200', '+repage', 'png:-'], { input: image });
-  if (!execFileSync('tesseract', ['stdin', 'stdout', '--psm', '6'], { input: field, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] }).includes('stock please')) throw new Error('Chrome practice field did not load in front');
+  if (!(await textPresent('stock please', 4))) throw new Error('Chrome practice field did not load in front');
   await focusField();
   if (shell('settings', 'get', 'secure', 'accessibility_enabled').trim() !== '1') await rebindService();
 };
