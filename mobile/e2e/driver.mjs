@@ -98,7 +98,7 @@ const tapInsertButton = () => {
   }
   throw new Error('Could not find the Copy button beside Insert.');
 };
-const bubble = () => tap(width - Math.round(90 * width / 1080), Math.round(height * (height >= 2200 ? .53 : .60)));
+const bubble = () => tap(width - Math.round(90 * width / 1080), Math.round(height * .53));
 const bubbleVisible = () => {
   const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
   const visibility = window?.match(/mViewVisibility=(0x[0-9a-f]+)/)?.[1];
@@ -189,12 +189,16 @@ visibleLine('Polish your message');
 tapInsertButton();
 await wait(1800);
 snap('rn-inserted');
-adb('shell', 'input', 'keyevent', '4'); // Return from Your voice to Home.
+adb('shell', 'input', 'keyevent', '4');
 await wait(500);
+const afterBack = execFileSync('tesseract', ['stdin', 'stdout'], { input: execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 }), encoding: 'utf8' }).toLowerCase();
+if (!afterBack.includes('where the bubble shows') && !afterBack.includes('pause for now')) {
+  adb('shell', 'input', 'keyevent', '4');
+  await wait(400);
+}
+visibleLine('Where the bubble shows');
 
 // The home controls verify that pause and per-app off rules hide the overlay.
-adb('shell', 'input', 'keyevent', '4'); // Dismiss the keyboard so all controls are reachable.
-await wait(400);
 adb('shell', 'input', 'swipe', String(width / 2), String(height * .8), String(width / 2), String(height * .35), '350');
 await wait(400);
 tapText('Pause for now');
