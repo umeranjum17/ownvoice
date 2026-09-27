@@ -109,7 +109,7 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("sharedMarkdown") { RewriteActivity.current?.sharedMarkdown() }
     Function("rewriteInput") {
       val activity = RewriteActivity.current ?: return@Function null
-      mapOf("text" to activity.selectedText, "editable" to activity.editable)
+      mapOf("text" to activity.selectedText, "editable" to activity.editable, "markdown" to activity.markdownShare)
     }
     AsyncFunction("finishRewrite") { text: String?, replace: Boolean -> RewriteActivity.current?.finishRewrite(text, replace) }.runOnQueue(Queues.MAIN)
     AsyncFunction("closePanel") { PanelActivity.current?.finish() }.runOnQueue(Queues.MAIN)

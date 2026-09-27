@@ -33,7 +33,7 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;
   closePanel(): Promise<void>;
   sharedMarkdown(): Promise<string | null>;
-  rewriteInput(): { text: string; editable: boolean } | null;
+  rewriteInput(): { text: string; editable: boolean; markdown?: boolean } | null;
   finishRewrite(text: string | null, replace: boolean): Promise<void>;
   modelStatus(): Promise<ModelStatus>;
   downloadModel(): Promise<void>;

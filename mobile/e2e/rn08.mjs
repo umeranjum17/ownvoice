@@ -286,7 +286,11 @@ const RECEIVER_SHORT = 'Move Tuesday.';
 
 const openEditableSelection = async () => {
   await tapText('Your voice');
-  const label = screenClusters().find(g => g.text.trim() === 'how i write');
+  let label;
+  for (let i = 0; i < 6 && !label; i++) {
+    label = screenClusters().find(g => g.text.includes('how') && g.text.includes('write') && g.top > 800 && g.left < width / 2);
+    if (!label) await wait(500);
+  }
   if (!label) throw new Error('Your voice editable field did not appear');
   const x = width / 2, y = label.bottom + 80;
   tap(x, y);
@@ -294,8 +298,28 @@ const openEditableSelection = async () => {
   await wait(800);
   if (!(await textPresent(RECEIVER_ORIGINAL))) throw new Error('editable receiver was not filled');
   shell('input', 'swipe', String(x), String(y), String(x), String(y), '1100');
-  await tapText('Select all');
-  await tapText('Ownvoice');
+  let select;
+  for (let i = 0; i < 6 && !select; i++) {
+    select = screenClusters().flatMap(g => g.words).find(w => w.text.toLowerCase().startsWith('select') && w.top > 700);
+    if (!select) await wait(500);
+  }
+  if (!select) throw new Error('Select all action missing');
+  tap((select.left + select.right) / 2, (select.top + select.bottom) / 2); // OCR may join “Select all” into one word.
+  let share;
+  for (let i = 0; i < 6 && !share; i++) {
+    share = screenClusters().find(g => g.text.includes('share') && g.top > 700);
+    if (!share) await wait(500);
+  }
+  if (!share) throw new Error('selection overflow menu did not appear');
+  tap(width * 0.82, (share.top + share.bottom) / 2); // Android's overflow icon sits at the right end of this toolbar.
+  await wait(500);
+  let menuAction;
+  for (let i = 0; i < 5 && !menuAction; i++) {
+    menuAction = screenClusters().flatMap(g => g.words).find(w => w.text.toLowerCase() === 'ownvoice' && w.left > width / 3 && w.top > 700 && w.top < 1300);
+    if (!menuAction) await wait(500);
+  }
+  if (!menuAction) throw new Error('Ownvoice selection action missing');
+  tap((menuAction.left + menuAction.right) / 2, (menuAction.top + menuAction.bottom) / 2);
   if (!(await waitForFocus('RewriteActivity'))) throw new Error('editable selection did not open Ownvoice');
 };
 
