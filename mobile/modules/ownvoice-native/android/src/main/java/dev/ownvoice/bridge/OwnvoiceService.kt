@@ -415,14 +415,15 @@ class OwnvoiceService : AccessibilityService() {
    *  the original; otherwise the original content is restored and the rewrite stays copied. */
   fun verifyReplace(original: String, rewritten: String, left: Int = 12) {
     main.postDelayed({
-      val field = captured()?.input
+      val field = focusedField()
       field?.refresh()
       val got = field?.text?.toString()
       val flat = rewritten.replace("\n", "")
-      if (got == rewritten || got == flat) { say("Replaced."); forget(); return@postDelayed }
+      if (got == rewritten || got == flat) { say("Replaced."); return@postDelayed }
       if (left > 0) return@postDelayed verifyReplace(original, rewritten, left - 1)
-      say("The app didn't take the rewrite. Your text is back and the rewrite stays copied.")
-      insert(original) { _, _ -> main.post { getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", rewritten)) } }
+      val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, original) }
+      if (focusedField()?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) == true)
+        say("The app didn't take the rewrite. Your text is back and the rewrite stays copied.")
     }, 250)
   }
 

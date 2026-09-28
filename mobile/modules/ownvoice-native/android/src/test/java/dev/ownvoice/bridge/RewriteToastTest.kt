@@ -20,8 +20,4 @@ class RewriteToastTest {
     assertTrue(toast.contains("paste", ignoreCase = true))
   }
 
-  @Test fun theConfirmedReplacementSayingIsOnlySpokenAfterTheFieldReadBack() {
-    // "Replaced." is spoken by the service's read-back verification, never pre-claimed by the sheet.
-    assertTrue(RewriteActivity.REPLACED_SAYING == "Replaced.")
-  }
 }

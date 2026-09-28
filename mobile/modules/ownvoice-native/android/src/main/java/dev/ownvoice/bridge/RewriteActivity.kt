@@ -95,8 +95,6 @@ class RewriteActivity : ReactActivity() {
     @Volatile
     var current: RewriteActivity? = null
 
-    /** Said only after the service read the field back and confirmed the replacement. */
-    const val REPLACED_SAYING = "Replaced."
     /** Where the replace cannot be confirmed (browser pages and other unattributable callers), nothing is inserted: copy only. */
     const val COPY_ONLY_TOAST = "Copied. The text here wasn't replaced - paste it where you like."
 
