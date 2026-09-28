@@ -5,14 +5,17 @@ exports[`ui components (dark) button-disabled: dark/button-disabled 1`] = `
   collapsable={false}
   style={
     {
-      "backgroundColor": "#141218",
-      "borderColor": "#49454F",
-      "borderRadius": 16,
-      "borderWidth": 1,
+      "backgroundColor": "#2B2930",
+      "borderRadius": 24,
       "opacity": 1,
-      "paddingBottom": 8,
-      "paddingHorizontal": 16,
-      "paddingTop": 16,
+      "paddingBottom": 12,
+      "paddingHorizontal": 18,
+      "paddingTop": 18,
+      "transform": [
+        {
+          "translateY": 0,
+        },
+      ],
     }
   }
 >
@@ -102,11 +105,16 @@ exports[`ui components (dark) card-filled: dark/card-filled 1`] = `
   style={
     {
       "backgroundColor": "#36343B",
-      "borderRadius": 16,
+      "borderRadius": 24,
       "opacity": 1,
-      "paddingBottom": 8,
-      "paddingHorizontal": 16,
-      "paddingTop": 16,
+      "paddingBottom": 12,
+      "paddingHorizontal": 18,
+      "paddingTop": 18,
+      "transform": [
+        {
+          "translateY": 0,
+        },
+      ],
     }
   }
 >
@@ -119,8 +127,14 @@ exports[`ui components (dark) card-filled: dark/card-filled 1`] = `
           "lineHeight": 20,
         },
         {
-          "color": "#D0BCFF",
+          "fontSize": 12,
+          "letterSpacing": 0.6,
+          "lineHeight": 16,
           "marginBottom": 4,
+          "textTransform": "uppercase",
+        },
+        {
+          "color": "#D0BCFF",
         },
       ]
     }
@@ -163,14 +177,17 @@ exports[`ui components (dark) card-outlined-busy: dark/card-outlined-busy 1`] = 
   collapsable={false}
   style={
     {
-      "backgroundColor": "#141218",
-      "borderColor": "#49454F",
-      "borderRadius": 16,
-      "borderWidth": 1,
+      "backgroundColor": "#2B2930",
+      "borderRadius": 24,
       "opacity": 1,
-      "paddingBottom": 8,
-      "paddingHorizontal": 16,
-      "paddingTop": 16,
+      "paddingBottom": 12,
+      "paddingHorizontal": 18,
+      "paddingTop": 18,
+      "transform": [
+        {
+          "translateY": 0,
+        },
+      ],
     }
   }
 >
@@ -183,8 +200,14 @@ exports[`ui components (dark) card-outlined-busy: dark/card-outlined-busy 1`] = 
           "lineHeight": 20,
         },
         {
-          "color": "#D0BCFF",
+          "fontSize": 12,
+          "letterSpacing": 0.6,
+          "lineHeight": 16,
           "marginBottom": 4,
+          "textTransform": "uppercase",
+        },
+        {
+          "color": "#D0BCFF",
         },
       ]
     }
@@ -655,14 +678,10 @@ exports[`ui components (dark) meaning-concern: dark/meaning-concern 1`] = `
     >
       <RNSVGPath
         d="M3,12 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0 M12,7.5 v5.5 M12,16.5 v0.01"
-        fill={
-          {
-            "payload": 4278190080,
-            "type": 0,
-          }
-        }
+        fill={null}
         propList={
           [
+            "fill",
             "stroke",
             "strokeWidth",
             "strokeLinecap",
@@ -750,14 +769,10 @@ exports[`ui components (dark) meaning-ok: dark/meaning-ok 1`] = `
     >
       <RNSVGPath
         d="M5,12.5 l4.5,4.5 L19,7.5"
-        fill={
-          {
-            "payload": 4278190080,
-            "type": 0,
-          }
-        }
+        fill={null}
         propList={
           [
+            "fill",
             "stroke",
             "strokeWidth",
             "strokeLinecap",
@@ -799,58 +814,74 @@ exports[`ui components (dark) meaning-ok: dark/meaning-ok 1`] = `
 
 exports[`ui components (dark) placeholder: dark/placeholder 1`] = `
 <View
-  collapsable={false}
   style={
-    {
-      "opacity": 1,
-    }
+    [
+      {
+        "borderRadius": 24,
+        "paddingBottom": 8,
+        "paddingHorizontal": 18,
+        "paddingTop": 20,
+      },
+      {
+        "backgroundColor": "#2B2930",
+      },
+    ]
   }
 >
   <View
+    collapsable={false}
     style={
-      [
-        {
-          "borderRadius": 6,
-          "height": 14,
-          "marginBottom": 12,
-        },
-        {
-          "backgroundColor": "#36343B",
-          "width": "92%",
-        },
-      ]
+      {
+        "opacity": 1,
+      }
     }
-  />
-  <View
-    style={
-      [
-        {
-          "borderRadius": 6,
-          "height": 14,
-          "marginBottom": 12,
-        },
-        {
-          "backgroundColor": "#36343B",
-          "width": "70%",
-        },
-      ]
-    }
-  />
-  <View
-    style={
-      [
-        {
-          "borderRadius": 6,
-          "height": 14,
-          "marginBottom": 12,
-        },
-        {
-          "backgroundColor": "#36343B",
-          "width": "45%",
-        },
-      ]
-    }
-  />
+  >
+    <View
+      style={
+        [
+          {
+            "borderRadius": 6,
+            "height": 14,
+            "marginBottom": 12,
+          },
+          {
+            "backgroundColor": "#36343B",
+            "width": "92%",
+          },
+        ]
+      }
+    />
+    <View
+      style={
+        [
+          {
+            "borderRadius": 6,
+            "height": 14,
+            "marginBottom": 12,
+          },
+          {
+            "backgroundColor": "#36343B",
+            "width": "70%",
+          },
+        ]
+      }
+    />
+    <View
+      style={
+        [
+          {
+            "borderRadius": 6,
+            "height": 14,
+            "marginBottom": 12,
+          },
+          {
+            "backgroundColor": "#36343B",
+            "width": "45%",
+          },
+        ]
+      }
+    />
+  </View>
 </View>
 `;
 
@@ -889,68 +920,82 @@ exports[`ui components (dark) reason-concern: dark/reason-concern 1`] = `
     }
   }
 >
-  <RNSVGSvgView
-    align="xMidYMid"
-    bbHeight={20}
-    bbWidth={20}
-    focusable={false}
-    height={20}
-    meetOrSlice={0}
-    minX={0}
-    minY={0}
+  <View
     style={
       [
         {
-          "backgroundColor": "transparent",
-          "borderWidth": 0,
+          "alignItems": "center",
+          "borderRadius": 14,
+          "height": 28,
+          "justifyContent": "center",
+          "marginTop": -2,
+          "width": 28,
         },
         {
-          "flex": 0,
-          "height": 20,
-          "width": 20,
+          "backgroundColor": "#FFB95C26",
         },
       ]
     }
-    vbHeight={24}
-    vbWidth={24}
-    width={20}
   >
-    <RNSVGGroup
-      fill={
-        {
-          "payload": 4278190080,
-          "type": 0,
-        }
+    <RNSVGSvgView
+      align="xMidYMid"
+      bbHeight={16}
+      bbWidth={16}
+      focusable={false}
+      height={16}
+      meetOrSlice={0}
+      minX={0}
+      minY={0}
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+            "borderWidth": 0,
+          },
+          {
+            "flex": 0,
+            "height": 16,
+            "width": 16,
+          },
+        ]
       }
+      vbHeight={24}
+      vbWidth={24}
+      width={16}
     >
-      <RNSVGPath
-        d="M3,12 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0 M12,7.5 v5.5 M12,16.5 v0.01"
+      <RNSVGGroup
         fill={
           {
             "payload": 4278190080,
             "type": 0,
           }
         }
-        propList={
-          [
-            "stroke",
-            "strokeWidth",
-            "strokeLinecap",
-            "strokeLinejoin",
-          ]
-        }
-        stroke={
-          {
-            "payload": 4294949212,
-            "type": 0,
+      >
+        <RNSVGPath
+          d="M3,12 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0 M12,7.5 v5.5 M12,16.5 v0.01"
+          fill={null}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+              "strokeLinecap",
+              "strokeLinejoin",
+            ]
           }
-        }
-        strokeLinecap={1}
-        strokeLinejoin={1}
-        strokeWidth={2}
-      />
-    </RNSVGGroup>
-  </RNSVGSvgView>
+          stroke={
+            {
+              "payload": 4294949212,
+              "type": 0,
+            }
+          }
+          strokeLinecap={1}
+          strokeLinejoin={1}
+          strokeWidth={2}
+        />
+      </RNSVGGroup>
+    </RNSVGSvgView>
+  </View>
   <View
     style={
       {
@@ -962,9 +1007,9 @@ exports[`ui components (dark) reason-concern: dark/reason-concern 1`] = `
       style={
         [
           {
-            "fontSize": 14,
+            "fontSize": 16,
             "fontWeight": "400",
-            "lineHeight": 20,
+            "lineHeight": 24,
           },
           {
             "color": "#E6E0E9",
@@ -985,6 +1030,7 @@ exports[`ui components (dark) reason-concern: dark/reason-concern 1`] = `
           },
           {
             "color": "#CAC4D0",
+            "marginTop": 2,
           },
         ]
       }
@@ -1006,68 +1052,82 @@ exports[`ui components (dark) reason-ok: dark/reason-ok 1`] = `
     }
   }
 >
-  <RNSVGSvgView
-    align="xMidYMid"
-    bbHeight={20}
-    bbWidth={20}
-    focusable={false}
-    height={20}
-    meetOrSlice={0}
-    minX={0}
-    minY={0}
+  <View
     style={
       [
         {
-          "backgroundColor": "transparent",
-          "borderWidth": 0,
+          "alignItems": "center",
+          "borderRadius": 14,
+          "height": 28,
+          "justifyContent": "center",
+          "marginTop": -2,
+          "width": 28,
         },
         {
-          "flex": 0,
-          "height": 20,
-          "width": 20,
+          "backgroundColor": "#4F378B",
         },
       ]
     }
-    vbHeight={24}
-    vbWidth={24}
-    width={20}
   >
-    <RNSVGGroup
-      fill={
-        {
-          "payload": 4278190080,
-          "type": 0,
-        }
+    <RNSVGSvgView
+      align="xMidYMid"
+      bbHeight={16}
+      bbWidth={16}
+      focusable={false}
+      height={16}
+      meetOrSlice={0}
+      minX={0}
+      minY={0}
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+            "borderWidth": 0,
+          },
+          {
+            "flex": 0,
+            "height": 16,
+            "width": 16,
+          },
+        ]
       }
+      vbHeight={24}
+      vbWidth={24}
+      width={16}
     >
-      <RNSVGPath
-        d="M5,12.5 l4.5,4.5 L19,7.5"
+      <RNSVGGroup
         fill={
           {
             "payload": 4278190080,
             "type": 0,
           }
         }
-        propList={
-          [
-            "stroke",
-            "strokeWidth",
-            "strokeLinecap",
-            "strokeLinejoin",
-          ]
-        }
-        stroke={
-          {
-            "payload": 4291869951,
-            "type": 0,
+      >
+        <RNSVGPath
+          d="M5,12.5 l4.5,4.5 L19,7.5"
+          fill={null}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+              "strokeLinecap",
+              "strokeLinejoin",
+            ]
           }
-        }
-        strokeLinecap={1}
-        strokeLinejoin={1}
-        strokeWidth={2.2}
-      />
-    </RNSVGGroup>
-  </RNSVGSvgView>
+          stroke={
+            {
+              "payload": 4293582335,
+              "type": 0,
+            }
+          }
+          strokeLinecap={1}
+          strokeLinejoin={1}
+          strokeWidth={2.2}
+        />
+      </RNSVGGroup>
+    </RNSVGSvgView>
+  </View>
   <View
     style={
       {
@@ -1079,9 +1139,9 @@ exports[`ui components (dark) reason-ok: dark/reason-ok 1`] = `
       style={
         [
           {
-            "fontSize": 14,
+            "fontSize": 16,
             "fontWeight": "400",
-            "lineHeight": 20,
+            "lineHeight": 24,
           },
           {
             "color": "#E6E0E9",
@@ -1102,6 +1162,7 @@ exports[`ui components (dark) reason-ok: dark/reason-ok 1`] = `
           },
           {
             "color": "#CAC4D0",
+            "marginTop": 2,
           },
         ]
       }
@@ -1236,14 +1297,10 @@ exports[`ui components (dark) row: dark/row 1`] = `
     >
       <RNSVGPath
         d="M10,7 l5,5 -5,5"
-        fill={
-          {
-            "payload": 4278190080,
-            "type": 0,
-          }
-        }
+        fill={null}
         propList={
           [
+            "fill",
             "stroke",
             "strokeWidth",
             "strokeLinecap",
@@ -1448,19 +1505,19 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
         <View
           style={
             {
-              "height": 40,
+              "height": 44,
               "marginRight": 12,
-              "width": 40,
+              "width": 44,
             }
           }
         >
           <RNSVGSvgView
             accessible={false}
             align="xMidYMid"
-            bbHeight={40}
-            bbWidth={40}
+            bbHeight={44}
+            bbWidth={44}
             focusable={false}
-            height={40}
+            height={44}
             meetOrSlice={0}
             minX={0}
             minY={0}
@@ -1472,14 +1529,14 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
                 },
                 {
                   "flex": 0,
-                  "height": 40,
-                  "width": 40,
+                  "height": 44,
+                  "width": 44,
                 },
               ]
             }
             vbHeight={120}
             vbWidth={120}
-            width={40}
+            width={44}
             xml="<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="480" height="480"><g transform="translate(0 -0.00) rotate(4.00 60 110) translate(60 110) scale(1.0000 1.0000) translate(-60 -110)"><path d="M60 14 C69 31 98 48 98 77 A38 38 0 0 1 22 77 C22 48 51 31 60 14 Z" fill="#FF8A73" stroke="#FF8A73" stroke-width="5" stroke-linejoin="round"/><path d="M40 50 Q33 60 32.5 70" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="4.2" stroke-linecap="round"/><ellipse cx="40.50" cy="84.50" rx="6" ry="3.4" fill="#E0504A" opacity="0.9"/><ellipse cx="79.50" cy="84.50" rx="6" ry="3.4" fill="#E0504A" opacity="0.9"/><ellipse cx="48.60" cy="73.80" rx="4.60" ry="6.20" fill="#4E140B"/><circle cx="47.13" cy="71.44" r="1.56" fill="#FFFFFF"/><ellipse cx="74.60" cy="73.80" rx="4.60" ry="6.20" fill="#4E140B"/><circle cx="73.13" cy="71.44" r="1.56" fill="#FFFFFF"/><path d="M56.00 87.00 Q61.00 85.50 65.00 86.00" fill="none" stroke="#4E140B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="88" cy="40" r="2.6" fill="#FF8A73"/><circle cx="95" cy="33" r="3.4" fill="#FF8A73"/><circle cx="104" cy="24" r="4.4" fill="#FF8A73"/></g></svg>"
             xmlns="http://www.w3.org/2000/svg"
           >
@@ -1733,13 +1790,15 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
           </RNSVGSvgView>
         </View>
         <Text
+          accessibilityRole="header"
           numberOfLines={1}
           style={
             [
               {
-                "fontSize": 24,
-                "fontWeight": "400",
-                "lineHeight": 32,
+                "fontSize": 22,
+                "fontWeight": "700",
+                "letterSpacing": -0.3,
+                "lineHeight": 28,
               },
               {
                 "color": "#E6E0E9",
@@ -1828,14 +1887,10 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
             >
               <RNSVGPath
                 d="M6,6 L18,18 M18,6 L6,18"
-                fill={
-                  {
-                    "payload": 4278190080,
-                    "type": 0,
-                  }
-                }
+                fill={null}
                 propList={
                   [
+                    "fill",
                     "stroke",
                     "strokeWidth",
                     "strokeLinecap",
@@ -1866,7 +1921,7 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
               "color": "#CAC4D0",
               "marginBottom": 16,
               "marginHorizontal": 24,
-              "marginTop": 2,
+              "marginTop": 4,
             },
           ]
         }
@@ -1885,14 +1940,17 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
             collapsable={false}
             style={
               {
-                "backgroundColor": "#141218",
-                "borderColor": "#49454F",
-                "borderRadius": 16,
-                "borderWidth": 1,
+                "backgroundColor": "#2B2930",
+                "borderRadius": 24,
                 "opacity": 1,
-                "paddingBottom": 8,
-                "paddingHorizontal": 16,
-                "paddingTop": 16,
+                "paddingBottom": 12,
+                "paddingHorizontal": 18,
+                "paddingTop": 18,
+                "transform": [
+                  {
+                    "translateY": 0,
+                  },
+                ],
               }
             }
           >
@@ -2164,13 +2222,15 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
         }
       >
         <Text
+          accessibilityRole="header"
           numberOfLines={1}
           style={
             [
               {
-                "fontSize": 24,
-                "fontWeight": "400",
-                "lineHeight": 32,
+                "fontSize": 22,
+                "fontWeight": "700",
+                "letterSpacing": -0.3,
+                "lineHeight": 28,
               },
               {
                 "color": "#E6E0E9",
@@ -2259,14 +2319,10 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
             >
               <RNSVGPath
                 d="M6,6 L18,18 M18,6 L6,18"
-                fill={
-                  {
-                    "payload": 4278190080,
-                    "type": 0,
-                  }
-                }
+                fill={null}
                 propList={
                   [
+                    "fill",
                     "stroke",
                     "strokeWidth",
                     "strokeLinecap",
@@ -2532,14 +2588,17 @@ exports[`ui components (light) button-disabled: light/button-disabled 1`] = `
   collapsable={false}
   style={
     {
-      "backgroundColor": "#FEF7FF",
-      "borderColor": "#CAC4D0",
-      "borderRadius": 16,
-      "borderWidth": 1,
+      "backgroundColor": "#FFFFFF",
+      "borderRadius": 24,
       "opacity": 1,
-      "paddingBottom": 8,
-      "paddingHorizontal": 16,
-      "paddingTop": 16,
+      "paddingBottom": 12,
+      "paddingHorizontal": 18,
+      "paddingTop": 18,
+      "transform": [
+        {
+          "translateY": 0,
+        },
+      ],
     }
   }
 >
@@ -2629,11 +2688,16 @@ exports[`ui components (light) card-filled: light/card-filled 1`] = `
   style={
     {
       "backgroundColor": "#E6E0E9",
-      "borderRadius": 16,
+      "borderRadius": 24,
       "opacity": 1,
-      "paddingBottom": 8,
-      "paddingHorizontal": 16,
-      "paddingTop": 16,
+      "paddingBottom": 12,
+      "paddingHorizontal": 18,
+      "paddingTop": 18,
+      "transform": [
+        {
+          "translateY": 0,
+        },
+      ],
     }
   }
 >
@@ -2646,8 +2710,14 @@ exports[`ui components (light) card-filled: light/card-filled 1`] = `
           "lineHeight": 20,
         },
         {
-          "color": "#6750A4",
+          "fontSize": 12,
+          "letterSpacing": 0.6,
+          "lineHeight": 16,
           "marginBottom": 4,
+          "textTransform": "uppercase",
+        },
+        {
+          "color": "#6750A4",
         },
       ]
     }
@@ -2690,14 +2760,17 @@ exports[`ui components (light) card-outlined-busy: light/card-outlined-busy 1`] 
   collapsable={false}
   style={
     {
-      "backgroundColor": "#FEF7FF",
-      "borderColor": "#CAC4D0",
-      "borderRadius": 16,
-      "borderWidth": 1,
+      "backgroundColor": "#FFFFFF",
+      "borderRadius": 24,
       "opacity": 1,
-      "paddingBottom": 8,
-      "paddingHorizontal": 16,
-      "paddingTop": 16,
+      "paddingBottom": 12,
+      "paddingHorizontal": 18,
+      "paddingTop": 18,
+      "transform": [
+        {
+          "translateY": 0,
+        },
+      ],
     }
   }
 >
@@ -2710,8 +2783,14 @@ exports[`ui components (light) card-outlined-busy: light/card-outlined-busy 1`] 
           "lineHeight": 20,
         },
         {
-          "color": "#6750A4",
+          "fontSize": 12,
+          "letterSpacing": 0.6,
+          "lineHeight": 16,
           "marginBottom": 4,
+          "textTransform": "uppercase",
+        },
+        {
+          "color": "#6750A4",
         },
       ]
     }
@@ -3182,14 +3261,10 @@ exports[`ui components (light) meaning-concern: light/meaning-concern 1`] = `
     >
       <RNSVGPath
         d="M3,12 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0 M12,7.5 v5.5 M12,16.5 v0.01"
-        fill={
-          {
-            "payload": 4278190080,
-            "type": 0,
-          }
-        }
+        fill={null}
         propList={
           [
+            "fill",
             "stroke",
             "strokeWidth",
             "strokeLinecap",
@@ -3277,14 +3352,10 @@ exports[`ui components (light) meaning-ok: light/meaning-ok 1`] = `
     >
       <RNSVGPath
         d="M5,12.5 l4.5,4.5 L19,7.5"
-        fill={
-          {
-            "payload": 4278190080,
-            "type": 0,
-          }
-        }
+        fill={null}
         propList={
           [
+            "fill",
             "stroke",
             "strokeWidth",
             "strokeLinecap",
@@ -3326,58 +3397,74 @@ exports[`ui components (light) meaning-ok: light/meaning-ok 1`] = `
 
 exports[`ui components (light) placeholder: light/placeholder 1`] = `
 <View
-  collapsable={false}
   style={
-    {
-      "opacity": 1,
-    }
+    [
+      {
+        "borderRadius": 24,
+        "paddingBottom": 8,
+        "paddingHorizontal": 18,
+        "paddingTop": 20,
+      },
+      {
+        "backgroundColor": "#FFFFFF",
+      },
+    ]
   }
 >
   <View
+    collapsable={false}
     style={
-      [
-        {
-          "borderRadius": 6,
-          "height": 14,
-          "marginBottom": 12,
-        },
-        {
-          "backgroundColor": "#E6E0E9",
-          "width": "92%",
-        },
-      ]
+      {
+        "opacity": 1,
+      }
     }
-  />
-  <View
-    style={
-      [
-        {
-          "borderRadius": 6,
-          "height": 14,
-          "marginBottom": 12,
-        },
-        {
-          "backgroundColor": "#E6E0E9",
-          "width": "70%",
-        },
-      ]
-    }
-  />
-  <View
-    style={
-      [
-        {
-          "borderRadius": 6,
-          "height": 14,
-          "marginBottom": 12,
-        },
-        {
-          "backgroundColor": "#E6E0E9",
-          "width": "45%",
-        },
-      ]
-    }
-  />
+  >
+    <View
+      style={
+        [
+          {
+            "borderRadius": 6,
+            "height": 14,
+            "marginBottom": 12,
+          },
+          {
+            "backgroundColor": "#E6E0E9",
+            "width": "92%",
+          },
+        ]
+      }
+    />
+    <View
+      style={
+        [
+          {
+            "borderRadius": 6,
+            "height": 14,
+            "marginBottom": 12,
+          },
+          {
+            "backgroundColor": "#E6E0E9",
+            "width": "70%",
+          },
+        ]
+      }
+    />
+    <View
+      style={
+        [
+          {
+            "borderRadius": 6,
+            "height": 14,
+            "marginBottom": 12,
+          },
+          {
+            "backgroundColor": "#E6E0E9",
+            "width": "45%",
+          },
+        ]
+      }
+    />
+  </View>
 </View>
 `;
 
@@ -3416,68 +3503,82 @@ exports[`ui components (light) reason-concern: light/reason-concern 1`] = `
     }
   }
 >
-  <RNSVGSvgView
-    align="xMidYMid"
-    bbHeight={20}
-    bbWidth={20}
-    focusable={false}
-    height={20}
-    meetOrSlice={0}
-    minX={0}
-    minY={0}
+  <View
     style={
       [
         {
-          "backgroundColor": "transparent",
-          "borderWidth": 0,
+          "alignItems": "center",
+          "borderRadius": 14,
+          "height": 28,
+          "justifyContent": "center",
+          "marginTop": -2,
+          "width": 28,
         },
         {
-          "flex": 0,
-          "height": 20,
-          "width": 20,
+          "backgroundColor": "#8F530026",
         },
       ]
     }
-    vbHeight={24}
-    vbWidth={24}
-    width={20}
   >
-    <RNSVGGroup
-      fill={
-        {
-          "payload": 4278190080,
-          "type": 0,
-        }
+    <RNSVGSvgView
+      align="xMidYMid"
+      bbHeight={16}
+      bbWidth={16}
+      focusable={false}
+      height={16}
+      meetOrSlice={0}
+      minX={0}
+      minY={0}
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+            "borderWidth": 0,
+          },
+          {
+            "flex": 0,
+            "height": 16,
+            "width": 16,
+          },
+        ]
       }
+      vbHeight={24}
+      vbWidth={24}
+      width={16}
     >
-      <RNSVGPath
-        d="M3,12 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0 M12,7.5 v5.5 M12,16.5 v0.01"
+      <RNSVGGroup
         fill={
           {
             "payload": 4278190080,
             "type": 0,
           }
         }
-        propList={
-          [
-            "stroke",
-            "strokeWidth",
-            "strokeLinecap",
-            "strokeLinejoin",
-          ]
-        }
-        stroke={
-          {
-            "payload": 4287582976,
-            "type": 0,
+      >
+        <RNSVGPath
+          d="M3,12 a9,9 0 1 0 18,0 a9,9 0 1 0 -18,0 M12,7.5 v5.5 M12,16.5 v0.01"
+          fill={null}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+              "strokeLinecap",
+              "strokeLinejoin",
+            ]
           }
-        }
-        strokeLinecap={1}
-        strokeLinejoin={1}
-        strokeWidth={2}
-      />
-    </RNSVGGroup>
-  </RNSVGSvgView>
+          stroke={
+            {
+              "payload": 4287582976,
+              "type": 0,
+            }
+          }
+          strokeLinecap={1}
+          strokeLinejoin={1}
+          strokeWidth={2}
+        />
+      </RNSVGGroup>
+    </RNSVGSvgView>
+  </View>
   <View
     style={
       {
@@ -3489,9 +3590,9 @@ exports[`ui components (light) reason-concern: light/reason-concern 1`] = `
       style={
         [
           {
-            "fontSize": 14,
+            "fontSize": 16,
             "fontWeight": "400",
-            "lineHeight": 20,
+            "lineHeight": 24,
           },
           {
             "color": "#1D1B20",
@@ -3512,6 +3613,7 @@ exports[`ui components (light) reason-concern: light/reason-concern 1`] = `
           },
           {
             "color": "#49454F",
+            "marginTop": 2,
           },
         ]
       }
@@ -3533,68 +3635,82 @@ exports[`ui components (light) reason-ok: light/reason-ok 1`] = `
     }
   }
 >
-  <RNSVGSvgView
-    align="xMidYMid"
-    bbHeight={20}
-    bbWidth={20}
-    focusable={false}
-    height={20}
-    meetOrSlice={0}
-    minX={0}
-    minY={0}
+  <View
     style={
       [
         {
-          "backgroundColor": "transparent",
-          "borderWidth": 0,
+          "alignItems": "center",
+          "borderRadius": 14,
+          "height": 28,
+          "justifyContent": "center",
+          "marginTop": -2,
+          "width": 28,
         },
         {
-          "flex": 0,
-          "height": 20,
-          "width": 20,
+          "backgroundColor": "#EADDFF",
         },
       ]
     }
-    vbHeight={24}
-    vbWidth={24}
-    width={20}
   >
-    <RNSVGGroup
-      fill={
-        {
-          "payload": 4278190080,
-          "type": 0,
-        }
+    <RNSVGSvgView
+      align="xMidYMid"
+      bbHeight={16}
+      bbWidth={16}
+      focusable={false}
+      height={16}
+      meetOrSlice={0}
+      minX={0}
+      minY={0}
+      style={
+        [
+          {
+            "backgroundColor": "transparent",
+            "borderWidth": 0,
+          },
+          {
+            "flex": 0,
+            "height": 16,
+            "width": 16,
+          },
+        ]
       }
+      vbHeight={24}
+      vbWidth={24}
+      width={16}
     >
-      <RNSVGPath
-        d="M5,12.5 l4.5,4.5 L19,7.5"
+      <RNSVGGroup
         fill={
           {
             "payload": 4278190080,
             "type": 0,
           }
         }
-        propList={
-          [
-            "stroke",
-            "strokeWidth",
-            "strokeLinecap",
-            "strokeLinejoin",
-          ]
-        }
-        stroke={
-          {
-            "payload": 4284960932,
-            "type": 0,
+      >
+        <RNSVGPath
+          d="M5,12.5 l4.5,4.5 L19,7.5"
+          fill={null}
+          propList={
+            [
+              "fill",
+              "stroke",
+              "strokeWidth",
+              "strokeLinecap",
+              "strokeLinejoin",
+            ]
           }
-        }
-        strokeLinecap={1}
-        strokeLinejoin={1}
-        strokeWidth={2.2}
-      />
-    </RNSVGGroup>
-  </RNSVGSvgView>
+          stroke={
+            {
+              "payload": 4280352861,
+              "type": 0,
+            }
+          }
+          strokeLinecap={1}
+          strokeLinejoin={1}
+          strokeWidth={2.2}
+        />
+      </RNSVGGroup>
+    </RNSVGSvgView>
+  </View>
   <View
     style={
       {
@@ -3606,9 +3722,9 @@ exports[`ui components (light) reason-ok: light/reason-ok 1`] = `
       style={
         [
           {
-            "fontSize": 14,
+            "fontSize": 16,
             "fontWeight": "400",
-            "lineHeight": 20,
+            "lineHeight": 24,
           },
           {
             "color": "#1D1B20",
@@ -3629,6 +3745,7 @@ exports[`ui components (light) reason-ok: light/reason-ok 1`] = `
           },
           {
             "color": "#49454F",
+            "marginTop": 2,
           },
         ]
       }
@@ -3763,14 +3880,10 @@ exports[`ui components (light) row: light/row 1`] = `
     >
       <RNSVGPath
         d="M10,7 l5,5 -5,5"
-        fill={
-          {
-            "payload": 4278190080,
-            "type": 0,
-          }
-        }
+        fill={null}
         propList={
           [
+            "fill",
             "stroke",
             "strokeWidth",
             "strokeLinecap",
@@ -3975,19 +4088,19 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
         <View
           style={
             {
-              "height": 40,
+              "height": 44,
               "marginRight": 12,
-              "width": 40,
+              "width": 44,
             }
           }
         >
           <RNSVGSvgView
             accessible={false}
             align="xMidYMid"
-            bbHeight={40}
-            bbWidth={40}
+            bbHeight={44}
+            bbWidth={44}
             focusable={false}
-            height={40}
+            height={44}
             meetOrSlice={0}
             minX={0}
             minY={0}
@@ -3999,14 +4112,14 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
                 },
                 {
                   "flex": 0,
-                  "height": 40,
-                  "width": 40,
+                  "height": 44,
+                  "width": 44,
                 },
               ]
             }
             vbHeight={120}
             vbWidth={120}
-            width={40}
+            width={44}
             xml="<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="480" height="480"><g transform="translate(0 -0.00) rotate(4.00 60 110) translate(60 110) scale(1.0000 1.0000) translate(-60 -110)"><path d="M60 14 C69 31 98 48 98 77 A38 38 0 0 1 22 77 C22 48 51 31 60 14 Z" fill="#FF8A73" stroke="#FF8A73" stroke-width="5" stroke-linejoin="round"/><path d="M40 50 Q33 60 32.5 70" fill="none" stroke="#FFFFFF" stroke-opacity="0.55" stroke-width="4.2" stroke-linecap="round"/><ellipse cx="40.50" cy="84.50" rx="6" ry="3.4" fill="#E0504A" opacity="0.9"/><ellipse cx="79.50" cy="84.50" rx="6" ry="3.4" fill="#E0504A" opacity="0.9"/><ellipse cx="48.60" cy="73.80" rx="4.60" ry="6.20" fill="#4E140B"/><circle cx="47.13" cy="71.44" r="1.56" fill="#FFFFFF"/><ellipse cx="74.60" cy="73.80" rx="4.60" ry="6.20" fill="#4E140B"/><circle cx="73.13" cy="71.44" r="1.56" fill="#FFFFFF"/><path d="M56.00 87.00 Q61.00 85.50 65.00 86.00" fill="none" stroke="#4E140B" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="88" cy="40" r="2.6" fill="#C44A34"/><circle cx="95" cy="33" r="3.4" fill="#C44A34"/><circle cx="104" cy="24" r="4.4" fill="#C44A34"/></g></svg>"
             xmlns="http://www.w3.org/2000/svg"
           >
@@ -4260,13 +4373,15 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
           </RNSVGSvgView>
         </View>
         <Text
+          accessibilityRole="header"
           numberOfLines={1}
           style={
             [
               {
-                "fontSize": 24,
-                "fontWeight": "400",
-                "lineHeight": 32,
+                "fontSize": 22,
+                "fontWeight": "700",
+                "letterSpacing": -0.3,
+                "lineHeight": 28,
               },
               {
                 "color": "#1D1B20",
@@ -4355,14 +4470,10 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
             >
               <RNSVGPath
                 d="M6,6 L18,18 M18,6 L6,18"
-                fill={
-                  {
-                    "payload": 4278190080,
-                    "type": 0,
-                  }
-                }
+                fill={null}
                 propList={
                   [
+                    "fill",
                     "stroke",
                     "strokeWidth",
                     "strokeLinecap",
@@ -4393,7 +4504,7 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
               "color": "#49454F",
               "marginBottom": 16,
               "marginHorizontal": 24,
-              "marginTop": 2,
+              "marginTop": 4,
             },
           ]
         }
@@ -4412,14 +4523,17 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
             collapsable={false}
             style={
               {
-                "backgroundColor": "#FEF7FF",
-                "borderColor": "#CAC4D0",
-                "borderRadius": 16,
-                "borderWidth": 1,
+                "backgroundColor": "#FFFFFF",
+                "borderRadius": 24,
                 "opacity": 1,
-                "paddingBottom": 8,
-                "paddingHorizontal": 16,
-                "paddingTop": 16,
+                "paddingBottom": 12,
+                "paddingHorizontal": 18,
+                "paddingTop": 18,
+                "transform": [
+                  {
+                    "translateY": 0,
+                  },
+                ],
               }
             }
           >
@@ -4691,13 +4805,15 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
         }
       >
         <Text
+          accessibilityRole="header"
           numberOfLines={1}
           style={
             [
               {
-                "fontSize": 24,
-                "fontWeight": "400",
-                "lineHeight": 32,
+                "fontSize": 22,
+                "fontWeight": "700",
+                "letterSpacing": -0.3,
+                "lineHeight": 28,
               },
               {
                 "color": "#1D1B20",
@@ -4786,14 +4902,10 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
             >
               <RNSVGPath
                 d="M6,6 L18,18 M18,6 L6,18"
-                fill={
-                  {
-                    "payload": 4278190080,
-                    "type": 0,
-                  }
-                }
+                fill={null}
                 propList={
                   [
+                    "fill",
                     "stroke",
                     "strokeWidth",
                     "strokeLinecap",

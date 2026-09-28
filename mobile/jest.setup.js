@@ -28,11 +28,15 @@ jest.mock('expo-router', () => {
   const light = {
     primary: '#6750A4', onPrimary: '#FFFFFF', tertiaryContainer: '#FFD8E4', onTertiaryContainer: '#31111D',
     surface: '#FEF7FF', surfaceContainer: '#F3EDF7', surfaceContainerLow: '#F7F2FA', surfaceContainerHighest: '#E6E0E9',
+    surfaceContainerLowest: '#FFFFFF', surfaceContainerHigh: '#ECE6F0',
+    primaryContainer: '#EADDFF', onPrimaryContainer: '#21005D',
     onSurface: '#1D1B20', onSurfaceVariant: '#49454F', outline: '#79747E', outlineVariant: '#CAC4D0',
   };
   const dark = {
     primary: '#D0BCFF', onPrimary: '#381E72', tertiaryContainer: '#633B48', onTertiaryContainer: '#FFD8E4',
     surface: '#141218', surfaceContainer: '#211F26', surfaceContainerLow: '#1D1B20', surfaceContainerHighest: '#36343B',
+    surfaceContainerLowest: '#0F0D13', surfaceContainerHigh: '#2B2930',
+    primaryContainer: '#4F378B', onPrimaryContainer: '#EADDFF',
     onSurface: '#E6E0E9', onSurfaceVariant: '#CAC4D0', outline: '#938F99', outlineVariant: '#49454F',
   };
   const table = () => (globalThis.__scheme === 'dark' ? dark : light);

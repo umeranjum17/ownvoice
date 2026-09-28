@@ -13,9 +13,10 @@ const ATTENTION = { light: '#8F5300', dark: '#FFB95C' } as const;
 const CORAL = '#FF8A73';
 
 // Material 3 type scale, sp/line height. Weight 500 is Material's "medium"; only the display line
-// (a screen's one big promise, in setup) is bolder and tighter.
+// (a screen's one big promise, in setup) and a sheet's heading are bolder and tighter.
 export const type = {
   display: { fontSize: 32, lineHeight: 38, fontWeight: '700', letterSpacing: -0.6 },
+  heading: { fontSize: 22, lineHeight: 28, fontWeight: '700', letterSpacing: -0.3 },
   headline: { fontSize: 28, lineHeight: 36, fontWeight: '400' },
   title: { fontSize: 24, lineHeight: 32, fontWeight: '400' },
   words: { fontSize: 18, lineHeight: 26, fontWeight: '400' },
@@ -40,6 +41,8 @@ export function useTheme() {
     scrim: '#00000066' as const,
     sheet: d.surfaceContainerLow,
     card: d.surface,
+    // A card that sits up off the sheet: brightest in light, one step lighter than the sheet in dark.
+    raised: scheme === 'dark' ? d.surfaceContainerHigh : d.surfaceContainerLowest,
     cardLine: d.outlineVariant,
     yours: d.surfaceContainerHighest,
     group: d.surfaceContainer,

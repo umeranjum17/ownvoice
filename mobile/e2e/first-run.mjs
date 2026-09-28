@@ -103,7 +103,7 @@ const tapText = async (label, state = '') => {
 };
 
 // The first Insert pill defeats OCR in both modes; the panel anchors it here on this emulator.
-const tapInsert = () => tap(Math.round(width * .28), Math.round(height * .54));
+const tapInsert = () => tap(Math.round(width * .2), Math.round(height * .6));
 
 const bubbleVisible = () => {
   const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
