@@ -260,8 +260,9 @@ test('the meaning bar: shells, trailing chatter and padded repetition never ship
   // Trailing model chatter after a blank line is not row content.
   expect(rebuildLines(note, 'Row 1: Bring the tent\nRow 2: Pack the stove\nRow 3: Meet Saturday at noon\n\nHere is the polished list.'))
     .toBe('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon');
-  // One repeated line padded across every row is unusable outright.
+  // One repeated line padded across every row is unusable outright, in any casing or punctuation.
   expect(rebuildLines(note, 'Row 1: Coming right up for you\nRow 2: Coming right up for you\nRow 3: Coming right up for you')).toBeNull();
+  expect(rebuildLines(note, 'Row 1: Coming right up for you!\nRow 2: coming right up, for you.\nRow 3: COMING RIGHT UP FOR YOU')).toBeNull();
 });
 
 test('rebuildLines numbers a blank line the way the prompt does, so content lands on its own line', () => {

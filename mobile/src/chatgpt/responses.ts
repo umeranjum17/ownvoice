@@ -12,8 +12,9 @@ import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvent
 const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested three rewrite versions as JSON.';
 
-/** One streamed Responses call; `read` consumes the body inside this try so stream refusals are reported. */
-async function openStream<T>(prompt: string, instructions: string, on: WriterEvents | undefined, fetcher: typeof fetch, read: (body: ReadableStream<Uint8Array>) => Promise<T>): Promise<T> {
+/** One streamed Responses call; `read` consumes the body inside this try so stream refusals are reported.
+ *  jsonMode=false leaves the answer free-form: the raw reader must receive the plain lines it asks for. */
+async function openStream<T>(prompt: string, instructions: string, on: WriterEvents | undefined, fetcher: typeof fetch, read: (body: ReadableStream<Uint8Array>) => Promise<T>, jsonMode = true): Promise<T> {
   let started = false;
   let marked = false;
   try {
@@ -21,7 +22,7 @@ async function openStream<T>(prompt: string, instructions: string, on: WriterEve
     if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
     const request = {
       method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
-      body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
+      body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: jsonMode ? { verbosity: 'low', format: { type: 'json_object' } } : { verbosity: 'low' } }),
     };
     await on?.sent?.();
     marked = true;
@@ -48,7 +49,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
 
 /** Raw answer for prompts whose output is plain text (the row-by-row rescue), not a JSON array. */
 async function askRaw(prompt: string, instructions: string, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string> {
-  return openStream(prompt, instructions, on, fetcher, body => readRawStream(body, onText));
+  return openStream(prompt, instructions, on, fetcher, body => readRawStream(body, onText), false);
 }
 
 export const streamResponses = (prompt: string, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> =>

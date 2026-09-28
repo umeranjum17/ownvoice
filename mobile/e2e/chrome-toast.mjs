@@ -18,8 +18,6 @@ const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
 const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
-const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
-const SENTENCE = 'Please confirm the delivery for Tuesday morning.';
 
 const bands = image => [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)];
 const ocrBand = (input, top) => execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });

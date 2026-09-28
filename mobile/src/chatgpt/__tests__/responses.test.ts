@@ -288,6 +288,31 @@ test('a flattened list slot goes back row by row and lands with the writer\'s ma
   } finally { global.fetch = originalFetch; }
 });
 
+test('the rescue reads raw rows, so a JSON-forced answer cannot land but plain rows do', async () => {
+  const originalFetch = global.fetch;
+  // The live API answers with one JSON object exactly when the request forces json_object; that
+  // answer carries no 'Row N:' lines. The rescue must ask free-form to receive the rows it parses.
+  const fetch = jest.fn()
+    .mockResolvedValueOnce({ ok: true, body: polishStream(['I can bring the stove.\n1. The stove is mine to bring.\n2. The tent and Saturday are sorted.', 'One flat line, again.', 'I can bring the stove.\n1. The tent gets packed by me.\n2. Saturday at noon, then.']) })
+    .mockImplementation(async (_url: unknown, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body)) as { text?: { format?: unknown } };
+      const rows = 'Row 1: The stove is on me.\nRow 2: The tent gets packed by me.\nRow 3: Saturday at noon it is.';
+      const answer = payload.text?.format ? JSON.stringify({ rows: rows.replaceAll('\n', '\\n') }) : rows;
+      return { ok: true, body: rowStream(answer) } as unknown as Response;
+    });
+  try {
+    global.fetch = fetch as unknown as typeof fetch;
+    await expect(chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: LIST_NOTE })).resolves.toEqual({
+      drafts: [
+        'I can bring the stove.\n1. The stove is mine to bring.\n2. The tent and Saturday are sorted.',
+        'The stove is on me.\n1. The tent gets packed by me.\n2. Saturday at noon it is.',
+        'I can bring the stove.\n1. The tent gets packed by me.\n2. Saturday at noon, then.',
+      ],
+    });
+    expect(fetch).toHaveBeenCalledTimes(2);
+  } finally { global.fetch = originalFetch; }
+});
+
 test('a rescue answer without rows, or echoing the original, stays out', async () => {
   const originalFetch = global.fetch;
   const fetch = jest.fn()

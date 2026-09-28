@@ -120,7 +120,7 @@ export function rebuildLines(original: string, answer: string): string | null {
   const plain = (text: string) => text.replace(leadingMarker, '').replace(/\s+/g, ' ').trim();
   const kept = [...rows.values()].map(plain).filter(text => text && !shellOnly(text));
   if (!kept.length) return null;
-  if (kept.length > 1 && new Set(kept).size === 1) return null;
+  if (kept.length > 1 && new Set(kept.map(norm)).size === 1) return null;
   let row = 0;
   return original.split(/\r?\n/).map(line => {
     row++; // blank lines consume a row number exactly as the prompt numbered them
