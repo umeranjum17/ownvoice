@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, ScrollView, Text, View } from 'react-native';
+import { AppState, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../src/ui/Button';
 import { Row } from '../src/ui/Row';
+import { Page } from '../src/ui/Page';
+import { Dot } from '../src/ui/Dot';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { plain, type Read } from '../src/core/privacy';
@@ -14,7 +15,6 @@ import Native from '../modules/ownvoice-native';
 /** What Ownvoice read: one line per bubble tap, kept on this phone for 30 days, and one tap to wipe it all. */
 export default function Reads() {
   const t = useTheme();
-  const inset = useSafeAreaInsets().top;
   const [reads, setReads] = useState<Read[]>([]);
   const [error, setError] = useState(false);
   const pending = useRef<Promise<void>>(Promise.resolve());
@@ -44,18 +44,15 @@ export default function Reads() {
     } catch { setError(true); }
     finally { wiping.current = false; }
   };
-  const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
+  const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, paddingTop: inset + space.xl, gap: space.m, paddingBottom: space.xxl }}>
-    <Text style={[type.headline, { color: t.text }]}>{words.rowReads}</Text>
-    <Text style={[type.body, { color: t.muted, marginBottom: space.s }]}>{words.readsNote}</Text>
-    <View style={styles.actions}>
-      <Button kind="text" label={words.wipe} onPress={() => { void wipe(); }} />
-    </View>
+  return <Page title={words.rowReads} note={words.readsNote} onBack={() => router.back()}>
     {error && <Text style={[type.body, { color: t.text }]}>{words.failed}</Text>}
-    <Text style={[type.body, { color: t.muted }]}>{words.wipeVoiceNote}</Text>
-    <View style={group}>
-      {reads.length === 0 && <Row title={words.nothingRead} />}
+    {reads.length === 0 && <View style={[styles.empty, { backgroundColor: t.group }]}>
+      <Dot mood="idle" size={64} />
+      <Text style={[type.body, { color: t.text, textAlign: 'center' }]}>{words.nothingRead}</Text>
+    </View>}
+    {reads.length > 0 && <View style={group}>
       {reads.map((read, index) => {
         const summary = plain(read.summary);
         const at = new Date(read.time);
@@ -64,9 +61,15 @@ export default function Reads() {
         const rest = summary.includes('. ') ? summary.slice(summary.indexOf('. ') + 2).replace(/\.$/, '') : '';
         return <Row key={`${read.time}-${index}`} title={`${summary.split('. ')[0]} in ${read.label}`} subtitle={[rest, `${day}, ${time}`].filter(Boolean).join(' · ')} />;
       })}
+    </View>}
+    <View style={[styles.wipe, { backgroundColor: t.group }]}>
+      <Text style={[type.note, { color: t.muted, flex: 1 }]}>{words.wipeVoiceNote}</Text>
+      <Button kind="text" label={words.wipe} onPress={() => { void wipe(); }} />
     </View>
-    <Button kind="text" label={words.back} onPress={() => router.back()} />
-  </ScrollView>;
+  </Page>;
 }
 
-const styles = { actions: { flexDirection: 'row' as const } };
+const styles = {
+  empty: { alignItems: 'center' as const, gap: space.m, borderRadius: shape.group, padding: space.xl },
+  wipe: { flexDirection: 'row' as const, alignItems: 'center' as const, gap: space.s, borderRadius: shape.group, paddingLeft: space.l, paddingVertical: space.xs },
+};

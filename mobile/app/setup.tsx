@@ -6,6 +6,7 @@ import { Button } from '../src/ui/Button';
 import { Row } from '../src/ui/Row';
 import { Switch } from '../src/ui/Switch';
 import { Dot } from '../src/ui/Dot';
+import { Badge } from '../src/ui/Badge';
 import { ChatIcon, CheckIcon, HandIcon, LockIcon, WarnIcon } from '../src/ui/icons';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
 import { words, CHATGPT_TERMS } from '../src/core/words';
@@ -296,12 +297,6 @@ function Head({ title, note, done = false }: { title: string; note: string; done
   </View>;
 }
 
-/** A promise's icon, sat in a soft tinted circle. */
-function Badge({ children }: { children: ReactNode }) {
-  const t = useTheme();
-  return <View style={[styles.badge, { backgroundColor: t.primaryContainer }]}>{children}</View>;
-}
-
 /** The first screen shows the whole idea at a glance: a friend's message, Dot, and a reply in your
  *  words landing, one after another. Everything holds still when motion is reduced. */
 function Welcome({ onContinue }: { onContinue: () => void }) {
@@ -361,7 +356,6 @@ const styles = StyleSheet.create({
   head: { marginBottom: space.xl },
   headNote: { flexDirection: 'row', alignItems: 'flex-start', gap: space.s, marginTop: space.s },
   tick: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  badge: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   footer: { paddingHorizontal: space.xl, paddingTop: space.m, gap: space.xs },
   // Text buttons are 40 dp; the 4 dp of padding lets their hit slop reach the 48 dp touch target.
   actions: { flexDirection: 'row', justifyContent: 'center', gap: space.xs, flexWrap: 'wrap', paddingVertical: space.xs },
