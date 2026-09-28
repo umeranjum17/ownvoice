@@ -2,7 +2,8 @@
 // selection, the Ownvoice sheet rewrites it, Replace hands it back, and the toast is captured
 // over the Chrome page (burst frames to beat the clipboard overlay). Emulator-only; light+dark.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
 const serial = process.env.ANDROID_SERIAL;
@@ -20,13 +21,22 @@ const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1)
 const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
 
 const bands = () => [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)];
-const ocrBand = (input, top) => execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+const ocrBand = (input, top) => execFileSync('tesseract', [typeof input === 'string' ? input : 'stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input: typeof input === 'string' ? undefined : input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+// ImageMagick 7.1.2's streamed png:- pipe aborts (glibc buffer overflow) on some screenshots, so it
+// only ever sees real files: the screencap bytes and every crop land in temp files, never in stdin/stdout.
+const magickPng = (image, ops, name) => {
+  const shot = resolve(tmpdir(), `ov-shot-${process.pid}.png`);
+  const out = resolve(tmpdir(), `${name}-${process.pid}.png`);
+  writeFileSync(shot, image);
+  execFileSync('magick', [shot, ...ops, out], { maxBuffer: 32 * 1024 * 1024 });
+  return out;
+};
 const screenWords = () => {
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 16 * 1024 * 1024 });
   const words = [];
   const collect = (negate) => {
     for (const top of bands()) {
-      const band = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', ...(negate ? ['-negate'] : []), 'png:-'], { input: image, maxBuffer: 32 * 1024 * 1024 }) : negate ? execFileSync('magick', ['png:', '-negate', 'png:-'], { input: image, maxBuffer: 32 * 1024 * 1024 }) : image;
+      const band = top || negate ? magickPng(image, [...(top ? ['-crop', `${width}x150+0+${top}`, '+repage'] : []), ...(negate ? ['-negate'] : [])], 'ov-band') : image;
       for (const row of ocrBand(band, top).split('\n').slice(1)) {
         const c = row.split('\t');
         if (c.length < 12 || !c[11].trim()) continue;
@@ -41,8 +51,10 @@ const screenWords = () => {
 const screenText = () => screenWords().map(w => w.text).join(' ').toLowerCase();
 const tapWord = async (label, tries = 8) => {
   const lower = label.toLowerCase();
+  const first = lower.split(/\s+/)[0]; // band OCR often splits a button's phrase into word boxes; its first word pins the same button
   for (let attempt = 0; attempt < tries; attempt++) {
-    const word = screenWords().find(w => w.text.toLowerCase().includes(lower));
+    const words = screenWords();
+    const word = words.find(w => w.text.toLowerCase().includes(lower)) ?? words.find(w => w.text.toLowerCase() === first);
     if (word) { tap((word.left + word.right) / 2, (word.top + word.bottom) / 2); await wait(900); return word; }
     await wait(700);
   }
@@ -140,16 +152,17 @@ XML`], { stdio: 'ignore' });
   await wait(400);
   {
     const cap = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 16 * 1024 * 1024 });
-    const topBand = execFileSync('magick', ['png:', '-crop', `${width}x600+0+150`, '+repage', 'png:-'], { input: cap });
-    const tsv = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '6', 'tsv'], { input: topBand, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+    const topBand = magickPng(cap, ['-crop', `${width}x600+0+150`, '+repage'], 'ov-top');
+    const tsv = execFileSync('tesseract', [topBand, 'stdout', '--psm', '6', 'tsv'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
     console.log(`${mode} top-band words: ${tsv.split('\n').slice(1).map(r => r.split('\t')[11]).filter(Boolean).join(' ').slice(0, 200)}`);
   }
   for (let attempt = 0; attempt < 3; attempt++) {
     // The overflow bubble reads cleanly as one top-band block (psm 6); band strips garble it.
     const cap = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 16 * 1024 * 1024 });
-    const topBand = execFileSync('magick', ['png:', '-crop', `${width}x600+0+150`, '+repage', 'png:-'], { input: cap });
-    const tsv = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '6', 'tsv'], { input: topBand, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
-    const word = tsv.split('\n').slice(1).map(r => r.split('\t')).find(c => c.length >= 12 && c[11].trim().toLowerCase().includes('ownvoice'));
+    const topBand = magickPng(cap, ['-crop', `${width}x600+0+150`, '+repage'], 'ov-top');
+    const tsv = execFileSync('tesseract', [topBand, 'stdout', '--psm', '6', 'tsv'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+    // Dark mode garbles the app row's name ('Ownvoice' -> 'T r s'); its distinctive '(new)' suffix still reads.
+    const word = tsv.split('\n').slice(1).map(r => r.split('\t')).find(c => c.length >= 12 && (/ownvoice|\(?new\)?/i.test(c[11].trim())));
     if (word) {
       const cx = Number(word[6]) + Number(word[8]) / 2, cy = Number(word[7]) + 150 + Number(word[9]) / 2;
       for (const [dx, dy] of [[0, 0], [-45, 0], [45, 0], [0, -28], [0, 28]]) {
