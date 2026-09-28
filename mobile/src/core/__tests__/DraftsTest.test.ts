@@ -263,6 +263,8 @@ test('the meaning bar: shells, trailing chatter and padded repetition never ship
   // One repeated line padded across every row is unusable outright, in any casing or punctuation.
   expect(rebuildLines(note, 'Row 1: Coming right up for you\nRow 2: Coming right up for you\nRow 3: Coming right up for you')).toBeNull();
   expect(rebuildLines(note, 'Row 1: Coming right up for you!\nRow 2: coming right up, for you.\nRow 3: COMING RIGHT UP FOR YOU')).toBeNull();
+  // Extra rows past the original's lines are ignored by the rebuild and cannot dilute the check.
+  expect(rebuildLines(note, 'Row 1: Coming right up for you\nRow 2: Coming right up for you\nRow 3: Coming right up for you\nRow 4: Hope this helps.')).toBeNull();
 });
 
 test('rebuildLines numbers a blank line the way the prompt does, so content lands on its own line', () => {

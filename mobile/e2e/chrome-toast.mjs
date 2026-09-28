@@ -27,7 +27,7 @@ const screenWords = () => {
   const collect = (negate) => {
     for (const top of bands(image)) {
       const band = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', ...(negate ? ['-negate'] : []), 'png:-'], { input: image, maxBuffer: 32 * 1024 * 1024 }) : negate ? execFileSync('magick', ['png:', '-negate', 'png:-'], { input: image, maxBuffer: 32 * 1024 * 1024 }) : image;
-      for (const row of ocrBand(band, top, negate).split('\n').slice(1)) {
+      for (const row of ocrBand(band, top).split('\n').slice(1)) {
         const c = row.split('\t');
         if (c.length < 12 || !c[11].trim()) continue;
         words.push({ text: c[11].trim(), left: Number(c[6]), top: Number(c[7]) + top, right: Number(c[6]) + Number(c[8]), bottom: Number(c[7]) + Number(c[9]) + top });

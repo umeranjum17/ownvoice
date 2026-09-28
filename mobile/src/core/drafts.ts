@@ -114,15 +114,17 @@ export function rebuildLines(original: string, answer: string): string | null {
     // stray text outside the rows is model chatter and never becomes row content
   }
   if (!rows.size) return null;
-  // The meaning bar: rows whose content is only a marker shell, and one repeated line padded
-  // across every row, carry no per-line meaning - shell rows fall back to the original line's
-  // content, and an answer that is padded repetition throughout is unusable outright.
+  const lines = original.split(/\r?\n/);
+  // The meaning bar, over exactly the rows the rebuild consumes (1..the original's line count):
+  // rows whose content is only a marker shell, and one repeated line padded across every row,
+  // carry no per-line meaning - shell rows fall back to the original line's content, and an
+  // answer that is padded repetition throughout is unusable outright.
   const plain = (text: string) => text.replace(leadingMarker, '').replace(/\s+/g, ' ').trim();
-  const kept = [...rows.values()].map(plain).filter(text => text && !shellOnly(text));
-  if (!kept.length) return null;
+  const kept = [...rows.entries()].filter(([number]) => number >= 1 && number <= lines.length)
+    .map(([, text]) => plain(text)).filter(text => text && !shellOnly(text));
   if (kept.length > 1 && new Set(kept.map(norm)).size === 1) return null;
   let row = 0;
-  return original.split(/\r?\n/).map(line => {
+  return lines.map(line => {
     row++; // blank lines consume a row number exactly as the prompt numbered them
     if (!line.trim()) return line;
     const marker = line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '';
