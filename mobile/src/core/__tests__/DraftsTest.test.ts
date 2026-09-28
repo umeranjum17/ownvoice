@@ -253,6 +253,17 @@ test('rebuildLines puts a row-by-row rescue back on the original lines', () => {
   expect(rebuildLines('Just a line', 'Row 1: 1. A listed line')).toBe('A listed line');
 });
 
+test('the meaning bar: shells, trailing chatter and padded repetition never ship', () => {
+  const note = 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon';
+  // Marker-only rows carry no content: the original line wins, so no shell card ships.
+  expect(rebuildLines(note, 'Row 1: Please bring the tent\nRow 2: 1.\nRow 3: 2.')).toBe(note);
+  // Trailing model chatter after a blank line is not row content.
+  expect(rebuildLines(note, 'Row 1: Bring the tent\nRow 2: Pack the stove\nRow 3: Meet Saturday at noon\n\nHere is the polished list.'))
+    .toBe('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon');
+  // One repeated line padded across every row is unusable outright.
+  expect(rebuildLines(note, 'Row 1: Coming right up for you\nRow 2: Coming right up for you\nRow 3: Coming right up for you')).toBeNull();
+});
+
 test('rebuildLines numbers a blank line the way the prompt does, so content lands on its own line', () => {
   const note = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
   const echoed = 'Row 1: Quick update\nRow 2:\nRow 3: The stove gets packed\nRow 4: Saturday we meet';

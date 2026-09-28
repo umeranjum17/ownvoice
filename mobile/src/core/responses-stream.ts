@@ -1,4 +1,4 @@
-export async function readDraftStream(body: ReadableStream<Uint8Array>, key: 'drafts' | 'versions', onText?: (text: string) => void, count = 3): Promise<string[]> {
+async function readEvents(body: ReadableStream<Uint8Array>, onText?: (text: string) => void): Promise<string> {
   const reader = body.getReader(), decoder = new TextDecoder();
   let pending = '', text = '', completed = false;
   const consume = (event: string) => {
@@ -23,8 +23,18 @@ export async function readDraftStream(body: ReadableStream<Uint8Array>, key: 'dr
   }
   if (pending.trim()) consume(pending);
   if (!completed) throw new Error('ChatGPT could not answer.');
+  return text;
+}
+
+export async function readDraftStream(body: ReadableStream<Uint8Array>, key: 'drafts' | 'versions', onText?: (text: string) => void, count = 3): Promise<string[]> {
+  const text = await readEvents(body, onText);
   let drafts: unknown;
   try { const parsed = JSON.parse(text); drafts = parsed[key]; } catch { throw new Error('ChatGPT could not answer.'); }
   if (!Array.isArray(drafts) || drafts.length !== count || drafts.some(draft => typeof draft !== 'string' || !draft.trim())) throw new Error('ChatGPT could not answer.');
   return drafts;
+}
+
+/** The raw accumulated answer, for prompts whose output is plain text (the row-by-row rescue). */
+export async function readRawStream(body: ReadableStream<Uint8Array>, onText?: (text: string) => void): Promise<string> {
+  return readEvents(body, onText);
 }

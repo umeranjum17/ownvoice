@@ -265,12 +265,13 @@ test('reply mode sends the C2 reply prompt; polish sends the rewrite prompt', as
 
 const LIST_NOTE = 'I can bring the stove.\n1. I will pack the tent\n2. Meet Saturday at noon';
 const polishStream = (versions: string[]) => body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions }) })}\n\n${event({ type: 'response.completed' })}`);
+const rowStream = (rows: string) => body(`${event({ type: 'response.output_text.delta', delta: rows })}\n\n${event({ type: 'response.completed' })}`);
 
 test('a flattened list slot goes back row by row and lands with the writer\'s markers', async () => {
   const originalFetch = global.fetch;
   const fetch = jest.fn()
     .mockResolvedValueOnce({ ok: true, body: polishStream(['I can bring the stove.\n1. The stove is mine to bring.\n2. The tent and Saturday are sorted.', 'One flat line, again.', 'I can bring the stove.\n1. The tent gets packed by me.\n2. Saturday at noon, then.']) })
-    .mockResolvedValueOnce({ ok: true, body: polishStream(['Row 1: The stove is on me.\nRow 2: The tent gets packed by me.\nRow 3: Saturday at noon it is.']) });
+    .mockResolvedValueOnce({ ok: true, body: rowStream('Row 1: The stove is on me.\nRow 2: The tent gets packed by me.\nRow 3: Saturday at noon it is.') });
   try {
     global.fetch = fetch as unknown as typeof fetch;
     await expect(chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: LIST_NOTE })).resolves.toEqual({
@@ -292,7 +293,7 @@ test('a rescue answer without rows, or echoing the original, stays out', async (
   const fetch = jest.fn()
     .mockResolvedValueOnce({ ok: true, body: polishStream(['Still one flat answer.', 'I can bring the stove.\n1. The tent is mine to pack.\n2. Saturday at noon, then.', 'Another flat one here.']) })
     .mockResolvedValueOnce({ ok: true, body: polishStream(['Still one flat line, no rows.']) })
-    .mockResolvedValueOnce({ ok: true, body: polishStream(['Row 1: I can bring the stove.\nRow 2: 1. I will pack the tent\nRow 3: 2. Meet Saturday at noon']) });
+    .mockResolvedValueOnce({ ok: true, body: rowStream('Row 1: I can bring the stove.\nRow 2: 1. I will pack the tent\nRow 3: 2. Meet Saturday at noon') });
   try {
     global.fetch = fetch as unknown as typeof fetch;
     await expect(chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: LIST_NOTE })).resolves.toEqual({

@@ -91,6 +91,9 @@ export function layoutKept(original: string, version: string): boolean {
 const leadingMarker = /^\s*(?:\d+[.)]|[-*•])\s+/;
 const rowLine = /^\s*row\s*(\d+)\s*[.:)-]\s*(.*)$/i;
 
+/** A row answer that is only its list marker ('1.', '2)', '-') carries no content. */
+const shellOnly = (text: string) => /^\s*(?:\d+[.)]|[-*•])?\s*$/.test(text);
+
 /**
  * Rebuilds a row-by-row rescue (see judge.lineRetryPrompt) onto the original lines: the
  * original's blank lines and list markers win, so the layout is kept by construction even when
@@ -104,17 +107,29 @@ export function rebuildLines(original: string, answer: string): string | null {
   const rows = new Map<number, string>();
   let last = 0;
   for (const line of answer.split(/\r?\n/)) {
+    if (!line.trim()) { last = 0; continue; } // a blank line ends any wrapped row
     const row = line.match(rowLine);
     if (row) { last = Number(row[1]); rows.set(last, row[2].trim()); }
-    else if (last && line.trim() && !leadingMarker.test(line)) rows.set(last, `${rows.get(last)} ${line.trim()}`); // a wrapped row continues
+    else if (last && !leadingMarker.test(line)) rows.set(last, `${rows.get(last)} ${line.trim()}`); // a wrapped row continues
+    // stray text outside the rows is model chatter and never becomes row content
   }
   if (!rows.size) return null;
+  // The meaning bar: rows whose content is only a marker shell, and one repeated line padded
+  // across every row, carry no per-line meaning - shell rows fall back to the original line's
+  // content, and an answer that is padded repetition throughout is unusable outright.
+  const plain = (text: string) => text.replace(leadingMarker, '').replace(/\s+/g, ' ').trim();
+  const kept = [...rows.values()].map(plain).filter(text => text && !shellOnly(text));
+  if (!kept.length) return null;
+  if (kept.length > 1 && new Set(kept).size === 1) return null;
   let row = 0;
   return original.split(/\r?\n/).map(line => {
-    row++;
+    row++; // blank lines consume a row number exactly as the prompt numbered them
     if (!line.trim()) return line;
     const marker = line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '';
-    const content = (rows.get(row) || line.slice(marker.length).trim()).trim();
+    const originalContent = line.slice(marker.length).trim();
+    const rewritten = (rows.get(row) || '').trim();
+    // a marker-only shell carries no meaning: the original line's content wins
+    const content = rewritten && !shellOnly(rewritten) ? rewritten.replace(leadingMarker, '').trim() : originalContent;
     return marker + content.replace(leadingMarker, '');
   }).join('\n');
 }
