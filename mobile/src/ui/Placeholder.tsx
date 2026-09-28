@@ -4,7 +4,7 @@ import { shape, space, useReducedMotion, useTheme } from './theme';
 
 const WIDTHS = ['92%', '70%', '45%'] as const;
 
-/** Three soft bars where a card hasn't landed yet. Pulses; holds still when motion is reduced. */
+/** A card's shape with three soft bars, where a draft hasn't landed yet. Pulses; holds still when motion is reduced. */
 export function Placeholder() {
   const t = useTheme();
   const reduced = useReducedMotion();
@@ -18,11 +18,14 @@ export function Placeholder() {
     loop.start();
     return () => loop.stop();
   }, [reduced, pulse]);
-  return <Animated.View style={{ opacity: pulse }}>
-    {WIDTHS.map(width => <View key={width} style={[styles.bar, { width, backgroundColor: t.yours }]} />)}
-  </Animated.View>;
+  return <View style={[styles.card, { backgroundColor: t.raised }]}>
+    <Animated.View style={{ opacity: pulse }}>
+      {WIDTHS.map(width => <View key={width} style={[styles.bar, { width, backgroundColor: t.yours }]} />)}
+    </Animated.View>
+  </View>;
 }
 
 const styles = StyleSheet.create({
+  card: { borderRadius: shape.sheet - 4, paddingHorizontal: space.l + 2, paddingTop: space.l + 4, paddingBottom: space.s },
   bar: { height: 14, borderRadius: shape.bar, marginBottom: space.m },
 });
