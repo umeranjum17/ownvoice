@@ -21,7 +21,23 @@ const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1)
 const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
 const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
 const enter = () => adb('shell', 'input', 'keyevent', '66');
-const bubble = () => tap(width - Math.round(90 * width / 1080), Math.round(height * .53));
+// The keyboard moves the Dot up, so a fixed height misses it on some AVDs: find its coral colour in the right-edge strip it starts at and tap that. Retry while the Dot settles after the keyboard opens.
+const bubble = async () => {
+  let ys = [];
+  for (let attempt = 0; attempt < 8 && ys.length < 2000; attempt += 1) {
+    if (attempt) await wait(1000);
+    const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
+    const strip = execFileSync('magick', ['png:', '-alpha', 'off', '-fuzz', '14%', '-fill', 'magenta', '-opaque', 'srgb(255,138,115)', '-fuzz', '0', '-fill', 'black', '+opaque', 'magenta', '-crop', `200x${height}+${width - 200}+0`, '+repage', 'txt:-'], { input: image, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    ys = [];
+    for (const row of strip.split('\n')) {
+      const m = row.match(/^\d+,(\d+):/);
+      if (m && /#FF00FF/i.test(row)) ys.push(Number(m[1]));
+    }
+  }
+  if (ys.length < 2000) throw Error('The coral Dot is not at the right edge.');
+  ys.sort((a, b) => a - b);
+  tap(width - Math.round(90 * width / 1080), ys[ys.length >> 1]);
+};
 
 const screenText = () => {
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
@@ -92,7 +108,7 @@ const run = async mode => {
   type('2. Meet Saturday at noon');
   await wait(900);
   if (!bubbleVisible()) throw new Error('The bubble is not visible on the practice chat.');
-  bubble();
+  await bubble();
   await waitForLine('instead of what you wrote');
   await wait(3500); // the stub pipeline is instant; let the cards and verdict settle
   snap(tag('10-polish-list'));
