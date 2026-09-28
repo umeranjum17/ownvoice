@@ -65,6 +65,7 @@ exports[`ui components (dark) button-disabled: dark/button-disabled 1`] = `
           "overflow": "hidden",
           "paddingHorizontal": 24,
         },
+        false,
         {
           "backgroundColor": "#E6E0E91F",
         },
@@ -79,6 +80,7 @@ exports[`ui components (dark) button-disabled: dark/button-disabled 1`] = `
             "fontWeight": "500",
             "lineHeight": 20,
           },
+          false,
           {
             "color": "#E6E0E9",
           },
@@ -238,6 +240,7 @@ exports[`ui components (dark) card-outlined-busy: dark/card-outlined-busy 1`] = 
           "overflow": "hidden",
           "paddingHorizontal": 24,
         },
+        false,
         {
           "backgroundColor": "#E6E0E91F",
         },
@@ -252,6 +255,7 @@ exports[`ui components (dark) card-outlined-busy: dark/card-outlined-busy 1`] = 
             "fontWeight": "500",
             "lineHeight": 20,
           },
+          false,
           {
             "color": "#E6E0E9",
           },
@@ -314,6 +318,7 @@ exports[`ui components (dark) card-outlined-busy: dark/card-outlined-busy 1`] = 
           "paddingHorizontal": 24,
         },
         false,
+        false,
       ]
     }
   >
@@ -325,6 +330,7 @@ exports[`ui components (dark) card-outlined-busy: dark/card-outlined-busy 1`] = 
             "fontWeight": "500",
             "lineHeight": 20,
           },
+          false,
           {
             "color": "#D0BCFF",
           },
@@ -1939,6 +1945,7 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
                     "overflow": "hidden",
                     "paddingHorizontal": 24,
                   },
+                  false,
                   {
                     "backgroundColor": "#D0BCFF",
                   },
@@ -1953,6 +1960,7 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
                       "fontWeight": "500",
                       "lineHeight": 20,
                     },
+                    false,
                     {
                       "color": "#381E72",
                     },
@@ -2013,6 +2021,7 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
                     "paddingHorizontal": 24,
                   },
                   false,
+                  false,
                 ]
               }
             >
@@ -2024,6 +2033,7 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
                       "fontWeight": "500",
                       "lineHeight": 20,
                     },
+                    false,
                     {
                       "color": "#D0BCFF",
                     },
@@ -2582,6 +2592,7 @@ exports[`ui components (light) button-disabled: light/button-disabled 1`] = `
           "overflow": "hidden",
           "paddingHorizontal": 24,
         },
+        false,
         {
           "backgroundColor": "#1D1B201F",
         },
@@ -2596,6 +2607,7 @@ exports[`ui components (light) button-disabled: light/button-disabled 1`] = `
             "fontWeight": "500",
             "lineHeight": 20,
           },
+          false,
           {
             "color": "#1D1B20",
           },
@@ -2755,6 +2767,7 @@ exports[`ui components (light) card-outlined-busy: light/card-outlined-busy 1`] 
           "overflow": "hidden",
           "paddingHorizontal": 24,
         },
+        false,
         {
           "backgroundColor": "#1D1B201F",
         },
@@ -2769,6 +2782,7 @@ exports[`ui components (light) card-outlined-busy: light/card-outlined-busy 1`] 
             "fontWeight": "500",
             "lineHeight": 20,
           },
+          false,
           {
             "color": "#1D1B20",
           },
@@ -2831,6 +2845,7 @@ exports[`ui components (light) card-outlined-busy: light/card-outlined-busy 1`] 
           "paddingHorizontal": 24,
         },
         false,
+        false,
       ]
     }
   >
@@ -2842,6 +2857,7 @@ exports[`ui components (light) card-outlined-busy: light/card-outlined-busy 1`] 
             "fontWeight": "500",
             "lineHeight": 20,
           },
+          false,
           {
             "color": "#6750A4",
           },
@@ -4456,6 +4472,7 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
                     "overflow": "hidden",
                     "paddingHorizontal": 24,
                   },
+                  false,
                   {
                     "backgroundColor": "#6750A4",
                   },
@@ -4470,6 +4487,7 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
                       "fontWeight": "500",
                       "lineHeight": 20,
                     },
+                    false,
                     {
                       "color": "#FFFFFF",
                     },
@@ -4530,6 +4548,7 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
                     "paddingHorizontal": 24,
                   },
                   false,
+                  false,
                 ]
               }
             >
@@ -4541,6 +4560,7 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
                       "fontWeight": "500",
                       "lineHeight": 20,
                     },
+                    false,
                     {
                       "color": "#6750A4",
                     },

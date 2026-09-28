@@ -9,8 +9,13 @@ import { Color } from 'expo-router';
 // The one fixed pair the phone's palette can't give React Native (Kotlin harmonises it; RN can't).
 const ATTENTION = { light: '#8F5300', dark: '#FFB95C' } as const;
 
-// Material 3 type scale, sp/line height. Weight 500 is Material's "medium"; nothing is bolder.
+// Dot's coral: the brand's one warm note, for decoration only (halos, never text or buttons).
+const CORAL = '#FF8A73';
+
+// Material 3 type scale, sp/line height. Weight 500 is Material's "medium"; only the display line
+// (a screen's one big promise, in setup) is bolder and tighter.
 export const type = {
+  display: { fontSize: 32, lineHeight: 38, fontWeight: '700', letterSpacing: -0.6 },
   headline: { fontSize: 28, lineHeight: 36, fontWeight: '400' },
   title: { fontSize: 24, lineHeight: 32, fontWeight: '400' },
   words: { fontSize: 18, lineHeight: 26, fontWeight: '400' },
@@ -50,6 +55,7 @@ export function useTheme() {
     attention: scheme === 'dark' ? ATTENTION.dark : ATTENTION.light,
     line: d.outlineVariant,
     handle: d.onSurfaceVariant,
+    glow: CORAL + (scheme === 'dark' ? '26' : '2E'),
   };
 }
 
