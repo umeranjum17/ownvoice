@@ -2,7 +2,7 @@
 // selection, the Ownvoice sheet rewrites it, Replace hands it back, and the toast is captured
 // over the Chrome page (burst frames to beat the clipboard overlay). Emulator-only; light+dark.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const serial = process.env.ANDROID_SERIAL;
@@ -19,13 +19,13 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
 const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
 
-const bands = image => [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)];
+const bands = () => [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)];
 const ocrBand = (input, top) => execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
 const screenWords = () => {
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 16 * 1024 * 1024 });
   const words = [];
   const collect = (negate) => {
-    for (const top of bands(image)) {
+    for (const top of bands()) {
       const band = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', ...(negate ? ['-negate'] : []), 'png:-'], { input: image, maxBuffer: 32 * 1024 * 1024 }) : negate ? execFileSync('magick', ['png:', '-negate', 'png:-'], { input: image, maxBuffer: 32 * 1024 * 1024 }) : image;
       for (const row of ocrBand(band, top).split('\n').slice(1)) {
         const c = row.split('\t');
