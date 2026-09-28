@@ -195,6 +195,8 @@ class OwnvoiceService : AccessibilityService() {
       synchronized(facts) { restoreFacts(this) }
       lastPrune = System.currentTimeMillis()
     }
+    if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_SELECTION_CHANGED && event.packageName?.toString() == packageName)
+      event.source?.takeIf { it.isEditable }?.let { handbackNode = it }
     if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
       updateBubble()
       main.removeCallbacks(reposition)
@@ -342,34 +344,25 @@ class OwnvoiceService : AccessibilityService() {
     return find(focus)
   }
 
-  /** The handback boundary's pre-read: the sheet is the active window while the receiving field
-   *  keeps view focus in the own activity underneath, so the own app's windows are swept. */
-  private fun handbackField(): AccessibilityNodeInfo? {
-    fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-      if (node.isFocused && node.isEditable) return node
-      for (i in 0 until node.childCount) node.getChild(i)?.let(::find)?.let { return it }
-      return null
-    }
-    for (window in windows) {
-      if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
-      val root = window.root ?: continue
-      if (root.packageName?.toString() != packageName) continue
-      find(root)?.let { return it }
-    }
-    return null
-  }
+  /** The field the user selected text in, remembered from its selection event while it was still
+   *  interactive: at the handback boundary the sheet has stopped the receiving activity, and the
+   *  stopped window is gone from the window list, so the field cannot be found again there. */
+  @Volatile private var handbackNode: AccessibilityNodeInfo? = null
 
-  /** The receiving field's full text and selected span at the handback boundary: the read-back
-   *  verifies the whole field against them, and a failed replace restores it. */
+  /** The remembered field's full text and selected span at the handback boundary: the read-back
+   *  verifies the whole field against them, and a failed replace restores it. A field that no
+   *  longer holds the selected fragment is not the selection's source, so nothing is handed back. */
   fun replaceTarget(selected: String): Pair<String, IntRange?>? {
-    val field = handbackField() ?: return null
+    val field = handbackNode ?: return null
+    handbackNode = null
     field.refresh()
     val text = field.text?.toString() ?: return null
     val start = field.textSelectionStart
     val end = field.textSelectionEnd
-    if (start in 0..end && end <= text.length && text.substring(start, end) == selected) return text to start..end
+    if (start in 0..end && end <= text.length && text.substring(start, end) == selected) return text to (start until end)
     val at = text.indexOf(selected)
-    return text to (if (at >= 0) at until (at + selected.length) else null)
+    if (at < 0) return null
+    return text to (at until (at + selected.length))
   }
   private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>, practice: Boolean) {
     fun walk(node: AccessibilityNodeInfo, buttonAncestor: Boolean) {

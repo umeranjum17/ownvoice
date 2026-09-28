@@ -4,7 +4,6 @@
 // frames to beat the clipboard overlay). Emulator-only; light+dark.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 
 const serial = process.env.ANDROID_SERIAL;
@@ -25,9 +24,12 @@ const bands = () => [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i)
 const ocrBand = (input, top) => execFileSync('tesseract', [typeof input === 'string' ? input : 'stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input: typeof input === 'string' ? undefined : input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
 // ImageMagick 7.1.2's streamed png:- pipe aborts (glibc buffer overflow) on some screenshots, so it
 // only ever sees real files: the screencap bytes and every crop land in temp files, never in stdin/stdout.
+// The temp dir is transient and stays inside the checkout (a shared /tmp can run out of quota).
+const tmp = resolve('e2e/.tmp-ov');
+mkdirSync(tmp, { recursive: true });
 const magickPng = (image, ops, name) => {
-  const shot = resolve(tmpdir(), `ov-shot-${process.pid}.png`);
-  const out = resolve(tmpdir(), `${name}-${process.pid}.png`);
+  const shot = resolve(tmp, `ov-shot-${process.pid}.png`);
+  const out = resolve(tmp, `${name}-${process.pid}.png`);
   writeFileSync(shot, image);
   execFileSync('magick', [shot, ...ops, out], { maxBuffer: 32 * 1024 * 1024 });
   return out;

@@ -5,8 +5,22 @@
 // warned, the bubble hidden while the sheet shows, and the drafts panel's verdict note.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
+
+// ImageMagick 7.1.2's streamed png:- pipe aborts (glibc buffer overflow) on some screenshots, so
+// every magick call here lands in real temp files, never in stdin/stdout (same as chrome-toast.mjs).
+// The temp dir is transient and stays inside the checkout (a shared /tmp can run out of quota).
+const tmp = resolve('e2e/.tmp-ov');
+mkdirSync(tmp, { recursive: true });
+const magickFile = (image, ops, name, text = false) => {
+  const src = resolve(tmp, `ov-src-${process.pid}.png`);
+  const dst = resolve(tmp, `ov-out-${name}-${process.pid}.${text ? 'txt' : 'png'}`);
+  writeFileSync(src, image);
+  execFileSync('magick', [src, ...ops, `${text ? 'txt:' : ''}${dst}`], { maxBuffer: 64 * 1024 * 1024 });
+  return text ? readFileSync(dst, 'utf8') : readFileSync(dst);
+};
 
 const serial = process.env.ANDROID_SERIAL;
 const avdName = process.env.OWNVOICE_AVD_NAME?.trim();
@@ -43,16 +57,17 @@ const [width, height] = [...shell('wm', 'size').matchAll(/(\d+)x(\d+)/g)].at(-1)
 const cropTop = 100; // exclude the status bar
 const shot = async name => {
   const raw = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 });
-  execFileSync('magick', ['png:', '-crop', `${width}x${height - cropTop}+0+${cropTop}`, '+repage', `${out}/${name}.png`], { input: raw });
+  magickFile(raw, ['-crop', `${width}x${height - cropTop}+0+${cropTop}`, '+repage'], name);
+  execFileSync('cp', [resolve(tmp, `ov-out-${name}-${process.pid}.png`), `${out}/${name}.png`]);
   console.log(`shot ${name}`);
 };
 const tap = (x, y) => shell('input', 'tap', String(Math.round(x)), String(Math.round(y)));
 const passInputs = image => { // one screencap, OCR'd whole, in 150px strips (psm 7) and negated for white-on-dark
   const inputs = [{ input: image, top: 0, psm: false }];
-  for (let i = 0; i < Math.ceil(height / 150); i += 1) inputs.push({ input: execFileSync('magick', ['png:', '-crop', `${width}x150+0+${i * 150}`, '+repage', 'png:-'], { input: image }), top: i * 150, psm: true });
-  inputs.push({ input: execFileSync('magick', ['png:', '-channel', 'R', '-threshold', '99.5%', '-separate', '+channel', '-negate', 'png:-'], { input: image }), top: 0, psm: false });
-  const grey = execFileSync('magick', ['png:', '-colorspace', 'gray', 'png:-'], { input: image }); // two-step: an inline gray+threshold chain converts differently and OCRs nothing
-  inputs.push({ input: execFileSync('magick', ['png:', '-threshold', '60%', 'png:-'], { input: grey }), top: 0, psm: false }); // dark-mode filled buttons (dark labels on light pills) only OCR after a hard grey threshold // white labels on filled buttons: isolate pure-white pixels, else tesseract reads nothing (a -negate pass alone finds none of them)
+  for (let i = 0; i < Math.ceil(height / 150); i += 1) inputs.push({ input: magickFile(image, ['-crop', `${width}x150+0+${i * 150}`, '+repage'], `band${i}`), top: i * 150, psm: true });
+  inputs.push({ input: magickFile(image, ['-channel', 'R', '-threshold', '99.5%', '-separate', '+channel', '-negate'], 'negate'), top: 0, psm: false });
+  const grey = magickFile(image, ['-colorspace', 'gray'], 'grey'); // two-step: an inline gray+threshold chain converts differently and OCRs nothing
+  inputs.push({ input: magickFile(grey, ['-threshold', '60%'], 'thresh'), top: 0, psm: false }); // dark-mode filled buttons (dark labels on light pills) only OCR after a hard grey threshold // white labels on filled buttons: isolate pure-white pixels, else tesseract reads nothing (a -negate pass alone finds none of them)
   return inputs;
 };
 const ocrPass = ({ input, top, psm }) => {
@@ -97,6 +112,27 @@ const textPresent = async (label, tries = 6) => {
   }
   writeFileSync(`${out}/.debug-miss.png`, execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 }));
   console.log(`MISS: ${label} | focus: ${shell('dumpsys', 'window').split('\n').find(l => l.includes('mCurrentFocus'))}`);
+  return false;
+};
+/** The bubble's spoken note lives ~4 s, so the band-OCR textPresent polls (~7 s/try) miss it:
+ *  burst fast cropped frames (plain + negated) until the label shows. */
+const noteShown = async (label, ms = 10000) => {
+  const lower = label.toLowerCase();
+  const deadline = Date.now() + ms;
+  while (Date.now() < deadline) {
+    const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 });
+    const band = magickFile(image, ['-crop', `${width}x1100+0+650`, '+repage'], 'note');
+    const negated = magickFile(band, ['-negate'], 'note-neg');
+    for (const input of [band, negated]) {
+      const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
+      if (tsv.split('\n').slice(1).some(r => { const c = r.split('\t'); return c.length >= 12 && c[11].toLowerCase().includes(lower); })) {
+        writeFileSync(`${out}/note-${lower.replace(/\W/g, '_')}.png`, image);
+        return true;
+      }
+    }
+  }
+  writeFileSync(`${out}/.debug-miss.png`, execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 }));
+  console.log(`MISS: ${label} (note) | focus: ${shell('dumpsys', 'window').split('\n').find(l => l.includes('mCurrentFocus'))}`);
   return false;
 };
 const tapTextOrNull = async (label, state = '') => { // exact-label clusters (chips, buttons) win over lines merely containing the word, so a note's leading word never steals a button's tap
@@ -160,8 +196,8 @@ const tapButtonRow = async (label, result) => {
       const bandHeight = Math.min(160, height - y0 - 80);
       if (bandHeight <= 0) { await wait(600); continue; }
       const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 });
-      const bg = parsePx(execFileSync('magick', ['png:', '-crop', '10x10+950+' + (y0 + 60), '+repage', 'txt:-'], { input: image, encoding: 'utf8' }))[0].slice(2);
-      const band = parsePx(execFileSync('magick', ['png:', '-crop', `${width}x${bandHeight}+0+${y0}`, '+repage', 'txt:-'], { input: image, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }));
+      const bg = parsePx(magickFile(image, ['-crop', '10x10+950+' + (y0 + 60), '+repage'], 'bg', true))[0].slice(2);
+      const band = parsePx(magickFile(image, ['-crop', `${width}x${bandHeight}+0+${y0}`, '+repage'], 'band', true));
       const far = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2]) > 90;
       const counts = new Map();
       for (const [, , r, g, b] of band) { if (!far([r, g, b], bg)) continue; const k = `${r},${g},${b}`; counts.set(k, (counts.get(k) || 0) + 1); }
@@ -173,9 +209,9 @@ const tapButtonRow = async (label, result) => {
         const x0 = Math.min(...hit.map(p => p[0])), x1 = Math.max(...hit.map(p => p[0]));
         const py0 = Math.min(...hit.map(p => p[1])) + y0, py1 = Math.max(...hit.map(p => p[1])) + y0;
         if (x1 - x0 >= 100 && x1 - x0 <= 700 && py1 - py0 >= 60 && py1 - py0 <= 150) {
-          const crop = execFileSync('magick', ['png:', '-crop', `${x1 - x0 + 12}x${py1 - py0 + 8}+${Math.max(0, x0 - 6)}+${py0 - 4}`, '+repage', 'png:-'], { input: image });
-          const grey = execFileSync('magick', ['png:', '-colorspace', 'gray', 'png:-'], { input: crop });
-          for (const input of [crop, grey, execFileSync('magick', ['png:', '-threshold', '60%', 'png:-'], { input: grey })]) {
+          const crop = magickFile(image, ['-crop', `${x1 - x0 + 12}x${py1 - py0 + 8}+${Math.max(0, x0 - 6)}+${py0 - 4}`, '+repage'], 'pill');
+          const grey = magickFile(crop, ['-colorspace', 'gray'], 'pillgrey');
+          for (const input of [crop, grey, magickFile(grey, ['-threshold', '60%'], 'pillthresh')]) {
             const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input, encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] });
             for (const row of tsv.split('\n').slice(1)) {
               const c = row.split('\t');
@@ -371,7 +407,7 @@ for (const mode of ['no', 'yes']) {
   await tapButtonRow('Replace', RECEIVER_SHORT);
   // The read-back polls the field for ~3.25 s: the spoken confirmation must show, and the field
   // must still hold the rewrite (and nothing of the original) after the whole window has passed.
-  if (!(await textPresent('Replaced.'))) throw new Error(`the confirmed replace was not spoken (${scheme})`);
+  if (!(await noteShown('Replaced.'))) throw new Error(`the confirmed replace was not spoken (${scheme})`);
   await wait(3600);
   if (!(await waitForFocus('.MainActivity')) || !(await textPresent(RECEIVER_SHORT)) || await textPresent(RECEIVER_ORIGINAL))
     throw new Error(`Replace did not update the receiving editable selection (${scheme})`);
