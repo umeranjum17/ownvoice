@@ -331,9 +331,20 @@ class OwnvoiceService : AccessibilityService() {
     startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
   }
 
-  /** The editable field holding input focus, searched across application windows: the selection
-   *  menu's sheet is the active window at the handback while the receiving field keeps focus. */
   private fun focusedField(): AccessibilityNodeInfo? {
+    val focus = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
+    if (focus.isEditable) return focus
+    fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+      if (node.isFocused && node.isEditable) return node
+      for (i in 0 until node.childCount) node.getChild(i)?.let(::find)?.let { return it }
+      return null
+    }
+    return find(focus)
+  }
+
+  /** The handback boundary's pre-read: the sheet is the active window while the receiving field
+   *  keeps view focus in the own activity underneath, so the own app's windows are swept. */
+  private fun handbackField(): AccessibilityNodeInfo? {
     fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
       if (node.isFocused && node.isEditable) return node
       for (i in 0 until node.childCount) node.getChild(i)?.let(::find)?.let { return it }
@@ -341,7 +352,9 @@ class OwnvoiceService : AccessibilityService() {
     }
     for (window in windows) {
       if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
-      window.root?.let(::find)?.let { return it }
+      val root = window.root ?: continue
+      if (root.packageName?.toString() != packageName) continue
+      find(root)?.let { return it }
     }
     return null
   }
@@ -349,7 +362,7 @@ class OwnvoiceService : AccessibilityService() {
   /** The receiving field's full text and selected span at the handback boundary: the read-back
    *  verifies the whole field against them, and a failed replace restores it. */
   fun replaceTarget(selected: String): Pair<String, IntRange?>? {
-    val field = focusedField() ?: return null
+    val field = handbackField() ?: return null
     field.refresh()
     val text = field.text?.toString() ?: return null
     val start = field.textSelectionStart

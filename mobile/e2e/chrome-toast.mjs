@@ -1,6 +1,7 @@
 // In-journey Chrome Replace feedback evidence: a real Chrome contenteditable supplies the
-// selection, the Ownvoice sheet rewrites it, Replace hands it back, and the toast is captured
-// over the Chrome page (burst frames to beat the clipboard overlay). Emulator-only; light+dark.
+// selection, the Ownvoice sheet rewrites it, and Replace over a Chrome page copies only — the
+// notice states the text wasn't replaced. The toast is captured over the Chrome page (burst
+// frames to beat the clipboard overlay). Emulator-only; light+dark.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -196,7 +197,7 @@ XML`], { stdio: 'ignore' });
     await wait(ms);
     shot(tag(`chrome-toast-burst${i}`));
   }
-  const legible = [1, 2, 3, 4].some(n => /didn|take it|pied/i.test(execFileSync('tesseract', [resolve(out, `${tag('chrome-toast-burst' + n)}.png`), 'stdout', '--psm', '11'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })));
+  const legible = [1, 2, 3, 4].some(n => /wasn.?t replaced/i.test(execFileSync('tesseract', [resolve(out, `${tag('chrome-toast-burst' + n)}.png`), 'stdout', '--psm', '11'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })));
   if (!legible) throw new Error(`no legible toast frame over Chrome (${mode})`);
   const after = screenText();
   console.log(`${tag} toast legible over Chrome; applied-in-field: ${after.includes('tuesday morning') ? 'chrome kept the original (honest fallback path)' : 'chrome took the rewrite'}`);
