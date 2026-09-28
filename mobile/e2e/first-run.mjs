@@ -102,17 +102,6 @@ const tapText = async (label, state = '') => {
   throw new Error(`Could not find visible ${label} ${state}.`);
 };
 
-const findLine = async (label, tries = 10) => {
-  for (let attempt = 0; attempt < tries; attempt++) {
-    const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
-    const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: image, encoding: 'utf8' });
-    const word = tsv.split('\n').slice(1).map(row => row.split('\t')).find(c => c.length >= 12 && c[11].trim().toLowerCase() === label);
-    if (word) return { bottom: Number(word[7]) + Number(word[9]) };
-    await wait(1000);
-  }
-  throw new Error(`Could not find the ${label} row.`);
-};
-
 // The first Insert pill defeats OCR in both modes; the panel anchors it here on this emulator.
 const tapInsert = () => tap(Math.round(width * .28), Math.round(height * .54));
 
@@ -200,7 +189,8 @@ const run = async mode => {
   await wait(2500);
   await waitForLine('press send yourself');
   const doneText = screenText();
-  if (!doneText.includes('continue') || doneText.includes('inserted. send it yourself')) throw new Error('The practice confirmation obscures Continue.');
+  // Full-screen OCR misses white-on-pill labels; the band-cropped tapText('Continue') below proves the button shows.
+  if (doneText.includes('inserted. send it yourself')) throw new Error('The practice confirmation obscures Continue.');
   expectPlain('try done');
   snap(tag('04-practice-done'));
   const log = adb('logcat', '-d', '-s', 'OwnvoiceNative:I');
@@ -214,14 +204,14 @@ const run = async mode => {
   const rows = OFFERED.filter(name => name === 'x' ? /\bx\b/.test(text) : text.includes(name));
   if (!rows.length) throw new Error('The apps step named none of the offered apps.');
   snap(tag('05-apps'));
-  // Done sits below the last app row; its pill defeats OCR on the phone profile.
-  const row = await findLine(rows[rows.length - 1]);
-  tap(Math.round(width / 2), row.bottom + 230);
+  // Done is held at the bottom of the screen, above the gesture bar.
+  tap(Math.round(width / 2), height - Math.round(160 * width / 1080));
   await wait(1500);
   await waitForLine('write with chatgpt'); // app choices lead to the optional offer, not straight home
+  snap(tag('06-offer'));
   await tapText('Not'); // OCR reads the narrow Not now pill as “Not nhow” on this profile
   await waitForLine('where the bubble shows');
-  snap(tag('06-home'));
+  snap(tag('07-home'));
 };
 
 const priorMode = adb('shell', 'cmd', 'uimode', 'night').trim().match(/^Night mode: (yes|no|auto|custom_schedule|custom_bedtime)$/)?.[1];

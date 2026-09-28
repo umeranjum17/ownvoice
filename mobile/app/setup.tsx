@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { AppState, Animated, BackHandler, Easing, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -6,7 +6,7 @@ import { Button } from '../src/ui/Button';
 import { Row } from '../src/ui/Row';
 import { Switch } from '../src/ui/Switch';
 import { Dot } from '../src/ui/Dot';
-import { ChatIcon, HandIcon, LockIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, HandIcon, LockIcon, WarnIcon } from '../src/ui/icons';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
 import { words, CHATGPT_TERMS } from '../src/core/words';
 import * as Onboarding from '../src/core/onboarding';
@@ -31,7 +31,6 @@ const readSaved = (): Saved => {
  *  permission (Onboarding.first). */
 export default function Setup() {
   const t = useTheme();
-  const inset = useSafeAreaInsets().top;
   const [{ step, inserted }, setSaved] = useState<Saved>(readSaved);
   const [serviceOn, setServiceOn] = useState(false);
   const [installed, setInstalled] = useState<Offered[] | null>(null);
@@ -175,39 +174,50 @@ export default function Setup() {
   }, [step]);
 
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
-  const centre = styles.centre;
+  const busyApps = !installed && !appsFailed;
 
-  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={[styles.page, { paddingTop: inset + 16 }]} keyboardShouldPersistTaps="always">
-    {step === 'WELCOME' && <Welcome onContinue={() => advance()} />}
-    {step === 'PERMISSION' && <View>
-      <Text style={[type.headline, centre, { color: t.text }]}>{words.permissionTitle}</Text>
-      <Text style={[type.body, centre, { color: t.muted, marginTop: space.s, marginBottom: space.l, paddingHorizontal: space.s }]}>{words.permissionSubtitle}</Text>
-      <View style={[group, { gap: 2 }]}>
-        <Row lead={<HandIcon size={24} color={t.primary} />} title={words.promiseTap} subtitle={words.promiseTapNote} />
-        <Row lead={<LockIcon size={24} color={t.primary} />} title={words.promisePhone} subtitle={words.promisePhoneNote} />
-        <Row lead={<ChatIcon size={24} color={t.primary} />} title={words.promiseSend} subtitle={words.promiseSendNote} />
-      </View>
-      <Text style={[type.body, centre, { color: t.text, marginTop: space.l, marginBottom: space.s }]}>{words.permission}</Text>
-      <View style={[group, { marginBottom: space.m }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-        <Row title={words.switchRowApp} subtitle={hintOn ? words.on : words.off} />
-        <Row title={words.switchRowAction} end={<View pointerEvents="none"><Switch value={hintOn} onValueChange={() => {}} /></View>} />
-      </View>
-      <Text style={[type.body, centre, { color: t.text }]}>{words.fullControl}</Text>
-      <View style={{ minHeight: space.xxl }} />
-      <Button kind="filled" label={words.turnOn} onPress={() => { Native.openAccessibilitySettings(true).catch(() => {}); }} />
+  if (step === 'WELCOME') return <Welcome onContinue={() => advance()} />;
+  return <Screen step={step} footer={<>
+    {step === 'PERMISSION' && <>
+      <Button kind="filled" large label={words.turnOn} onPress={() => { Native.openAccessibilitySettings(true).catch(() => {}); }} />
       <View style={styles.actions}>
-        <Button kind="text" disabled={!installed && !appsFailed} label={words.notNow} onPress={() => advance()} />
+        <Button kind="text" disabled={busyApps} label={words.notNow} onPress={() => advance()} />
         <Button kind="text" label={words.switchGreyed} onPress={() => { setGreyed(true); Native.openAppInfo().catch(() => {}); }} />
       </View>
-      {greyed && <Text style={[type.body, centre, { color: t.muted, marginTop: space.xs }]}>{words.greyedHelp}</Text>}
-    </View>}
-    {step === 'TRY' && <View style={{ flex: 1 }}>
-      <Text style={[type.headline, centre, { color: t.text }]}>{words.tryTitle}</Text>
-      <Text style={[type.body, centre, { color: t.muted, marginTop: space.s, marginBottom: space.l, paddingHorizontal: space.s }]}>
-        {inserted ? words.tryDone : serviceOn ? words.tryInsert : words.tryTurnOnFirst}
-      </Text>
-      <View style={[styles.chat, { backgroundColor: t.card }]}>
-        <Text testID="practice-line-friend" style={[type.title, { color: t.text, marginBottom: space.m }]}>{words.practiceFriend}</Text>
+    </>}
+    {step === 'TRY' && (inserted
+      ? <Button kind="filled" large disabled={busyApps} label={words.continueLabel} onPress={() => advance()} />
+      : <View style={styles.skip}><Button kind="text" disabled={busyApps} label={words.skip} onPress={() => advance()} /></View>)}
+    {step === 'APPS' && <Button kind="filled" large disabled={!installed || saving} label={words.done} onPress={() => advance()} />}
+    {step === 'CHATGPT' && <>
+      <Button kind="filled" large label={words.gptButton} onPress={() => { router.push('/chatgpt'); }} />
+      <View style={styles.skip}><Button kind="text" label={words.notNow} onPress={() => { void finish(); }} /></View>
+    </>}
+  </>}>
+    {step === 'PERMISSION' && <>
+      <Head title={words.permissionTitle} note={words.permissionSubtitle} />
+      <View style={[group, { gap: 2 }]}>
+        <Row lead={<Badge><HandIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseTap} subtitle={words.promiseTapNote} />
+        <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promisePhone} subtitle={words.promisePhoneNote} />
+        <Row lead={<Badge><ChatIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseSend} subtitle={words.promiseSendNote} />
+      </View>
+      <Text style={[type.label, { color: t.primary, marginTop: space.xl }]}>{words.permissionNext}</Text>
+      <Text style={[type.body, { color: t.text, marginTop: space.xs, marginBottom: space.m }]}>{words.permission}</Text>
+      <View style={[styles.preview, { borderColor: t.cardLine, backgroundColor: t.card }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <Row title={words.switchRowApp} subtitle={hintOn ? words.on : words.off} />
+        <View style={[styles.rule, { backgroundColor: t.line }]} />
+        <Row title={words.switchRowAction} end={<View pointerEvents="none"><Switch value={hintOn} onValueChange={() => {}} /></View>} />
+      </View>
+      <Text style={[type.note, { color: t.muted, marginTop: space.m }]}>{words.fullControl}</Text>
+      {greyed && <Text style={[type.body, { color: t.text, marginTop: space.l }]}>{words.greyedHelp}</Text>}
+    </>}
+    {step === 'TRY' && <>
+      <Head title={words.tryTitle} note={inserted ? words.tryDone : serviceOn ? words.tryInsert : words.tryTurnOnFirst} done={inserted} />
+      <View style={[styles.chat, { backgroundColor: t.card, borderColor: t.cardLine }]}>
+        <View style={styles.chatHead}>
+          <View style={[styles.avatar, { backgroundColor: t.glow }]}><Text style={[type.label, { color: t.text }]} importantForAccessibility="no">{words.practiceFriend[0]}</Text></View>
+          <Text testID="practice-line-friend" style={[type.label, { color: t.text }]}>{words.practiceFriend}</Text>
+        </View>
         <Text testID="practice-line-first" style={[type.body, styles.received, { backgroundColor: t.yours, color: t.text }]}>{words.practiceMessage1}</Text>
         <Text testID="practice-line-second" style={[type.body, styles.received, { backgroundColor: t.yours, color: t.text }]}>{words.practiceMessage2}</Text>
         <TextInput
@@ -218,80 +228,163 @@ export default function Setup() {
           autoCapitalize="sentences"
           showSoftInputOnFocus={false}
           multiline
-          style={[type.body, styles.field, { color: t.text, backgroundColor: t.card, borderColor: t.cardLine }]} />
+          style={[type.body, styles.field, { color: t.text, backgroundColor: t.sheet, borderColor: t.cardLine }]} />
       </View>
-      <Text style={[type.body, centre, { color: t.text, marginTop: space.m }]}>{words.practiceNote}</Text>
-      {/* The bubble pill sits over the middle of this screen; the flex spacer keeps the button below it. */}
-      <View style={styles.grow} />
-      {inserted
-        ? <Button kind="filled" disabled={!installed && !appsFailed} label={words.continueLabel} onPress={() => advance()} />
-        : <View style={styles.skip}><Button kind="text" disabled={!installed && !appsFailed} label={words.skip} onPress={() => advance()} /></View>}
-    </View>}
-    {step === 'APPS' && <View>
-      <Text style={[type.headline, centre, { color: t.text }]}>{words.appsTitle}</Text>
-      <Text style={[type.body, centre, { color: t.muted, marginTop: space.s, marginBottom: space.l, paddingHorizontal: space.s }]}>{words.appsNote}</Text>
-      <View style={[group, { gap: 2 }]}>
-        {(installed ?? []).map(({ app, name, icon }) =>
+      <View style={styles.aside}>
+        <LockIcon size={16} color={t.muted} />
+        <Text style={[type.note, { color: t.muted, flex: 1 }]}>{words.practiceNote}</Text>
+      </View>
+    </>}
+    {step === 'APPS' && <>
+      <Head title={words.appsTitle} note={words.appsNote} />
+      {!!installed?.length && <View style={[group, { gap: 2 }]}>
+        {installed.map(({ app, name, icon }) =>
           <Row key={app}
             lead={icon ? <Image source={{ uri: `data:image/png;base64,${icon}` }} style={styles.appIcon} /> : undefined}
             title={name}
             disabled={saving}
             end={<View pointerEvents="none"><Switch value={choices[app] ?? true} onValueChange={() => toggle(app)} /></View>}
             onPress={() => toggle(app)} />)}
+      </View>}
+      {appsFailed && <View style={[styles.problem, { backgroundColor: t.group }]}>
+        <WarnIcon size={24} color={t.attention} />
+        <Text style={[type.body, { color: t.text, flex: 1 }]}>{words.appsUnavailable}</Text>
+        <Button kind="text" label={words.tryAgain} onPress={loadApps} />
+      </View>}
+    </>}
+    {step === 'CHATGPT' && <>
+      <Head title={words.gptTitle} note={words.gptNote} />
+      <View style={[styles.fine, { backgroundColor: t.group }]}>
+        <Text style={[type.note, { color: t.muted }]}>{CHATGPT_TERMS}</Text>
+        <Text style={[type.note, { color: t.muted }]}>{words.switchNote}</Text>
       </View>
-      {appsFailed && <Button kind="text" label={words.tryAgain} onPress={loadApps} />}
-      {appsFailed && <Text style={[type.body, centre, { color: t.muted }]}>{words.appsUnavailable}</Text>}
-      <View style={{ minHeight: space.xxl }} />
-      <Button kind="filled" disabled={!installed || saving} label={words.done} onPress={() => advance()} />
-    </View>}
-    {step === 'CHATGPT' && <View>
-      <Text style={[type.headline, centre, { color: t.text }]}>{words.gptTitle}</Text>
-      <Text style={[type.body, centre, { color: t.muted, marginTop: space.s, marginBottom: space.l, paddingHorizontal: space.s }]}>{words.gptNote}</Text>
-      <Text style={[type.note, centre, { color: t.muted, marginBottom: space.s }]}>{CHATGPT_TERMS}</Text>
-      <Text style={[type.note, centre, { color: t.muted }]}>{words.switchNote}</Text>
-      <View style={{ minHeight: space.xxl }} />
-      <Button kind="filled" label={words.gptButton} onPress={() => { router.push('/chatgpt'); }} />
-      <Button kind="text" label={words.notNow} onPress={() => { void finish(); }} />
-    </View>}
-  </ScrollView>;
+    </>}
+  </Screen>;
 
   function toggle(app: string) {
     if (!savingRef.current) setChoices(current => ({ ...current, [app]: !(current[app] ?? true) }));
   }
 }
 
-/** The bubble itself, as it will look in other apps: Dot waving hello (still when motion is reduced). */
+const STEPPED: Step[] = ['PERMISSION', 'TRY', 'APPS', 'CHATGPT'];
+
+/** A setup step: where you are, the step's words scrolling, and its actions held at the bottom. */
+function Screen({ step, footer, children }: { step: Step; footer: ReactNode; children: ReactNode }) {
+  const t = useTheme();
+  const { top, bottom } = useSafeAreaInsets();
+  const at = STEPPED.indexOf(step);
+  return <View style={{ flex: 1, backgroundColor: t.sheet }}>
+    <ScrollView contentContainerStyle={[styles.page, { paddingTop: top + space.l }]} keyboardShouldPersistTaps="always">
+      <View style={styles.steps} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: STEPPED.length, now: at + 1 }}>
+        {STEPPED.map((s, i) => <View key={s} style={[styles.stepBar, { backgroundColor: i <= at ? t.primary : t.yours }]} />)}
+      </View>
+      {children}
+    </ScrollView>
+    <View style={[styles.footer, { paddingBottom: bottom + space.l }]}>{footer}</View>
+  </View>;
+}
+
+/** A step's one big line and its plain explanation; a check once the step is done. */
+function Head({ title, note, done = false }: { title: string; note: string; done?: boolean }) {
+  const t = useTheme();
+  return <View style={styles.head}>
+    <Text accessibilityRole="header" style={[type.display, { color: t.text }]}>{title}</Text>
+    <View style={styles.headNote}>
+      {done && <View style={[styles.tick, { backgroundColor: t.primary }]}><CheckIcon size={16} color={t.onPrimary} /></View>}
+      <Text style={[type.body, { color: done ? t.text : t.muted, flex: 1 }]}>{note}</Text>
+    </View>
+  </View>;
+}
+
+/** A promise's icon, sat in a soft tinted circle. */
+function Badge({ children }: { children: ReactNode }) {
+  const t = useTheme();
+  return <View style={[styles.badge, { backgroundColor: t.primaryContainer }]}>{children}</View>;
+}
+
+/** The first screen shows the whole idea at a glance: a friend's message, Dot, and a reply in your
+ *  words landing, one after another. Everything holds still when motion is reduced. */
 function Welcome({ onContinue }: { onContinue: () => void }) {
   const t = useTheme();
+  const { top, bottom } = useSafeAreaInsets();
   const reduced = useReducedMotion();
+  const beats = useRef([0, 1, 2].map(() => new Animated.Value(0))).current;
   const wave = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    if (reduced !== false) return;
+    if (reduced === null) return;
+    if (reduced) { beats.forEach(b => b.setValue(1)); return; }
+    const land = (value: Animated.Value) => Animated.spring(value, { toValue: 1, damping: 16, stiffness: 140, mass: 1, useNativeDriver: true });
     const swing = (value: number) => Animated.timing(wave, { toValue: value, duration: 450, easing: Easing.inOut(Easing.quad), useNativeDriver: true });
-    const loop = Animated.loop(Animated.sequence([swing(1), swing(0)]));
-    loop.start();
-    return () => loop.stop();
-  }, [reduced, wave]);
-  return <View style={styles.welcome}>
-    <View style={{ flex: 1 }} />
-    <Animated.View style={{ alignSelf: 'center', transform: [{ rotate: wave.interpolate({ inputRange: [0, 1], outputRange: ['-5deg', '5deg'] }) }] }}>
-      <Dot mood="hello" size={96} />
-    </Animated.View>
-    <Text style={[type.headline, styles.centre, { color: t.text, marginTop: space.l }]}>{words.welcomeTitle}</Text>
-    <View style={{ flex: 1 }} />
-    <Button kind="filled" label={words.continueLabel} onPress={onContinue} />
+    const waving = Animated.loop(Animated.sequence([swing(1), swing(0)]), { iterations: 2 });
+    const show = Animated.sequence([Animated.stagger(420, beats.map(land)), waving]);
+    show.start();
+    return () => show.stop();
+  }, [reduced, beats, wave]);
+  const rise = (value: Animated.Value, by = 14) => ({ opacity: value, transform: [{ translateY: value.interpolate({ inputRange: [0, 1], outputRange: [by, 0] }) }] });
+  return <View style={[styles.welcome, { backgroundColor: t.sheet, paddingTop: top + space.xl }]}>
+    <ScrollView contentContainerStyle={styles.welcomeScroll}>
+      <View style={styles.stage} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
+        <View style={[styles.halo, { backgroundColor: t.glow }]} />
+        <Animated.View style={[styles.theirs, rise(beats[0]), { backgroundColor: t.card, borderColor: t.cardLine }]}>
+          <Text style={[type.label, { color: t.muted }]}>{words.practiceFriend}</Text>
+          <Text style={[type.body, { color: t.text }]}>{words.practiceMessage1}</Text>
+        </Animated.View>
+        <Animated.View style={[styles.dot, { opacity: beats[1], transform: [
+          { scale: beats[1].interpolate({ inputRange: [0, 1], outputRange: [0.6, 1] }) },
+          { rotate: wave.interpolate({ inputRange: [0, 1], outputRange: ['-6deg', '6deg'] }) },
+        ] }]}>
+          <Dot mood="hello" size={88} />
+        </Animated.View>
+        <Animated.View style={[styles.mine, rise(beats[2], 22), { backgroundColor: t.primaryContainer }]}>
+          <Text style={[type.body, { color: t.onPrimaryContainer }]}>{words.welcomeReply}</Text>
+          <View style={[styles.chip, { backgroundColor: t.primary }]}>
+            <CheckIcon size={14} color={t.onPrimary} />
+            <Text style={[type.label, { color: t.onPrimary }]}>{words.insert}</Text>
+          </View>
+        </Animated.View>
+      </View>
+      <View style={styles.pitch}>
+        <Text accessibilityRole="header" style={[type.display, styles.big, { color: t.text }]}>{words.welcomeTitle}</Text>
+        <Text style={[type.words, { color: t.muted, marginTop: space.m }]}>{words.welcomeNote}</Text>
+      </View>
+    </ScrollView>
+    <View style={[styles.footer, { paddingBottom: bottom + space.l }]}>
+      <Button kind="filled" large label={words.continueLabel} onPress={onContinue} />
+    </View>
   </View>;
 }
 
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, paddingHorizontal: 18, paddingBottom: 28 },
-  centre: { textAlign: 'center' as const },
+  page: { flexGrow: 1, paddingHorizontal: space.xl, paddingBottom: space.xl },
+  steps: { flexDirection: 'row', gap: 6, marginBottom: space.xl },
+  stepBar: { flex: 1, height: 4, borderRadius: 2 },
+  head: { marginBottom: space.xl },
+  headNote: { flexDirection: 'row', alignItems: 'flex-start', gap: space.s, marginTop: space.s },
+  tick: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  badge: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  footer: { paddingHorizontal: space.xl, paddingTop: space.m, gap: space.xs },
+  // Text buttons are 40 dp; the 4 dp of padding lets their hit slop reach the 48 dp touch target.
+  actions: { flexDirection: 'row', justifyContent: 'center', gap: space.xs, flexWrap: 'wrap', paddingVertical: space.xs },
+  preview: { borderWidth: 1, borderRadius: shape.group, overflow: 'hidden' },
+  rule: { height: 1, marginHorizontal: space.l },
+  chat: { borderRadius: 28, borderWidth: 1, padding: space.l, gap: space.s },
+  chatHead: { flexDirection: 'row', alignItems: 'center', gap: space.m, marginBottom: space.xs },
+  avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  received: { alignSelf: 'flex-start', borderRadius: 20, borderBottomLeftRadius: 6, paddingHorizontal: 14, paddingVertical: 10, overflow: 'hidden', maxWidth: '88%' },
+  field: { minHeight: 48, marginRight: 34, marginTop: space.s, borderWidth: 1, borderRadius: 24, paddingHorizontal: space.l, paddingVertical: space.m, textAlignVertical: 'top' },
+  aside: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.m, paddingHorizontal: space.xs },
+  skip: { alignItems: 'center', paddingVertical: space.xs },
+  appIcon: { width: 40, height: 40, borderRadius: 12 },
+  problem: { flexDirection: 'row', alignItems: 'center', gap: space.m, borderRadius: shape.group, paddingLeft: space.l, paddingVertical: space.s, marginTop: space.m },
+  fine: { borderRadius: shape.group, padding: space.l, gap: space.s },
   welcome: { flex: 1 },
-  actions: { flexDirection: 'row', justifyContent: 'center', gap: space.m, marginTop: space.m, flexWrap: 'wrap' },
-  chat: { borderRadius: 24, padding: space.l, gap: space.s },
-  received: { alignSelf: 'flex-start', borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10, overflow: 'hidden' },
-  field: { minHeight: 48, marginRight: 34, marginTop: space.xs, borderWidth: 1, borderRadius: 24, paddingHorizontal: space.l, paddingVertical: space.m, textAlignVertical: 'top' },
-  skip: { alignItems: 'center' },
-  grow: { flex: 1, minHeight: space.xxl },
-  appIcon: { width: 40, height: 40, borderRadius: 10 },
+  welcomeScroll: { flexGrow: 1 },
+  stage: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: space.xl, paddingVertical: space.l },
+  halo: { position: 'absolute', alignSelf: 'center', width: 320, height: 320, borderRadius: 160 },
+  theirs: { alignSelf: 'flex-start', maxWidth: '82%', borderWidth: 1, borderRadius: 24, borderBottomLeftRadius: 6, paddingHorizontal: space.l, paddingVertical: space.m },
+  dot: { alignSelf: 'center', marginVertical: space.m },
+  mine: { alignSelf: 'flex-end', maxWidth: '86%', borderRadius: 24, borderBottomRightRadius: 6, paddingHorizontal: space.l, paddingTop: space.m, paddingBottom: space.m, gap: space.m },
+  chip: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: space.xs, borderRadius: shape.round, paddingHorizontal: space.m, paddingVertical: 6 },
+  pitch: { paddingHorizontal: space.xl, paddingBottom: space.l },
+  big: { fontSize: 36, lineHeight: 42 },
 });
