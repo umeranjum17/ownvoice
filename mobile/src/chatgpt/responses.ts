@@ -48,8 +48,8 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
 }
 
 /** Raw answer for prompts whose output is plain text (the row-by-row rescue), not a JSON array. */
-async function askRaw(prompt: string, instructions: string, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string> {
-  return openStream(prompt, instructions, on, fetcher, body => readRawStream(body, onText), false);
+async function askRaw(prompt: string, instructions: string, on?: WriterEvents, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string> {
+  return openStream(prompt, instructions, on, fetcher, body => readRawStream(body), false);
 }
 
 export const streamResponses = (prompt: string, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> =>

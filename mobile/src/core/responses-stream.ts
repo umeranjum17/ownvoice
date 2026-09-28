@@ -35,6 +35,6 @@ export async function readDraftStream(body: ReadableStream<Uint8Array>, key: 'dr
 }
 
 /** The raw accumulated answer, for prompts whose output is plain text (the row-by-row rescue). */
-export async function readRawStream(body: ReadableStream<Uint8Array>, onText?: (text: string) => void): Promise<string> {
-  return readEvents(body, onText);
+export async function readRawStream(body: ReadableStream<Uint8Array>): Promise<string> {
+  return readEvents(body);
 }

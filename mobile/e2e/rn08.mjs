@@ -359,7 +359,7 @@ for (const mode of ['no', 'yes']) {
   await shot(`08-04-replaced-toast-${scheme}`);
   // A direct-intent sheet has no attributable caller, so the rewrite is copy-only there: the
   // page field stays untouched and nothing is handed back.
-  if (!logcat().includes(`rewrite copied (page) sha=${sha(SHORT)}`)) throw new Error(`copy-only replace did not run (${scheme})`);
+  if (!logcat().includes(`rewrite copied (page can't be replaced) sha=${sha(SHORT)}`)) throw new Error(`copy-only replace did not run (${scheme})`);
 
   await freshSetup(mode);
   await openEditableSelection();

@@ -346,12 +346,17 @@ class OwnvoiceService : AccessibilityService() {
     return null
   }
 
-  /** The receiving field's full text at the handback boundary: the read-back verifies the whole
-   *  field against it, and a failed replace restores it whole. */
-  fun replaceTargetText(): String? {
+  /** The receiving field's full text and selected span at the handback boundary: the read-back
+   *  verifies the whole field against them, and a failed replace restores it. */
+  fun replaceTarget(selected: String): Pair<String, IntRange?>? {
     val field = focusedField() ?: return null
     field.refresh()
-    return field.text?.toString()
+    val text = field.text?.toString() ?: return null
+    val start = field.textSelectionStart
+    val end = field.textSelectionEnd
+    if (start in 0..end && end <= text.length && text.substring(start, end) == selected) return text to start..end
+    val at = text.indexOf(selected)
+    return text to (if (at >= 0) at until (at + selected.length) else null)
   }
   private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>, practice: Boolean) {
     fun walk(node: AccessibilityNodeInfo, buttonAncestor: Boolean) {
@@ -424,22 +429,30 @@ class OwnvoiceService : AccessibilityService() {
   }
 
   /** Reads the rewritten field back: confirmed means the field holds exactly the remembered
-   *  pre-handback text with the selected span swapped for the rewrite; otherwise the remembered
-   *  text is put back whole and the rewrite stays copied. */
-  fun verifyReplace(before: String, selected: String, rewritten: String, left: Int = 12) {
-    val at = before.indexOf(selected)
-    val expected = if (at < 0) null else before.substring(0, at) + rewritten + before.substring(at + selected.length)
+   *  pre-handback text with the selected span swapped for the rewrite (one copy); otherwise the
+   *  rewrite is substituted back out — only in the field the handback acted on — and the rewrite
+   *  stays copied. */
+  fun verifyReplace(before: String, span: IntRange?, selected: String, rewritten: String, left: Int = 12) {
+    val expected = span?.let { before.substring(0, it.first) + rewritten + before.substring(it.last + 1) }
     val flat = expected?.replace("\n", "")
     main.postDelayed({
       val field = focusedField()
       field?.refresh()
       val got = field?.text?.toString()
       if (expected != null && (got == expected || got == flat)) { say("Replaced."); return@postDelayed }
-      if (left > 0) return@postDelayed verifyReplace(before, selected, rewritten, left - 1)
-      val restore = focusedField()?.takeIf { it.packageName?.toString() == packageName }
-      val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, before) }
-      if (restore?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) == true)
-        say("The app didn't take the rewrite. Your text is back and the rewrite stays copied.")
+      if (left > 0) return@postDelayed verifyReplace(before, span, selected, rewritten, left - 1)
+      val target = focusedField()?.takeIf { it.packageName?.toString() == packageName }
+      val now = target?.text?.toString()
+      val restore = when {
+        now == before -> before
+        now?.contains(rewritten) == true -> now.replace(rewritten, selected)
+        else -> null
+      } ?: return@postDelayed
+      if (restore != now) {
+        val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, restore) }
+        target?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
+      }
+      say("The app didn't take the rewrite. Your text is back and the rewrite stays copied.")
     }, 250)
   }
 
