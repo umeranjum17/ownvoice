@@ -5,6 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Row } from '../src/ui/Row';
 import { Switch } from '../src/ui/Switch';
 import { Progress } from '../src/ui/Progress';
+import { Button } from '../src/ui/Button';
+import { Badge } from '../src/ui/Badge';
+import { Dot } from '../src/ui/Dot';
+import { ChatIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
@@ -97,47 +101,54 @@ export default function Home() {
   const green = on && !paused && problem === null;
   const headline = !on ? words.statusOff : problem ? words.statusNotReady : model !== 'available' ? words.statusGettingReady : paused ? words.statusPaused : words.statusReady;
   const detail = !on ? words.statusOffNote : problem ?? (model !== 'available' ? words.gettingReady : paused ? words.statusPausedNote : words.statusReadyNote);
+  const mood = !on ? 'idle' : problem ? 'check' : model !== 'available' ? 'thinking' : paused ? 'idle' : 'ready';
+  const onCard = green ? t.onPrimaryContainer : t.text;
+  const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
   const shown = apps.filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
-  const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
+  const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };
 
   return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={[styles.page, { paddingTop: inset + space.xl }]}>
-    <Text style={[type.headline, { color: t.text }]}>{words.homeTitle}</Text>
-    <Text style={[type.body, { color: t.muted, marginBottom: space.l }]}>{words.home}</Text>
+    <Text accessibilityRole="header" style={[type.display, { color: t.text }]}>{words.homeTitle}</Text>
+    <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{words.home}</Text>
 
     <View style={[styles.status, { backgroundColor: green ? t.primaryContainer : t.group }]}>
       <View style={styles.statusHead}>
-        <View style={styles.statusWords}>
-          <Text style={[type.title, { color: green ? t.onPrimaryContainer : t.text }]}>{headline}</Text>
-          <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted }]}>{detail}</Text>
-        </View>
+        <View style={[styles.dot, !on && styles.resting]}><Dot mood={mood} size={64} /></View>
         <Switch accessibilityLabel={words.powerRow} value={on} onValueChange={power} />
       </View>
-      {on && model !== 'available' && !problem && <View style={{ marginTop: space.m }}><Progress fraction={fraction} /></View>}
-      {on && problem !== null && <Text accessibilityRole="button" onPress={retry} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.tryAgain}</Text>}
+      <Text style={[type.heading, { color: onCard, marginTop: space.l }]}>{headline}</Text>
+      <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted, marginTop: space.xs }]}>{detail}</Text>
+      {on && model !== 'available' && !problem && <View style={{ marginTop: space.l }}><Progress fraction={fraction} /></View>}
       {settingsFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
-      {service === 'stuck' && <Text accessibilityRole="button" onPress={() => router.push('/setup')} style={[type.label, { color: green ? t.onPrimaryContainer : t.primary, paddingTop: space.m }]}>{words.turnBackOn}</Text>}
+      {(on && problem !== null || service === 'stuck') && <View style={styles.statusActions}>
+        {on && problem !== null && <Button kind="filled" label={words.tryAgain} onPress={retry} />}
+        {service === 'stuck' && <Button kind="filled" label={words.turnBackOn} onPress={() => router.push('/setup')} />}
+      </View>}
     </View>
 
     <View style={group}>
-      <Row title={words.rowWriting} onPress={() => router.push('/writing')} />
-      <Row title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
-      <Row title={words.rowVoice} subtitle={phrases === 0 ? words.noPhrases : phrases === 1 ? `1 ${words.phraseOne}` : `${phrases} ${words.phraseMany}`} onPress={() => router.push('/voice')} />
-      <Row title={words.rowReads} subtitle={week === 0 ? words.nothingWeek : week === 1 ? words.onceWeek : `${week} ${words.timesWeek}`} onPress={() => router.push('/reads')} />
-      <Row title={words.gptButton} subtitle={words.gptNote} onPress={() => router.push('/chatgpt')} />
+      <Row lead={icon(LockIcon)} title={words.rowWriting} onPress={() => router.push('/writing')} />
+      <Row lead={icon(GridIcon)} title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
+      <Row lead={icon(PenIcon)} title={words.rowVoice} subtitle={phrases === 0 ? words.noPhrases : phrases === 1 ? `1 ${words.phraseOne}` : `${phrases} ${words.phraseMany}`} onPress={() => router.push('/voice')} />
+      <Row lead={icon(EyeIcon)} title={words.rowReads} subtitle={week === 0 ? words.nothingWeek : week === 1 ? words.onceWeek : `${week} ${words.timesWeek}`} onPress={() => router.push('/reads')} />
+      <Row lead={icon(ChatIcon)} title={words.gptButton} subtitle={words.gptNote} onPress={() => router.push('/chatgpt')} />
     </View>
 
     <View style={group}>
-      <Row title={words.rowPause} subtitle={words.rowPauseNote}
+      <Row lead={icon(PauseIcon)} title={words.rowPause} subtitle={words.rowPauseNote}
         end={<View pointerEvents="none"><Switch value={paused} disabled={!rules} onValueChange={v => changeRules(r => ({ ...r, paused: v }))} /></View>}
         onPress={() => { if (rules) changeRules(r => ({ ...r, paused: !r.paused })); }} />
-      <Row title={words.rowRewrite} subtitle={words.rowRewriteNote} />
+      <Row lead={icon(HandIcon)} title={words.rowRewrite} subtitle={words.rowRewriteNote} />
     </View>
   </ScrollView>;
 }
 
 const styles = StyleSheet.create({
   page: { padding: space.xl, gap: space.m, paddingBottom: space.xxl },
-  status: { padding: space.xl, paddingVertical: space.l, borderRadius: shape.sheet },
-  statusHead: { flexDirection: 'row', alignItems: 'center', gap: space.l },
-  statusWords: { flex: 1 },
+  status: { padding: space.xl, borderRadius: shape.sheet },
+  statusHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  dot: { marginLeft: -space.xs },
+  // Dot rests, faded, while Ownvoice is off.
+  resting: { opacity: 0.55 },
+  statusActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.l },
 });

@@ -296,7 +296,7 @@ test('a markdown share previews and adds through Your voice without a picker', a
   expect(picker.pickFileAsync).not.toHaveBeenCalled();
   fireEvent.press(screen.getByText(words.addThese));
   await waitFor(() => expect(loadVoice()).toEqual(expect.objectContaining({ never: ['circle back'], noDashes: true })));
-  fireEvent.press(screen.getByText(words.back));
+  fireEvent.press(screen.getByLabelText(words.back));
   expect(native.finishRewrite).toHaveBeenCalledWith(null, false);
 });
 

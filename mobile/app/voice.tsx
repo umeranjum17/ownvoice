@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ScrollView, Text, TextInput, View } from 'react-native';
+import { Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { File } from 'expo-file-system';
 import Native from '../modules/ownvoice-native';
 import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
 import { Row } from '../src/ui/Row';
+import { Page } from '../src/ui/Page';
 import { Switch } from '../src/ui/Switch';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
@@ -31,7 +31,6 @@ export function foundLines(found: Found): string {
 /** Your voice: the never-say list, a few rules and a "how I write" note, kept on this phone. */
 export default function Voice({ shared = false }: { shared?: boolean }) {
   const t = useTheme();
-  const inset = useSafeAreaInsets().top;
   const [rules, setRules] = useState<Rules>(loadVoice);
   const [neverText, setNeverText] = useState(() => loadVoice().never.join('\n'));
   const [preview, setPreview] = useState('');
@@ -66,13 +65,11 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
       show(await picked.result.text());
     } catch { setPreview(words.cantOpen); setPending(null); }
   };
-  const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
-  const field = { color: t.text, backgroundColor: t.yours, borderRadius: shape.card, padding: space.l, textAlignVertical: 'top' as const };
+  const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };
+  const field = { color: t.text, backgroundColor: t.raised, borderRadius: shape.group, padding: space.l, textAlignVertical: 'top' as const };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={{ padding: space.xl, paddingTop: inset + space.xl, gap: space.m, paddingBottom: space.xxl }} keyboardShouldPersistTaps="always">
-    <Text style={[type.headline, { color: t.text }]}>{words.rowVoice}</Text>
-    <Text style={[type.body, { color: t.muted, marginBottom: space.s }]}>{words.voiceNote}</Text>
-    <Button kind="text" label={words.importFile} onPress={() => { void pick(); }} />
+  return <Page title={words.rowVoice} note={words.voiceNote} onBack={() => { if (shared) void Native.finishRewrite(null, false); else router.back(); }}>
+    <View style={{ alignItems: 'flex-start', marginLeft: -space.s }}><Button kind="text" label={words.importFile} onPress={() => { void pick(); }} /></View>
     {saveFailed && <Text style={[type.body, { color: t.text }]}>{words.failed}</Text>}
     {preview !== '' && <Card variant="filled">
       <Text style={[type.body, { color: t.text }]}>{preview}</Text>
@@ -97,8 +94,7 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
     <TextInput accessibilityLabel={words.neverSay} placeholder={words.neverSayHint} placeholderTextColor={t.muted} multiline
       value={neverText} onChangeText={text => { if (change({ ...rules, never: text.split('\n').map(x => x.trim()).filter(Boolean) })) setNeverText(text); }} style={[type.body, field, styles.wide]} />
     <Text style={[type.body, { color: t.muted, marginTop: space.m }]}>{words.wipeElsewhere}</Text>
-    <Button kind="text" label={words.back} onPress={() => { if (shared) void Native.finishRewrite(null, false); else router.back(); }} />
-  </ScrollView>;
+  </Page>;
 }
 
 const styles = {
