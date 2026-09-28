@@ -67,6 +67,26 @@ test('the e2e stub drives the real polish pipeline for a multi-line note', async
   }
 });
 
+test('meaning preservation: the QA fixture keeps the appointment time in every accepted draft', async () => {
+  const previous = process.env.EXPO_PUBLIC_E2E_STUB;
+  process.env.EXPO_PUBLIC_E2E_STUB = '1';
+  try {
+    native.ask.mockRejectedValue(new Error('no model on the emulator'));
+    const { drafts } = await phoneWriter.write(request({ typed: TENT }));
+    // The 27 September capture shipped "2. Meet Saturday at" with noon lost by the scripted
+    // writer's word truncation; a shortened note that drops the appointment time is a false
+    // success. Every accepted draft that touches the Saturday line must keep the full time.
+    for (const draft of drafts) {
+      if (draft.includes('2. Meet Saturday')) expect(draft).toContain('Meet Saturday at noon');
+      if (draft.startsWith('Meet Saturday')) expect(draft).toContain('Meet Saturday at noon');
+    }
+    expect(drafts.some(draft => draft.includes('Meet Saturday at noon'))).toBe(true);
+  } finally {
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_E2E_STUB;
+    else process.env.EXPO_PUBLIC_E2E_STUB = previous;
+  }
+});
+
 // ---- Replies ----
 
 test('the Sam message reaches the phone model as Latest message above Conversation, asking for labelled slots', async () => {

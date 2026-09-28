@@ -96,7 +96,9 @@ export const phoneWriter = {
             return JSON.stringify({ versions: [`Plan: ${flat}`] });
           }
           const body = (line: string) => line.replace(/^\s*(?:\d+[.)]|[-*•])\s+/, '');
-          if (prompt.includes('Tighter:')) return rows.map((line, i) => `Row ${i + 1}: ${i ? body(line).split(' ').slice(0, 3).join(' ') : line}`).join('\n');
+          // Tighten by dropping a leading politeness word only: a word-count trim once shipped
+          // "2. Meet Saturday at" with noon lost - a meaning-losing shortening must not ship.
+          if (prompt.includes('Tighter:')) return rows.map((line, i) => `Row ${i + 1}: ${body(line).replace(/^please\s+/i, '')}`).join('\n');
           if (prompt.includes('put the answer first')) return rows.map((line, i) => `Row ${i + 1}: ${i ? body(rows[i - 1]) : body(rows.at(-1)!)}`).join('\n');
           return rows.map((line, i) => `Row ${i + 1}: ${line}`).join('\n');
         } };
