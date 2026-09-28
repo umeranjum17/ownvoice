@@ -461,11 +461,11 @@ class OwnvoiceService : AccessibilityService() {
         now?.contains(rewritten) == true -> now.replace(rewritten, selected)
         else -> null
       } ?: return@postDelayed
-      if (restore != now) {
-        val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, restore) }
-        target?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)
-      }
-      say("The app didn't take the rewrite. Your text is back and the rewrite stays copied.")
+      val landed = restore == now || target?.performAction(
+        AccessibilityNodeInfo.ACTION_SET_TEXT,
+        Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, restore) }) == true
+      say(if (landed) "The app didn't take the rewrite. Your text is back and the rewrite stays copied."
+          else "The app didn't take the rewrite. The rewrite stays copied - paste it where you like.")
     }, 250)
   }
 

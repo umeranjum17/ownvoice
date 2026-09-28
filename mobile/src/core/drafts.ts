@@ -127,7 +127,7 @@ export function rebuildLines(original: string, answer: string): string | null {
   return lines.map(line => {
     row++; // blank lines consume a row number exactly as the prompt numbered them
     if (!line.trim()) return line;
-    const marker = line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '';
+    const marker = line.match(leadingMarker)?.[0] ?? '';
     const originalContent = line.slice(marker.length).trim();
     const rewritten = (rows.get(row) || '').trim();
     // a marker-only shell carries no meaning: the original line's content wins
