@@ -331,15 +331,27 @@ class OwnvoiceService : AccessibilityService() {
     startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
   }
 
+  /** The editable field holding input focus, searched across application windows: the selection
+   *  menu's sheet is the active window at the handback while the receiving field keeps focus. */
   private fun focusedField(): AccessibilityNodeInfo? {
-    val focus = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
-    if (focus.isEditable) return focus
     fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
       if (node.isFocused && node.isEditable) return node
       for (i in 0 until node.childCount) node.getChild(i)?.let(::find)?.let { return it }
       return null
     }
-    return find(focus)
+    for (window in windows) {
+      if (window.type != AccessibilityWindowInfo.TYPE_APPLICATION) continue
+      window.root?.let(::find)?.let { return it }
+    }
+    return null
+  }
+
+  /** The receiving field's full text at the handback boundary: the read-back verifies the whole
+   *  field against it, and a failed replace restores it whole. */
+  fun replaceTargetText(): String? {
+    val field = focusedField() ?: return null
+    field.refresh()
+    return field.text?.toString()
   }
   private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>, practice: Boolean) {
     fun walk(node: AccessibilityNodeInfo, buttonAncestor: Boolean) {
@@ -411,18 +423,22 @@ class OwnvoiceService : AccessibilityService() {
     done(ok, newlinesLost)
   }
 
-  /** Reads the rewritten field back: confirmed means exactly one copy of the rewrite replacing
-   *  the original; otherwise the original content is restored and the rewrite stays copied. */
-  fun verifyReplace(original: String, rewritten: String, left: Int = 12) {
+  /** Reads the rewritten field back: confirmed means the field holds exactly the remembered
+   *  pre-handback text with the selected span swapped for the rewrite; otherwise the remembered
+   *  text is put back whole and the rewrite stays copied. */
+  fun verifyReplace(before: String, selected: String, rewritten: String, left: Int = 12) {
+    val at = before.indexOf(selected)
+    val expected = if (at < 0) null else before.substring(0, at) + rewritten + before.substring(at + selected.length)
+    val flat = expected?.replace("\n", "")
     main.postDelayed({
       val field = focusedField()
       field?.refresh()
       val got = field?.text?.toString()
-      val flat = rewritten.replace("\n", "")
-      if (got == rewritten || got == flat) { say("Replaced."); return@postDelayed }
-      if (left > 0) return@postDelayed verifyReplace(original, rewritten, left - 1)
-      val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, original) }
-      if (focusedField()?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) == true)
+      if (expected != null && (got == expected || got == flat)) { say("Replaced."); return@postDelayed }
+      if (left > 0) return@postDelayed verifyReplace(before, selected, rewritten, left - 1)
+      val restore = focusedField()?.takeIf { it.packageName?.toString() == packageName }
+      val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, before) }
+      if (restore?.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args) == true)
         say("The app didn't take the rewrite. Your text is back and the rewrite stays copied.")
     }, 250)
   }

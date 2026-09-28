@@ -369,10 +369,12 @@ for (const mode of ['no', 'yes']) {
   await scrollSheet();
   clearLog();
   await tapButtonRow('Replace', RECEIVER_SHORT);
-  await wait(900);
+  // The read-back polls the field for ~3.25 s: the spoken confirmation must show, and the field
+  // must still hold the rewrite (and nothing of the original) after the whole window has passed.
+  if (!(await textPresent('Replaced.'))) throw new Error(`the confirmed replace was not spoken (${scheme})`);
+  await wait(3600);
   if (!(await waitForFocus('.MainActivity')) || !(await textPresent(RECEIVER_SHORT)) || await textPresent(RECEIVER_ORIGINAL))
     throw new Error(`Replace did not update the receiving editable selection (${scheme})`);
-  if (!logcat().includes(`rewrite returned sha=${sha(RECEIVER_SHORT)}`)) throw new Error(`Replace did not return the changed text (${scheme})`);
 
   // R4: a read-only share offers only Copy.
   await openRewrite({ text: SELECTION, action: 'android.intent.action.SEND', readonly: true });

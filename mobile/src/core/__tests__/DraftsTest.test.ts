@@ -265,6 +265,9 @@ test('the meaning bar: shells, trailing chatter and padded repetition never ship
   expect(rebuildLines(note, 'Row 1: Coming right up for you!\nRow 2: coming right up, for you.\nRow 3: COMING RIGHT UP FOR YOU')).toBeNull();
   // Extra rows past the original's lines are ignored by the rebuild and cannot dilute the check.
   expect(rebuildLines(note, 'Row 1: Coming right up for you\nRow 2: Coming right up for you\nRow 3: Coming right up for you\nRow 4: Hope this helps.')).toBeNull();
+  // Rows for blank original lines are never consumed either; a distinct answer there cannot mask
+  // one repeated line padded across every consumed row.
+  expect(rebuildLines('Hi\n\n1. First\n2. Second', 'Row 1: Coming right up for you\nRow 2: Sure thing friend\nRow 3: Coming right up for you\nRow 4: Coming right up for you')).toBeNull();
 });
 
 test('rebuildLines numbers a blank line the way the prompt does, so content lands on its own line', () => {

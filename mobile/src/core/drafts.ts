@@ -120,7 +120,7 @@ export function rebuildLines(original: string, answer: string): string | null {
   // carry no per-line meaning - shell rows fall back to the original line's content, and an
   // answer that is padded repetition throughout is unusable outright.
   const plain = (text: string) => text.replace(leadingMarker, '').replace(/\s+/g, ' ').trim();
-  const kept = [...rows.entries()].filter(([number]) => number >= 1 && number <= lines.length)
+  const kept = [...rows.entries()].filter(([number]) => number >= 1 && number <= lines.length && lines[number - 1].trim())
     .map(([, text]) => plain(text)).filter(text => text && !shellOnly(text));
   if (kept.length > 1 && new Set(kept.map(norm)).size === 1) return null;
   let row = 0;

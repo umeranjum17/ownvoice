@@ -72,12 +72,13 @@ class RewriteActivity : ReactActivity() {
       return
     }
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", text))
-    if (replace && editable && handbackAllowed) {
+    val before = if (replace && editable && handbackAllowed) OwnvoiceService.instance?.replaceTargetText() else null
+    if (before != null) {
       setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text))
       Log.i(OwnvoiceService.TAG, "rewrite returned sha=${sha(text)}")
       // The handback cannot be trusted blindly: the service reads the field back and, if it does
-      // not hold exactly one copy of the rewrite replacing the original, puts the original back.
-      OwnvoiceService.instance?.verifyReplace(selectedText, text)
+      // not hold the selection swapped for the rewrite exactly once, puts the field back whole.
+      OwnvoiceService.instance?.verifyReplace(before, selectedText, text)
       finish()
     } else if (replace && editable) {
       Toast.makeText(this, COPY_ONLY_TOAST, Toast.LENGTH_LONG).show()

@@ -1,6 +1,6 @@
 import Native from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
-import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
+import { acceptReplies, avoidLine, latestMessage, norm, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
 import { lineRetryPrompt, rewrite, versionsList, type RewriteEngine } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
@@ -22,7 +22,7 @@ async function polish(request: DraftRequest, on: WriterEvents, script?: RewriteE
   const dashes = request.dashes ?? 'remove';
   const avoid = request.avoid ?? [];
   const note = avoidLine(avoid);
-  const engine: RewriteEngine = script ?? { ask: (prompt: string, maxTokens: number) => ask(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
+  const engine: RewriteEngine = { ask: (prompt: string, maxTokens: number) => (script?.ask ?? ask)(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
   const landed = on.landed ?? (() => {});
   const acceptor = versionAcceptor(request.typed, dashes, avoid);
   await rewrite(engine, request.typed, request.conversation, request.guide ?? '', (version, text) => {
@@ -87,7 +87,9 @@ export const phoneWriter = {
       // against a scripted model that flattens first and rescues row by row, so the sheet
       // exercises acceptance and the layout rescue end to end. Never in a distributable build.
       if (request.typed.includes('\n')) {
-        const script: RewriteEngine = { ask: async prompt => {
+        const script: RewriteEngine = { ask: async raw => {
+          const prompt = raw.replace(/\n\nDon't repeat these:[\s\S]*$/, '');
+          const avoid = (raw.match(/^Don't repeat these: (.+)$/m)?.[1] ?? '').split('; ').filter(Boolean);
           const rows = [...prompt.matchAll(/^Row \d+: (.+)$/gm)].map(match => match[1].trim());
           if (!rows.length) {
             const tail = prompt.slice(prompt.indexOf('Their text:\n') + 12);
@@ -99,7 +101,17 @@ export const phoneWriter = {
           // Tighten by dropping a leading politeness word only: a word-count trim once shipped
           // "2. Meet Saturday at" with noon lost - a meaning-losing shortening must not ship.
           if (prompt.includes('Tighter:')) return rows.map((line, i) => `Row ${i + 1}: ${body(line).replace(/^please\s+/i, '')}`).join('\n');
-          if (prompt.includes('put the answer first')) return rows.map((line, i) => `Row ${i + 1}: ${i ? body(rows[i - 1]) : body(rows.at(-1)!)}`).join('\n');
+          if (prompt.includes('put the answer first')) {
+            const marker = (line: string) => line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '';
+            // The answer-first rotation is tried first, then the remaining rotations, so an avoid
+            // run (Write new ones) returns a fresh ordering instead of the shown draft.
+            const orders = [rows.length - 1, ...Array.from({ length: Math.max(0, rows.length - 2) }, (_, i) => i + 1)];
+            for (const k of orders) {
+              const answer = rows.map((_, i) => body(rows[(i + k) % rows.length]));
+              const whole = rows.map((line, i) => `${marker(line)}${answer[i]}`);
+              if (!avoid.some(a => norm(a) === norm(whole.join('\n')))) return answer.map((line, i) => `Row ${i + 1}: ${line}`).join('\n');
+            }
+          }
           return rows.map((line, i) => `Row ${i + 1}: ${line}`).join('\n');
         } };
         return { drafts: await polish(request, on, script) };
