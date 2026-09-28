@@ -411,6 +411,21 @@ class OwnvoiceService : AccessibilityService() {
     done(ok, newlinesLost)
   }
 
+  /** Reads the rewritten field back: confirmed means exactly one copy of the rewrite replacing
+   *  the original; otherwise the original content is restored and the rewrite stays copied. */
+  fun verifyReplace(original: String, rewritten: String, left: Int = 12) {
+    main.postDelayed({
+      val field = captured()?.input
+      field?.refresh()
+      val got = field?.text?.toString()
+      val flat = rewritten.replace("\n", "")
+      if (got == rewritten || got == flat) { say("Replaced."); forget(); return@postDelayed }
+      if (left > 0) return@postDelayed verifyReplace(original, rewritten, left - 1)
+      say("The app didn't take the rewrite. Your text is back and the rewrite stays copied.")
+      insert(original) { _, _ -> main.post { getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", rewritten)) } }
+    }, 250)
+  }
+
   fun say(message: String, forMs: Long = 4000) {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs) }; return }
     if (!::bubble.isInitialized) return

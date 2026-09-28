@@ -59,10 +59,12 @@ class RewriteActivity : ReactActivity() {
   val editable: Boolean
     get() = intent.action == Intent.ACTION_PROCESS_TEXT && !intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)
 
-  /**
-   * Hands the rewrite back to the app and copies it too: Chrome drops the page's selection when
-   * another activity comes to the front, so it may ignore the result or insert it at the caret.
-   */
+  /** The rewrite is only handed back where the replace is known reliable: our own editable fields.
+   *  Browser pages drop the selection while the sheet is up and insert at the caret instead, so
+   *  there the rewrite is copied only and the text is left exactly as it was. */
+  val handbackAllowed: Boolean
+    get() = handbackAllowed(callingPackage, packageName)
+
   fun finishRewrite(text: String?, replace: Boolean) {
     if (text == null) {
       Log.i(OwnvoiceService.TAG, "rewrite closed")
@@ -70,17 +72,22 @@ class RewriteActivity : ReactActivity() {
       return
     }
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", text))
-    if (replace && editable) {
+    if (replace && editable && handbackAllowed) {
       setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text))
-      // Chrome may ignore the returned text (it drops the selection while we were up), so the
-      // toast never claims a replacement happened - it states the copy fallback plainly.
-      Toast.makeText(this, RETURNED_TOAST, Toast.LENGTH_SHORT).show()
       Log.i(OwnvoiceService.TAG, "rewrite returned sha=${sha(text)}")
+      // The handback cannot be trusted blindly: the service reads the field back and, if it does
+      // not hold exactly one copy of the rewrite replacing the original, puts the original back.
+      OwnvoiceService.instance?.verifyReplace(selectedText, text)
+      finish()
+    } else if (replace && editable) {
+      Toast.makeText(this, COPY_ONLY_TOAST, Toast.LENGTH_LONG).show()
+      Log.i(OwnvoiceService.TAG, "rewrite copied (page can't be replaced) sha=${sha(text)}")
+      finish()
     } else {
       Toast.makeText(this, "Copied.", Toast.LENGTH_SHORT).show()
       Log.i(OwnvoiceService.TAG, "rewrite copied sha=${sha(text)}")
+      finish()
     }
-    finish()
   }
 
   companion object {
@@ -88,10 +95,15 @@ class RewriteActivity : ReactActivity() {
     @Volatile
     var current: RewriteActivity? = null
 
-    /** What the sheet says after handing a rewrite back: the copy is certain, the replacement is not. */
-    const val RETURNED_TOAST = "Copied. If the app didn't take it, just paste."
+    /** Said only after the service read the field back and confirmed the replacement. */
+    const val REPLACED_SAYING = "Replaced."
+    /** Where the replace cannot be confirmed (browser pages and other unattributable callers), nothing is inserted: copy only. */
+    const val COPY_ONLY_TOAST = "Copied. The text here wasn't replaced - paste it where you like."
 
     /** A stable fingerprint for the on-device test; the text itself never goes to the log. */
     fun sha(text: String) = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }.take(12)
+
+    /** The handback is only known reliable for our own editable fields; everything else copies only. */
+    fun handbackAllowed(callingPackage: String?, ownPackage: String): Boolean = callingPackage == ownPackage
   }
 }
