@@ -185,7 +185,6 @@ XML`], { stdio: 'ignore' });
     await wait(ms);
     shot(tag(`chrome-toast-burst${i}`));
   }
-  const frames = [1, 2, 3].map(i => screenText());
   const legible = [1, 2, 3, 4].some(n => /didn|take it|pied/i.test(execFileSync('tesseract', [resolve(out, `${tag('chrome-toast-burst' + n)}.png`), 'stdout', '--psm', '11'], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'] })));
   if (!legible) throw new Error(`no legible toast frame over Chrome (${mode})`);
   const after = screenText();
