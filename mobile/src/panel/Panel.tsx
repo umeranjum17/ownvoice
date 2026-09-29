@@ -26,6 +26,16 @@ import { phoneCanWrite } from '../core/phoneStatus';
 import { phoneWriter } from './phoneWriter';
 
 type Mode = 'reply' | 'polish' | 'compose' | 'empty';
+
+/** What each reply card is for, in the order the writers fill that app's slots (platforms.ts). */
+const TAGS: Record<string, [string, string, string]> = {
+  x: [words.tagAgree, words.tagPushBack, words.tagQuestion],
+  linkedin: [words.tagAgree, words.tagOtherView, words.tagFollowUp],
+  reddit: [words.tagAnswer, words.tagDisagree, words.tagDetail],
+  slack: [words.tagConfirm, words.tagBlocker, words.tagUnclear],
+  gmail: [words.tagAccept, words.replyNo, words.replyAsk],
+};
+const CHAT_TAGS: [string, string, string] = [words.replyYes, words.replyNo, words.replyAsk];
 type Phase = 'loading' | 'writing' | 'ready' | 'failed';
 type Draft = { text: string; label?: string; slot: number; scores: Scores; meaning: Check | null };
 type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
@@ -281,7 +291,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (!card) return phase === 'writing' ? <View key={slot} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
       const verdict = card.label ? null : distinctVerdict(card, shown);
       return <View key={slot} style={{ marginBottom: space.m }}>
-        <Card variant="outlined" label={card.label ?? (mode === 'reply' ? [words.replyYes, words.replyNo, words.replyAsk][card.slot] : undefined)}>
+        <Card variant="outlined" label={card.label ?? (mode === 'reply' ? (TAGS[platformForApp(capture?.app).id] ?? CHAT_TAGS)[card.slot] : undefined)}>
           <Marked text={card.text} hits={card.scores.hits} />
           {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           <View style={styles.actions}>
