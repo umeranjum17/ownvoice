@@ -134,7 +134,6 @@ class OwnvoiceService : AccessibilityService() {
   private var capture: Capture? = null
   private val typingPause = Runnable { typed() }
   private var typedApp: String? = null
-  private var typedText = ""
   private var checkedText: String? = null
   private var pausedAt = 0L
   private var slipApp: String? = null
@@ -229,28 +228,28 @@ class OwnvoiceService : AccessibilityService() {
     if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) textChanged(event)
   }
 
-  /** The typing check: only the focused message box of a switched-on app, never a password box. The text is only held until the pause. */
+  /** The typing check, per keystroke: nothing but re-arming the pause. The box itself is read once, when the pause comes. */
   private fun textChanged(event: AccessibilityEvent) {
-    if (!typingCheck) return
-    val app = event.packageName?.toString()
-    val field = event.source ?: return
-    if (!allowed(app) || !field.isEditable || !field.isFocused || field.isPassword || event.isPassword) return
-    val text = accessibleText(field.text, field.isShowingHintText).orEmpty()
+    if (!typingCheck || event.isPassword) return
+    val app = event.packageName?.toString()?.takeIf(::allowed) ?: return
+    typedApp = app
     main.removeCallbacks(typingPause)
-    if (!worthChecking(text)) { typedApp = null; typedText = ""; checkedText = null; showSlips(app.orEmpty(), 0, ""); return }
-    typedApp = app; typedText = text
     main.postDelayed(typingPause, PAUSE_MS)
   }
 
-  /** A typing pause: hand the box's text to the check, starting the JavaScript side if nothing of Ownvoice is open. */
+  /** A typing pause: read the focused message box (never a password box) and hand its text to the check, starting the JavaScript side if nothing of Ownvoice is open. */
   private fun typed() {
     val app = typedApp ?: return
-    if (!typingCheck || !allowed(app) || currentApp() != app || typedText == checkedText) return
-    checkedText = typedText
+    if (!typingCheck || !allowed(app) || currentApp() != app) return
+    val field = focusedField()?.takeUnless { it.isPassword }
+    val text = accessibleText(field?.text, field?.isShowingHintText == true).orEmpty()
+    if (!worthChecking(text)) { checkedText = null; return showSlips(app, 0, "") }
+    if (text == checkedText) return
+    checkedText = text
     pausedAt = SystemClock.elapsedRealtime()
     val send = onTyped
-    if (send != null) return send(app, typedText)
-    pendingTyped = app to typedText
+    if (send != null) return send(app, text)
+    pendingTyped = app to text
     runCatching { (application as? ReactApplication)?.reactHost?.takeIf { it.currentReactContext == null }?.start() }
       .onFailure { Log.w(TAG, "typing check couldn't start", it) }
   }
@@ -258,6 +257,7 @@ class OwnvoiceService : AccessibilityService() {
   /** The check's answer: the count on Dot, or none. [label] is what a screen reader says after "Ownvoice". */
   fun showSlips(app: String, count: Int, label: String, checkMs: Double? = null) {
     if (checkMs != null) Log.d(TAG, "typing check ms=${"%.2f".format(checkMs)} badge ms=${SystemClock.elapsedRealtime() - pausedAt} count=$count")
+    if (count == 0 && slipCount == 0) return
     val shown = if (typingCheck && count > 0 && app == currentApp()) count else 0
     if (shown == slipCount && (shown == 0 || app == slipApp)) return
     slipApp = app.takeIf { shown > 0 }; slipCount = shown; slipLabel = label
@@ -267,7 +267,7 @@ class OwnvoiceService : AccessibilityService() {
   /** The switch went off: drop anything waiting and the count. */
   fun typingOff() {
     main.removeCallbacks(typingPause)
-    typedApp = null; typedText = ""; checkedText = null; pendingTyped = null
+    typedApp = null; checkedText = null; pendingTyped = null
     showSlips("", 0, "")
   }
   override fun onInterrupt() {}
