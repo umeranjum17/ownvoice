@@ -1,9 +1,9 @@
 // P7: a device-code sign-in must finish after 60 seconds in the browser on Android 16.
-// Walks setup to the ChatGPT offer with the proof APK (EXPO_PUBLIC_E2E_STUB=1 for the
-// practice step, EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<port> for the real sign-in
-// stack against the host stand-in mockOpenAI), taps Continue with ChatGPT, leaves Chrome
-// in front for 60 s, approves the code the way the mock page's own form does, comes back
-// and expects the connected sentence. Shell input and screencap only, never UiAutomator.
+// Walks setup to the ChatGPT choice with the proof APK
+// (EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<port> for the real sign-in stack against
+// the host stand-in mockOpenAI), starts the sign-in there, leaves Chrome in front for
+// 60 s, approves the code the way the mock page's own form does, comes back and expects
+// the connected sentence. Shell input and screencap only, never UiAutomator.
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned-avd-name>, MOCK_PORT (default
 // 21455), DROP_POLLS (default 0; >0 destroys that many polls like a backgrounded app's cut
 // network). Args: <release-apk> [screenshots-dir].
@@ -132,50 +132,23 @@ try {
   disableService();
   await wait(1500);
 
-  // Setup to the ChatGPT offer (same walk as e2e/first-run.mjs, light mode only).
+  // Setup to the ChatGPT choice (same walk as e2e/first-run.mjs steps 1-2: on an
+  // emulator no phone writer exists, so the choice offers ChatGPT sign-in inline).
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
   await waitForLine('replies that sound');
   await tapText('Continue');
-  await waitForLine('let ownvoice see');
-  await tapText('Turn on');
-  for (let attempt = 0; attempt < 10; attempt++) {
-    await wait(1000);
-    if ((focus().toLowerCase().includes('settings'))) break;
-  }
-  if (!focus().toLowerCase().includes('settings')) throw new Error('Turn on did not open settings.');
-  disableService(); await wait(1500); enableService(); await wait(1500);
-  disableService(); await wait(1000); enableService(); await wait(2500);
-  await waitForLine('tap the round bubble');
-  bubble();
-  await waitForLine('pick one to put in your message');
-  await wait(2500);
-  tapInsert();
-  await wait(2500);
-  await waitForLine('press send yourself');
-  await tapText('Continue');
-  await waitForLine('the bubble shows only');
-  tap(Math.round(width / 2), height - Math.round(160 * width / 1080));
-  await wait(1500);
-  await waitForLine('write with chatgpt');
-  snap('signin-01-offer');
+  await waitForLine('needs your chatgpt');
+  await waitForLine('only some newer phones');
+  snap('signin-01-choose');
 
-  // The offer leads to the ChatGPT screen, whose own Continue starts the sign-in,
-  // shows the code and opens the page in Chrome.
-  await tapText('Continue with ChatGPT');
-  await waitForLine('uses your chatgpt plan');
-  snap('signin-01b-chatgpt');
-  await tapText('Continue with ChatGPT');
-  // The app opens the page itself, which fronts Chrome over the code screen; the
-  // issued code (ground truth from the stand-in) proves the wait started.
+  // The choice starts the sign-in inside the step and shows the code with its
+  // waiting note; the issued code (ground truth from the stand-in) proves the wait started.
+  await tapText('Continue with');
   let code;
   for (let attempt = 0; attempt < 30 && !(code = mock.lastCode()); attempt++) await wait(1000);
   if (!code) throw new Error('The app never asked the stand-in for a code.');
   log(`code issued: ${code}`);
-  // Back to the app's own ChatGPT screen to see the code it shows (BACK would only
-  // pop routes or tab history, so deep-link straight there; the wait carries on).
-  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://chatgpt');
-  await wait(3000);
-  await waitForLine('sign in on the');
+  await waitForLine('your code');
   // The code is letter-spaced on screen and OCR confuses a couple of glyphs
   // (0/T), so match fuzzily: nearly every character in place.
   const bare = (text) => text.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -212,12 +185,13 @@ try {
   if (!approval.includes('Signed in')) throw new Error('The code page refused the approval.');
   log('code approved on the page');
   await wait(2000);
-  snap('signin-05-page-signed-in');
 
-  // Back in the app: the wait must have survived, and the screen says connected.
-  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://chatgpt');
+  // Back in the app: the wait must have survived, and the step says connected.
+  // The choice polls the session every second while a code waits, so foregrounding
+  // the task is enough; no deep link (the settings ChatGPT screen is another route).
+  adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
   await wait(3000);
-  await waitForLine(['chatgpt is connected', 'which apps can use chatgpt']);
+  await waitForLine('chatgpt is connected');
   snap('signin-06-connected');
   log('connected: the sign-in survived 60 s in the browser');
   console.log(`P7 proof saved to ${out}.`);

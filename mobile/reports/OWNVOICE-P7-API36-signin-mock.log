@@ -1,0 +1,6 @@
+06:03:41 POST /api/accounts/deviceauth/usercode
+06:03:41 POST /api/accounts/deviceauth/token
+06:03:48 POST /api/accounts/deviceauth/token
+06:04:56 POST /codex/device
+06:04:59 POST /api/accounts/deviceauth/token
+06:04:59 POST /oauth/token authorization_code

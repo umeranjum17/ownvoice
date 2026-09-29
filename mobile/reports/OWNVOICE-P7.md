@@ -1,50 +1,58 @@
 # P7: sign-in survives the browser (proof, no native change needed)
 
-Verdict: **proved**. A device-code sign-in finished after 60 s in Chrome with the app
-backgrounded, on a stock emulator image whose backgrounded process sent no poll for the
-whole window. No foreground-service wait was added: nothing failed, so there is nothing
-to keep alive. The `SignInWait` fallback design (a short-lived service in `ownvoice-native`
-while a code waits) stays on paper; build it only if a real phone ever shows the wait
-dying instead of stalling.
+Verdict: **proved on Android 16**. A device-code sign-in finished after 60 s in Chrome
+with the app backgrounded, on API 36 (pixel_7, x86_64, google_apis). No
+foreground-service wait was added: nothing failed, so there is nothing to keep alive.
+The `SignInWait` fallback design (a short-lived service in `ownvoice-native` while a
+code waits) stays on paper; build it only if a real phone ever shows the wait dying
+instead of stalling.
 
-## Recorded run (Mac slot emulator, API 35, arm64)
+## Recorded run (lane-owned AVD `ovp7api36`, API 36)
 
-Release `dev.ownvoice.next` APK built with `EXPO_PUBLIC_E2E_STUB=1` (practice step only)
-and `EXPO_PUBLIC_E2E_AUTH_BASE=http://100.124.161.1:21455` (the real byokit sign-in stack
+Release `dev.ownvoice.next` APK built with `EXPO_PUBLIC_E2E_STUB=1`
+and `EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455` (the real byokit sign-in stack
 against the host stand-in `mockOpenAI()`; `EXPO_PUBLIC_E2E_GPT` unset so no in-app
-stand-in is involved). Driver: `mobile/e2e/signin-wait.mjs`. Captures committed here
-(`OWNVOICE-P7-01-offer` … `OWNVOICE-P7-06-connected`; the timestamped stand-in
-request log is quoted inline below).
+stand-in is involved). Driver: `mobile/e2e/signin-wait.mjs`
+(`ANDROID_SERIAL=emulator-5556`, `OWNVOICE_AVD_NAME=ovp7api36`). Captures and both logs
+committed here (`OWNVOICE-P7-API36-01-choose` … `OWNVOICE-P7-API36-06-connected`,
+`OWNVOICE-P7-API36-signin-run.log`, `OWNVOICE-P7-API36-signin-mock.log`).
 
 | Time | What happened |
 |---|---|
-| 03:38:59 | Setup walked to the offer; Continue with ChatGPT → code `MOCK-10001` issued (`POST /api/accounts/deviceauth/usercode`) |
-| 03:39:19 | Code verified on the app screen with its waiting note; page opened in Chrome |
-| 03:39:24–03:40:24 | Chrome in front, focus checked every 10 s (`ChromeTabbedActivity` throughout) |
-| 03:40:25 | Code approved the way the page's own Continue posts it (`POST /codex/device` → "Signed in") |
-| 03:40:27–28 | Next poll completed the exchange (`POST /api/accounts/deviceauth/token`, `POST /oauth/token`) |
-| 03:40:31 | Back in the app: "Which apps can use ChatGPT?" — signed in, offer continues |
+| 06:03:05 | Stand-in OpenAI up on the host; fresh install on the booted API 36 AVD |
+| 06:03:41 | Setup walked to the ChatGPT choice; Continue with ChatGPT → code `MOCK-10001` issued (`POST /api/accounts/deviceauth/usercode`) |
+| 06:03:48 | Code verified on the app screen with its waiting note; page opened in Chrome |
+| 06:04:02–06:04:55 | Chrome in front, focus checked every 10 s (`ChromeTabbedActivity` throughout) |
+| 06:04:56 | Code approved the way the page's own Continue posts it (`POST /codex/device` → "Signed in") |
+| 06:04:59 | Next poll completed the exchange (`POST /api/accounts/deviceauth/token`, `POST /oauth/token`) |
+| 06:05:04 | Back in the app: "ChatGPT is connected" — signed in, setup continues |
 
 Stand-in request log (every request timestamped; the only evidence that matters):
 
 ```
-03:38:59 POST /api/accounts/deviceauth/usercode
-03:38:59 POST /api/accounts/deviceauth/token
-03:39:00 POST /api/accounts/deviceauth/token
-03:39:01 POST /api/accounts/deviceauth/token
-03:39:02 POST /api/accounts/deviceauth/token
-03:39:20 POST /api/accounts/deviceauth/token
-03:39:20 GET /codex/device
-03:40:25 POST /codex/device
-03:40:27 POST /api/accounts/deviceauth/token
-03:40:28 POST /oauth/token authorization_code
+06:03:41 POST /api/accounts/deviceauth/usercode
+06:03:41 POST /api/accounts/deviceauth/token
+06:03:48 POST /api/accounts/deviceauth/token
+06:04:56 POST /codex/device
+06:04:59 POST /api/accounts/deviceauth/token
+06:04:59 POST /oauth/token authorization_code
 ```
 
-No token poll reached the stand-in between 03:39:20 and the approval at 03:40:25: while
-Chrome was in front the backgrounded app sent nothing, yet the wait never failed and the
-first poll after approval completed it. That is the AGENTS.md scenario survived — by
-stalling, not by dying, which is exactly what the byokit poll loop is written to do
-(a poll that can't get through waits for the next, up to the code's own 15-minute expiry).
+No token poll reached the stand-in between 06:03:48 and the approval at 06:04:56: while
+Chrome was in front the backgrounded app sent nothing for over a minute, yet the wait
+never failed and the first poll after approval completed it. That is the AGENTS.md
+scenario survived — by stalling, not by dying, which is exactly what the byokit poll
+loop is written to do (a poll that can't get through waits for the next, up to the
+code's own 15-minute expiry).
+
+## Supporting run (Mac slot emulator, API 35, arm64)
+
+The earlier API 35 run showed the same signature (no poll during the 60 s browser
+window, completion on the first poll after approval) and is kept as supporting
+evidence; its captures (`OWNVOICE-P7-01-offer` … `OWNVOICE-P7-06-connected`) show the
+pre-P5 offer flow. `OWNVOICE-P7-05-page-signed-in.png` is gone: it was byte-identical
+to `04-browser-end` (the approval bypasses the page UI, so that snap could never show
+a signed-in page), and the driver no longer takes it.
 
 ## Regression test (no device needed)
 
@@ -55,20 +63,17 @@ in; a declined code still ends `failed` with its own sentence. Full suite: 25 su
 
 ## Notes for later lanes
 
-- The Mac slot is API 35 (Android 15), not 16; the captain asked for 16. The mechanism
-  under test (backgrounded wait stalls, never fails) is version-independent, and the
-  stand-in's `dropPolls` covers the destroyed-socket half deterministically — which is
-  why no second device run was spent: with timers frozen the two runs are
-  indistinguishable on an emulator, and the Jest test above pins the retry.
-- Release builds block app-side cleartext HTTP (`UnknownServiceException: CLEARTEXT …
-  not permitted`; Chrome is unaffected). Proof builds gate `usesCleartextTraffic` behind
-  the same `EXPO_PUBLIC_E2E_AUTH_BASE` flag in `mobile/app.config.js`; distributable
-  builds never set it. Gradle does not track env vars: after changing one, rerun
-  `:app:createBundleReleaseJsAndAssets` (or `--rerun-tasks`) or the APK keeps the old bundle.
-- The slot's Chrome needed its first-run welcome dismissed once ("Use without an
-  account", then the notifications "No thanks"); afterwards the app opens the code page
-  itself. The driver's `waitForLine` screenshots whatever is in front, so it reads the
-  issued code from the stand-in and deep-links `ownvoice://chatgpt` rather than BACKing
-  out of Chrome.
+- A fresh AVD's Chrome needs its first-run welcome dismissed once ("Use without an
+  account", then the notifications "No thanks"); afterwards the driver opens the code
+  page itself.
+- Proof builds gate `usesCleartextTraffic` behind `EXPO_PUBLIC_E2E_AUTH_BASE` in
+  `mobile/app.config.js`, and that manifest value is baked at **prebuild** time: rerun
+  `npx expo prebuild` with the flag set, not just the Gradle build, or the APK keeps
+  cleartext off and sign-in fails with "Couldn't reach ChatGPT". Gradle does not track
+  env vars either: after changing one, rerun `:app:createBundleReleaseJsAndAssets`
+  (or `--rerun-tasks`) or the APK keeps the old bundle.
 - `mobile/src/chatgpt/accounts.ts` passes `authBase` (byokit's documented stand-in seam)
-  only when `EXPO_PUBLIC_E2E_AUTH_BASE` is set; production sign-in is untouched.
+  only when `EXPO_PUBLIC_E2E_AUTH_BASE` is set; production sign-in is untouched. All
+  `EXPO_PUBLIC_*` flags, this one included, are in Metro's `cacheVersion`
+  (`mobile/metro.config.js`); `sh e2e/flag-cache.sh` proves a normal export after a
+  flagged one carries no stub code.
