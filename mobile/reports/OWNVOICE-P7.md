@@ -13,7 +13,8 @@ Release `dev.ownvoice.next` APK built with `EXPO_PUBLIC_E2E_STUB=1` (practice st
 and `EXPO_PUBLIC_E2E_AUTH_BASE=http://100.124.161.1:21455` (the real byokit sign-in stack
 against the host stand-in `mockOpenAI()`; `EXPO_PUBLIC_E2E_GPT` unset so no in-app
 stand-in is involved). Driver: `mobile/e2e/signin-wait.mjs`. Captures committed here
-(`OWNVOICE-P7-01-offer` … `OWNVOICE-P7-06-connected`; raw run logs stay in the run dir).
+(`OWNVOICE-P7-01-offer` … `OWNVOICE-P7-06-connected`; the timestamped stand-in
+request log is quoted inline below).
 
 | Time | What happened |
 |---|---|
