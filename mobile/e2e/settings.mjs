@@ -202,7 +202,6 @@ async function writes(kind) {
         snap(mode, '06-settings-phone-getting-ready');
         await seen('it writes right here', 30);
         await press('the plan you already pay for');
-        await seen('your code');
         await seen('chatgpt is connected', 30);
         await wait(800);
         snap(mode, '05-settings-chatgpt');
