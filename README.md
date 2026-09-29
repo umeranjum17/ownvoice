@@ -37,7 +37,7 @@ Ownvoice lives where you already write. It reads the screen only when you tap it
 
 ### Reply ideas, one tap away
 
-Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen and offers three short replies shaped to the place you are writing in: a feed post, a chat, or an email each gets its own three kinds of reply. **Insert** puts one in your message box, **Copy** copies it, and **Write new ones** tries again.
+Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen and offers three short replies shaped to the place you are writing in: a feed post, a chat, or an email each gets its own three kinds of reply. **Insert** puts one in your message box, **Copy** copies it, and **Write new ones** tries again. Each draft can also open your app's own compose screen with the text already filled in — you still press Send yourself.
 
 <p align="center">
   <img src="docs/readme/replies.webp" alt="Suggested replies to Sam's question about Saturday, each with Insert, Copy and Why?" width="300" />
@@ -61,7 +61,7 @@ Drafts get one plain sentence about how they read, such as "Sounds natural" or "
 
 ### Make any text better
 
-Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler**, **Fix spelling**, **Friendlier** or **Firmer**. **Copy** copies the version, then paste it where you like. If a new version adds a time, a number or a fact you didn't write, it says **Check this**. This works without the bubble's permission.
+Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler**, **Fix spelling**, **Friendlier** or **Firmer**. **Copy** copies the version, then paste it where you like, or **Share this text** to choose where it goes. If a new version adds a time, a number or a fact you didn't write, it says **Check this**. This works without the bubble's permission.
 
 <p align="center">
   <img src="docs/readme/rewrite.webp" alt="Make it better over the home screen: a selected sentence and its Shorter version, with Copy" width="300" />

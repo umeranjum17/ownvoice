@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Linking, StyleSheet, Text, View } from 'react-native';
+import { Animated, Linking, Share, StyleSheet, Text, View } from 'react-native';
 import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
@@ -7,6 +7,7 @@ import * as Typing from '../core/typing';
 import { speller } from '../core/speller';
 import { dashesFor } from '../core/drafts';
 import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
+import { prefillFor, prefillUrl } from '../core/prefill';
 import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
@@ -45,6 +46,14 @@ type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
 /** Lines only Ownvoice itself can fix (choosing a writer, signing in, the phone's one-time download): the panel offers to open it. */
 const opensApp: Set<string> = new Set([words.needWriterPanel, words.needWriterNote, words.phoneOnlyCant, words.readyPanel]);
 const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
+
+/** Prefill hand-off: the app's own compose opens with this text, or the share
+ *  sheet when it has no compose link; either way the person presses Send. */
+const openPrefill = (app: string | undefined, text: string) => {
+  const url = prefillUrl(prefillFor(platformForApp(app)).dest, text);
+  if (url) void Linking.openURL(url).catch(() => { void Share.share({ message: text }).catch(() => {}); });
+  else void Share.share({ message: text }).catch(() => {});
+};
 
 const modeOf = (typed: string, written: string): Mode =>
   typed.trim() ? (Judge.replying(written) ? 'polish' : 'compose') : Judge.replying(written) ? 'reply' : 'empty';
@@ -325,6 +334,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const done = phase === 'ready' && unchanged;
   const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
   const insertLabel = mode === 'reply' ? words.insert : words.useThis;
+  const prefillLabel = prefillFor(platformForApp(capture?.app)).label;
   const coverDraft = why != null ? shown.find(draft => draft.slot === why) : undefined;
   const check = coverDraft ? whys.get(coverDraft.text) : undefined;
 
@@ -372,6 +382,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
             <Button kind="text" label={words.copy} onPress={() => { void Native.copy(card.text).catch(() => {}); }} />
+            <Button kind="text" label={prefillLabel} onPress={() => openPrefill(capture?.app, card.text)} />
             <View style={{ flex: 1 }} />
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>
