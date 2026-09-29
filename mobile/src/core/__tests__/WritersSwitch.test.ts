@@ -24,6 +24,15 @@ test('offline signing command emits a verifiable off flag', async () => {
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 
+test('seal verifies noble-signed flags byte-compatibly; tampered payload and wrong key rejected', async () => {
+  const publicKey = b64(await ed.getPublicKeyAsync(privateKey));
+  const flag = await signed({ v: 1, app: 'ownvoice', seq: 9, chatgpt: 'off' });
+  expect(await verify(flag, publicKey, 8)).toBe(true);
+  expect(await verify({ ...flag, payload: { ...flag.payload, chatgpt: 'on' } }, publicKey, 8)).toBe(false);
+  const other = b64(await ed.getPublicKeyAsync(Uint8Array.from({ length: 32 }, (_, i) => i + 9)));
+  expect(await verify(flag, other, 8)).toBe(false);
+});
+
 test('phone fallback reports a readable reason and preserves the primary on success', async () => {
   const req = { conversation: '', written: '', typed: '' };
   const phone: Writer = { write: async () => ({ drafts: ['phone draft'] }) };
