@@ -32,7 +32,7 @@ export const Rewrite={TIGHTEN:'Shorter',PLAINER:'Simpler',GRAMMAR:'Fix spelling'
 export type Rewrite=typeof Rewrite[keyof typeof Rewrite];
 export const rewriteAsk:Record<Rewrite,string>={[Rewrite.TIGHTEN]:'Make it shorter and tighter. Cut filler, keep every point',[Rewrite.PLAINER]:'Say it in plainer, simpler words',[Rewrite.GRAMMAR]:'Fix only spelling, grammar and punctuation. Change nothing else',[Rewrite.FRIENDLIER]:'Say the same thing in a friendlier, warmer way',[Rewrite.FIRMER]:'Say the same thing in a firmer, more direct way'};
 /** The selection-menu rewrite prompt (Judge.rewritePrompt in the Kotlin app's RewriteActivity). */
-export function selectionRewritePrompt(text:string,how:Rewrite,guide=''){return `Rewrite the text below. ${rewriteAsk[how]}. ${how===Rewrite.GRAMMAR?'If the input is a single word without punctuation, do not add a full stop. ':''}Keep its line breaks and list markers (1. 2. or -) exactly, one item per line. Keep its meaning, facts, language and tone. ${guide?`Follow the writer's rules: ${guide} `:''}Don't add anything new. Output only the rewritten text.\n\nText:\n${text}`;}
+export function selectionRewritePrompt(text:string,how:Rewrite,guide=''){return `Rewrite the text below. ${rewriteAsk[how]}. ${how===Rewrite.GRAMMAR?'If the input is a single word without punctuation, do not add a full stop. ':''}Keep its line breaks and list markers (1. 2. or -) exactly, one item per line. Keep its meaning, facts${how===Rewrite.FRIENDLIER||how===Rewrite.FIRMER?' and language.':', language and tone.'} ${guide?`Follow the writer's rules: ${guide} `:''}Don't add anything new. Output only the rewritten text.\n\nText:\n${text}`;}
 export const Boost={TIGHTER:'Shorter',PLAINER:'More like you',DETAIL:'Start with a detail'} as const;
 export type Boost=typeof Boost[keyof typeof Boost];
 const REWRITE_RULES=`Rules for every version:\n- Keep every fact, number, name, plan and promise; add none. Never add experience, results, promises, "we" or anything they didn't write. Don't answer anything they didn't answer.\n- Keep their stance and their voice: same language, same casing, no more formal than they wrote. A chat stays a chat.\n- Cut template phrasing: hype words ("game-changer", "excited to announce"), "in today's world", "not just X, it's Y" and "more than just", "I'd love to hear your thoughts", "let me know your thoughts", flattery openers ("Great post", "Great question"), hashtag lists. Don't add long dashes (—).\n- Keep their layout: the same line breaks and paragraphs; a list stays a list with the same markers (1. 2. or -); keep their emoji.\n- If a sentence is only template, drop it.`;
@@ -56,9 +56,11 @@ const tones:string[]=[];
 for(const line of answer.split(/\r?\n/)){
 const m=line.match(/^\s*(\d+)\s*[:.)-]\s*(.+)$/);
 if(!m)continue;
+const index=Number(m[1])-1;
+if(index<0)continue;
 const tone=cleanTone(m[2]);
-if(tone)tones[Number(m[1])-1]=tone;}
-return tones.filter(Boolean);}
+if(tone)tones[index]=tone;}
+return tones;}
 /** The tone line on a draft card and on "Yours": "Sounds friendly", "Sounds a bit sharp". */
 export const toneLine=(tone:string)=>`Sounds ${tone}`;
 export function meaning(original:string,rewrite:string,answer:string|null):Check|null{const a=Slop.addedNumbers(original,rewrite),b=Slop.addedNumbers(rewrite,original);const quote=(xs:string[])=>xs.map(x=>`“${x}”`).join(' and ');const changes=[a.length?'adds '+quote(a):'',b.length?'leaves out '+quote(b):''].filter(Boolean);const times=Slop.inventedTimes(original,rewrite);if(times.length)return {name:'Meaning',ok:false,reason:'It adds '+quote(times)};if(changes.length)return {name:'Meaning',ok:false,reason:'It '+changes.join(' and ')};return checks(answer?parse(answer):{},[{key:'MEANING',pass:'Same meaning',concern:'Check this'}])[0]||null;}
