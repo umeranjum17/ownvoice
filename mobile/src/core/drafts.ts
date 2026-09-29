@@ -171,6 +171,7 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
     'Never put words in their mouth:',
     '- Don\'t invent anything about them: past experience, what they tried or built, numbers, prices, plans, customers, team, dates, schedule clashes, or facts about their product beyond the screen and their note.',
     '- If an honest answer would need a fact only they know, ask a short question back or reply without it.',
+    '- Use only times, dates and facts that appear on the screen or in their note. If the screen gives no time or date, never add one.',
     '- No "we" or "our" unless the screen or their note shows it.',
     'Sound like them typing on a phone: plain words, short sentences, the thread\'s language, and the casing and tone of their note. Match the length around it: a chat reply is usually one line, a public reply or comment one or two short sentences, an email a short greeting, one to three short sentences and a short sign-off without a name.',
     'Say one concrete thing tied to the screen instead of general praise.',
@@ -186,12 +187,12 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
 // The phone model gets the same rules condensed (≤ 700 characters of instructions), one call,
 // three replies, each labelled so cleanDrafts/parts() splits them.
 const PHONE_REPLY_INSTRUCTIONS = [
-  'You write reply drafts for one person from their phone screen.',
+  'Write reply drafts from the phone screen.',
   'Every draft must respond to everything the latest message asks or offers.',
-  'Write three replies, each starting Draft 1:, Draft 2: or Draft 3:, each a different answer:',
+  'Three replies as Draft 1:, Draft 2:, Draft 3:, each different:',
   slotList(REPLY_SLOTS),
-  'If it is news, thanks or a feeling, stay warm: 1 short, 2 adds one concrete detail, 3 asks one friendly question.',
-  'Never invent facts about them; ask instead. Match their language and tone; short and plain. No flattery, hashtags, emoji or long dashes.',
+  'If news, thanks or a feeling, stay warm: 1 short, 2 adds one detail, 3 asks a question.',
+  'Never invent facts, times or dates: use only what the screen shows. A suggested change reuses only screen times, else asks. Match their tone; short and plain. No flattery, hashtags, emoji or long dashes.',
 ].join('\n');
 
 /** The condensed phone prompt: instructions (≤ 700 characters) plus the input block. */
@@ -206,7 +207,7 @@ export function phoneSlotPrompt(slot: string, input: Omit<ReplyInput, 'dashes' |
     `The reply: ${slot}`,
     'Every draft must respond to everything the latest message asks or offers.',
     avoidLine(avoid),
-    'Don\'t invent facts about them; ask a short question back instead. Match their language and tone; plain words, short sentences. No flattery openers, hashtags, emoji or long dashes.',
+    'Don\'t invent facts about them; ask a short question back instead. Use only times, dates and facts on the screen: if it gives no time or date, never add one. If you suggest a different time, use only one from the screen, otherwise ask when suits them. Match their language and tone; plain words, short sentences. No flattery openers, hashtags, emoji or long dashes.',
     `Output only the reply text.\n\n${inputBlock(input)}`,
   ].filter(Boolean).join('\n');
 }

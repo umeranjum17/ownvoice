@@ -295,3 +295,10 @@ test('acceptReplies strips phone-model markdown, preamble and label headers', ()
   expect(drafts.every(d => d && !d.includes('**') && !/^(Okay|Sure),? here are/i.test(d))).toBe(true);
   expect(drafts.join('\n')).not.toMatch(/Agree\/Yes|Suggest Change|Not Sure Yet/);
 });
+
+test('replyPromptsUseOnlySourceTimes',()=>{
+  const input={latest:"Tom: what time's your flight tomorrow?",conversation:"Tom: what time's your flight tomorrow?",guide:''};
+  expect(replyPrompt({...input,dashes:'remove'})).toContain('Use only times, dates and facts');
+  expect(phoneReplyPrompt(input)).toContain('Never invent facts, times or dates');
+  expect(phoneSlotPrompt(REPLY_SLOTS[1],input,[])).toContain('Use only times, dates and facts');
+});
