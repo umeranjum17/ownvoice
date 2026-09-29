@@ -106,4 +106,4 @@ To try Ownvoice by hand on the debug build's test screen, switch Ownvoice on in 
 
 ## Licence
 
-Apache-2.0. See [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
