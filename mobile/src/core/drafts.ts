@@ -1,7 +1,7 @@
 // Draft-quality logic (look spec section 5). Pure TypeScript; the writers call it.
-import { platformLine, slotsFor, CHAT_SLOTS, type Platform } from './platforms';
-import type { Rules } from './slop';
-import { addedNumbers, inventedTimes } from './slop';
+import { platformLine, slotsFor, CHAT_SLOTS, type Platform } from './platforms.ts';
+import type { Rules } from './slop.ts';
+import { addedNumbers, inventedTimes } from './slop.ts';
 
 // ---- Cleanup of raw model output (moved from the phone writer; behaviour unchanged, spec 5.5) ----
 

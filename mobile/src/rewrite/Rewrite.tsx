@@ -7,6 +7,7 @@ import { chatgptConsent } from '../chatgpt/settings';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import * as Voice from '../core/voice';
+import { loadVoice } from '../core/voiceStore';
 import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { getSource, SOURCE_KEY, type Source } from '../core/source';
@@ -44,7 +45,7 @@ export default function Rewrite() {
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const run = useRef(0); // a newer tap drops the earlier answer, as JudgeActivity's job cancel does
-  const rules = useRef(Voice.loadVoice()).current;
+  const rules = useRef(loadVoice()).current;
 
   useEffect(() => {
     const value = Native.rewriteInput();

@@ -11,7 +11,7 @@ import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { plain, type Read } from '../src/core/privacy';
 import { readLog, syncReadLog, wipeReadLog } from '../src/core/readLog';
-import { wipeVoice } from '../src/core/voice';
+import { wipeVoice } from '../src/core/voiceStore';
 import Native from '../modules/ownvoice-native';
 
 const dayOf = (time: number) => {

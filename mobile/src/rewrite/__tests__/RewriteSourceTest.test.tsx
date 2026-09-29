@@ -10,7 +10,7 @@ import { CHATGPT_OFF } from '../../core/switch';
 import { SOURCE_KEY } from '../../core/source';
 import { store } from '../../core/store';
 import { session } from '../../chatgpt/session';
-import { wipeVoice } from '../../core/voice';
+import { wipeVoice } from '../../core/voiceStore';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),

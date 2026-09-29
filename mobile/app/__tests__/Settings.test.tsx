@@ -14,7 +14,7 @@ import Native, { type TapFact } from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
 import { space } from '../../src/ui/theme';
 import { readLog } from '../../src/core/readLog';
-import { loadVoice } from '../../src/core/voice';
+import { loadVoice } from '../../src/core/voiceStore';
 
 jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,

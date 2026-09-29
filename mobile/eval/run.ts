@@ -3,18 +3,18 @@
 // selection) against an OpenAI-compatible endpoint (llama-server on the host,
 // or ollama's /v1). Dev-only: never imported by the app, never bundled.
 //
-// Usage: node --import ./register.mjs run.ts <label> <baseUrl> <out.json>
+// Usage: node run.ts <label> <baseUrl> <out.json>
 // Env: MODEL (default llama-server's loaded model), TEMP (default 0),
 //      SEED (default 7), ONLY (comma prefixes, e.g. ONLY=R07 or ONLY=P01,P13,S05,R01,R07).
 import { writeFileSync } from 'node:fs';
-import { cases } from './cases';
-import { platformForApp } from '../src/core/platforms';
-import * as J from '../src/core/judge';
-import * as D from '../src/core/drafts';
+import { cases } from './cases.ts';
+import { platformForApp } from '../src/core/platforms.ts';
+import * as J from '../src/core/judge.ts';
+import * as D from '../src/core/drafts.ts';
 
 const [label, base, outPath] = process.argv.slice(2);
 if (!label || !base || !outPath) {
-  console.error('usage: node --import ./register.mjs run.ts <label> <baseUrl> <out.json>');
+  console.error('usage: node run.ts <label> <baseUrl> <out.json>');
   process.exit(2);
 }
 const MODEL = process.env.MODEL ?? '';

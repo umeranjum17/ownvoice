@@ -18,7 +18,7 @@ import { NAME, session, type GptState } from '../src/chatgpt/session';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
 import { readLog, syncReadLog } from '../src/core/readLog';
-import { loadVoice } from '../src/core/voice';
+import { loadVoice } from '../src/core/voiceStore';
 import { saveBubbleRules } from '../src/chatgpt/settings';
 import Native, { type ModelStatus, type ServiceState } from '../modules/ownvoice-native';
 

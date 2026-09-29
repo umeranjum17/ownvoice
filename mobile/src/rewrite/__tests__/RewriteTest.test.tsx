@@ -7,7 +7,7 @@ import Native from '../../../modules/ownvoice-native';
 import Rewrite from '../Rewrite';
 import { technicalWords, words } from '../../core/words';
 import { message } from '../../core/nano';
-import { saveVoice, wipeVoice } from '../../core/voice';
+import { saveVoice, wipeVoice } from '../../core/voiceStore';
 import { NO_RULES } from '../../core/slop';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
