@@ -60,7 +60,7 @@ Drafts get one plain sentence about how they read, such as "Sounds natural" or "
 
 ### Make any text better
 
-Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler** or **Fix spelling**. **Replace** puts it back where it was and copies it too, just in case. If a new version adds a time, a number or a fact you didn't write, it says **Check this**. This works without the bubble's permission.
+Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler** or **Fix spelling**. **Copy** copies the version, then paste it where you like. If a new version adds a time, a number or a fact you didn't write, it says **Check this**. This works without the bubble's permission.
 
 <p align="center">
   <img src="docs/readme/rewrite.webp" alt="Make it better over the home screen: a selected sentence and its Shorter version, with Replace and Copy" width="300" />
