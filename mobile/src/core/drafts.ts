@@ -87,19 +87,20 @@ export function preserveFragment(original: string, text: string): string {
  * every line because the counts match.
  */
 const bareInterjection = /^(sure|okay|ok|of course|certainly|great|thanks)[,!.]?$/i;
-const preambleMention = /(version|rewrite|rewritten|shorter|tighter|polished|improved|here(?: is|'s) (?:your|the|a|an|my)\b)/i;
+const hereRewrite = /here(?: is|'s) (?:your|the|a|an|my)\b.*(version|rewrite|rewritten|shorter|tighter|polished|improved)/i;
 
-const isPreamble = (line: string) => {
-  const text = line.trim();
-  return text.endsWith(':') || bareInterjection.test(text) || preambleMention.test(text);
-};
+const preambleLine = (text: string) => text.endsWith(':') || hereRewrite.test(text);
 
 export function cleanSelection(original: string, text: string): string {
   const expected = original.split(/\r?\n/).filter(line => line.trim()).length;
   const lines = text.split(/\r?\n/);
   while (lines.filter(line => line.trim()).length > expected) {
     const first = lines.findIndex(line => line.trim());
-    if (first < 0 || !isPreamble(lines[first])) break;
+    if (first < 0) break;
+    const next = lines.findIndex((line, j) => j > first && line.trim());
+    const following = next < 0 ? null : lines[next].trim();
+    const text = lines[first].trim();
+    if (!preambleLine(text) && !(following != null && bareInterjection.test(text) && preambleLine(following))) break;
     lines.splice(first, 1);
   }
   let seen = 0;
