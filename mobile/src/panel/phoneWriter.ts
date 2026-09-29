@@ -1,5 +1,7 @@
-import Native from '../../modules/ownvoice-native';
+import Native, { type ModelStatus } from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
+import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
+import { words } from '../core/words';
 import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
 import { rewrite, versionPrompt, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
@@ -91,11 +93,17 @@ export const phoneWriter = {
       drafts.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts };
     }
+    let status: ModelStatus;
+    try { status = await modelStatus(); } catch (error) { throw new Error(message(errorCode(error))); }
+    if (status === 'unavailable') throw new Error(words.unsupported);
+    // The one-time download needs the person's yes, which only Ownvoice itself asks for.
+    if (status === 'downloadable' && !agreed()) throw new Error(words.readyPanel);
     try {
       const started = Date.now();
-      if (await Native.modelStatus() !== 'available') {
+      if (status !== 'available') {
         on.state?.('downloading');
-        await Native.downloadModel();
+        const stop = watch(fraction => { if (fraction != null) on.fraction?.(fraction); });
+        try { await (status === 'downloadable' ? getReady() : settle()); } finally { stop(); }
       }
       on.state?.('writing');
       const drafts = request.typed.trim()

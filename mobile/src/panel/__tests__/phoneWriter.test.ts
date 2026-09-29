@@ -1,12 +1,14 @@
 import Native from '../../../modules/ownvoice-native';
 import { words } from '../../core/words';
 import { phoneWriter } from '../phoneWriter';
+import { AGREED_KEY } from '../../core/phoneDownload';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   modelStatus: jest.fn(), downloadModel: jest.fn(), drafts: jest.fn(), draftStream: jest.fn(), addListener: jest.fn(), ask: jest.fn(),
 } }));
 
 const native = Native as jest.Mocked<typeof Native>;
+const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 const LIST = 'I can bring the stove.\n1. I will bring the stove.\n2. You can bring the tent.';
@@ -25,6 +27,7 @@ const setClock = (value: number) => { clock = value; };
 
 beforeEach(() => {
   jest.clearAllMocks();
+  kv.clear();
   clock = 1000;
   jest.spyOn(Date, 'now').mockImplementation(() => clock);
   native.modelStatus.mockResolvedValue('available');
@@ -271,6 +274,7 @@ test('a hard failure surfaces as plain words', async () => {
 
 test('download does not spend the reply-fill window', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
+  kv.set(AGREED_KEY, 'true');
   native.downloadModel.mockImplementation(async () => { setClock(20000); });
   native.drafts.mockResolvedValue(['Draft 1: Yes, I can bring the stove.']);
   native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('Give a different answer')
@@ -280,13 +284,48 @@ test('download does not spend the reply-fill window', async () => {
   expect(native.ask).toHaveBeenCalledTimes(2);
 });
 
-test('the model gets downloaded once, with the progress note before writing', async () => {
+test('the model gets downloaded once, with the progress note and bar before writing', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
+  kv.set(AGREED_KEY, 'true');
   const states: string[] = [];
-  native.downloadModel.mockImplementation(async () => { expect(states).toEqual(['downloading']); });
+  const fractions: number[] = [];
+  native.downloadModel.mockImplementation(async (opts, progress) => {
+    expect(opts).toEqual({ allowMobileData: false });
+    expect(states).toEqual(['downloading']);
+    progress(0.5);
+  });
   native.drafts.mockImplementation(async () => { expect(states).toEqual(['downloading', 'writing']); return ['Draft 1: Yes, I will bring the stove.\nDraft 2: Not sure yet, what time works?\nDraft 3: Sunday works better for me and my stove.']; });
-  await expect(phoneWriter.write(request(), { state: state => states.push(state) })).resolves.toBeTruthy();
+  await expect(phoneWriter.write(request(), { state: state => states.push(state), fraction: f => fractions.push(f) })).resolves.toBeTruthy();
   expect(native.downloadModel).toHaveBeenCalledTimes(1);
+  expect(fractions).toEqual([0, 0.5]);
+});
+
+test('without the person\'s yes the panel never downloads, and points to Ownvoice in plain words', async () => {
+  native.modelStatus.mockResolvedValue('downloadable');
+  await expect(phoneWriter.write(request())).rejects.toThrow(words.readyPanel);
+  expect(native.downloadModel).not.toHaveBeenCalled();
+  expect(kv.has(AGREED_KEY)).toBe(false);
+});
+
+test('a phone that cannot write never starts a download', async () => {
+  native.modelStatus.mockResolvedValue('unavailable');
+  await expect(phoneWriter.write(request())).rejects.toThrow(words.unsupported);
+  expect(native.downloadModel).not.toHaveBeenCalled();
+});
+
+test('a phone still getting ready is waited for without recording a yes', async () => {
+  let reads = 0;
+  native.modelStatus.mockImplementation(async () => (++reads <= 2 ? 'downloading' : 'available'));
+  native.draftStream.mockImplementation(async () => {
+    if (reads < 3) throw new Error('not ready');
+    return 'Draft 1: Yes, I will bring the stove.\nDraft 2: Not sure yet, what time works?\nDraft 3: Sunday works better for me and my stove.';
+  });
+  const states: string[] = [];
+  const { drafts } = await phoneWriter.write(request(), { state: state => states.push(state) });
+  expect(states).toEqual(['downloading', 'writing']);
+  expect(drafts).toHaveLength(3);
+  expect(native.downloadModel).not.toHaveBeenCalled();
+  expect(kv.has(AGREED_KEY)).toBe(false);
 });
 
 // ---- Polish and compose ----

@@ -5,6 +5,9 @@ import Home from '../index';
 import Apps from '../apps';
 import Voice, { foundLines } from '../voice';
 import Reads from '../reads';
+import Writing from '../writing';
+import { AGREED_KEY } from '../../src/core/phoneDownload';
+import { SOURCE_KEY } from '../../src/core/source';
 import Native, { type TapFact } from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
 import { space } from '../../src/ui/theme';
@@ -14,7 +17,7 @@ import { loadVoice } from '../../src/core/voice';
 jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: {
-    serviceState: jest.fn(), turnOff: jest.fn(), modelStatus: jest.fn(), downloadModel: jest.fn(),
+    serviceState: jest.fn(), turnOff: jest.fn(), modelStatus: jest.fn(), downloadModel: jest.fn(), deleteModel: jest.fn(), cancelModelDownload: jest.fn(),
     bubbleRules: jest.fn(), setBubbleRules: jest.fn(), launcherApps: jest.fn(), takeTapFacts: jest.fn(),
     clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(), sharedMarkdown: jest.fn(), finishRewrite: jest.fn(),
   },
@@ -54,6 +57,7 @@ beforeEach(() => {
   native.forget.mockResolvedValue(undefined);
   native.turnOff.mockResolvedValue(undefined);
   native.downloadModel.mockResolvedValue(undefined);
+  native.deleteModel.mockResolvedValue(undefined);
   (native.addListener as jest.Mock).mockReturnValue({ remove: () => {} });
   jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: () => {} });
   picker.pickFileAsync.mockRejectedValue(new Error('no picker in jest'));
@@ -99,34 +103,118 @@ test('off hides Try again even when the model is not ready', async () => {
   expect(native.downloadModel).not.toHaveBeenCalled();
 });
 
-test('a phone that cannot write offers Try again in plain words', async () => {
+test('a phone that cannot write offers Try again in plain words, which only looks again', async () => {
   native.modelStatus.mockResolvedValue('unavailable');
   const screen = await show(<Home />);
   expect(await screen.findByText(words.statusNotReady)).toBeTruthy();
   expect(screen.getByText(words.unsupported)).toBeTruthy();
-  fireEvent.press(screen.getByText(words.tryAgain));
-  await waitFor(() => expect(native.downloadModel).toHaveBeenCalled());
+  const looks = native.modelStatus.mock.calls.length;
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  await waitFor(() => expect(native.modelStatus.mock.calls.length).toBeGreaterThan(looks));
+  expect(native.downloadModel).not.toHaveBeenCalled();
 });
 
-test('a downloadable phone is not shown as actively getting ready', async () => {
+test('a phone that needs its download asks first, with the size, and downloads nothing on its own', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
   const screen = await show(<Home />);
-  expect(await screen.findByText(words.statusNotReady)).toBeTruthy();
-  expect(screen.getByText(words.statusNotReadyNote)).toBeTruthy();
-  expect(screen.getByText(words.tryAgain)).toBeTruthy();
+  expect(await screen.findByText(words.readyTitle)).toBeTruthy();
+  expect(screen.getByText(words.readyNote)).toBeTruthy();
+  expect(screen.getByText(words.getReady)).toBeTruthy();
   expect(screen.queryByText(words.gettingReady)).toBeNull();
+  expect(screen.queryByText(words.tryAgain)).toBeNull();
+  await act(async () => { await Promise.resolve(); });
+  expect(native.downloadModel).not.toHaveBeenCalled();
+  expect(kv.has(AGREED_KEY)).toBe(false);
 });
 
-test('a completed download refreshes the card and a downloadable phone can retry', async () => {
+test('with ChatGPT chosen, Home never asks for the phone download', async () => {
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  native.modelStatus.mockResolvedValue('downloadable');
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.statusReady)).toBeTruthy();
+  expect(screen.queryByText(words.getReady)).toBeNull();
+});
+
+test('Get it ready is the yes: it downloads on Wi-Fi with a bar, and Home is ready after', async () => {
   native.modelStatus.mockResolvedValueOnce('downloadable').mockResolvedValue('available');
   let finish!: () => void;
-  native.downloadModel.mockImplementation(() => new Promise(resolve => { finish = resolve; }));
+  let progress!: (fraction: number) => void;
+  native.downloadModel.mockImplementation((_opts, onProgress) => new Promise(resolve => { finish = resolve; progress = onProgress; }));
   const screen = await show(<Home />);
-  expect(await screen.findByText(words.tryAgain)).toBeTruthy();
-  fireEvent.press(screen.getByText(words.tryAgain));
-  await waitFor(() => expect(native.downloadModel).toHaveBeenCalled());
+  await fireEvent.press(await screen.findByText(words.getReady));
+  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+  expect(kv.get(AGREED_KEY)).toBe('true');
+  expect(await screen.findByText(words.statusGettingReady)).toBeTruthy();
+  await act(async () => { progress(0.4); });
+  expect(screen.toJSON()).not.toContain('%');
   await act(async () => { finish(); });
   expect(await screen.findByText(words.statusReady)).toBeTruthy();
+});
+
+test('a stopped download says what to do, and can use mobile data instead', async () => {
+  kv.set(AGREED_KEY, 'true');
+  native.modelStatus.mockResolvedValue('downloadable');
+  native.downloadModel.mockRejectedValueOnce(new Error('not on Wi-Fi'));
+  const screen = await show(<Home />);
+  // The agreed download picks up by itself on the way in, and stops without Wi-Fi.
+  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+  expect(await screen.findByText(words.readyStopped)).toBeTruthy();
+  expect(screen.getByText(words.tryAgain)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.useMobileData));
+  await waitFor(() => expect(native.downloadModel).toHaveBeenLastCalledWith({ allowMobileData: true }, expect.any(Function)));
+});
+
+test('Settings asks for the download only where this phone is the chosen writer', async () => {
+  native.modelStatus.mockResolvedValue('downloadable');
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  const chatgpt = await show(<Writing />);
+  await act(async () => { await Promise.resolve(); });
+  expect(chatgpt.queryByText(words.readyTitle)).toBeNull();
+  await chatgpt.unmount();
+  kv.set(SOURCE_KEY, '"phone"');
+  const screen = await show(<Writing />);
+  expect(await screen.findByText(words.readyTitle)).toBeTruthy();
+  expect(screen.getByText(words.readyNote)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.getReady));
+  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+  expect(kv.get(AGREED_KEY)).toBe('true');
+});
+
+test('Free up space removes the download after a second tap, and the phone asks again', async () => {
+  kv.set(AGREED_KEY, 'true');
+  kv.set(SOURCE_KEY, '"phone"');
+  native.modelStatus.mockResolvedValue('available');
+  const screen = await show(<Writing />);
+  await fireEvent.press(await screen.findByText(words.removeRow));
+  expect(screen.getByText(words.removeAsk)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.removeNo));
+  expect(native.deleteModel).not.toHaveBeenCalled();
+  native.modelStatus.mockResolvedValue('downloadable');
+  await fireEvent.press(screen.getByText(words.removeRow));
+  await fireEvent.press(screen.getByText(words.removeYes));
+  await waitFor(() => expect(native.deleteModel).toHaveBeenCalled());
+  expect(kv.has(AGREED_KEY)).toBe(false);
+  expect(await screen.findByText(words.readyTitle)).toBeTruthy();
+});
+
+test('a failed Free up space keeps the card and says so plainly', async () => {
+  kv.set(AGREED_KEY, 'true');
+  kv.set(SOURCE_KEY, '"phone"');
+  native.modelStatus.mockResolvedValue('available');
+  native.deleteModel.mockRejectedValueOnce(new Error('locked'));
+  const screen = await show(<Writing />);
+  await fireEvent.press(await screen.findByText(words.removeRow));
+  await fireEvent.press(screen.getByText(words.removeYes));
+  expect(await screen.findByText(words.removeFailed)).toBeTruthy();
+  expect(kv.get(AGREED_KEY)).toBe('true');
+  expect(screen.getByText(words.removeRow)).toBeTruthy();
+});
+
+test('a writer the phone came with has nothing to remove', async () => {
+  native.modelStatus.mockResolvedValue('available');
+  const screen = await show(<Writing />);
+  await act(async () => { await Promise.resolve(); });
+  expect(screen.queryByText(words.removeRow)).toBeNull();
 });
 
 test('a setup download finishing refreshes Home without a foreground change', async () => {
