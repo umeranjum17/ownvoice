@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Linking, StyleSheet, Text, View } from 'react-native';
 import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
@@ -27,6 +27,10 @@ type Mode = 'reply' | 'polish' | 'compose' | 'empty';
 type Phase = 'loading' | 'writing' | 'ready' | 'failed';
 type Draft = { text: string; label?: string; slot: number; scores: Scores; meaning: Check | null };
 type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
+
+/** Lines only Ownvoice itself can fix (choosing a writer, signing in, the phone's one-time download): the panel offers to open it. */
+const opensApp: Set<string> = new Set([words.needWriterPanel, words.needWriterNote, words.readyPanel]);
+const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
 
 const modeOf = (typed: string, written: string): Mode =>
   typed.trim() ? (Judge.replying(written) ? 'polish' : 'compose') : Judge.replying(written) ? 'reply' : 'empty';
@@ -300,6 +304,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     {empty && mainNote
       ? <Empty mood={mood} text={mainNote}>
         {phase === 'ready' && mode !== 'empty' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
+        {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
       </Empty>
       : null}
     {reason && shown.length ? <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{reason}</Text> : null}

@@ -54,6 +54,14 @@ test('phone chosen means never ChatGPT, even when signed in', async () => {
   expect(fetcher).not.toHaveBeenCalled();
 });
 
+test('phone chosen on a phone that can no longer write says to choose first', async () => {
+  store.set(SOURCE_KEY, 'phone');
+  native.modelStatus.mockResolvedValue('unavailable');
+  const route = await gptRoute('com.twitter.android', jest.fn(offline));
+  await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.needWriterPanel);
+  expect(phoneWriter.write).not.toHaveBeenCalled();
+});
+
 test('the recorded choice routes ChatGPT without a pre-seeded source', async () => {
   store.set(SOURCE_KEY, null);
   store.set('setup-done', true);

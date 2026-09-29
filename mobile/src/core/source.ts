@@ -6,11 +6,19 @@ import { store } from './store';
 export type Source = 'phone' | 'chatgpt' | null;
 export const SOURCE_KEY = 'writer-source';
 export const PHONE_ONLY_KEY = 'chatgpt-phone-only';
+// "Not chosen" on purpose (signed out on a phone that can't write): kept, never migrated again.
+const NONE = 'none';
+
+/** The choice as last stored, without migrating: undefined when nothing is stored yet. */
+export function storedSource(): Source | undefined {
+  const saved = store.get<Source | typeof NONE>(SOURCE_KEY);
+  return saved === NONE ? null : saved ?? undefined;
+}
 
 /** The chosen writing source, migrating the old sign-in state once when no choice is stored. */
 export async function getSource(): Promise<Source> {
-  const saved = store.get<Source>(SOURCE_KEY);
-  if (saved) return saved;
+  const saved = storedSource();
+  if (saved !== undefined) return saved;
   const setup = !!store.get<boolean>('setup-done');
   const on = setup ? store.get<{ on: string[] }>(GPT_APPS_KEY)?.on ?? [] : [];
   if (on.length && (await session.current()).signedIn) {
@@ -26,7 +34,7 @@ export async function getSource(): Promise<Source> {
   return 'phone';
 }
 
-export function setSource(source: Source): void { store.set(SOURCE_KEY, source); }
+export function setSource(source: Source): void { store.set(SOURCE_KEY, source ?? NONE); }
 
 /** Apps that stay on this phone even when ChatGPT writes; starts as the old default-off list. */
 export function phoneOnly(strict = false): string[] { return store.get<string[]>(PHONE_ONLY_KEY, strict) ?? [...CHATGPT_DEFAULT_OFF]; }

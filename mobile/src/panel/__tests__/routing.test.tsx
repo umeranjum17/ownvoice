@@ -1,4 +1,5 @@
 import React from 'react';
+import { Linking } from 'react-native';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Panel from '../Panel';
@@ -160,6 +161,17 @@ test('with no source the panel says to choose first and marks nothing sent', asy
   expect(shown(screen)).not.toContain('ChatGPT one');
   expect(sentTap()).toEqual([]);
   expect(kv.has('reads')).toBe(false);
+});
+
+test('choosing first offers to open Ownvoice, which closes the panel', async () => {
+  const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
+  native.closePanel.mockResolvedValue(undefined);
+  const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => routeWriters({ source: null, signedIn: false, phoneOnlyApp: false, enabled: true, phone: 'cant', chatgpt: () => writer('ChatGPT'), phoneWriter: writer('Phone') }));
+  await waitFor(() => expect(shown(screen)).toContain(words.openOwnvoice));
+  expect(shown(screen)).not.toContain(words.tryAgain);
+  fireEvent.press(screen.getByText(words.openOwnvoice));
+  expect(openURL).toHaveBeenCalledWith('ownvoice://');
+  await waitFor(() => expect(native.closePanel).toHaveBeenCalled());
 });
 
 test('ChatGPT failing on a phone that cannot write leaves Try again', async () => {

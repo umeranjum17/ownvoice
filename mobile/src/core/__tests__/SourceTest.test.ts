@@ -1,4 +1,4 @@
-import { getSource, PHONE_ONLY_KEY, phoneOnly, setSource, SOURCE_KEY } from '../source';
+import { getSource, PHONE_ONLY_KEY, phoneOnly, setSource, SOURCE_KEY, storedSource } from '../source';
 import { CHATGPT_DEFAULT_OFF } from '../privacy';
 import { store } from '../store';
 import Native from '../../../modules/ownvoice-native';
@@ -71,4 +71,12 @@ test('the choice round trips through the store', async () => {
   setSource('phone');
   expect(await getSource()).toBe('phone');
   expect(kv.get(SOURCE_KEY)).toBe(JSON.stringify('phone'));
+});
+
+test('not chosen on purpose stays not chosen, and is never migrated back to the phone', async () => {
+  kv.set('setup-done', 'true');
+  setSource(null);
+  expect(await getSource()).toBeNull();
+  expect(await getSource()).toBeNull();
+  expect(storedSource()).toBeNull();
 });

@@ -1,22 +1,19 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Badge } from './Badge';
 import { Button } from './Button';
-import { PhoneIcon } from './icons';
+import { CheckIcon } from './icons';
 import { Progress } from './Progress';
 import { Row } from './Row';
 import { shape, space, type, useTheme } from './theme';
 import { words } from '../core/words';
 import { agreed, downloading, getReady, modelStatus, removeDownload, watch } from '../core/phoneDownload';
-import { getSource } from '../core/source';
 import type { ModelStatus } from '../../modules/ownvoice-native';
 
-/** Settings' card for the phone's own writer: the one-time ask (only once this phone is the chosen
- *  writer), the bar while it gets ready, a way on when it stopped, and freeing the space again. */
+/** What the chosen "On this phone" card says: ready, the one-time ask, the bar while it gets ready,
+ *  a way on when it stopped, and freeing the space again. Shown only once this phone is the chosen writer. */
 export function PhoneWriter() {
   const t = useTheme();
   const [model, setModel] = useState<ModelStatus | null>(null);
-  const [phoneChosen, setPhoneChosen] = useState(false);
   const [fraction, setFraction] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [removeFailed, setRemoveFailed] = useState(false);
@@ -28,7 +25,6 @@ export function PhoneWriter() {
   };
   useEffect(() => {
     refresh();
-    getSource().then(source => setPhoneChosen(source === 'phone')).catch(() => {});
     return watch(value => { if (value == null) refresh(); else { setFraction(value); setTick(n => n + 1); } });
   }, []);
 
@@ -38,54 +34,54 @@ export function PhoneWriter() {
   const yes = agreed();
   const getting = model === 'downloading' || downloading();
   const stopped = model === 'downloadable' && yes && !getting;
-  const ask = model === 'downloadable' && !yes && phoneChosen;
+  const ask = model === 'downloadable' && !yes;
   const removable = model === 'available' && yes;
-  if (!getting && !stopped && !ask && !removable) return null;
+  const line = (text: string, color = t.text) => <Text style={[type.note, styles.words, { color }]}>{text}</Text>;
 
-  const card = { backgroundColor: t.group };
-  if (ask) return <View style={[styles.card, card]}>
-    <View style={styles.head}>
-      <Badge><PhoneIcon size={22} color={t.onPrimaryContainer} /></Badge>
-      <View style={styles.words}>
-        <Text style={[type.label, styles.title, { color: t.text }]}>{words.readyTitle}</Text>
-        <Text style={[type.note, { color: t.muted }]}>{words.readyNote}</Text>
-      </View>
-    </View>
+  if (model == null || model === 'unavailable') return null;
+  if (ask) return <View style={styles.indent}>
+    <Text style={[type.label, { color: t.text }]}>{words.readyTitle}</Text>
+    {line(words.readyNote, t.muted)}
     <View style={styles.actions}><Button kind="filled" label={words.getReady} onPress={() => start()} /></View>
   </View>;
-  if (getting) return <View style={[styles.card, card]}>
-    <Row lead={<Badge><PhoneIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.srcPhone} subtitle={words.gettingReady} />
-    <View style={styles.bar}><Progress fraction={fraction} /></View>
+  if (getting) return <View style={styles.indent}>
+    {line(words.gettingReady)}
+    <Progress fraction={fraction} />
   </View>;
-  if (stopped) return <View style={[styles.card, card]}>
-    <Row lead={<Badge><PhoneIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.statusNotReady} subtitle={words.readyStopped} />
+  if (stopped) return <View style={styles.indent}>
+    {line(words.readyStopped)}
     <View style={styles.actions}>
       <Button kind="filled" label={words.tryAgain} onPress={() => start()} />
       <Button kind="text" label={words.useMobileData} onPress={() => start(true)} />
     </View>
   </View>;
-  return <View style={[styles.card, card]}>
-    <Row lead={<Badge><PhoneIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.srcPhone} subtitle={words.phoneReady} />
-    {confirming
-      ? <View style={styles.confirm}>
-        <Text style={[type.body, { color: t.text }]}>{words.removeAsk}</Text>
-        <View style={styles.actions}>
-          <Button kind="filled" label={words.removeYes} onPress={remove} />
-          <Button kind="text" label={words.removeNo} onPress={() => setConfirming(false)} />
+  return <>
+    <View style={[styles.indent, styles.status]}>
+      <CheckIcon size={18} color={t.primary} />
+      {line(words.phoneReady)}
+    </View>
+    {removable && <View style={[styles.inner, { backgroundColor: t.group }]}>
+      {confirming
+        ? <View style={styles.confirm}>
+          <Text style={[type.body, { color: t.text }]}>{words.removeAsk}</Text>
+          <View style={styles.actions}>
+            <Button kind="filled" label={words.removeYes} onPress={remove} />
+            <Button kind="text" label={words.removeNo} onPress={() => setConfirming(false)} />
+          </View>
         </View>
-      </View>
-      : <Row title={words.removeRow} subtitle={words.removeRowNote} onPress={() => setConfirming(true)} />}
-    {!confirming && removeFailed && <Text style={[type.note, styles.failed, { color: t.muted }]}>{words.removeFailed}</Text>}
-  </View>;
+        : <Row title={words.removeRow} subtitle={words.removeRowNote} onPress={() => setConfirming(true)} />}
+      {!confirming && removeFailed && <Text style={[type.note, styles.failed, { color: t.muted }]}>{words.removeFailed}</Text>}
+    </View>}
+  </>;
 }
 
 const styles = StyleSheet.create({
-  card: { borderRadius: shape.group, overflow: 'hidden', paddingVertical: space.xs },
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: space.l, padding: space.l },
-  words: { flex: 1, gap: 2 },
-  title: { fontSize: 16, lineHeight: 24 },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s, paddingHorizontal: space.l, paddingBottom: space.m },
-  bar: { paddingHorizontal: space.l, paddingBottom: space.l },
-  confirm: { gap: space.m, paddingHorizontal: space.l, paddingTop: space.s },
-  failed: { paddingHorizontal: space.l, paddingTop: space.xs },
+  // Lines up with the option's name, past its icon.
+  indent: { paddingLeft: 56, gap: space.s },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  words: { flex: 1 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s },
+  inner: { borderRadius: shape.group, overflow: 'hidden', paddingVertical: space.xs },
+  confirm: { gap: space.m, padding: space.l },
+  failed: { paddingHorizontal: space.l, paddingBottom: space.s },
 });

@@ -18,7 +18,7 @@ import { store } from '../src/core/store';
 import { completeSetup } from '../src/core/setup-completion';
 import { saveBubbleRules } from '../src/chatgpt/settings';
 import { NAME, session, nothing, type GptState } from '../src/chatgpt/session';
-import { getSource, setSource, SOURCE_KEY, type Source } from '../src/core/source';
+import { getSource, setSource, storedSource, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
 import { getReady, resume } from '../src/core/phoneDownload';
 import Native from '../modules/ownvoice-native';
@@ -56,7 +56,7 @@ export default function Setup() {
   const signing = useRef(0);
   // Whether this attempt started a new sign-in, rather than finding ChatGPT already connected.
   const fresh = useRef(false);
-  const [source, setShownSource] = useState<Source>(() => store.get<Source>(SOURCE_KEY) ?? null);
+  const [source, setShownSource] = useState<Source>(() => storedSource() ?? null);
   // The handlers that leave the screen (Done, Back) read the step at tap time, not mount time.
   const latest = useRef({ step, inserted, installed, choices, gpt });
   latest.current = { step, inserted, installed, choices, gpt };

@@ -2400,44 +2400,12 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
 
 exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
 <View
-  accessibilityRole="radio"
-  accessibilityState={
-    {
-      "busy": undefined,
-      "checked": true,
-      "disabled": false,
-      "expanded": undefined,
-      "selected": undefined,
-    }
-  }
-  accessibilityValue={
-    {
-      "max": undefined,
-      "min": undefined,
-      "now": undefined,
-      "text": undefined,
-    }
-  }
-  accessible={true}
-  collapsable={false}
-  focusable={true}
-  onBlur={[Function]}
-  onClick={[Function]}
-  onFocus={[Function]}
-  onResponderGrant={[Function]}
-  onResponderMove={[Function]}
-  onResponderRelease={[Function]}
-  onResponderTerminate={[Function]}
-  onResponderTerminationRequest={[Function]}
-  onStartShouldSetResponder={[Function]}
   style={
     [
       {
         "borderRadius": 20,
         "borderWidth": 2,
-        "gap": 12,
         "overflow": "hidden",
-        "padding": 14,
       },
       {
         "backgroundColor": "#2B2930",
@@ -2448,168 +2416,40 @@ exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
   }
 >
   <View
-    style={
+    accessibilityRole="radio"
+    accessibilityState={
       {
-        "alignItems": "flex-start",
-        "flexDirection": "row",
-        "gap": 16,
+        "busy": undefined,
+        "checked": true,
+        "disabled": false,
+        "expanded": undefined,
+        "selected": undefined,
       }
     }
-  >
-    <View
-      style={
-        {
-          "alignItems": "center",
-          "backgroundColor": "#4F378B",
-          "borderRadius": 20,
-          "height": 40,
-          "justifyContent": "center",
-          "width": 40,
-        }
+    accessibilityValue={
+      {
+        "max": undefined,
+        "min": undefined,
+        "now": undefined,
+        "text": undefined,
       }
-    >
-      <RNSVGSvgView
-        align="xMidYMid"
-        bbHeight={22}
-        bbWidth={22}
-        focusable={false}
-        height={22}
-        meetOrSlice={0}
-        minX={0}
-        minY={0}
-        style={
-          [
-            {
-              "backgroundColor": "transparent",
-              "borderWidth": 0,
-            },
-            {
-              "flex": 0,
-              "height": 22,
-              "width": 22,
-            },
-          ]
-        }
-        vbHeight={24}
-        vbWidth={24}
-        width={22}
-      >
-        <RNSVGGroup
-          fill={
-            {
-              "payload": 4278190080,
-              "type": 0,
-            }
-          }
-        >
-          <RNSVGPath
-            d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
-            fill={null}
-            propList={
-              [
-                "fill",
-                "stroke",
-                "strokeWidth",
-                "strokeLinecap",
-                "strokeLinejoin",
-              ]
-            }
-            stroke={
-              {
-                "payload": 4278190080,
-                "type": 0,
-              }
-            }
-            strokeLinecap={1}
-            strokeLinejoin={1}
-            strokeWidth={1.8}
-          />
-        </RNSVGGroup>
-      </RNSVGSvgView>
-    </View>
-    <View
-      style={
-        {
-          "flex": 1,
-        }
-      }
-    >
-      <Text
-        style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "500",
-              "lineHeight": 20,
-            },
-            {
-              "fontSize": 16,
-              "lineHeight": 24,
-            },
-            {
-              "color": "#E6E0E9",
-            },
-          ]
-        }
-      >
-        On this phone
-      </Text>
-      <Text
-        style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "400",
-              "lineHeight": 20,
-            },
-            {
-              "color": "#CAC4D0",
-            },
-          ]
-        }
-      >
-        Private and free
-      </Text>
-    </View>
-    <View
-      style={
-        [
-          {
-            "alignItems": "center",
-            "borderRadius": 11,
-            "borderWidth": 2,
-            "height": 22,
-            "justifyContent": "center",
-            "marginTop": 2,
-            "width": 22,
-          },
-          {
-            "borderColor": "#D0BCFF",
-          },
-        ]
-      }
-    >
-      <View
-        style={
-          [
-            {
-              "borderRadius": 6,
-              "height": 12,
-              "width": 12,
-            },
-            {
-              "backgroundColor": "#D0BCFF",
-            },
-          ]
-        }
-      />
-    </View>
-  </View>
-  <View
+    }
+    accessible={true}
+    collapsable={false}
+    focusable={true}
+    onBlur={[Function]}
+    onClick={[Function]}
+    onFocus={[Function]}
+    onResponderGrant={[Function]}
+    onResponderMove={[Function]}
+    onResponderRelease={[Function]}
+    onResponderTerminate={[Function]}
+    onResponderTerminationRequest={[Function]}
+    onStartShouldSetResponder={[Function]}
     style={
       {
-        "gap": 8,
-        "paddingLeft": 56,
+        "gap": 12,
+        "padding": 14,
       }
     }
   >
@@ -2618,7 +2458,7 @@ exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
         {
           "alignItems": "flex-start",
           "flexDirection": "row",
-          "gap": 10,
+          "gap": 16,
         }
       }
     >
@@ -2626,18 +2466,20 @@ exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
         style={
           {
             "alignItems": "center",
-            "height": 20,
+            "backgroundColor": "#4F378B",
+            "borderRadius": 20,
+            "height": 40,
             "justifyContent": "center",
-            "width": 20,
+            "width": 40,
           }
         }
       >
         <RNSVGSvgView
           align="xMidYMid"
-          bbHeight={18}
-          bbWidth={18}
+          bbHeight={22}
+          bbWidth={22}
           focusable={false}
-          height={18}
+          height={22}
           meetOrSlice={0}
           minX={0}
           minY={0}
@@ -2649,14 +2491,14 @@ exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
               },
               {
                 "flex": 0,
-                "height": 18,
-                "width": 18,
+                "height": 22,
+                "width": 22,
               },
             ]
           }
           vbHeight={24}
           vbWidth={24}
-          width={18}
+          width={22}
         >
           <RNSVGGroup
             fill={
@@ -2667,7 +2509,7 @@ exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
             }
           >
             <RNSVGPath
-              d="M5,12.5 l4.5,4.5 L19,7.5"
+              d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
               fill={null}
               propList={
                 [
@@ -2680,90 +2522,255 @@ exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
               }
               stroke={
                 {
-                  "payload": 4291869951,
+                  "payload": 4278190080,
                   "type": 0,
                 }
               }
               strokeLinecap={1}
               strokeLinejoin={1}
-              strokeWidth={2.2}
+              strokeWidth={1.8}
             />
           </RNSVGGroup>
         </RNSVGSvgView>
       </View>
-      <Text
-        style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "400",
-              "lineHeight": 20,
-            },
-            {
-              "flex": 1,
-            },
-            {
-              "color": "#E6E0E9",
-            },
-          ]
-        }
-      >
-        Free, and works without internet
-      </Text>
-    </View>
-    <View
-      style={
-        {
-          "alignItems": "flex-start",
-          "flexDirection": "row",
-          "gap": 10,
-        }
-      }
-    >
       <View
         style={
           {
-            "alignItems": "center",
-            "height": 20,
-            "justifyContent": "center",
-            "width": 20,
+            "flex": 1,
           }
+        }
+      >
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "500",
+                "lineHeight": 20,
+              },
+              {
+                "fontSize": 16,
+                "lineHeight": 24,
+              },
+              {
+                "color": "#E6E0E9",
+              },
+            ]
+          }
+        >
+          On this phone
+        </Text>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "400",
+                "lineHeight": 20,
+              },
+              {
+                "color": "#CAC4D0",
+              },
+            ]
+          }
+        >
+          Private and free
+        </Text>
+      </View>
+      <View
+        style={
+          [
+            {
+              "alignItems": "center",
+              "borderRadius": 11,
+              "borderWidth": 2,
+              "height": 22,
+              "justifyContent": "center",
+              "marginTop": 2,
+              "width": 22,
+            },
+            {
+              "borderColor": "#D0BCFF",
+            },
+          ]
         }
       >
         <View
           style={
             [
               {
-                "borderRadius": 3,
-                "height": 6,
-                "width": 6,
+                "borderRadius": 6,
+                "height": 12,
+                "width": 12,
               },
               {
-                "backgroundColor": "#938F99",
+                "backgroundColor": "#D0BCFF",
               },
             ]
           }
         />
       </View>
-      <Text
+    </View>
+    <View
+      style={
+        {
+          "gap": 8,
+          "paddingLeft": 56,
+        }
+      }
+    >
+      <View
         style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "400",
-              "lineHeight": 20,
-            },
-            {
-              "flex": 1,
-            },
-            {
-              "color": "#E6E0E9",
-            },
-          ]
+          {
+            "alignItems": "flex-start",
+            "flexDirection": "row",
+            "gap": 10,
+          }
         }
       >
-        Simpler drafts, and a bit slower on some phones
-      </Text>
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "height": 20,
+              "justifyContent": "center",
+              "width": 20,
+            }
+          }
+        >
+          <RNSVGSvgView
+            align="xMidYMid"
+            bbHeight={18}
+            bbWidth={18}
+            focusable={false}
+            height={18}
+            meetOrSlice={0}
+            minX={0}
+            minY={0}
+            style={
+              [
+                {
+                  "backgroundColor": "transparent",
+                  "borderWidth": 0,
+                },
+                {
+                  "flex": 0,
+                  "height": 18,
+                  "width": 18,
+                },
+              ]
+            }
+            vbHeight={24}
+            vbWidth={24}
+            width={18}
+          >
+            <RNSVGGroup
+              fill={
+                {
+                  "payload": 4278190080,
+                  "type": 0,
+                }
+              }
+            >
+              <RNSVGPath
+                d="M5,12.5 l4.5,4.5 L19,7.5"
+                fill={null}
+                propList={
+                  [
+                    "fill",
+                    "stroke",
+                    "strokeWidth",
+                    "strokeLinecap",
+                    "strokeLinejoin",
+                  ]
+                }
+                stroke={
+                  {
+                    "payload": 4291869951,
+                    "type": 0,
+                  }
+                }
+                strokeLinecap={1}
+                strokeLinejoin={1}
+                strokeWidth={2.2}
+              />
+            </RNSVGGroup>
+          </RNSVGSvgView>
+        </View>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "400",
+                "lineHeight": 20,
+              },
+              {
+                "flex": 1,
+              },
+              {
+                "color": "#E6E0E9",
+              },
+            ]
+          }
+        >
+          Free, and works without internet
+        </Text>
+      </View>
+      <View
+        style={
+          {
+            "alignItems": "flex-start",
+            "flexDirection": "row",
+            "gap": 10,
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "height": 20,
+              "justifyContent": "center",
+              "width": 20,
+            }
+          }
+        >
+          <View
+            style={
+              [
+                {
+                  "borderRadius": 3,
+                  "height": 6,
+                  "width": 6,
+                },
+                {
+                  "backgroundColor": "#938F99",
+                },
+              ]
+            }
+          />
+        </View>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "400",
+                "lineHeight": 20,
+              },
+              {
+                "flex": 1,
+              },
+              {
+                "color": "#E6E0E9",
+              },
+            ]
+          }
+        >
+          Simpler drafts, and a bit slower on some phones
+        </Text>
+      </View>
     </View>
   </View>
 </View>
@@ -2771,44 +2778,12 @@ exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
 
 exports[`ui components (dark) source-unavailable: dark/source-unavailable 1`] = `
 <View
-  accessibilityRole="radio"
-  accessibilityState={
-    {
-      "busy": undefined,
-      "checked": false,
-      "disabled": true,
-      "expanded": undefined,
-      "selected": undefined,
-    }
-  }
-  accessibilityValue={
-    {
-      "max": undefined,
-      "min": undefined,
-      "now": undefined,
-      "text": undefined,
-    }
-  }
-  accessible={true}
-  collapsable={false}
-  focusable={true}
-  onBlur={[Function]}
-  onClick={[Function]}
-  onFocus={[Function]}
-  onResponderGrant={[Function]}
-  onResponderMove={[Function]}
-  onResponderRelease={[Function]}
-  onResponderTerminate={[Function]}
-  onResponderTerminationRequest={[Function]}
-  onStartShouldSetResponder={[Function]}
   style={
     [
       {
         "borderRadius": 20,
         "borderWidth": 2,
-        "gap": 12,
         "overflow": "hidden",
-        "padding": 14,
       },
       {
         "backgroundColor": "#2B2930",
@@ -2821,128 +2796,167 @@ exports[`ui components (dark) source-unavailable: dark/source-unavailable 1`] = 
   }
 >
   <View
+    accessibilityRole="radio"
+    accessibilityState={
+      {
+        "busy": undefined,
+        "checked": false,
+        "disabled": true,
+        "expanded": undefined,
+        "selected": undefined,
+      }
+    }
+    accessibilityValue={
+      {
+        "max": undefined,
+        "min": undefined,
+        "now": undefined,
+        "text": undefined,
+      }
+    }
+    accessible={true}
+    collapsable={false}
+    focusable={true}
+    onBlur={[Function]}
+    onClick={[Function]}
+    onFocus={[Function]}
+    onResponderGrant={[Function]}
+    onResponderMove={[Function]}
+    onResponderRelease={[Function]}
+    onResponderTerminate={[Function]}
+    onResponderTerminationRequest={[Function]}
+    onStartShouldSetResponder={[Function]}
     style={
       {
-        "alignItems": "flex-start",
-        "flexDirection": "row",
-        "gap": 16,
+        "gap": 12,
+        "padding": 14,
       }
     }
   >
     <View
       style={
         {
-          "alignItems": "center",
-          "backgroundColor": "#4F378B",
-          "borderRadius": 20,
-          "height": 40,
-          "justifyContent": "center",
-          "width": 40,
+          "alignItems": "flex-start",
+          "flexDirection": "row",
+          "gap": 16,
         }
       }
     >
-      <RNSVGSvgView
-        align="xMidYMid"
-        bbHeight={22}
-        bbWidth={22}
-        focusable={false}
-        height={22}
-        meetOrSlice={0}
-        minX={0}
-        minY={0}
+      <View
         style={
-          [
-            {
-              "backgroundColor": "transparent",
-              "borderWidth": 0,
-            },
-            {
-              "flex": 0,
-              "height": 22,
-              "width": 22,
-            },
-          ]
-        }
-        vbHeight={24}
-        vbWidth={24}
-        width={22}
-      >
-        <RNSVGGroup
-          fill={
-            {
-              "payload": 4278190080,
-              "type": 0,
-            }
+          {
+            "alignItems": "center",
+            "backgroundColor": "#4F378B",
+            "borderRadius": 20,
+            "height": 40,
+            "justifyContent": "center",
+            "width": 40,
           }
+        }
+      >
+        <RNSVGSvgView
+          align="xMidYMid"
+          bbHeight={22}
+          bbWidth={22}
+          focusable={false}
+          height={22}
+          meetOrSlice={0}
+          minX={0}
+          minY={0}
+          style={
+            [
+              {
+                "backgroundColor": "transparent",
+                "borderWidth": 0,
+              },
+              {
+                "flex": 0,
+                "height": 22,
+                "width": 22,
+              },
+            ]
+          }
+          vbHeight={24}
+          vbWidth={24}
+          width={22}
         >
-          <RNSVGPath
-            d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
-            fill={null}
-            propList={
-              [
-                "fill",
-                "stroke",
-                "strokeWidth",
-                "strokeLinecap",
-                "strokeLinejoin",
-              ]
-            }
-            stroke={
+          <RNSVGGroup
+            fill={
               {
                 "payload": 4278190080,
                 "type": 0,
               }
             }
-            strokeLinecap={1}
-            strokeLinejoin={1}
-            strokeWidth={1.8}
-          />
-        </RNSVGGroup>
-      </RNSVGSvgView>
-    </View>
-    <View
-      style={
-        {
-          "flex": 1,
-        }
-      }
-    >
-      <Text
+          >
+            <RNSVGPath
+              d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
+              fill={null}
+              propList={
+                [
+                  "fill",
+                  "stroke",
+                  "strokeWidth",
+                  "strokeLinecap",
+                  "strokeLinejoin",
+                ]
+              }
+              stroke={
+                {
+                  "payload": 4278190080,
+                  "type": 0,
+                }
+              }
+              strokeLinecap={1}
+              strokeLinejoin={1}
+              strokeWidth={1.8}
+            />
+          </RNSVGGroup>
+        </RNSVGSvgView>
+      </View>
+      <View
         style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "500",
-              "lineHeight": 20,
-            },
-            {
-              "fontSize": 16,
-              "lineHeight": 24,
-            },
-            {
-              "color": "#E6E0E9",
-            },
-          ]
+          {
+            "flex": 1,
+          }
         }
       >
-        On this phone
-      </Text>
-      <Text
-        style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "400",
-              "lineHeight": 20,
-            },
-            {
-              "color": "#CAC4D0",
-            },
-          ]
-        }
-      >
-        This phone can't write on its own. Only some newer phones can.
-      </Text>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "500",
+                "lineHeight": 20,
+              },
+              {
+                "fontSize": 16,
+                "lineHeight": 24,
+              },
+              {
+                "color": "#E6E0E9",
+              },
+            ]
+          }
+        >
+          On this phone
+        </Text>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "400",
+                "lineHeight": 20,
+              },
+              {
+                "color": "#CAC4D0",
+              },
+            ]
+          }
+        >
+          This phone can't write on its own. Only some newer phones can.
+        </Text>
+      </View>
     </View>
   </View>
 </View>
@@ -5533,44 +5547,12 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
 
 exports[`ui components (light) source-selected: light/source-selected 1`] = `
 <View
-  accessibilityRole="radio"
-  accessibilityState={
-    {
-      "busy": undefined,
-      "checked": true,
-      "disabled": false,
-      "expanded": undefined,
-      "selected": undefined,
-    }
-  }
-  accessibilityValue={
-    {
-      "max": undefined,
-      "min": undefined,
-      "now": undefined,
-      "text": undefined,
-    }
-  }
-  accessible={true}
-  collapsable={false}
-  focusable={true}
-  onBlur={[Function]}
-  onClick={[Function]}
-  onFocus={[Function]}
-  onResponderGrant={[Function]}
-  onResponderMove={[Function]}
-  onResponderRelease={[Function]}
-  onResponderTerminate={[Function]}
-  onResponderTerminationRequest={[Function]}
-  onStartShouldSetResponder={[Function]}
   style={
     [
       {
         "borderRadius": 20,
         "borderWidth": 2,
-        "gap": 12,
         "overflow": "hidden",
-        "padding": 14,
       },
       {
         "backgroundColor": "#FFFFFF",
@@ -5581,168 +5563,40 @@ exports[`ui components (light) source-selected: light/source-selected 1`] = `
   }
 >
   <View
-    style={
+    accessibilityRole="radio"
+    accessibilityState={
       {
-        "alignItems": "flex-start",
-        "flexDirection": "row",
-        "gap": 16,
+        "busy": undefined,
+        "checked": true,
+        "disabled": false,
+        "expanded": undefined,
+        "selected": undefined,
       }
     }
-  >
-    <View
-      style={
-        {
-          "alignItems": "center",
-          "backgroundColor": "#EADDFF",
-          "borderRadius": 20,
-          "height": 40,
-          "justifyContent": "center",
-          "width": 40,
-        }
+    accessibilityValue={
+      {
+        "max": undefined,
+        "min": undefined,
+        "now": undefined,
+        "text": undefined,
       }
-    >
-      <RNSVGSvgView
-        align="xMidYMid"
-        bbHeight={22}
-        bbWidth={22}
-        focusable={false}
-        height={22}
-        meetOrSlice={0}
-        minX={0}
-        minY={0}
-        style={
-          [
-            {
-              "backgroundColor": "transparent",
-              "borderWidth": 0,
-            },
-            {
-              "flex": 0,
-              "height": 22,
-              "width": 22,
-            },
-          ]
-        }
-        vbHeight={24}
-        vbWidth={24}
-        width={22}
-      >
-        <RNSVGGroup
-          fill={
-            {
-              "payload": 4278190080,
-              "type": 0,
-            }
-          }
-        >
-          <RNSVGPath
-            d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
-            fill={null}
-            propList={
-              [
-                "fill",
-                "stroke",
-                "strokeWidth",
-                "strokeLinecap",
-                "strokeLinejoin",
-              ]
-            }
-            stroke={
-              {
-                "payload": 4278190080,
-                "type": 0,
-              }
-            }
-            strokeLinecap={1}
-            strokeLinejoin={1}
-            strokeWidth={1.8}
-          />
-        </RNSVGGroup>
-      </RNSVGSvgView>
-    </View>
-    <View
-      style={
-        {
-          "flex": 1,
-        }
-      }
-    >
-      <Text
-        style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "500",
-              "lineHeight": 20,
-            },
-            {
-              "fontSize": 16,
-              "lineHeight": 24,
-            },
-            {
-              "color": "#1D1B20",
-            },
-          ]
-        }
-      >
-        On this phone
-      </Text>
-      <Text
-        style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "400",
-              "lineHeight": 20,
-            },
-            {
-              "color": "#49454F",
-            },
-          ]
-        }
-      >
-        Private and free
-      </Text>
-    </View>
-    <View
-      style={
-        [
-          {
-            "alignItems": "center",
-            "borderRadius": 11,
-            "borderWidth": 2,
-            "height": 22,
-            "justifyContent": "center",
-            "marginTop": 2,
-            "width": 22,
-          },
-          {
-            "borderColor": "#6750A4",
-          },
-        ]
-      }
-    >
-      <View
-        style={
-          [
-            {
-              "borderRadius": 6,
-              "height": 12,
-              "width": 12,
-            },
-            {
-              "backgroundColor": "#6750A4",
-            },
-          ]
-        }
-      />
-    </View>
-  </View>
-  <View
+    }
+    accessible={true}
+    collapsable={false}
+    focusable={true}
+    onBlur={[Function]}
+    onClick={[Function]}
+    onFocus={[Function]}
+    onResponderGrant={[Function]}
+    onResponderMove={[Function]}
+    onResponderRelease={[Function]}
+    onResponderTerminate={[Function]}
+    onResponderTerminationRequest={[Function]}
+    onStartShouldSetResponder={[Function]}
     style={
       {
-        "gap": 8,
-        "paddingLeft": 56,
+        "gap": 12,
+        "padding": 14,
       }
     }
   >
@@ -5751,7 +5605,7 @@ exports[`ui components (light) source-selected: light/source-selected 1`] = `
         {
           "alignItems": "flex-start",
           "flexDirection": "row",
-          "gap": 10,
+          "gap": 16,
         }
       }
     >
@@ -5759,18 +5613,20 @@ exports[`ui components (light) source-selected: light/source-selected 1`] = `
         style={
           {
             "alignItems": "center",
-            "height": 20,
+            "backgroundColor": "#EADDFF",
+            "borderRadius": 20,
+            "height": 40,
             "justifyContent": "center",
-            "width": 20,
+            "width": 40,
           }
         }
       >
         <RNSVGSvgView
           align="xMidYMid"
-          bbHeight={18}
-          bbWidth={18}
+          bbHeight={22}
+          bbWidth={22}
           focusable={false}
-          height={18}
+          height={22}
           meetOrSlice={0}
           minX={0}
           minY={0}
@@ -5782,14 +5638,14 @@ exports[`ui components (light) source-selected: light/source-selected 1`] = `
               },
               {
                 "flex": 0,
-                "height": 18,
-                "width": 18,
+                "height": 22,
+                "width": 22,
               },
             ]
           }
           vbHeight={24}
           vbWidth={24}
-          width={18}
+          width={22}
         >
           <RNSVGGroup
             fill={
@@ -5800,7 +5656,7 @@ exports[`ui components (light) source-selected: light/source-selected 1`] = `
             }
           >
             <RNSVGPath
-              d="M5,12.5 l4.5,4.5 L19,7.5"
+              d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
               fill={null}
               propList={
                 [
@@ -5813,90 +5669,255 @@ exports[`ui components (light) source-selected: light/source-selected 1`] = `
               }
               stroke={
                 {
-                  "payload": 4284960932,
+                  "payload": 4278190080,
                   "type": 0,
                 }
               }
               strokeLinecap={1}
               strokeLinejoin={1}
-              strokeWidth={2.2}
+              strokeWidth={1.8}
             />
           </RNSVGGroup>
         </RNSVGSvgView>
       </View>
-      <Text
-        style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "400",
-              "lineHeight": 20,
-            },
-            {
-              "flex": 1,
-            },
-            {
-              "color": "#1D1B20",
-            },
-          ]
-        }
-      >
-        Free, and works without internet
-      </Text>
-    </View>
-    <View
-      style={
-        {
-          "alignItems": "flex-start",
-          "flexDirection": "row",
-          "gap": 10,
-        }
-      }
-    >
       <View
         style={
           {
-            "alignItems": "center",
-            "height": 20,
-            "justifyContent": "center",
-            "width": 20,
+            "flex": 1,
           }
+        }
+      >
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "500",
+                "lineHeight": 20,
+              },
+              {
+                "fontSize": 16,
+                "lineHeight": 24,
+              },
+              {
+                "color": "#1D1B20",
+              },
+            ]
+          }
+        >
+          On this phone
+        </Text>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "400",
+                "lineHeight": 20,
+              },
+              {
+                "color": "#49454F",
+              },
+            ]
+          }
+        >
+          Private and free
+        </Text>
+      </View>
+      <View
+        style={
+          [
+            {
+              "alignItems": "center",
+              "borderRadius": 11,
+              "borderWidth": 2,
+              "height": 22,
+              "justifyContent": "center",
+              "marginTop": 2,
+              "width": 22,
+            },
+            {
+              "borderColor": "#6750A4",
+            },
+          ]
         }
       >
         <View
           style={
             [
               {
-                "borderRadius": 3,
-                "height": 6,
-                "width": 6,
+                "borderRadius": 6,
+                "height": 12,
+                "width": 12,
               },
               {
-                "backgroundColor": "#79747E",
+                "backgroundColor": "#6750A4",
               },
             ]
           }
         />
       </View>
-      <Text
+    </View>
+    <View
+      style={
+        {
+          "gap": 8,
+          "paddingLeft": 56,
+        }
+      }
+    >
+      <View
         style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "400",
-              "lineHeight": 20,
-            },
-            {
-              "flex": 1,
-            },
-            {
-              "color": "#1D1B20",
-            },
-          ]
+          {
+            "alignItems": "flex-start",
+            "flexDirection": "row",
+            "gap": 10,
+          }
         }
       >
-        Simpler drafts, and a bit slower on some phones
-      </Text>
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "height": 20,
+              "justifyContent": "center",
+              "width": 20,
+            }
+          }
+        >
+          <RNSVGSvgView
+            align="xMidYMid"
+            bbHeight={18}
+            bbWidth={18}
+            focusable={false}
+            height={18}
+            meetOrSlice={0}
+            minX={0}
+            minY={0}
+            style={
+              [
+                {
+                  "backgroundColor": "transparent",
+                  "borderWidth": 0,
+                },
+                {
+                  "flex": 0,
+                  "height": 18,
+                  "width": 18,
+                },
+              ]
+            }
+            vbHeight={24}
+            vbWidth={24}
+            width={18}
+          >
+            <RNSVGGroup
+              fill={
+                {
+                  "payload": 4278190080,
+                  "type": 0,
+                }
+              }
+            >
+              <RNSVGPath
+                d="M5,12.5 l4.5,4.5 L19,7.5"
+                fill={null}
+                propList={
+                  [
+                    "fill",
+                    "stroke",
+                    "strokeWidth",
+                    "strokeLinecap",
+                    "strokeLinejoin",
+                  ]
+                }
+                stroke={
+                  {
+                    "payload": 4284960932,
+                    "type": 0,
+                  }
+                }
+                strokeLinecap={1}
+                strokeLinejoin={1}
+                strokeWidth={2.2}
+              />
+            </RNSVGGroup>
+          </RNSVGSvgView>
+        </View>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "400",
+                "lineHeight": 20,
+              },
+              {
+                "flex": 1,
+              },
+              {
+                "color": "#1D1B20",
+              },
+            ]
+          }
+        >
+          Free, and works without internet
+        </Text>
+      </View>
+      <View
+        style={
+          {
+            "alignItems": "flex-start",
+            "flexDirection": "row",
+            "gap": 10,
+          }
+        }
+      >
+        <View
+          style={
+            {
+              "alignItems": "center",
+              "height": 20,
+              "justifyContent": "center",
+              "width": 20,
+            }
+          }
+        >
+          <View
+            style={
+              [
+                {
+                  "borderRadius": 3,
+                  "height": 6,
+                  "width": 6,
+                },
+                {
+                  "backgroundColor": "#79747E",
+                },
+              ]
+            }
+          />
+        </View>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "400",
+                "lineHeight": 20,
+              },
+              {
+                "flex": 1,
+              },
+              {
+                "color": "#1D1B20",
+              },
+            ]
+          }
+        >
+          Simpler drafts, and a bit slower on some phones
+        </Text>
+      </View>
     </View>
   </View>
 </View>
@@ -5904,44 +5925,12 @@ exports[`ui components (light) source-selected: light/source-selected 1`] = `
 
 exports[`ui components (light) source-unavailable: light/source-unavailable 1`] = `
 <View
-  accessibilityRole="radio"
-  accessibilityState={
-    {
-      "busy": undefined,
-      "checked": false,
-      "disabled": true,
-      "expanded": undefined,
-      "selected": undefined,
-    }
-  }
-  accessibilityValue={
-    {
-      "max": undefined,
-      "min": undefined,
-      "now": undefined,
-      "text": undefined,
-    }
-  }
-  accessible={true}
-  collapsable={false}
-  focusable={true}
-  onBlur={[Function]}
-  onClick={[Function]}
-  onFocus={[Function]}
-  onResponderGrant={[Function]}
-  onResponderMove={[Function]}
-  onResponderRelease={[Function]}
-  onResponderTerminate={[Function]}
-  onResponderTerminationRequest={[Function]}
-  onStartShouldSetResponder={[Function]}
   style={
     [
       {
         "borderRadius": 20,
         "borderWidth": 2,
-        "gap": 12,
         "overflow": "hidden",
-        "padding": 14,
       },
       {
         "backgroundColor": "#FFFFFF",
@@ -5954,128 +5943,167 @@ exports[`ui components (light) source-unavailable: light/source-unavailable 1`] 
   }
 >
   <View
+    accessibilityRole="radio"
+    accessibilityState={
+      {
+        "busy": undefined,
+        "checked": false,
+        "disabled": true,
+        "expanded": undefined,
+        "selected": undefined,
+      }
+    }
+    accessibilityValue={
+      {
+        "max": undefined,
+        "min": undefined,
+        "now": undefined,
+        "text": undefined,
+      }
+    }
+    accessible={true}
+    collapsable={false}
+    focusable={true}
+    onBlur={[Function]}
+    onClick={[Function]}
+    onFocus={[Function]}
+    onResponderGrant={[Function]}
+    onResponderMove={[Function]}
+    onResponderRelease={[Function]}
+    onResponderTerminate={[Function]}
+    onResponderTerminationRequest={[Function]}
+    onStartShouldSetResponder={[Function]}
     style={
       {
-        "alignItems": "flex-start",
-        "flexDirection": "row",
-        "gap": 16,
+        "gap": 12,
+        "padding": 14,
       }
     }
   >
     <View
       style={
         {
-          "alignItems": "center",
-          "backgroundColor": "#EADDFF",
-          "borderRadius": 20,
-          "height": 40,
-          "justifyContent": "center",
-          "width": 40,
+          "alignItems": "flex-start",
+          "flexDirection": "row",
+          "gap": 16,
         }
       }
     >
-      <RNSVGSvgView
-        align="xMidYMid"
-        bbHeight={22}
-        bbWidth={22}
-        focusable={false}
-        height={22}
-        meetOrSlice={0}
-        minX={0}
-        minY={0}
+      <View
         style={
-          [
-            {
-              "backgroundColor": "transparent",
-              "borderWidth": 0,
-            },
-            {
-              "flex": 0,
-              "height": 22,
-              "width": 22,
-            },
-          ]
-        }
-        vbHeight={24}
-        vbWidth={24}
-        width={22}
-      >
-        <RNSVGGroup
-          fill={
-            {
-              "payload": 4278190080,
-              "type": 0,
-            }
+          {
+            "alignItems": "center",
+            "backgroundColor": "#EADDFF",
+            "borderRadius": 20,
+            "height": 40,
+            "justifyContent": "center",
+            "width": 40,
           }
+        }
+      >
+        <RNSVGSvgView
+          align="xMidYMid"
+          bbHeight={22}
+          bbWidth={22}
+          focusable={false}
+          height={22}
+          meetOrSlice={0}
+          minX={0}
+          minY={0}
+          style={
+            [
+              {
+                "backgroundColor": "transparent",
+                "borderWidth": 0,
+              },
+              {
+                "flex": 0,
+                "height": 22,
+                "width": 22,
+              },
+            ]
+          }
+          vbHeight={24}
+          vbWidth={24}
+          width={22}
         >
-          <RNSVGPath
-            d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
-            fill={null}
-            propList={
-              [
-                "fill",
-                "stroke",
-                "strokeWidth",
-                "strokeLinecap",
-                "strokeLinejoin",
-              ]
-            }
-            stroke={
+          <RNSVGGroup
+            fill={
               {
                 "payload": 4278190080,
                 "type": 0,
               }
             }
-            strokeLinecap={1}
-            strokeLinejoin={1}
-            strokeWidth={1.8}
-          />
-        </RNSVGGroup>
-      </RNSVGSvgView>
-    </View>
-    <View
-      style={
-        {
-          "flex": 1,
-        }
-      }
-    >
-      <Text
+          >
+            <RNSVGPath
+              d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
+              fill={null}
+              propList={
+                [
+                  "fill",
+                  "stroke",
+                  "strokeWidth",
+                  "strokeLinecap",
+                  "strokeLinejoin",
+                ]
+              }
+              stroke={
+                {
+                  "payload": 4278190080,
+                  "type": 0,
+                }
+              }
+              strokeLinecap={1}
+              strokeLinejoin={1}
+              strokeWidth={1.8}
+            />
+          </RNSVGGroup>
+        </RNSVGSvgView>
+      </View>
+      <View
         style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "500",
-              "lineHeight": 20,
-            },
-            {
-              "fontSize": 16,
-              "lineHeight": 24,
-            },
-            {
-              "color": "#1D1B20",
-            },
-          ]
+          {
+            "flex": 1,
+          }
         }
       >
-        On this phone
-      </Text>
-      <Text
-        style={
-          [
-            {
-              "fontSize": 14,
-              "fontWeight": "400",
-              "lineHeight": 20,
-            },
-            {
-              "color": "#49454F",
-            },
-          ]
-        }
-      >
-        This phone can't write on its own. Only some newer phones can.
-      </Text>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "500",
+                "lineHeight": 20,
+              },
+              {
+                "fontSize": 16,
+                "lineHeight": 24,
+              },
+              {
+                "color": "#1D1B20",
+              },
+            ]
+          }
+        >
+          On this phone
+        </Text>
+        <Text
+          style={
+            [
+              {
+                "fontSize": 14,
+                "fontWeight": "400",
+                "lineHeight": 20,
+              },
+              {
+                "color": "#49454F",
+              },
+            ]
+          }
+        >
+          This phone can't write on its own. Only some newer phones can.
+        </Text>
+      </View>
     </View>
   </View>
 </View>
