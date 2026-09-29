@@ -122,6 +122,19 @@ test('a switched-off ChatGPT keeps the rewrite on the phone under the switch lin
   } finally { store.set('chatgpt-switch', null); }
 });
 
+test('a paused bubble with no phone writer says ChatGPT is off, not that the phone wrote', async () => {
+  store.set(SOURCE_KEY, 'chatgpt');
+  native.modelStatus.mockResolvedValue('cant');
+  native.bubbleRules.mockResolvedValue({ paused: true, on: [], off: [] });
+  (global as unknown as { fetch: unknown }).fetch = jest.fn();
+  const screen = await renderRewrite({ text: SELECTION, editable: true });
+  fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
+  await waitFor(() => expect(visibleStrings(screen)).toContain(words.gptOffNoPhone));
+  expect(visibleStrings(screen)).not.toContain(words.phoneWrote);
+  expect(global.fetch).not.toHaveBeenCalled();
+  expect(native.ask).not.toHaveBeenCalled();
+});
+
 test('a ChatGPT failure falls back to the phone with its plain line', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
   (global as unknown as { fetch: unknown }).fetch = jest.fn(async () => ({ ok: false, status: 500, text: async () => '', body: null } as unknown as Response));

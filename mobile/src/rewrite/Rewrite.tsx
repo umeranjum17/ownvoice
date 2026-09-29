@@ -105,7 +105,7 @@ export default function Rewrite() {
           setNote(veto ?? (offline ? words.offlinePhone : words.fallback));
           return;
         }
-        setNote(veto ?? (offline ? words.offlineNoPhone : words.chatgptFailed));
+        setNote(veto ? words.gptOffNoPhone : offline ? words.offlineNoPhone : words.chatgptFailed);
       }
     } catch (error) {
       if (id !== run.current) return;
