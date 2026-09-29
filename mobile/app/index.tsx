@@ -8,7 +8,7 @@ import { Progress } from '../src/ui/Progress';
 import { Button } from '../src/ui/Button';
 import { Badge } from '../src/ui/Badge';
 import { Dot } from '../src/ui/Dot';
-import { ChatIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
@@ -54,6 +54,7 @@ export default function Home() {
   const [phrases, setPhrases] = useState(0);
   const [week, setWeek] = useState(0);
   const [settingsFailed, setSettingsFailed] = useState(false);
+  const [typing, setTyping] = useState<boolean | null>(null);
   const [source, setShownSource] = useState<Source | undefined>(storedSource);
   const [gpt, setGpt] = useState<GptState | null>(null);
   const busy = useRef(Promise.resolve());
@@ -63,6 +64,7 @@ export default function Home() {
     void Native.serviceState().then(setService).catch(() => {});
     void modelStatus().then(setModel).catch(() => {});
     void Native.bubbleRules().then(setRules).catch(() => {});
+    void Native.typingCheck().then(setTyping).catch(() => {});
     void getSource().then(setShownSource).catch(() => {});
     void session.current().then(setGpt).catch(() => {});
     void Native.launcherApps(null).then(setApps).catch(() => {});
@@ -113,6 +115,11 @@ export default function Home() {
     setSettingsFailed(false);
     if (want) router.push('/setup');
     else { void Native.turnOff().then(reload).catch(() => { reload(); setSettingsFailed(true); }); }
+  };
+  // Off unless the person switches it on: then the bubble counts slips after each typing pause, on this phone.
+  const changeTyping = (on: boolean) => {
+    setSettingsFailed(false);
+    void Native.setTypingCheck(on).then(() => setTyping(on)).catch(() => setSettingsFailed(true));
   };
   // The person's yes starts the one-time download (on Wi-Fi unless they pick mobile data).
   const start = (mobileData = false) => { void getReady(mobileData).catch(() => {}); };
@@ -178,6 +185,9 @@ export default function Home() {
       <Row lead={icon(PauseIcon)} title={words.rowPause} subtitle={words.rowPauseNote}
         end={<View pointerEvents="none"><Switch value={paused} disabled={!rules} onValueChange={v => changeRules(r => ({ ...r, paused: v }))} /></View>}
         onPress={() => { if (rules) changeRules(r => ({ ...r, paused: !r.paused })); }} />
+      <Row lead={icon(CheckIcon)} title={words.rowTyping} subtitle={words.rowTypingNote}
+        end={<View pointerEvents="none"><Switch value={!!typing} disabled={typing === null} onValueChange={changeTyping} /></View>}
+        onPress={() => { if (typing !== null) changeTyping(!typing); }} />
     </View>
 
     <View style={[styles.tip, { borderColor: t.line }]}>

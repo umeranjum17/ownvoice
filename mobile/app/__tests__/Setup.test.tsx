@@ -15,7 +15,7 @@ jest.mock('../../modules/ownvoice-native', () => ({
   default: {
     modelStatus: jest.fn(), downloadModel: jest.fn(), serviceState: jest.fn(), launcherApps: jest.fn(),
     bubbleRules: jest.fn(), setBubbleRules: jest.fn(), setPractice: jest.fn(), clearSetupReturn: jest.fn(),
-    openAccessibilitySettings: jest.fn(), openAppInfo: jest.fn(), addListener: jest.fn(), copy: jest.fn(),
+    openAccessibilitySettings: jest.fn(), openAppInfo: jest.fn(), addListener: jest.fn(), copy: jest.fn(), typingCheck: jest.fn(async () => false),
   },
 }));
 jest.mock('../../src/chatgpt/session', () => ({
@@ -62,6 +62,7 @@ beforeEach(() => {
   native.openAccessibilitySettings.mockResolvedValue(undefined as never);
   native.openAppInfo.mockResolvedValue(undefined as never);
   native.copy.mockResolvedValue(undefined as never);
+  native.typingCheck.mockResolvedValue(false);
   gpt.current.mockResolvedValue(nothing);
   gpt.start.mockResolvedValue(waitingCode);
   gpt.cancel.mockResolvedValue({ ...nothing, note: 'Sign-in stopped. Nothing was kept.' });
@@ -138,6 +139,16 @@ test('alreadyOnSkipsThePermission', async () => {
   await screen.findByText(words.tradePhone1);
   await fireEvent.press(screen.getByText(words.continueLabel));
   expect(await screen.findByText(words.tryTitle)).toBeTruthy();
+});
+
+test('with the typing check on, the permission promise says it reads as you type', async () => {
+  native.typingCheck.mockResolvedValue(true);
+  at('PERMISSION');
+  const screen = await renderSetup();
+  expect(await screen.findByText(words.promiseTapTyping)).toBeTruthy();
+  expect(screen.getByText(words.promiseTapTypingNote)).toBeTruthy();
+  expect(screen.queryByText(words.promiseTap)).toBeNull();
+  expect(screen.queryByText(words.promiseTapNote)).toBeNull();
 });
 
 test('permissionExplainsAndOpensTheSwitch', async () => {

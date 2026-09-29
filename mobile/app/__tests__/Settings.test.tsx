@@ -22,6 +22,7 @@ jest.mock('../../modules/ownvoice-native', () => ({
     serviceState: jest.fn(), turnOff: jest.fn(), modelStatus: jest.fn(), downloadModel: jest.fn(), deleteModel: jest.fn(), cancelModelDownload: jest.fn(),
     bubbleRules: jest.fn(), setBubbleRules: jest.fn(), launcherApps: jest.fn(), takeTapFacts: jest.fn(),
     clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(), sharedMarkdown: jest.fn(), finishRewrite: jest.fn(),
+    typingCheck: jest.fn(), setTypingCheck: jest.fn(),
   },
 }));
 
@@ -71,6 +72,8 @@ beforeEach(() => {
   native.turnOff.mockResolvedValue(undefined);
   native.downloadModel.mockResolvedValue(undefined);
   native.deleteModel.mockResolvedValue(undefined);
+  native.typingCheck.mockResolvedValue(false);
+  native.setTypingCheck.mockResolvedValue(undefined);
   (native.addListener as jest.Mock).mockReturnValue({ remove: () => {} });
   jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: () => {} });
   picker.pickFileAsync.mockRejectedValue(new Error('no picker in jest'));
@@ -357,6 +360,22 @@ test('a failed pause choice stays off, explains the failure, and can be retried'
   fireEvent.press(screen.getByText(words.rowPause));
   await waitFor(() => expect(screen.queryByText(words.failed)).toBeNull());
   expect(native.setBubbleRules).toHaveBeenCalledTimes(2);
+});
+
+test('checking spelling as you type starts off, and one tap switches it on', async () => {
+  const screen = await homeCopy();
+  expect(screen.getByText(words.rowTypingNote)).toBeTruthy();
+  fireEvent.press(screen.getByText(words.rowTyping));
+  await waitFor(() => expect(native.setTypingCheck).toHaveBeenCalledWith(true));
+});
+
+test('a failed typing check choice says so and stays off', async () => {
+  native.setTypingCheck.mockRejectedValueOnce(new Error('could not save'));
+  const screen = await homeCopy();
+  fireEvent.press(screen.getByText(words.rowTyping));
+  expect(await screen.findByText(words.failed)).toBeTruthy();
+  fireEvent.press(screen.getByText(words.rowTyping));
+  await waitFor(() => expect(native.setTypingCheck).toHaveBeenLastCalledWith(true));
 });
 
 test('a dropped service asks to be turned back on', async () => {

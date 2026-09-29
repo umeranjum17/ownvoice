@@ -97,10 +97,11 @@ Home shows at a glance whether Ownvoice is ready, and holds every setting: how O
 
 ## Your words stay yours
 
-Ownvoice reads the screen only when you tap its bubble, never in the background, and only in apps you switched on. It never taps Send, posts or acts for you.
+Ownvoice reads the screen only when you tap its bubble, never in the background, and only in apps you switched on. It never taps Send, posts or acts for you. The one exception is a switch you have to turn on yourself, described below.
 
 - **On this phone**, nothing you read or write leaves the phone. Ownvoice has no server of its own.
 - **With your ChatGPT**, the chat on screen, what you typed and your writing rules go to ChatGPT, only when you tap the bubble. Text you select and send to **Make it better** goes to ChatGPT too. Ownvoice keeps no copy.
+- **Check my spelling as I type** is off unless you switch it on in Home. When it's on, Ownvoice also reads the message box you're typing in each time you stop typing for a moment, in apps you switched on, and a number on the bubble shows how many things look worth checking: spelling, common slips like "its" for "it's", and stock phrases. The check runs on the phone, even when you chose ChatGPT: nothing you type goes anywhere, nothing is kept, and these checks don't show up in What Ownvoice read. Tap the bubble to see them; each has its own **Fix**, and nothing changes until you tap it.
 - **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once, along with Your voice.
 
 <p align="center">
