@@ -1,0 +1,69 @@
+import { runAgent, type Call } from '../loop';
+import { checkVoice, shareNote } from '../tools';
+import { phoneBrain } from '../phoneBrain';
+import { scriptBrain } from '../script';
+import { NO_RULES } from '../../core/slop';
+import Native from '../../../modules/ownvoice-native';
+
+jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: { ask: jest.fn() } }));
+
+const native = Native as jest.Mocked<typeof Native>;
+beforeEach(() => { jest.clearAllMocks(); });
+const rules = { ...NO_RULES, never: ['circle back'] };
+const DRAFT = 'Let us circle back at 3';
+const FIXED = 'Talk at 3?';
+
+const tools = (shared: string[]) => [
+  checkVoice(() => rules),
+  shareNote(async (t, b) => { shared.push(`${t}:${b}`); return true; }),
+];
+
+test('draft, check, revise with the problems, check, then the share card', async () => {
+  native.ask.mockResolvedValueOnce(DRAFT).mockResolvedValueOnce(FIXED);
+  const shared: string[] = [];
+  const approve = jest.fn(async (_: Call) => true);
+  const out = await runAgent({ instructions: 'i', task: 'meet at 3', brain: phoneBrain(), approve, tools: tools(shared) });
+  expect(native.ask).toHaveBeenCalledTimes(2);
+  expect(native.ask.mock.calls[0][2]).toEqual({ maxTokens: 256 });
+  expect(native.ask.mock.calls[0][1]).toMatch(/Write the note/);
+  expect(native.ask.mock.calls[1][1]).toMatch(/circle back/);
+  expect(out.stop).toBe('done');
+  expect(approve).toHaveBeenCalledTimes(1);
+  expect(shared).toHaveLength(1);
+  expect(shared[0]).toMatch(FIXED);
+});
+
+test('stops after 2 revises and still offers the latest draft', async () => {
+  native.ask.mockResolvedValue(DRAFT);
+  const shared: string[] = [];
+  const out = await runAgent({ instructions: 'i', task: 'meet at 3', brain: phoneBrain(), approve: async () => true, tools: tools(shared) });
+  expect(native.ask).toHaveBeenCalledTimes(3);
+  expect(out.stop).toBe('done');
+  expect(shared).toHaveLength(1);
+});
+
+test('the model and maxTokens are parameters', async () => {
+  native.ask.mockResolvedValue(FIXED);
+  await runAgent({ instructions: 'i', task: 'meet at 3', brain: phoneBrain({ model: 'test-model', maxTokens: 64 }),
+    approve: async () => true, tools: tools([]) });
+  expect(native.ask.mock.calls[0][0]).toMatch(/test-model/);
+  expect(native.ask.mock.calls[0][2]).toEqual({ maxTokens: 64 });
+});
+
+test('the same script runs on any text writer', async () => {
+  const write = jest.fn(async (prompt: string) => (prompt.includes('problems') ? FIXED : DRAFT));
+  const shared: string[] = [];
+  const out = await runAgent({ instructions: 'i', task: 'meet at 3', brain: scriptBrain(write, { maxRevises: 1 }),
+    approve: async () => true, tools: tools(shared) });
+  expect(write).toHaveBeenCalledTimes(2);
+  expect(out.stop).toBe('done');
+  expect(shared[0]).toMatch(FIXED);
+});
+
+test('a no to sharing stops the script and nothing is shared', async () => {
+  native.ask.mockResolvedValue(FIXED);
+  const shared: string[] = [];
+  const out = await runAgent({ instructions: 'i', task: 't', brain: phoneBrain(), approve: async () => false, tools: tools(shared) });
+  expect(out.stop).toBe('declined');
+  expect(shared).toEqual([]);
+});
