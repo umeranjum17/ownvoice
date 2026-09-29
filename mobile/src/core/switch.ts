@@ -1,7 +1,4 @@
-import * as ed from '@noble/ed25519';
-import { sha512 } from '@noble/hashes/sha512';
-
-ed.etc.sha512Sync = (...m) => sha512(ed.etc.concatBytes(...m));
+import { verifyDetached } from '@byokit/seal';
 export const SWITCH_URL = 'https://raw.githubusercontent.com/umeranjum17/ownvoice/main/switch/chatgpt.json';
 export const SWITCH_PUBLIC_KEY = 'sn6nXy45sHxKHfM0Tvc2adkhbAaMN1QRQDY7L1qGiR0=';
 export const CACHE_MS = 6 * 60 * 60 * 1000;
@@ -20,7 +17,7 @@ export async function currentSwitch(store: SwitchStore): Promise<SwitchState | n
 }
 export async function verify(flag: Flag, publicKey: string, previousSeq: number): Promise<boolean> {
   if (flag?.payload?.v !== 1 || Object.keys(flag.payload).length !== 4 || flag.payload.app !== 'ownvoice' || !Number.isSafeInteger(flag.payload.seq) || flag.payload.seq <= previousSeq || !['on', 'off'].includes(flag.payload.chatgpt)) return false;
-  try { return await ed.verify(bytes(flag.sig), new TextEncoder().encode(JSON.stringify(flag.payload)), bytes(publicKey)); } catch { return false; }
+  try { return verifyDetached(new TextEncoder().encode(JSON.stringify(flag.payload)), bytes(flag.sig), bytes(publicKey)); } catch { return false; }
 }
 export async function chatgptEnabled(store: SwitchStore, fetcher: typeof fetch = fetch, now = Date.now(), publicKey = SWITCH_PUBLIC_KEY): Promise<boolean> {
   const prior = await currentSwitch(store);
