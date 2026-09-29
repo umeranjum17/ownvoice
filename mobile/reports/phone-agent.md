@@ -84,8 +84,12 @@ Captain: the agent versions are ___ (owed judgment; the live side-by-side reruns
   (`<Redirect href="/" />` when the flag is off) and `SettingsTest` ("Home has no Try a
   writing task row outside lab builds"); emulator deeplink capture PENDING with the builds.
 - Emulator captures (flagged lab build on the lane's own AVD `ov-agent-a5`, ANDROID_AVD_HOME
-  under `/home/umer/lab-tmp/ov-agent-a5`): PENDING (build running; Home row, lab empty,
-  share card, done).
+  under `/home/umer/lab-tmp/ov-agent-a5`): OWED behind the main native build fix. The flagged
+  release build (`:app:assembleRelease` from `mobile/android`, throwaway HOME/npm/Gradle home)
+  fails at `:ownvoice-native:compileReleaseKotlin` with the known PR 61 errors (unresolved
+  `coroutineContext` in `LocalGemma.kt`/`PhoneModel.kt`, `cancelDownload` overload in
+  `OwnvoiceNativeModule.kt`); the ov-native-build fix lane owns that file. No phone install
+  was attempted. The lane AVD `ov-agent-a5` stays created and booted for the rerun.
 
 ## P10: speed (owed live)
 
@@ -114,4 +118,7 @@ touched. Every npm/Expo/Gradle run used a throwaway HOME (`mobile/.lab-home-a5`,
 `/home/umer/lab-tmp/ov-agent-a5/home`), npm cache and Gradle home
 (`/home/umer/lab-tmp/ov-agent-a5/gradle-home`); the emulator used the lane's own AVD only.
 `~/.pi` file-list baseline before: files=39008 list-sha=1aa46fce654dec722c3748ebce9d83fde2b119ae053b9fd071d35a7be57faeeb
-(kept at `/home/umer/lab-tmp/ov-agent-a5/pi-baseline.txt`); after: PENDING (recorded before ship).
+(kept at `/home/umer/lab-tmp/ov-agent-a5/pi-baseline.txt`); after: files=39008
+list-sha=1aa46fce654dec722c3748ebce9d83fde2b119ae053b9fd071d35a7be57faeeb, zero files
+added or removed outside the volatile session/memory/sqlite paths: settings, packages and
+extensions unchanged.
