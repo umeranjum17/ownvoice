@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { Button } from '../src/ui/Button';
+import { Empty } from '../src/ui/Empty';
 import { Page } from '../src/ui/Page';
 import { Row } from '../src/ui/Row';
 import { Switch } from '../src/ui/Switch';
@@ -55,10 +56,7 @@ export default function PhoneApps() {
 
   return <Page title={words.phoneOnlyApps} note={words.phoneOnlyNote} onBack={() => router.back()}>
     {saveFailed && <Text style={[type.body, { color: t.text }]}>{words.gptAppsSaveFailed}</Text>}
-    {failed && <View style={{ gap: space.s, alignItems: 'flex-start' }}>
-      <Text style={[type.body, { color: t.muted }]}>{words.gptAppsUnavailable}</Text>
-      <Button kind="text" label={words.tryAgain} onPress={load} />
-    </View>}
+    {failed && <Empty mood="check" text={words.gptAppsUnavailable}><Button kind="filled" label={words.tryAgain} onPress={load} /></Empty>}
     {!!apps?.length && <View style={{ borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden', paddingVertical: space.xs }}>
       {apps.map(({ app, label, icon }) => {
         const on = stays.includes(app);
