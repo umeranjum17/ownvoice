@@ -26,13 +26,17 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
       method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
       body: JSON.stringify({ model: CHATGPT_MODEL, instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: key === 'text' ? { verbosity: 'low' } : { verbosity: 'low', format: { type: 'json_object' } } }),
     };
-    await on?.sent?.();
-    marked = true;
     if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
     if (on?.beforeFetch && !on.beforeFetch()) throw new SendVeto(words.phoneWrote);
     started = true;
     on?.started?.();
     const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', request);
+    // The mark lands only once the server answers: a throw above means the text never
+    // left (vetoed, offline before connect), so the read log claims no send for it.
+    // An answer, even an error, means the text did go out, so the mark stays for
+    // transmitted-then-failed.
+    await on?.sent?.();
+    marked = true;
     if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
     if (!response.body) throw new Error('ChatGPT did not answer.');
     if (key === 'text') return [await readTextStream(response.body, onText)];
@@ -115,7 +119,11 @@ export const chatgptWriter: Writer = {
     } catch (error) {
       if (error instanceof SendVeto) throw error;
       const message = error instanceof Error ? error.message : String(error);
-      if (classify(message)?.kind === 'network') throw error;
+      const kind = classify(message)?.kind;
+      if (kind === 'network') throw error;
+      // Developer log only, never on screen: the panel line stays plain while the
+      // next QA can tell a refusal from a dead stream in logcat.
+      console.log(`Ownvoice ChatGPT no-answer kind=${kind ?? 'unknown'} message=${message}`);
       throw new Error(words.chatgptFailed);
     }
   },

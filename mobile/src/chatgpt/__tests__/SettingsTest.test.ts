@@ -346,29 +346,26 @@ test('sign-out blocks an in-flight send even when clearing app choices fails', a
   } finally { global.fetch = originalFetch; }
 });
 
-test('a choice withdrawn while the tap is marked gives a phone-only reason', async () => {
+test('a choice withdrawn before dispatch gives a phone-only reason and marks nothing', async () => {
   const route = await gptRoute('com.twitter.android', offline);
-  let releaseMark!: () => void;
-  let markStarted!: () => void;
-  const started = new Promise<void>(resolve => { markStarted = resolve; });
-  const sent = jest.fn(() => {
-    markStarted();
-    return new Promise<void>(resolve => { releaseMark = resolve; });
-  });
+  let release!: (auth: { access: string; accountId: string }) => void;
+  (codexAuth as jest.Mock).mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+  const sent = jest.fn();
+  const unsent = jest.fn();
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   try {
-    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent });
-    await started;
+    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent, unsent });
     store.set(PHONE_ONLY_KEY, ['com.twitter.android']);
-    releaseMark();
+    release({ access: 'fixture-access', accountId: 'fixture-account' });
     expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
-    expect(sent).toHaveBeenCalledTimes(1);
+    expect(sent).not.toHaveBeenCalled();
+    expect(unsent).not.toHaveBeenCalled();
     expect(global.fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
-test('a saved pause during the final native re-check cannot be overwritten by its stale result', async () => {
+test('a saved pause before dispatch vetoes the send and marks nothing', async () => {
   const route = await gptRoute('com.twitter.android', offline);
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
@@ -388,8 +385,8 @@ test('a saved pause during the final native re-check cannot be overwritten by it
     await saveBubbleRules({ ...oldRules, paused: true });
     finish(oldRules);
     expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
-    expect(sent).toHaveBeenCalledTimes(1);
-    expect(unsent).toHaveBeenCalledTimes(1);
+    expect(sent).not.toHaveBeenCalled();
+    expect(unsent).not.toHaveBeenCalled();
     expect(global.fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });

@@ -121,57 +121,64 @@ test('authentication and pre-send rejection never mark a tap', async () => {
   } finally { global.fetch = originalFetch; }
 });
 
-test('a fetch started then failing leaves the tap marked', async () => {
+test('a fetch failing before any answer leaves the tap unmarked', async () => {
   const originalFetch = global.fetch;
-  const order: string[] = [];
-  let releaseMark!: () => void;
-  let markStarted!: () => void;
-  const started = new Promise<void>(resolve => { markStarted = resolve; });
-  const sent = jest.fn(() => {
-    order.push('sent');
-    markStarted();
-    return new Promise<void>(resolve => { releaseMark = resolve; });
-  });
-  const fetch = jest.fn(async () => { order.push('fetch'); throw new Error('offline'); });
+  const sent = jest.fn();
+  const unsent = jest.fn();
+  const fetch = jest.fn(async () => { throw new Error('offline'); });
   global.fetch = fetch;
   try {
-    const writing = chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent });
-    await started;
-    expect(fetch).not.toHaveBeenCalled();
-    releaseMark();
-    await expect(writing).rejects.toThrow(words.chatgptFailed);
-    expect(order).toEqual(['sent', 'fetch']);
-    expect(sent).toHaveBeenCalledTimes(1);
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent, unsent })).rejects.toThrow(words.chatgptFailed);
     expect(fetch).toHaveBeenCalledTimes(1);
+    expect(sent).not.toHaveBeenCalled();
+    expect(unsent).not.toHaveBeenCalled();
+    expect(reported).toHaveBeenCalledWith('offline');
   } finally { global.fetch = originalFetch; }
 });
 
-test('permission withdrawn while marking a tap prevents the fetch', async () => {
+test('a transmitted request that fails stays marked as sent', async () => {
+  const originalFetch = global.fetch;
+  const sent = jest.fn();
+  const unsent = jest.fn();
+  global.fetch = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'Too many requests', body: null } as unknown as Response));
+  const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent, unsent })).rejects.toThrow(words.chatgptFailed);
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(unsent).not.toHaveBeenCalled();
+    expect(reported).toHaveBeenCalledWith('429 Too many requests');
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('kind=rate_limit'));
+  } finally { global.fetch = originalFetch; log.mockRestore(); }
+});
+
+test('a network failure throws without the no-answer log', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn(async () => { throw new Error('fetch failed: socket hang up'); });
+  const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, {})).rejects.toThrow('fetch failed: socket hang up');
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining('no-answer'), expect.anything());
+    expect(log).not.toHaveBeenCalledWith(expect.stringContaining('Ownvoice ChatGPT no-answer'));
+  } finally { global.fetch = originalFetch; log.mockRestore(); }
+});
+
+test('permission withdrawn before dispatch prevents the fetch and marks nothing', async () => {
   const originalFetch = global.fetch;
   const fetch = jest.fn();
   global.fetch = fetch;
-  let releaseMark!: () => void;
-  let markStarted!: () => void;
-  const started = new Promise<void>(resolve => { markStarted = resolve; });
-  const sent = jest.fn(() => {
-    markStarted();
-    return new Promise<void>(resolve => { releaseMark = resolve; });
-  });
   const beforeSend = jest.fn().mockResolvedValueOnce(true).mockResolvedValue(false);
+  const sent = jest.fn();
   const unsent = jest.fn(async () => {});
   try {
-    const writing = chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { beforeSend, sent, unsent });
-    await started;
-    releaseMark();
-    await expect(writing).rejects.toThrow(words.phoneWrote);
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { beforeSend, sent, unsent })).rejects.toThrow(words.phoneWrote);
     expect(beforeSend).toHaveBeenCalledTimes(2);
-    expect(sent).toHaveBeenCalledTimes(1);
-    expect(unsent).toHaveBeenCalledTimes(1);
+    expect(sent).not.toHaveBeenCalled();
+    expect(unsent).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
-test('the synchronous last gate vetoes a change after the async re-check', async () => {
+test('the synchronous last gate vetoes before anything is marked', async () => {
   const originalFetch = global.fetch;
   const fetch = jest.fn();
   global.fetch = fetch;
@@ -187,22 +194,24 @@ test('the synchronous last gate vetoes a change after the async re-check', async
     await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { beforeSend, beforeFetch, sent, unsent })).rejects.toThrow(words.phoneWrote);
     expect(beforeSend).toHaveBeenCalledTimes(2);
     expect(beforeFetch).toHaveBeenCalledTimes(1);
-    expect(sent).toHaveBeenCalledTimes(1);
-    expect(unsent).toHaveBeenCalledTimes(1);
+    expect(sent).not.toHaveBeenCalled();
+    expect(unsent).not.toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
-test('a failed native mark prevents every request', async () => {
+test('a failed send mark after dispatch surfaces the failure', async () => {
   const originalFetch = global.fetch;
-  const fetch = jest.fn();
+  const fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ drafts: ['A', 'B', 'C'] }) })}\n\n${event({ type: 'response.completed' })}`));
   global.fetch = fetch;
   try {
     const sent = jest.fn(async () => { throw new Error('full'); });
     const unsent = jest.fn();
-    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent, unsent })).rejects.toThrow(words.phoneWrote);
-    expect(fetch).not.toHaveBeenCalled();
+    await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent, unsent })).rejects.toThrow(words.chatgptFailed);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(sent).toHaveBeenCalledTimes(1);
     expect(unsent).not.toHaveBeenCalled();
+    expect(reported).toHaveBeenCalledWith('full');
   } finally { global.fetch = originalFetch; }
 });
 
