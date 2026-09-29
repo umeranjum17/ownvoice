@@ -240,6 +240,11 @@ export const words = {
   removeNo:'Keep it',
   removeFailed:"That didn't work. Please try again.",
 
+  // Thread writer and hooks (parity package 5): from text they typed in a feed app.
+  threadTitle:'Split into a thread',
+  threadReady:'Post these in order. You send each one yourself.',
+  hooksTitle:'Opening lines',
+
   // Lab builds only (EXPO_PUBLIC_PHONE_AGENT=1): the writing-task screen.
   agentRow:'Try a writing task',
   agentAsk:'What should I write?',

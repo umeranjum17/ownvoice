@@ -11,6 +11,7 @@ import { cases } from './cases';
 import { platformForApp } from '../src/core/platforms';
 import * as J from '../src/core/judge';
 import * as D from '../src/core/drafts';
+import * as T from '../src/core/threads';
 
 const [label, base, outPath] = process.argv.slice(2);
 if (!label || !base || !outPath) {
@@ -75,6 +76,19 @@ async function select(c: any, calls: Call[]) {
   return { shown: [{ text: c.how === 'Fix spelling' ? D.preserveFragment(c.typed, out) : out, slot: 0 }] };
 }
 
+// Package 5 thread writer: one model call for nicer breaks plus 3 hooks, checked
+// by cleanThread (caps, words, numbers and times both ways); the deterministic
+// split is the fallback when the answer fails the check, same as the app will do.
+async function thread(c: any, calls: Call[]) {
+  const platform = c.app ? platformForApp(c.app) : undefined;
+  const limit = T.threadLimit(platform) ?? 280;
+  const answer = await call(T.threadPrompt(c.typed, platform, c.guide ?? '', 'remove'), 512, calls);
+  const good = T.cleanThread(answer, c.typed, limit);
+  if (good) return { shown: good.parts.map((text, slot) => ({ text, slot })), hooks: good.hooks, fallback: false };
+  const fb = T.fallbackThread(c.typed, limit);
+  return { shown: fb.parts.map((text, slot) => ({ text, slot })), hooks: fb.hooks, fallback: true };
+}
+
 // Same shape as phoneWriter.replies: one numbered call, then one retry per empty slot.
 async function reply(c: any, calls: Call[]) {
   const input = { latest: c.latest ?? '', conversation: c.screen, guide: c.guide, platform: c.app ? platformForApp(c.app) : undefined };
@@ -98,7 +112,7 @@ for (const c of cases) {
   const calls: Call[] = [];
   const started = Date.now();
   let r: any;
-  try { r = c.kind === 'polish' ? await polish(c, calls) : c.kind === 'select' ? await select(c, calls) : await reply(c, calls); }
+  try { r = c.kind === 'polish' ? await polish(c, calls) : c.kind === 'select' ? await select(c, calls) : c.kind === 'thread' ? await thread(c, calls) : await reply(c, calls); }
   catch (e) { r = { error: String(e), shown: [] }; }
   results.push({ id: c.id, ...r, calls, wallMs: Date.now() - started });
   process.stderr.write(`${label} ${c.id} ${Date.now() - started}ms shown=${r.shown.length}\n`);
