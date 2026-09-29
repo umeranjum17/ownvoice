@@ -14,7 +14,7 @@ import { getSource, SOURCE_KEY, type Source } from '../core/source';
 import { store } from '../core/store';
 import { SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
-import { preserveFragment } from '../core/drafts';
+import { preserveFragment, cleanSelection } from '../core/drafts';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Choices } from '../ui/Choices';
@@ -71,7 +71,10 @@ export default function Rewrite() {
     setNote(words.writing);
     const stub = process.env.EXPO_PUBLIC_E2E_STUB === '1' ? stubRewrite(input.text, how) : null;
     const guide = Voice.guide(rules, false);
-    const finish = (raw: string) => how === Judge.Rewrite.GRAMMAR ? preserveFragment(input.text, Judge.clean(raw)) : Judge.clean(raw);
+    const finish = (raw: string) => {
+      const text = cleanSelection(input.text, Judge.clean(raw));
+      return how === Judge.Rewrite.GRAMMAR ? preserveFragment(input.text, text) : text;
+    };
     const phoneRewrite = async () => finish(stub ?? await Native.ask(`rewrite-${Date.now()}`, Judge.selectionRewritePrompt(input.text, how, guide), { maxTokens: 256 }));
     // The meaning check stays on the phone when it can write; otherwise only the number check runs.
     const showResult = async (text: string, canWrite: boolean) => {

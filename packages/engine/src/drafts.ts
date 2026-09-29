@@ -79,6 +79,24 @@ export function preserveFragment(original: string, text: string): string {
     ? text.replace(/[.。]\s*$/, '') : text;
 }
 
+/**
+ * Selection-menu cleanup: the rewrite prompt says output only the rewritten text
+ * with the original's line breaks, so non-empty lines past the original's line
+ * count are model chatter (e.g. dash restatements under a single-sentence
+ * Shorter, one inventing a "deadline" framing). Drop them; a real list keeps
+ * every line because the counts match.
+ */
+export function cleanSelection(original: string, text: string): string {
+  const expected = original.split(/\r?\n/).filter(line => line.trim()).length;
+  let seen = 0;
+  const kept: string[] = [];
+  for (const line of text.split(/\r?\n/)) {
+    if (line.trim()) { seen += 1; if (seen > expected) continue; }
+    kept.push(line);
+  }
+  return kept.join('\n').trim();
+}
+
 // ---- 5.3 Duplicates ----
 
 export function norm(text: string): string {

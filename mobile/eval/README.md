@@ -1,6 +1,6 @@
 # Writer eval (dev-only)
 
-The fixed 35-case set from the offline-model study, including four per-platform reply cases (R09-R12: X, LinkedIn, Reddit, Slack), two tone-polish selection cases (S06-S07: Friendlier, Firmer) and three tone-line cases (T01-T03), run through the app's
+The fixed 36-case set from the offline-model study, including four per-platform reply cases (R09-R12: X, LinkedIn, Reddit, Slack), two tone-polish selection cases (S06-S07: Friendlier, Firmer), one trailing-chatter selection case (S08: Shorter drops appended dash lines) and three tone-line cases (T01-T03), run through the app's
 **live** phone-writer pipeline (`src/panel/phoneWriter.ts` polish + replies,
 `src/rewrite/Rewrite.tsx` selection) against an OpenAI-compatible endpoint.
 Nothing here ships: no app file imports `mobile/eval/`, and Metro only
