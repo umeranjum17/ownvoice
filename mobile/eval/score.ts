@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { cases } from './cases.ts';
 import * as S from '../src/core/slop.ts';
 import { layoutKept } from '../src/core/drafts.ts';
+import { parseTones } from '../src/core/judge.ts';
 import { ALL_SLOTS } from '../src/core/platforms.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -47,6 +48,16 @@ function scoreRewrite(c: any, text: string, needLayout: boolean) {
   return { meaningOk: !issues.length, issues, voiceOk: !voice.length, voice };
 }
 
+function scoreTone(text: string) {
+  const tones = parseTones(text);
+  const issues: string[] = [];
+  if (tones.length !== 1) issues.push(tones.length ? `${tones.length} tone words` : 'no tone word');
+  const voice: string[] = [];
+  if (commentary(text)) voice.push('commentary');
+  if (echoesPrompt(text)) voice.push('echoes instructions');
+  return { meaningOk: !issues.length, issues, voiceOk: !voice.length, voice };
+}
+
 function scoreReply(c: any, text: string) {
   const issues: string[] = [];
   const added = S.addedNumbers(c.screen, text);
@@ -77,7 +88,7 @@ for (const file of process.argv.slice(2)) {
   const rows = cases.filter(c => found[(c as any).from ?? c.id]).map((c: any) => {
     const r = { ...found[c.from ?? c.id], id: c.id };
     if (c.slot != null) { r.shown = r.shown.filter((s: any) => s.slot === c.slot); if (c.from) r.calls = []; }
-    const cards = r.shown.map((s: any) => c.kind === 'reply' ? scoreReply(c, s.text) : scoreRewrite(c, s.text, c.kind === 'polish' || !!c.layout));
+    const cards = r.shown.map((s: any) => c.kind === 'reply' ? scoreReply(c, s.text) : c.kind === 'tone' ? scoreTone(s.text) : scoreRewrite(c, s.text, c.kind === 'polish' || !!c.layout));
     const allSafe = cards.every((x: any) => x.meaningOk);
     const pass = c.kind === 'reply'
       ? cards.length >= 2 && allSafe && cards.some((x: any) => x.answersAll)
@@ -88,19 +99,19 @@ for (const file of process.argv.slice(2)) {
       voice: cards.filter((x: any) => x.voiceOk).length, calls: r.calls.length, gen, prompt, wallMs: r.wallMs, detail: cards, texts: r.shown.map((s: any) => s.text) };
   });
   const sum = (f: (r: any) => number) => rows.reduce((a: number, r: any) => a + f(r), 0);
-  const kinds = ['polish', 'select', 'reply'].map(k => { const rs = rows.filter((r: any) => r.kind === k); return `${rs.filter((r: any) => r.pass).length}/${rs.length}`; });
+  const kinds = ['polish', 'select', 'tone', 'reply'].map(k => { const rs = rows.filter((r: any) => r.kind === k); return `${rs.filter((r: any) => r.pass).length}/${rs.length}`; });
   const cardsTotal = sum(r => r.cards);
   // The gate only judges cases this run covered; a partial (ONLY) run names
   // the gate cases it skipped instead of failing them.
   const gateSkipped = GATE.filter(id => !rows.find((r: any) => r.id === id));
   const gateFails = GATE.filter(id => rows.find((r: any) => r.id === id) && !rows.find((r: any) => r.id === id)?.pass);
-  table.push({ label, pass: sum(r => r.pass ? 1 : 0), of: rows.length, polish: kinds[0], select: kinds[1], reply: kinds[2],
+  table.push({ label, pass: sum(r => r.pass ? 1 : 0), of: rows.length, polish: kinds[0], select: kinds[1], tone: kinds[2], reply: kinds[3],
     cards: cardsTotal, safePct: Math.round(100 * sum(r => r.safe) / Math.max(1, cardsTotal)), voicePct: Math.round(100 * sum(r => r.voice) / Math.max(1, cardsTotal)),
     calls: sum(r => r.calls), genTok: sum(r => r.gen), promptTok: sum(r => r.prompt), gateFails, gateSkipped, rows });
 }
 table.sort((a, b) => b.pass - a.pass || b.safePct - a.safePct);
-console.log('label           pass  polish select reply  cards safe% voice% calls genTok promptTok gate');
-for (const t of table) console.log(`${t.label.padEnd(15)} ${String(t.pass).padStart(2)}/${t.of}  ${t.polish.padEnd(6)} ${t.select.padEnd(6)} ${t.reply.padEnd(6)} ${String(t.cards).padStart(4)} ${String(t.safePct).padStart(4)} ${String(t.voicePct).padStart(5)} ${String(t.calls).padStart(5)} ${String(t.genTok).padStart(6)} ${String(t.promptTok).padStart(8)} ${t.gateFails.length ? 'FAIL ' + t.gateFails.join(',') : t.gateSkipped.length ? 'ok (gate skipped: ' + t.gateSkipped.join(',') + ')' : 'ok'}`);
+console.log('label           pass  polish select tone reply  cards safe% voice% calls genTok promptTok gate');
+for (const t of table) console.log(`${t.label.padEnd(15)} ${String(t.pass).padStart(2)}/${t.of}  ${t.polish.padEnd(6)} ${t.select.padEnd(6)} ${t.tone.padEnd(4)} ${t.reply.padEnd(6)} ${String(t.cards).padStart(4)} ${String(t.safePct).padStart(4)} ${String(t.voicePct).padStart(5)} ${String(t.calls).padStart(5)} ${String(t.genTok).padStart(6)} ${String(t.promptTok).padStart(8)} ${t.gateFails.length ? 'FAIL ' + t.gateFails.join(',') : t.gateSkipped.length ? 'ok (gate skipped: ' + t.gateSkipped.join(',') + ')' : 'ok'}`);
 writeFileSync(resolve(here, 'out/scores.json'), JSON.stringify(table, null, 1));
 const failed = table.filter(t => t.gateFails.length);
 if (failed.length) {

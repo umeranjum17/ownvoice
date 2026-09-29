@@ -53,7 +53,7 @@ Already typed something? The same tap shows your text with the stock phrases mar
 
 ### Honest about every draft
 
-Drafts get one plain sentence about how they read, such as "Sounds natural" or "A bit stock: 3 phrases you could say more simply" (when every draft reads the same, the sentence is left off rather than repeated). **Why?** on any draft shows each check in everyday words, with a tick or a gentle warning. There is no score to chase: the checks look at whether a draft sounds stock, says something real, fits the chat and makes nothing up, and they are kept apart rather than blended into one number.
+Drafts get one plain sentence about how they read, such as "Sounds natural" or "A bit stock: 3 phrases you could say more simply" (when every draft reads the same, the sentence is left off rather than repeated). Each draft also names its tone in a word or two, such as "Sounds friendly". **Why?** on any draft shows each check in everyday words, with a tick or a gentle warning. There is no score to chase: the checks look at whether a draft sounds stock, says something real, fits the chat and makes nothing up, and they are kept apart rather than blended into one number.
 
 <p align="center">
   <img src="docs/readme/why.webp" alt="Why this reply: the draft quoted, 'Sounds natural' with a tick, and 'These are quick checks to help you choose.'" width="300" />
@@ -61,7 +61,7 @@ Drafts get one plain sentence about how they read, such as "Sounds natural" or "
 
 ### Make any text better
 
-Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler** or **Fix spelling**. **Copy** copies the version, then paste it where you like. If a new version adds a time, a number or a fact you didn't write, it says **Check this**. This works without the bubble's permission.
+Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler**, **Fix spelling**, **Friendlier** or **Firmer**. **Copy** copies the version, then paste it where you like. If a new version adds a time, a number or a fact you didn't write, it says **Check this**. This works without the bubble's permission.
 
 <p align="center">
   <img src="docs/readme/rewrite.webp" alt="Make it better over the home screen: a selected sentence and its Shorter version, with Copy" width="300" />

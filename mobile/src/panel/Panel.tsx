@@ -81,6 +81,14 @@ function distinctVerdict(card: Draft, cards: Draft[]): Verdict | null {
   return new Set(cards.map(signature)).size > 1 ? Judge.verdict(card.scores) : null;
 }
 
+/** One plain tone word under a card's text ("Sounds friendly"), once the writer names it on tap; nothing until then. */
+function ToneLine({ text, tones }: { text: string; tones: Map<string, string> }) {
+  const t = useTheme();
+  const tone = tones.get(text);
+  if (!tone) return null;
+  return <Text style={[type.note, { color: t.muted, marginTop: space.s }]}>{words.toneSounds} {tone}</Text>;
+}
+
 function WhyCover({ draft, checks, who }: { draft: Draft; checks: WhyState; who: string | null }) {
   const t = useTheme();
   const rows = [
@@ -117,6 +125,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [cards, setCards] = useState<(Draft | null)[]>([null, null, null]);
   const [why, setWhy] = useState<number | null>(null);
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
+  const [tones, setTones] = useState<Map<string, string>>(new Map());
+  const toneFor = useRef(0);
   const run = useRef(0);
   const startedTap = useRef<string | null>(null);
   const inserting = useRef(false);
@@ -136,6 +146,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setMode(nextMode);
     setCards([null, null, null]);
     setYours(null);
+    setTones(new Map());
+    toneFor.current = 0;
     setUnchanged(false);
     setReason(null);
     setFraction(null);
@@ -213,6 +225,25 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     return () => progress.remove();
   }, [start]);
 
+  // ---- Tone line (package 4): one batched writer call per tap names every shown text's tone; never per keystroke ----
+  useEffect(() => {
+    if (phase !== 'ready') return;
+    const id = run.current;
+    if (toneFor.current === id) return;
+    const texts = [...(yours ? [yours.text] : []), ...shown.map(draft => draft.text)];
+    if (!texts.length) return;
+    toneFor.current = id;
+    void (async () => {
+      if (await phoneCanWrite() === 'cant') return;
+      let answer: string | null = null;
+      try { answer = await Native.ask(`tone-${Date.now()}`, Judge.tonePrompt(texts), { maxTokens: 80 }); }
+      catch { return; }
+      if (run.current !== id) return;
+      const found = Judge.parseTones(answer);
+      if (found.length) setTones(new Map(texts.map((text, i) => [text, found[i]] as [string, string]).filter(([, tone]) => !!tone)));
+    })();
+  });
+
   // ---- Why? (spec 4.4): the rule row is instant; the model checks run behind the cover, cached per draft ----
   const openWhy = (draft: Draft) => {
     setWhy(draft.slot);
@@ -281,6 +312,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       {/* Their text came back unchanged: it becomes the result, with Copy but no pointless Use this. */}
       <Card variant={done ? 'outlined' : 'filled'} label={done ? words.looksGood : 'Yours'}>
         <Marked text={yours.text} hits={yours.scores.hits} />
+        <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores)} />
         {done ? <View style={styles.actions}>
           <Button kind="text" label={words.copy} onPress={() => { void Native.copy(yours.text).catch(() => {}); }} />
@@ -293,6 +325,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       return <View key={slot} style={{ marginBottom: space.m }}>
         <Card variant="outlined" label={card.label ?? (mode === 'reply' ? (TAGS[platformForApp(capture?.app).id] ?? CHAT_TAGS)[card.slot] : undefined)}>
           <Marked text={card.text} hits={card.scores.hits} />
+          <ToneLine text={card.text} tones={tones} />
           {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => {

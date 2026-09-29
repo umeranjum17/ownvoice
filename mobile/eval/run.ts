@@ -68,6 +68,13 @@ async function polish(c: any, calls: Call[]) {
   return { raw, shown: acceptor.results.sort((a: any, b: any) => a.slot - b.slot), rescued };
 }
 
+// Same shape as Panel.tsx: one batched tonePrompt call for the single text,
+// scored off its raw answer.
+async function tone(c: any, calls: Call[]) {
+  const answer = await call(J.tonePrompt([c.typed]), 80, calls);
+  return { shown: [{ text: answer, slot: 0 }] };
+}
+
 // Same shape as Rewrite.tsx: one selectionRewritePrompt call, cleaned, with the
 // single-word full-stop guard for Fix spelling.
 async function select(c: any, calls: Call[]) {
@@ -98,7 +105,7 @@ for (const c of cases) {
   const calls: Call[] = [];
   const started = Date.now();
   let r: any;
-  try { r = c.kind === 'polish' ? await polish(c, calls) : c.kind === 'select' ? await select(c, calls) : await reply(c, calls); }
+  try { r = c.kind === 'polish' ? await polish(c, calls) : c.kind === 'select' ? await select(c, calls) : c.kind === 'tone' ? await tone(c, calls) : await reply(c, calls); }
   catch (e) { r = { error: String(e), shown: [] }; }
   results.push({ id: c.id, ...r, calls, wallMs: Date.now() - started });
   process.stderr.write(`${label} ${c.id} ${Date.now() - started}ms shown=${r.shown.length}\n`);

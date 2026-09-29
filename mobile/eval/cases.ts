@@ -4,7 +4,8 @@
 // reply = reply drafts from the screen.
 export type Case =
   | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; from?: string }
-  | { id: string; kind: 'select'; typed: string; how: 'Shorter' | 'Simpler' | 'Fix spelling'; keep: string[]; exact?: string; layout?: boolean; why: string }
+  | { id: string; kind: 'select'; typed: string; how: 'Shorter' | 'Simpler' | 'Fix spelling' | 'Friendlier' | 'Firmer'; keep: string[]; exact?: string; layout?: boolean; why: string }
+  | { id: string; kind: 'tone'; typed: string; why: string }
   | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string };
 
 const LOWER = 'How they write: all lowercase, short, no exclamation marks.';
@@ -50,6 +51,17 @@ export const cases: Case[] = [
     why: 'single word: no added full stop (QA regression)' },
   { id: 'S05-list-shorter', kind: 'select', how: 'Shorter', typed: 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', keep: ['tent', 'stove', 'Saturday', 'noon'], layout: true,
     why: 'lost-noon list via the selection menu: both items and markers must stay' },
+  { id: 'S06-friendlier', kind: 'select', how: 'Friendlier', typed: 'Send me the report by Friday. No excuses this time.', keep: ['report', 'Friday'],
+    why: 'tone polish: warmer words, same ask and deadline' },
+  { id: 'S07-firmer', kind: 'select', how: 'Firmer', typed: 'Sorry, maybe we could possibly move the call to Tuesday if that is okay?', keep: ['Tuesday', 'call'],
+    why: 'tone polish: more direct, same ask and day' },
+  // --- Tone line: one plain tone word from the writer, on tap ---
+  { id: 'T01-blunt', kind: 'tone', typed: 'Fine. Do whatever you want.',
+    why: 'blunt text names a sharp tone' },
+  { id: 'T02-warm', kind: 'tone', typed: 'Thanks so much, that really means a lot!',
+    why: 'warm text names a friendly tone' },
+  { id: 'T03-flat', kind: 'tone', typed: 'Meeting moved to 3pm. Same link.',
+    why: 'flat factual text names a plain tone' },
   // --- Replies ---
   { id: 'R01-sam-practice', kind: 'reply', screen: 'Sam: Are we still on for Saturday? Can you bring the stove?', latest: 'Are we still on for Saturday? Can you bring the stove?', points: [['saturday', 'sat', 'still on', "we're on", 'we are on', 'yes', 'yep', 'yeah', 'works', 'count me'], ['stove']],
     why: 'the practice chat: must answer the day and the stove' },
