@@ -30,6 +30,15 @@ class CapturedInputTextTest {
     assertEquals(false, includePracticeText(true, false, "setup-note"))
   }
 
+  @Test fun theTypingCheckWaitsForTwelveCharactersAndThreeWords() {
+    assertEquals(false, worthChecking("see you now"))
+    assertEquals(false, worthChecking("   hi   "))
+    assertEquals(false, worthChecking("wonderfully-long-single-word"))
+    assertEquals(false, worthChecking("absolutely wonderful"))
+    assertEquals(true, worthChecking("see you at 8"))
+    assertEquals(true, worthChecking(" Its a great idea "))
+  }
+
   @Test fun controlsAndTheirChildrenNeverBecomeConversation() {
     assertEquals(null, conversationText("Skip", false, true))
     assertEquals(null, conversationText("Clickable child", false, true))

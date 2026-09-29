@@ -3,6 +3,8 @@ import { Animated, Linking, StyleSheet, Text, View } from 'react-native';
 import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
+import * as Typing from '../core/typing';
+import { speller } from '../core/speller';
 import { dashesFor } from '../core/drafts';
 import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
 import { gptRoute } from '../chatgpt/settings';
@@ -127,6 +129,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const [tones, setTones] = useState<Map<string, string>>(new Map());
   const toneFor = useRef(0);
+  const [slips, setSlips] = useState<Typing.Slip[]>([]);
   const run = useRef(0);
   const startedTap = useRef<string | null>(null);
   const inserting = useRef(false);
@@ -221,6 +224,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (!value) { setPhase('failed'); setNote(words.noCapture); return; }
       setWho(Judge.who(value.written));
       start(value);
+      void findSlips(value.typed.trim());
     }).catch(() => { setPhase('failed'); setNote(words.noCapture); });
     return () => progress.remove();
   }, [start]);
@@ -243,6 +247,33 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (found.length) setTones(new Map(texts.map((text, i) => [text, found[i]] as [string, string]).filter(([, tone]) => !!tone)));
     })();
   });
+
+  // With "Check my spelling as I type" on, the tap also lists what to check in what they typed, each with its own Fix.
+  const findSlips = async (text: string) => {
+    try {
+      if (!text || !await Native.typingCheck()) return;
+      const spell = await speller().catch(() => null);
+      const found = Typing.slips(text, spell);
+      // One word at a time, giving the screen a turn in between: an unusual word can take a moment.
+      for (const slip of found) if (spell && slip.fix === undefined && slip.reason === Typing.SPELLING) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+        slip.fix = Typing.suggestion(text.slice(slip.start, slip.end), spell);
+      }
+      setSlips(found);
+    } catch {}
+  };
+
+  // Puts [text] in their message box, only on their tap, through the same way as a draft.
+  const put = (text: string) => {
+    if (inserting.current) return;
+    inserting.current = true;
+    setInsertBusy(true);
+    void Native.serviceState().then(state => {
+      if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return; }
+      return Native.insert(text);
+    }).catch(() => { setNote(words.serviceOff); setPhase('failed'); })
+      .finally(() => { inserting.current = false; setInsertBusy(false); });
+  };
 
   // ---- Why? (spec 4.4): the rule row is instant; the model checks run behind the cover, cached per draft ----
   const openWhy = (draft: Draft) => {
@@ -308,10 +339,21 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     } : undefined}
     onCloseCover={() => setWhy(null)}>
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
+    {yours && slips.length ? <View style={{ marginBottom: space.m }}>
+      <Card variant="outlined" label={words.slipsTitle}>
+        {slips.map(slip => <View key={slip.start} style={styles.slip}>
+          <Text style={[type.body, { color: t.text, flex: 1 }]}>
+            <Text style={{ backgroundColor: t.mark, color: t.onMark }}>{yours.text.slice(slip.start, slip.end).trim()}</Text>
+            {`  ${slip.fix === undefined ? words.slipUnknown : slip.fix === '' ? words.slipRepeat : `→ ${slip.fix}`}`}
+          </Text>
+          {slip.fix !== undefined ? <Button kind="text" label={words.fix} disabled={!hasField || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip))} /> : null}
+        </View>)}
+      </Card>
+    </View> : null}
     {yours ? <View style={{ marginBottom: space.m }}>
       {/* Their text came back unchanged: it becomes the result, with Copy but no pointless Use this. */}
       <Card variant={done ? 'outlined' : 'filled'} label={done ? words.looksGood : 'Yours'}>
-        <Marked text={yours.text} hits={yours.scores.hits} />
+        <Marked text={yours.text} hits={[...yours.scores.hits, ...slips]} />
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores)} />
         {done ? <View style={styles.actions}>
@@ -328,16 +370,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           <ToneLine text={card.text} tones={tones} />
           {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => {
-              if (inserting.current) return;
-              inserting.current = true;
-              setInsertBusy(true);
-              void Native.serviceState().then(state => {
-                if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return; }
-                return Native.insert(card.text);
-              }).catch(() => { setNote(words.serviceOff); setPhase('failed'); })
-                .finally(() => { inserting.current = false; setInsertBusy(false); });
-            }} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
             <Button kind="text" label={words.copy} onPress={() => { void Native.copy(card.text).catch(() => {}); }} />
             <View style={{ flex: 1 }} />
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
@@ -364,5 +397,6 @@ const styles = StyleSheet.create({
   // Wraps Why? onto its own line on narrow phones rather than squeezing the buttons.
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.xs, marginTop: space.m, marginLeft: -space.xs },
   quote: { flexDirection: 'row', gap: space.m, borderRadius: shape.card, padding: space.l },
+  slip: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 48 },
   quoteBar: { width: 3, borderRadius: 2 },
 });

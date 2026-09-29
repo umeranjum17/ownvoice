@@ -11,6 +11,8 @@ type Events = {
   onModelProgress: (event: { fraction: number }) => void;
   onModelSettled: (event: Record<string, never>) => void;
   onModelPartial: (event: { id: string; text: string }) => void;
+  /** A typing pause in a switched-on app, sent only while "Check my spelling as I type" is on. */
+  onTyped: (event: { app: string; text: string }) => void;
 };
 declare class OwnvoiceNativeModule extends NativeModule<Events> {
   serviceState(): Promise<ServiceState>;
@@ -23,6 +25,10 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   bubbleRules(): Promise<{ paused: boolean; on: string[]; off: string[] }>;
   setBubbleRules(rules: { paused: boolean; on: string[]; off: string[] }): Promise<void>;
   say(message: string, ms?: number): Promise<void>;
+  typingCheck(): Promise<boolean>;
+  setTypingCheck(on: boolean): Promise<void>;
+  /** The typing check's answer for [app]: the count on the bubble (0 hides it), and what a screen reader says for it. */
+  showSlips(app: string, count: number, label: string, checkMs: number): Promise<void>;
   capture(): Promise<Capture | null>;
   forget(): Promise<void>;
   takeTapFacts(): Promise<TapFact[]>;

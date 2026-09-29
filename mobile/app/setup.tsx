@@ -48,6 +48,7 @@ export default function Setup() {
   const [choices, setChoices] = useState<Record<string, boolean>>({});
   const [greyed, setGreyed] = useState(false);
   const [hintOn, setHintOn] = useState(false);
+  const [typing, setTyping] = useState(false);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
   const [picked, setPicked] = useState<'phone' | 'chatgpt' | null>(null);
   const pick = picked ?? (phone === 'cant' ? 'chatgpt' : 'phone');
@@ -135,8 +136,9 @@ export default function Setup() {
 
   useEffect(() => {
     Native.setPractice(step === 'TRY').catch(() => {});
-    // The permission's middle promise follows the choice.
+    // The permission's middle promise follows the choice; its first one says so when the typing check is on.
     if (step === 'PERMISSION') getSource().then(chosen => { if (mounted.current) setShownSource(chosen); }).catch(() => {});
+    if (step === 'PERMISSION') Native.typingCheck().then(on => { if (mounted.current) setTyping(on); }).catch(() => {});
   }, [step]);
 
   // The approval happens on the ChatGPT page, so the step looks again while a code waits.
@@ -322,7 +324,7 @@ export default function Setup() {
     {step === 'PERMISSION' && <>
       <Head title={words.permissionTitle} note={words.permissionSubtitle} />
       <View style={[group, { gap: 2 }]}>
-        <Row lead={<Badge><HandIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseTap} subtitle={words.promiseTapNote} />
+        <Row lead={<Badge><HandIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={typing ? words.promiseTapTyping : words.promiseTap} subtitle={typing ? words.promiseTapTypingNote : words.promiseTapNote} />
         {source === 'chatgpt'
           ? <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseGpt} subtitle={words.promiseGptNote} />
           : <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseStays} subtitle={words.promiseStaysNote} />}

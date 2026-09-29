@@ -15,12 +15,18 @@ class OwnvoiceNativeModule : Module() {
   private val context get() = appContext.reactContext!!
   override fun definition() = ModuleDefinition {
     Name("OwnvoiceNative")
-    Events("onServiceChange", "onInserted", "onModelProgress", "onModelPartial", "onModelSettled")
+    Events("onServiceChange", "onInserted", "onModelProgress", "onModelPartial", "onModelSettled", "onTyped")
     OnCreate {
       OwnvoiceService.onInserted = { ok, newlinesLost, practice -> sendEvent("onInserted", mapOf("ok" to ok, "newlinesLost" to newlinesLost, "practice" to practice)) }
       OwnvoiceService.onServiceChange = { state -> sendEvent("onServiceChange", mapOf("state" to state)) }
     }
-    OnDestroy { OwnvoiceService.onInserted = null; OwnvoiceService.onServiceChange = null }
+    OnDestroy { OwnvoiceService.onInserted = null; OwnvoiceService.onServiceChange = null; OwnvoiceService.onTyped = null }
+    // A typing pause reaches JavaScript only while it listens; one that came first waits for the listener.
+    OnStartObserving("onTyped") {
+      OwnvoiceService.onTyped = { app, text -> sendEvent("onTyped", mapOf("app" to app, "text" to text)) }
+      OwnvoiceService.pendingTyped?.let { (app, text) -> OwnvoiceService.pendingTyped = null; sendEvent("onTyped", mapOf("app" to app, "text" to text)) }
+    }
+    OnStopObserving("onTyped") { OwnvoiceService.onTyped = null }
 
     AsyncFunction("openAccessibilitySettings") { comeBack: Boolean ->
       check(context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().putBoolean("comeBack", comeBack).commit())
@@ -74,6 +80,17 @@ class OwnvoiceNativeModule : Module() {
       if (service != null) service.setRules(paused, on.toSet(), off.toSet())
       else check(context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit()
         .putBoolean("paused", paused).putStringSet("on", on.toSet()).putStringSet("off", off.toSet()).commit())
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("typingCheck") {
+      context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).getBoolean("typingCheck", false)
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("setTypingCheck") { on: Boolean ->
+      check(context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().putBoolean("typingCheck", on).commit())
+      OwnvoiceService.typingCheck = on
+      if (!on) OwnvoiceService.instance?.typingOff()
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("showSlips") { app: String, count: Int, label: String, checkMs: Double ->
+      OwnvoiceService.instance?.showSlips(app, count, label, checkMs)
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("say") { message: String, ms: Int? -> OwnvoiceService.instance?.say(message, (ms ?: 4000).toLong()) }.runOnQueue(Queues.MAIN)
     AsyncFunction("serviceState") { state() }.runOnQueue(Queues.MAIN)

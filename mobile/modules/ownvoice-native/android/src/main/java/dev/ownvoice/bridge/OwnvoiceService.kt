@@ -6,17 +6,24 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Canvas
+import android.graphics.ColorFilter
+import android.graphics.Paint
 import android.graphics.Rect
 import android.graphics.Color
+import android.graphics.Typeface
 import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.graphics.drawable.AnimatedVectorDrawable
+import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.InsetDrawable
+import android.graphics.drawable.LayerDrawable
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
@@ -29,6 +36,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.TextView
 import android.widget.Toast
+import com.facebook.react.ReactApplication
 import kotlin.math.roundToInt
 
 internal fun accessibleText(text: CharSequence?, isShowingHintText: Boolean): String? =
@@ -46,6 +54,9 @@ internal fun isControl(buttonAncestor: Boolean, className: String?): Boolean =
 internal fun includeScreenNode(hasText: Boolean, hasDescription: Boolean, action: Boolean, editable: Boolean): Boolean =
   !editable && (hasText || action && hasDescription)
 
+/** The typing check looks only at a message worth checking: at least 12 characters and three words. */
+internal fun worthChecking(text: String): Boolean = text.trim().let { it.length >= 12 && it.split(Regex("\\s+")).size >= 3 }
+
 internal fun includePracticeText(practice: Boolean, action: Boolean, viewId: String?): Boolean =
   !practice || action || viewId?.startsWith("practice-line-") == true
 
@@ -62,6 +73,12 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var panelIsOpen = false
     @Volatile var onInserted: ((Boolean, Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
+    /** "Check my spelling as I type": off unless the person switches it on in Home. */
+    @Volatile var typingCheck = false
+    /** Set while the JavaScript side listens for typing pauses; a pause with no listener waits in [pendingTyped]. */
+    @Volatile var onTyped: ((String, String) -> Unit)? = null
+    @Volatile var pendingTyped: Pair<String, String>? = null
+    const val PAUSE_MS = 700L
     private val facts = mutableListOf<TapFact>()
     private const val FACTS = "tapFacts"
     private const val KEEP_MS = 30L * 24 * 60 * 60 * 1000
@@ -115,6 +132,14 @@ class OwnvoiceService : AccessibilityService() {
   private lateinit var bubble: TextView
   private lateinit var params: WindowManager.LayoutParams
   private var capture: Capture? = null
+  private val typingPause = Runnable { typed() }
+  private var typedApp: String? = null
+  private var checkedText: String? = null
+  private var checkedApp: String? = null
+  private var pausedAt = 0L
+  private var slipApp: String? = null
+  private var slipCount = 0
+  private var slipLabel = ""
   private var inserting = false
   private var insertingPractice = false
   private var pendingInsert: (() -> Unit)? = null
@@ -158,6 +183,7 @@ class OwnvoiceService : AccessibilityService() {
     paused = prefs.getBoolean("paused", false)
     onApps = prefs.getStringSet("on", emptySet()).orEmpty()
     offApps = prefs.getStringSet("off", emptySet()).orEmpty()
+    typingCheck = prefs.getBoolean("typingCheck", false)
     synchronized(facts) { restoreFacts(this) }
     lastPrune = System.currentTimeMillis()
     wm = getSystemService(WindowManager::class.java)
@@ -200,6 +226,50 @@ class OwnvoiceService : AccessibilityService() {
       main.removeCallbacks(reposition)
       main.postDelayed(reposition, 350) // IME bounds settle after the window/focus event.
     }
+    if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) textChanged(event)
+  }
+
+  /** The typing check, per keystroke: nothing but re-arming the pause. The box itself is read once, when the pause comes. */
+  private fun textChanged(event: AccessibilityEvent) {
+    if (!typingCheck || event.isPassword) return
+    val app = event.packageName?.toString()?.takeIf(::allowed) ?: return
+    typedApp = app
+    main.removeCallbacks(typingPause)
+    main.postDelayed(typingPause, PAUSE_MS)
+  }
+
+  /** A typing pause: read the focused message box (never a password box) and hand its text to the check, starting the JavaScript side if nothing of Ownvoice is open. */
+  private fun typed() {
+    val app = typedApp ?: return
+    if (!typingCheck || !allowed(app) || currentApp() != app) return
+    val field = focusedField()?.takeUnless { it.isPassword }
+    val text = accessibleText(field?.text, field?.isShowingHintText == true).orEmpty()
+    if (!worthChecking(text)) { checkedText = null; checkedApp = null; return showSlips(app, 0, "") }
+    if (text == checkedText && app == checkedApp) return
+    checkedText = text; checkedApp = app
+    pausedAt = SystemClock.elapsedRealtime()
+    val send = onTyped
+    if (send != null) return send(app, text)
+    pendingTyped = app to text
+    runCatching { (application as? ReactApplication)?.reactHost?.takeIf { it.currentReactContext == null }?.start() }
+      .onFailure { Log.w(TAG, "typing check couldn't start", it) }
+  }
+
+  /** The check's answer: the count on Dot, or none. [label] is what a screen reader says after "Ownvoice". */
+  fun showSlips(app: String, count: Int, label: String, checkMs: Double? = null) {
+    if (checkMs != null) Log.d(TAG, "typing check ms=${"%.2f".format(checkMs)} badge ms=${SystemClock.elapsedRealtime() - pausedAt} count=$count")
+    if (count == 0 && slipCount == 0) return
+    val shown = if (typingCheck && count > 0 && app == currentApp()) count else 0
+    if (shown == slipCount && (shown == 0 || app == slipApp)) return
+    slipApp = app.takeIf { shown > 0 }; slipCount = shown; slipLabel = label
+    if (::bubble.isInitialized && resting) restoreBubble.run()
+  }
+
+  /** The switch went off: drop anything waiting and the count. */
+  fun typingOff() {
+    main.removeCallbacks(typingPause)
+    typedApp = null; checkedText = null; checkedApp = null; pendingTyped = null
+    showSlips("", 0, "")
   }
   override fun onInterrupt() {}
   override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); if (::bubble.isInitialized && resting) restoreBubble.run() }
@@ -219,6 +289,8 @@ class OwnvoiceService : AccessibilityService() {
     if (!::bubble.isInitialized || dragging) return
     val app = currentApp()
     val show = !panelIsOpen && allowed(app)
+    // Another app in front drops the count; Ownvoice's own panel over it keeps it.
+    if (slipCount > 0 && app != slipApp && !panelIsOpen) showSlips(app.orEmpty(), 0, "")
     bubble.visibility = if (show) View.VISIBLE else View.GONE
     if (!show) return
     spot = spots.spotFor(app.orEmpty(), areaH, px(52)); place()
@@ -436,9 +508,11 @@ class OwnvoiceService : AccessibilityService() {
   private val restoreBubble = Runnable {
     if (!::bubble.isInitialized) return@Runnable
     notes.removeCallbacksAndMessages(null); resting = true
-    bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE; bubble.text = ""; bubble.contentDescription = "Ownvoice"
+    bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE; bubble.text = ""
+    bubble.contentDescription = if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice"
     bubble.setCompoundDrawablesRelative(null, null, null, null)
     showMood(if (Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) R.drawable.ownvoice_mascot_idle_still else R.drawable.ownvoice_mascot_idle)
+    if (slipCount > 0) bubble.background = LayerDrawable(arrayOf(bubble.background, SlipBadge(slipCount)))
     bubble.setPadding(0, 0, 0, 0); params.width = px(52); params.height = px(52); updateBubble()
   }
 
@@ -450,6 +524,25 @@ class OwnvoiceService : AccessibilityService() {
     bubble.outlineProvider = dotOutline
     bubble.elevation = px(3).toFloat()
     (dot as? AnimatedVectorDrawable)?.start()
+  }
+
+  /** The typing check's count at Dot's top right, drawn like the mark on Dot's own "check" mood: amber, with a dark ring. */
+  private inner class SlipBadge(private val count: Int) : Drawable() {
+    private val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = 0xFFFFB95C.toInt() }
+    private val ring = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = px(3) / 2f; color = 0xFF4E140B.toInt() }
+    private val digits = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+      // Fixed size so the number always fits its circle; a screen reader says the count in words.
+      color = 0xFF4E140B.toInt(); typeface = Typeface.DEFAULT_BOLD; textAlign = Paint.Align.CENTER; textSize = px(11).toFloat()
+    }
+    override fun draw(canvas: Canvas) {
+      val r = px(9).toFloat()
+      val cx = bounds.right - r - px(1); val cy = bounds.top + r + px(1)
+      canvas.drawCircle(cx, cy, r, fill); canvas.drawCircle(cx, cy, r, ring)
+      canvas.drawText(if (count > 9) "9+" else "$count", cx, cy - (digits.descent() + digits.ascent()) / 2, digits)
+    }
+    override fun setAlpha(alpha: Int) {}
+    override fun setColorFilter(colorFilter: ColorFilter?) {}
+    @Deprecated("Deprecated in Java") override fun getOpacity() = PixelFormat.TRANSLUCENT
   }
 
   /** The shadow follows Dot's body, not the 52 dp window. */
