@@ -12,7 +12,8 @@ import { Switch } from '../src/ui/Switch';
 import { ChatIcon, CloseIcon, FileIcon, PenIcon, PlusIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
-import { loadVoice, merge, parse, saveVoice, type Found } from '../src/core/voice';
+import { merge, parse, type Found } from '../src/core/voice';
+import { loadVoice, saveVoice } from '../src/core/voiceStore';
 import type { Rules } from '../src/core/slop';
 
 const SKIP_ONE = 'Left out 1 note that reads as advice, not a phrase.';

@@ -12,7 +12,7 @@ import { shape, space, type, useTheme } from '../ui/theme';
 import { words } from '../core/words';
 import { getSource } from '../core/source';
 import { phoneCanWrite } from '../core/phoneStatus';
-import { loadVoice } from '../core/voice';
+import { loadVoice } from '../core/voiceStore';
 import { noPhoneLine, retryLines } from '../core/writers';
 import { runAgent, type Brain, type Call } from './loop';
 import { instructions } from './prompt';

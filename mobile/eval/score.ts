@@ -1,15 +1,15 @@
 // Scores run.ts outputs (report Appendix C, plus the invented-times check).
-// Usage: node --import ./register.mjs score.ts out/<run>.json [out/<run2>.json ...]
+// Usage: node score.ts out/<run>.json [out/<run2>.json ...]
 // Prints a table, writes out/scores.json, and exits non-zero when the gate
 // fails: P01, P13, S05, R01 and R07 must all pass, so a model or prompt change
 // can never silently drop below the study's numbers on them (README).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { cases } from './cases';
-import * as S from '../src/core/slop';
-import { layoutKept } from '../src/core/drafts';
-import { ALL_SLOTS } from '../src/core/platforms';
+import { cases } from './cases.ts';
+import * as S from '../src/core/slop.ts';
+import { layoutKept } from '../src/core/drafts.ts';
+import { ALL_SLOTS } from '../src/core/platforms.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const byId = Object.fromEntries(cases.map(c => [c.id, c]));
