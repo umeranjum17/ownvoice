@@ -104,8 +104,22 @@ const tapText = async (label, state = '') => {
   throw new Error(`Could not find visible ${label} ${state}.`);
 };
 
-// The first Insert pill defeats OCR in both modes; the panel anchors it here on this emulator.
-const tapInsert = () => tap(Math.round(width * .2), Math.round(height * .6));
+// The first Insert pill defeats OCR in both modes (white on a filled pill), but its Copy sits on the same row
+// in plain text. Read one 150 px band at a time from the panel's top down, cropped past the pill (a full-width
+// band with the pill in it reads as nothing), and tap Insert at the start of the first Copy's row.
+const tapInsert = async () => {
+  for (let attempt = 0; attempt < 10; attempt++) {
+    const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
+    for (let top = Math.round(height * .3); top < height - 150; top += 75) {
+      const input = execFileSync('magick', ['png:', '-crop', `${Math.round(width * .37)}x150+${Math.round(width * .28)}+${top}`, '+repage', 'png:-'], { input: image });
+      const tsv = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '7', 'tsv'], { input, encoding: 'utf8' });
+      const copy = tsv.split('\n').slice(1).map(row => row.split('\t')).find(c => c.length >= 12 && c[11].trim().toLowerCase() === 'copy');
+      if (copy) { tap(Math.round(width * .18), Math.round(top + Number(copy[7]) + Number(copy[9]) / 2)); return; }
+    }
+    await wait(1000);
+  }
+  throw new Error('Could not find the first draft\'s Copy, so not its Insert either.');
+};
 
 const bubbleVisible = () => {
   const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
