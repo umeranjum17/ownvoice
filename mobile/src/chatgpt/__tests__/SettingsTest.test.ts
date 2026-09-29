@@ -1,4 +1,5 @@
 import { classify } from '@byokit/accounts';
+import { PHONE_ONLY_KEY, SOURCE_KEY } from '../../core/source';
 import { store } from '../../core/store';
 import { gptChoice, gptApps, saveGptApps, saveBubbleRules, gptRoute } from '../settings';
 import { status } from '../accounts';
@@ -11,7 +12,7 @@ import { words } from '../../core/words';
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
-  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}) },
+  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}), modelStatus: jest.fn(async () => 'available') },
 }));
 jest.mock('../accounts', () => ({
   reportFailure: jest.fn(async () => null),
@@ -34,7 +35,9 @@ beforeEach(() => {
   kv.clear();
   jest.clearAllMocks();
   native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: ['com.reddit.frontpage'] });
+  native.modelStatus.mockResolvedValue('available');
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
+  store.set(SOURCE_KEY, 'chatgpt');
 });
 
 test('byokit 0.3.1 treats undated rate limits as temporary', () => {
@@ -54,12 +57,35 @@ test('only signed-in saved choices permit ChatGPT', async () => {
   expect(gptChoice('com.twitter.android')).toBe(false);
 });
 
-test('the switch is checked only after a signed-in app choice', async () => {
+test('phone chosen means never ChatGPT, even when signed in', async () => {
+  store.set(SOURCE_KEY, 'phone');
   const fetcher = jest.fn(offline);
-  const before = await gptRoute('com.twitter.android', fetcher);
+  const route = await gptRoute('com.twitter.android', fetcher);
+  expect(route.writer).toBe(phoneWriter);
+  expect(route.note).toBeNull();
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
+test('no source tells the panel to choose first instead of drafting', async () => {
+  store.set(SOURCE_KEY, null);
+  const route = await gptRoute('com.twitter.android', offline);
+  expect(route.note).toBeNull();
+  await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.needWriterPanel);
+});
+
+test('the practice call goes through ChatGPT when it is chosen and signed in', async () => {
+  const route = await gptRoute('dev.ownvoice.app', offline);
+  expect(route.note).toBeNull();
+  expect(route.writer).not.toBe(phoneWriter);
+});
+
+test('the switch is checked only for a ChatGPT app', async () => {
+  const fetcher = jest.fn(offline);
+  const before = await gptRoute('com.Slack', fetcher);
+  expect(before.writer).toBe(phoneWriter);
   expect(before.note).toBeNull();
   expect(fetcher).not.toHaveBeenCalled();
-  expect(await saveGptApps({ on: ['com.twitter.android'] })).toBe(true);
+  store.set(PHONE_ONLY_KEY, []);
   const route = await gptRoute('com.twitter.android', fetcher);
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect(route.note).toBeNull();
@@ -97,11 +123,12 @@ test('the emulator stand-in drafts without marking a send', async () => {
   }
 });
 
-test('a workplace chat stays with the phone unless it is switched on', async () => {
+test('a workplace chat stays with the phone unless it leaves the phone-only list', async () => {
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.Slack'], off: [] });
   const before = await gptRoute('com.Slack', offline);
+  expect(before.writer).toBe(phoneWriter);
   expect(before.note).toBeNull();
-  await saveGptApps({ on: ['com.Slack'] });
+  store.set(PHONE_ONLY_KEY, []);
   expect((await gptRoute('com.Slack', offline)).writer).not.toBe(before.writer);
 });
 
@@ -300,7 +327,7 @@ test('a choice withdrawn while the tap is marked gives a phone-only reason', asy
   try {
     const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent });
     await started;
-    await saveGptApps({ on: [] });
+    store.set(PHONE_ONLY_KEY, ['com.twitter.android']);
     releaseMark();
     expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(sent).toHaveBeenCalledTimes(1);
@@ -378,7 +405,7 @@ test('choice withdrawn during the switch wait is rechecked before sending', asyn
   const fetcher = jest.fn(() => { started(); return new Promise<Response>(resolve => { release = resolve; }); }) as typeof fetch;
   const pending = gptRoute('com.twitter.android', fetcher);
   await checking;
-  await saveGptApps({ on: [] });
+  store.set(PHONE_ONLY_KEY, ['com.twitter.android']);
   release({ ok: false } as Response);
   const route = await pending;
   const originalFetch = global.fetch;
