@@ -3,7 +3,7 @@
 This file is the project's committed home for project-intrinsic agent knowledge: build, test, release, architecture, and sharp-edge notes that should travel with the code.
 
 - Build, install and on-device test commands: see `README.md`.
-- Build flags are in Metro's cache key via `mobile/metro.config.js`; add any new `EXPO_PUBLIC_*` flag there.
+- Build flags are in Metro's cache key via `mobile/metro.config.js`; add any new `EXPO_PUBLIC_*` flag there. Gradle doesn't see them, so a second flagged `assembleRelease` reuses the last JS bundle unless it runs `:app:createBundleReleaseJsAndAssets --rerun` too.
 - ML Kit GenAI runs the model only for the app in front (`BACKGROUND_USE_BLOCKED`). An accessibility overlay over another app doesn't count, so model calls happen in an activity (`DraftActivity`), not in `OwnvoiceService`.
 - That model dependency also sets the Expo build: it needs `minSdkVersion` 26 (Expo defaults to 24) and `-Xskip-metadata-version-check` for its newer Kotlin metadata, kept in `mobile/app.config.js` and `mobile/plugins/withOwnvoice.js`. Keep both when changing the build config.
 - The bubble shows, and a tap reads, only in apps switched on in `Privacy` (defaults in `Privacy.DEFAULT_ON`; Ownvoice's own package starts off), so on-device checks must switch `dev.ownvoice.app` or the target app on first. Prefs writes use `commit()` because `am instrument` kills the process right after a test.
