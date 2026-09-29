@@ -229,4 +229,15 @@ export const words = {
   removeNo:'Keep it',
   removeFailed:"That didn't work. Please try again.",
 
+  // Lab builds only (EXPO_PUBLIC_PHONE_AGENT=1): the writing-task screen.
+  agentRow:'Try a writing task',
+  agentAsk:'What should I write?',
+  agentGo:'Write it',
+  agentChecking:'Checking it against your rules…',
+  agentShareTitle:'Share this note?',
+  agentShare:'Share',
+  agentNotNow:'Not now',
+  agentCant:"I can't send email or change your calendar from here. You can share the note and paste it where you need it.",
+  agentStopped:'I stopped here. This is the latest version.',
+
 } as const;
