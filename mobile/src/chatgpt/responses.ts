@@ -37,8 +37,9 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
   } catch (error) {
     if (!started && marked) await on?.unsent?.();
     if (error instanceof SendVeto) throw error;
-    if (!started) throw new SendVeto(words.phoneWrote);
-    await reportFailure(error instanceof Error ? error.message : String(error)).catch(() => {});
+    const message = error instanceof Error ? error.message : String(error);
+    if (!started && classify(message)?.kind !== 'network') throw new SendVeto(words.phoneWrote);
+    await reportFailure(message).catch(() => {});
     throw error;
   }
 }

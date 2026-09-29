@@ -2,7 +2,7 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import { router } from 'expo-router';
 import GptApps from '../gptapps';
-import { PHONE_ONLY_KEY, phoneOnly } from '../../src/core/source';
+import { PHONE_ONLY_KEY, getSource, phoneOnly } from '../../src/core/source';
 import { words } from '../../src/core/words';
 import { store } from '../../src/core/store';
 import Native from '../../modules/ownvoice-native';
@@ -110,6 +110,7 @@ test('setup sign-in choice finishes setup and lands Home', async () => {
   await fireEvent.press(screen.getByText(words.done));
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
   expect(phoneOnly()).toEqual(['com.Slack']);
+  expect(await getSource()).toBe('chatgpt');
   expect(kv.get('setup-done')).toBe('true');
   expect(kv.has('setup')).toBe(false);
   expect(Native.clearSetupReturn).toHaveBeenCalledTimes(1);
