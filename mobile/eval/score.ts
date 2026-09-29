@@ -7,10 +7,10 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cases } from './cases.ts';
-import * as S from '../src/core/slop.ts';
-import { layoutKept } from '../src/core/drafts.ts';
-import { parseTones } from '../src/core/judge.ts';
-import { ALL_SLOTS, platformForApp } from '../src/core/platforms.ts';
+import * as S from 'ownvoice-engine/src/slop.ts';
+import { layoutKept } from 'ownvoice-engine/src/drafts.ts';
+import { parseTones } from 'ownvoice-engine/src/judge.ts';
+import { ALL_SLOTS, platformForApp } from 'ownvoice-engine/src/platforms.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const byId = Object.fromEntries(cases.map(c => [c.id, c]));
