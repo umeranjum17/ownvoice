@@ -50,7 +50,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: npm ci
       - run: npx expo prebuild -p android --no-install
-      - run: ./gradlew :ownvoice-native:testDebugUnitTest assembleDebug
+      - run: ./gradlew :ownvoice-native:testDebugUnitTest :byokit-overlay:testDebugUnitTest assembleDebug
         working-directory: mobile/android
 
   build:
