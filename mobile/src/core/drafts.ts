@@ -86,11 +86,19 @@ export function preserveFragment(original: string, text: string): string {
  * Shorter, one inventing a "deadline" framing). Drop them; a real list keeps
  * every line because the counts match.
  */
+const chatterLine = /^(here|sure|okay|ok,|certainly|of course|rewritten|version \d|improved|polished)\b/i;
+
 export function cleanSelection(original: string, text: string): string {
   const expected = original.split(/\r?\n/).filter(line => line.trim()).length;
+  const lines = text.split(/\r?\n/);
+  while (lines.filter(line => line.trim()).length > expected) {
+    const first = lines.findIndex(line => line.trim());
+    if (first < 0 || !chatterLine.test(lines[first].trim())) break;
+    lines.splice(first, 1);
+  }
   let seen = 0;
   const kept: string[] = [];
-  for (const line of text.split(/\r?\n/)) {
+  for (const line of lines) {
     if (line.trim()) { seen += 1; if (seen > expected) continue; }
     kept.push(line);
   }
