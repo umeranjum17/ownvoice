@@ -87,7 +87,11 @@ test('switching to ChatGPT signs in right on the page, and ChatGPT writes once c
   expect(screen.getByText(words.phoneOnlyApps)).toBeTruthy();
   expect(screen.getByText(words.gptSignOut)).toBeTruthy();
   expect(screen.getByText(words.privacyGpt)).toBeTruthy();
+  expect(screen.getByText(words.headGpt)).toBeTruthy();
+  expect(screen.getByText(words.headSwitch)).toBeTruthy();
   expect(visible(screen.toJSON()).filter(text => technicalWords.test(text))).toEqual([]);
+  await fireEvent.press(screen.getByText(words.headReads));
+  expect(router.push).toHaveBeenCalledWith('/reads');
 });
 
 test('Cancel drops the waiting code and keeps this phone writing', async () => {
