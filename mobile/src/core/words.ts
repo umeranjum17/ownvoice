@@ -115,6 +115,7 @@ export const words = {
   rowPause:'Pause for now',
   rowPauseNote:'Hides the bubble everywhere',
   rowRewrite:'Rewrite any text',
+  tip:'Tip',
   rowRewriteNote:'Select text in any app, then choose Ownvoice',
 
   // Where the bubble shows (AppsActivity).
