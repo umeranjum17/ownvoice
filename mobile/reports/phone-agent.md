@@ -1,10 +1,10 @@
 # Phone agent experiment (A5): loop vs script
 
 Stand-in pass on `main` plus the A5 harness (`mobile/src/agent/__tests__/AgentExperiment.test.ts`,
-task set `mobile/e2e/agent-tasks.json`). The live pass is **owed**: the owner's one-time
-ChatGPT sign-in in the dedicated test browser has not happened yet, so no live ChatGPT call
-was possible. Step 1 (one live tool-call turn) and the live pass of step 2 (P10 timings)
-run after that sign-in; exactly what will run is listed under "Owed live rows".
+task set `mobile/e2e/agent-tasks.json`). The live pass is **owed**: live rows run in a
+follow-up on the one signed-in test emulator, which other live checks are using first.
+Step 1 (one live tool-call turn) and the live pass of step 2 (P10 timings) run in that
+follow-up; exactly what will run is listed under "Owed live rows".
 
 ## Method (stand-in)
 
@@ -72,7 +72,7 @@ Task 4:
 - Agent (loop and script): "Hi Alex, thank you so much for covering my shift. That meant a lot, and I really appreciate it."
 - One-shot: "Hi Alex, thanks for covering my shift."
 
-Captain: the agent versions are ___ (owed judgment; the live side-by-side reruns after sign-in).
+Captain: the agent versions are ___ (owed judgment; the live side-by-side reruns in the follow-up on the one signed-in test emulator, which other live checks are using first).
 
 ## P8: stays out of production
 
@@ -113,7 +113,7 @@ Captain: the agent versions are ___ (owed judgment; the live side-by-side reruns
 Live: first words on screen <= 3 s, finished note <= 25 s on the emulator. Not a gate on
 the stand-in (harness rows run in 0-7 ms of Jest wall time).
 
-## Owed live rows (run after the one-time ChatGPT sign-in)
+## Owed live rows (follow-up on the one signed-in test emulator, which other live checks are using first)
 
 1. Step 1: one live ChatGPT tool-call turn through firstmate's isolated signed-in test home
    (the plan section 6 "not measured" proof: function `tools` accepted on
