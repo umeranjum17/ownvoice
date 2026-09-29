@@ -18,11 +18,13 @@ import { runAgent, type Brain, type Call } from './loop';
 import { instructions } from './prompt';
 import { checkVoice, shareNote } from './tools';
 import { labBrain } from './labBrain';
+import { phoneBrain } from './phoneBrain';
 
 /** One brain per writing choice; the ChatGPT and phone brains plug in here without screen changes. */
 export type Brains = { phone?: Brain; chatgpt?: Brain };
-// Until those land, lab builds write with the scripted stand-in whichever way Ownvoice writes.
-const LAB: Brains = { phone: labBrain(), chatgpt: labBrain() };
+// Phone chosen and ready runs the fixed script on the on-phone writer; ChatGPT keeps the
+// scripted stand-in until its brain lands. Either way getSource() picks, never a mid-task switch.
+const LAB: Brains = { phone: phoneBrain(), chatgpt: labBrain() };
 
 /** The writer the person chose, when it can write now: ChatGPT when chosen, this phone only when ready. */
 export async function pickBrain(brains: Brains): Promise<Brain | null> {
