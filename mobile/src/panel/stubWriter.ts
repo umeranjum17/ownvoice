@@ -6,7 +6,7 @@ import { words } from '../core/words';
 
 export const STUB_REPLIES = [
   'Yes, still on! I can bring the stove if you get the tent.',
-  'Saturday works. You bring the tent, I have the stove covered.',
+  'Saturday is tricky for me. Could we do Sunday instead? I can still bring the stove.',
   'Count me in for Saturday! Should I bring anything besides the stove?',
 ];
 
