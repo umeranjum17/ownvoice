@@ -44,9 +44,9 @@ To import a voice profile, tap **Import from a file** and pick a markdown file, 
 
 ## Privacy
 
-Ownvoice reads the screen only when you tap its bubble. What it reads stays on this phone, and it never sends anything.
+Ownvoice reads the screen only when you tap its bubble, except for the one opt-in switch described under **Your words stay yours** in the top-level README. What it reads stays on this phone, and it never sends anything.
 
-- **Reads only on request.** Ownvoice reads the screen only when you tap its bubble, never in the background. It reads the visible text and the field you're typing in, and keeps that in memory only until your next tap.
+- **Reads only on request.** Ownvoice reads the screen only when you tap its bubble, never in the background, unless you switch on **Check my spelling as I type**. It reads the visible text and the field you're typing in, and keeps that in memory only until your next tap.
 - **Every read is logged where you can see it.** **What Ownvoice read** on the main screen lists each tap: the app, the time, what it did ("Suggested replies", "Polished your message" or "Nothing to help with"), what it looked at ("Read the chat on screen and your message"), but never any of the text. The list stays on the phone and each entry is deleted after 30 days. **Wipe everything** clears the list, whatever the last tap read, and Your voice.
 - **Per app.** The bubble works only in apps switched on under **Where the bubble shows**. Setup's **Where should I help?** switches on the ones picked there from X, LinkedIn, Reddit, Slack, WhatsApp and Gmail. Without it, X, LinkedIn, Gmail and WhatsApp start on; every other app, Signal included, starts off. In an app that's off, the bubble doesn't show and nothing is read.
 - **Pause.** **Pause for now** on the main screen hides the bubble everywhere until you switch it back.
