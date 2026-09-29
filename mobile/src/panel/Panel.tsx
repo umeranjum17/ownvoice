@@ -21,6 +21,7 @@ import { ReasonRow } from '../ui/ReasonRow';
 import { Sheet } from '../ui/Sheet';
 import { VerdictLine } from '../ui/VerdictLine';
 import { shape, space, type, useReducedMotion, useTheme } from '../ui/theme';
+import { phoneCanWrite } from '../core/phoneStatus';
 import { phoneWriter } from './phoneWriter';
 
 type Mode = 'reply' | 'polish' | 'compose' | 'empty';
@@ -212,8 +213,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       const post = mode === 'compose';
       const rules = voice.current;
       const conversation = capture?.conversation ?? '';
-      let model = true;
-      try { if (await Native.modelStatus() !== 'available') model = false; } catch { model = false; }
+      // The checks stay on the phone when it can write; otherwise the cover shows the rules row plus noChecks.
+      const model = await phoneCanWrite() !== 'cant';
       if (!post && !kind.current && model) {
         const answer = await ask(Judge.kindPrompt(conversation), 5);
         const message = answer ? Judge.isMessage(answer) : null;
