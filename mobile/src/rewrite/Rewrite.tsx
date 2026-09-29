@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { classify } from '@byokit/accounts';
 import Native from '../../modules/ownvoice-native';
 import { streamSelectionRewrite } from '../chatgpt/responses';
@@ -23,7 +23,7 @@ import { MeaningLine } from '../ui/MeaningLine';
 import { Placeholder } from '../ui/Placeholder';
 import { Sheet } from '../ui/Sheet';
 import { VerdictLine } from '../ui/VerdictLine';
-import { space, type, useTheme } from '../ui/theme';
+import { space } from '../ui/theme';
 
 /** Deterministic stand-ins for the e2e build (EXPO_PUBLIC_E2E_STUB); never wired into a normal build. */
 function stubRewrite(text: string, how: Judge.Rewrite): string {
@@ -38,7 +38,6 @@ function stubRewrite(text: string, how: Judge.Rewrite): string {
 
 /** Rewrites selected text from the selection menu or a share, with no accessibility needed (R1–R5). */
 export default function Rewrite() {
-  const theme = useTheme();
   const [input, setInput] = useState<{ text: string; editable: boolean } | null>(null);
   const [choice, setChoice] = useState<Judge.Rewrite | null>(null);
   const [result, setResult] = useState<{ text: string; meaning: Judge.Check | null; scores: Judge.Scores; verdict: Judge.Verdict | null } | null>(null);
@@ -77,7 +76,7 @@ export default function Rewrite() {
     const showResult = async (text: string, canWrite: boolean) => {
       if (id !== run.current) return false;
       if (!text) { setNote("Couldn't rewrite that. Try again."); return false; }
-      setNote(input.editable ? 'Replace your text with it, or copy it.' : 'Copy it, then paste it where you like.');
+      setNote('Copy it, then paste it where you like.');
       setResult({ text, meaning: Judge.meaning(input.text, text, null), scores: Judge.scoreDraft(text, null, true, rules), verdict: null });
       setBusy(false);
       const answer = stub === null && canWrite ? await Native.ask(`rewrite-check-${Date.now()}`, Judge.rewriteCheckPrompt(input.text, text), { maxTokens: 80 }).catch(() => null) : null;
@@ -131,11 +130,9 @@ export default function Rewrite() {
           <MeaningLine check={result.meaning} same="Same meaning as yours" />
           <VerdictLine verdict={result.verdict} />
           <View style={{ flexDirection: 'row', gap: space.s, marginTop: space.m }}>
-            {input!.editable ? <Button kind="filled" label="Replace" onPress={() => { void Native.finishRewrite(result.text, true); }} /> : null}
-            <Button kind={input!.editable ? 'text' : 'filled'} label="Copy" onPress={() => { void Native.finishRewrite(result.text, false); }} />
+            <Button kind="filled" label="Copy" onPress={() => { void Native.finishRewrite(result.text, false); }} />
           </View>
         </Card>
-        {input!.editable ? <Text style={[type.note, { color: theme.muted, marginTop: space.m, paddingHorizontal: space.xs }]}>If the app doesn't take it, it's copied too. Just paste.</Text> : null}
       </> : null}
     </>}
   </Sheet>;

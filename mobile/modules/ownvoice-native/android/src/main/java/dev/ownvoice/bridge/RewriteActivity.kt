@@ -60,8 +60,10 @@ class RewriteActivity : ReactActivity() {
     get() = intent.action == Intent.ACTION_PROCESS_TEXT && !intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)
 
   /**
-   * Hands the rewrite back to the app and copies it too: Chrome drops the page's selection when
-   * another activity comes to the front, so it may ignore the result or insert it at the caret.
+   * Copy-only everywhere: the sheet never hands text back to a field. Chrome drops the page's
+   * selection when another activity comes to the front, so a handback may be ignored or
+   * inserted at the caret next to the original - doubling the user's text while claiming success.
+   * The rewrite is copied and the notice says plainly where to put it.
    */
   fun finishRewrite(text: String?, replace: Boolean) {
     if (text == null) {
@@ -70,9 +72,9 @@ class RewriteActivity : ReactActivity() {
       return
     }
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", text))
-    if (replace && editable) {
+    // `replace` is kept for the bridge signature; the policy below is always copy-only.
+    if (shouldHandBack(replace)) {
       setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text))
-      Toast.makeText(this, "Replaced. Also copied, in case the app didn't take it.", Toast.LENGTH_SHORT).show()
       Log.i(OwnvoiceService.TAG, "rewrite returned sha=${sha(text)}")
     } else {
       Toast.makeText(this, "Copied.", Toast.LENGTH_SHORT).show()
@@ -85,6 +87,12 @@ class RewriteActivity : ReactActivity() {
     /** The live sheet, so the module reads the intent of the activity that actually opened. */
     @Volatile
     var current: RewriteActivity? = null
+
+    /** Whether the sheet may hand the rewrite back to the field instead of copying.
+     * Always false: no field - own or another app's - gets a handback, so the sheet can never
+     * double or lose the user's text. Pinned by CopyOnlyTest. */
+    @JvmStatic
+    fun shouldHandBack(@Suppress("UNUSED_PARAMETER") replace: Boolean) = false
 
     /** A stable fingerprint for the on-device test; the text itself never goes to the log. */
     fun sha(text: String) = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }.take(12)

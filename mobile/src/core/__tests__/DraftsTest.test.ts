@@ -1,6 +1,7 @@
 import {
   REPLY_SLOTS, acceptReplies, cleanDrafts, dashDecision, dashesFor, latestMessage,
-  layoutKept, norm, phoneReplyPrompt, phoneSlotPrompt, preserveFragment, replyPrompt, replySlotPrompt, stripControlLines, undash, versionAcceptor,
+  layoutKept, norm, numbersAndTimesKept, phoneReplyPrompt, phoneSlotPrompt, preserveFragment,
+  rebuildLines, replyPrompt, replySlotPrompt, stripControlLines, undash, versionAcceptor,
 } from '../drafts';
 import { versionsList } from '../judge';
 
@@ -66,10 +67,10 @@ test('one leading agreement may repeat, but opposite answers and different days 
   expect(acceptReplies(['Yes, Saturday works; I can bring the stove', 'No, Saturday works; I can bring the stove'], [], 2)).toHaveLength(2);
   expect(acceptReplies(['I can bring the stove', "I can't bring the stove"], [], 2)).toHaveLength(2);
   expect(acceptReplies(['Could we meet on Saturday?', 'Could we meet on Sunday?'], [], 2)).toHaveLength(2);
-  const versions = versionAcceptor('Meet this weekend', 'remove', []);
-  expect(versions.accept('Could we meet on Saturday?', 0)).toBeTruthy();
-  expect(versions.accept('Could we meet on Sunday?', 1)).toBeTruthy();
-  expect(versions.accept('COULD WE MEET ON SATURDAY!', 2)).toBeNull();
+  const versions = versionAcceptor('Meet Saturday or Sunday?', 'remove', []);
+  expect(versions.accept('Could we meet Saturday or Sunday?', 0)).toBeTruthy();
+  expect(versions.accept('Should we meet on Saturday or Sunday?', 1)).toBeTruthy();
+  expect(versions.accept('COULD WE MEET SATURDAY OR SUNDAY!', 2)).toBeNull();
 });
 
 test('explicit labels retain empty earlier slots through reply acceptance', () => {
@@ -323,4 +324,39 @@ test('replyPromptsUseOnlySourceTimes',()=>{
   expect(replyPrompt({...input,dashes:'remove'})).toContain('Use only times, dates and facts');
   expect(phoneReplyPrompt(input)).toContain('Never invent facts, times or dates');
   expect(phoneSlotPrompt(REPLY_SLOTS[1],input,[])).toContain('Use only times, dates and facts');
+});
+
+test('rebuildLines rescues a flattened list onto the original markers', () => {
+  const original = 'Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon';
+  const answer = 'Row 1: Bring the tent\nRow 2: Pack the stove\nRow 3: Meet Saturday at noon';
+  expect(rebuildLines(original, answer)).toBe('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon');
+});
+
+test('rebuildLines keeps only expected Row lines; chatter never becomes row content', () => {
+  const original = 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon';
+  expect(rebuildLines(original, 'Row 1: Bring the tent\nRow 2: Pack the stove\nRow 3: Meet Saturday at noon\nThanks!'))
+    .toBe('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon');
+  expect(rebuildLines(original, 'Row 1: Bring the tent\nRow 2: Pack the stove\nHope this helps!\nRow 3: Meet Saturday at noon'))
+    .toBe('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon');
+  expect(rebuildLines(original, 'Bring the tent\nPack the stove\nMeet Saturday at noon')).toBeNull();
+  expect(rebuildLines(original, 'Row 1: Bring the tent\nRow 2: Pack the stove')).toBeNull();
+});
+
+test('numbersAndTimesKept fails dropped or invented numbers and times', () => {
+  expect(numbersAndTimesKept('2. Meet Saturday at noon', '2. The tent and Saturday are sorted.')).toBe(false);
+  expect(numbersAndTimesKept('2. Meet Saturday', '2. Meet Saturday at noon')).toBe(false);
+  expect(numbersAndTimesKept('2. Meet Saturday at noon', '2. Meet Saturday at noon!')).toBe(true);
+});
+
+test('versionAcceptor rejects first-pass versions that drop or invent times', () => {
+  const dropped = versionAcceptor('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', 'remove', []);
+  expect(dropped.accept('Bring the tent\n1. Pack the stove\n2. Saturday works.', 1, versionsList[1].label)).toBeNull();
+  expect(dropped.layoutFails).toEqual([{ slot: 1, label: versionsList[1].label }]);
+  const invented = versionAcceptor('Bring the tent\n1. Pack the stove\n2. Meet Saturday', 'remove', []);
+  expect(invented.accept('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', 1, versionsList[1].label)).toBeNull();
+  expect(invented.layoutFails).toEqual([{ slot: 1, label: versionsList[1].label }]); // queued, but the rescue guard drops it
+  expect(invented.fix('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', 1, versionsList[1].label)).toBeNull();
+  const kept = versionAcceptor('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', 'remove', []);
+  expect(kept.accept('Bring the tent\n1. Pack the stove\n2. Meet Saturday around noon', 1, versionsList[1].label))
+    .toBe('Bring the tent\n1. Pack the stove\n2. Meet Saturday around noon');
 });

@@ -331,7 +331,7 @@ test('a phone still getting ready is waited for without recording a yes', async 
 // ---- Polish and compose ----
 
 test('polish runs the C2 rewrite through the phone model and lands labelled versions', async () => {
-  native.ask.mockResolvedValue('{"versions":["I can bring the stove.","I will bring the stove. You are on the tent.","Stove: mine. Tent: yours. Saturday: on."]}');
+  native.ask.mockResolvedValue('{"versions":["I can bring the stove.","I will bring the stove. You are on the tent.","Stove: mine. Tent: yours. All agreed."]}');
   const landed: [string, number, string?][] = [];
   const { drafts } = await phoneWriter.write(request({ typed: 'i can bring the stove, super excited' }), { landed: (text, slot, label) => landed.push([text, slot, label]) });
   expect(drafts).toHaveLength(3);
@@ -347,8 +347,8 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
 test('a polish of the numbered list keeps the list, after one layout fix', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove, and you the tent."]}';
-    if (prompt.includes('Keep exactly 3 lines')) return 'Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.';
-    if (prompt.includes('Tighter:')) return 'Saturday works.\n1. I bring the stove.\n2. Tent is yours.';
+    if (prompt.includes('Row 1:')) return 'Row 1: Stove is on me.\nRow 2: I will bring the stove.\nRow 3: You can bring the tent.';
+    if (prompt.includes('Tighter:')) return 'Stove split.\n1. I bring the stove.\n2. Tent is yours.';
     return 'Stove and tent split:\n1. The stove is mine to bring.\n2. The tent is yours to bring.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
@@ -360,8 +360,8 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
 
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
-    if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Saturday plan:\\n1. I bring the stove.\\n2. You bring the tent, please.","Saturday plan:\\n1. Stove: mine.\\n2. Tent: yours."]}';
-    return 'Saturday plan:\n1. Stove: mine.\n2. Tent: yours.';
+    if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Stove plan:\\n1. I bring the stove.\\n2. You bring the tent, please.","Stove plan:\\n1. Stove: mine.\\n2. Tent: yours."]}';
+    return 'Stove plan:\n1. Stove: mine.\n2. Tent: yours.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
   expect(drafts).toHaveLength(2);
@@ -400,9 +400,9 @@ test('a version equal to the writer text is dropped; dashes stay when their own 
 });
 
 test('their dash rule is removed by the writer even when the model leaks one', async () => {
-  native.ask.mockResolvedValue('{"versions":["Yes — see you","Other one here","And a third version"]}');
+  native.ask.mockResolvedValue('{"versions":["Yes — see you Saturday then","Other one here","And a third version"]}');
   const { drafts } = await phoneWriter.write(request({ typed: 'see you saturday' }));
-  expect(drafts[0]).toBe('Yes, see you');
+  expect(drafts[0]).toBe('Yes, see you Saturday then');
 });
 
 test('polish prompts carry the avoid list', async () => {
