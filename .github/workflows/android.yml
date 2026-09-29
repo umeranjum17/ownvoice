@@ -23,6 +23,28 @@ jobs:
       - run: npm run typecheck
       - run: npm test -- --ci
 
+  ownvoice-native:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - run: npx expo prebuild -p android --no-install
+      - run: ./gradlew :ownvoice-native:testDebugUnitTest assembleDebug
+        working-directory: mobile/android
+
   build:
     runs-on: ubuntu-latest
     steps:
