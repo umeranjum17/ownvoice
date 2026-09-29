@@ -22,6 +22,7 @@ test.each<[string, string[]]>([
   ['Yesterday i went home and i\'m tired now.', ['i→I', 'i→I']],
   ['i went home and im tired, see you tmrw', ['im→I\'m']],
   ['See you at noon. thanks for waiting on me.', ['t→T']],
+  ['Thanks. dont worry about it now.', ['dont→Don\'t']],
   ['Meet me at 5 p.m. tomorrow at the cafe.', []],
   ['This one is better then the last one I got.', ['then→than']],
   ['Thanks so much, your welcome to join us.', ['your→you\'re']],

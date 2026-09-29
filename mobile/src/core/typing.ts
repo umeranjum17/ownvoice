@@ -35,10 +35,12 @@ function distance(a: string, b: string): number {
   return d[a.length][b.length];
 }
 
+const keepCase = (from: string, to: string) => (/^\p{Lu}/u.test(from) ? to[0].toUpperCase() + to.slice(1) : to);
+
 /** The one fix a spelling slip offers, or undefined when nothing is close enough to be sure of. Slow: only on a tap. */
 export function suggestion(word: string, speller: Speller): string | undefined {
   const plain = letters(word).toLowerCase();
-  if (APOSTROPHE[plain]) return APOSTROPHE[plain];
+  if (APOSTROPHE[plain]) return keepCase(word, APOSTROPHE[plain]);
   const candidates = speller.suggest(letters(word)).map((s, i) => ({ s, i, d: distance(plain, s.toLowerCase()) })).filter(c => c.d <= 2);
   candidates.sort((x, y) => x.d - y.d || Number(COMMON.has(y.s.toLowerCase())) - Number(COMMON.has(x.s.toLowerCase())) || x.i - y.i);
   return candidates[0]?.s;
@@ -69,7 +71,6 @@ const SKIP_DOUBLE = /^(?:that|had|is|do|bye|no|so|very|ha|haha|really|yeah|yes|w
 
 // Each rule marks group 1; group 2, when there, is the next word (read, never marked).
 type Rule = { re: RegExp; fix: (word: string, next: string) => string | null };
-const keepCase = (from: string, to: string) => (/^\p{Lu}/u.test(from) ? to[0].toUpperCase() + to.slice(1) : to);
 const RULES: Rule[] = [
   { re: new RegExp(`\\b(its)(?= (${VERBISH})\\b)`, 'gi'), fix: w => keepCase(w, "it's") },
   { re: /\b(it['’]s)(?= (own)\b)/gi, fix: w => keepCase(w, 'its') },
@@ -106,7 +107,11 @@ function grammar(text: string): Slip[] {
 
 /** Every slip in [text], sorted, one per spot. A spelling slip's fix is left to [suggestion], on a tap only: it can be slow. */
 export function slips(text: string, speller: Speller | null): Slip[] {
-  const found = [...(speller ? spelling(text, speller) : []), ...grammar(text)];
+  const spell = speller ? spelling(text, speller) : [];
+  const gram = grammar(text);
+  const sentenceStart = new Set(gram.filter(g => (g.fix ?? '').length === 1 && /^\p{Lu}$/u.test(g.fix!)).map(g => g.start));
+  for (const s of spell) if (s.fix && sentenceStart.has(s.start)) s.fix = s.fix[0].toUpperCase() + s.fix.slice(1);
+  const found = [...spell, ...gram];
   const seen = new Set<number>();
   return found.sort((a, b) => a.start - b.start).filter(s => !seen.has(s.start) && !!seen.add(s.start));
 }

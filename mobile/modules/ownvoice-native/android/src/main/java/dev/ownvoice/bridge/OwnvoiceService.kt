@@ -135,6 +135,7 @@ class OwnvoiceService : AccessibilityService() {
   private val typingPause = Runnable { typed() }
   private var typedApp: String? = null
   private var checkedText: String? = null
+  private var checkedApp: String? = null
   private var pausedAt = 0L
   private var slipApp: String? = null
   private var slipCount = 0
@@ -243,9 +244,9 @@ class OwnvoiceService : AccessibilityService() {
     if (!typingCheck || !allowed(app) || currentApp() != app) return
     val field = focusedField()?.takeUnless { it.isPassword }
     val text = accessibleText(field?.text, field?.isShowingHintText == true).orEmpty()
-    if (!worthChecking(text)) { checkedText = null; return showSlips(app, 0, "") }
-    if (text == checkedText) return
-    checkedText = text
+    if (!worthChecking(text)) { checkedText = null; checkedApp = null; return showSlips(app, 0, "") }
+    if (text == checkedText && app == checkedApp) return
+    checkedText = text; checkedApp = app
     pausedAt = SystemClock.elapsedRealtime()
     val send = onTyped
     if (send != null) return send(app, text)
@@ -267,7 +268,7 @@ class OwnvoiceService : AccessibilityService() {
   /** The switch went off: drop anything waiting and the count. */
   fun typingOff() {
     main.removeCallbacks(typingPause)
-    typedApp = null; checkedText = null; pendingTyped = null
+    typedApp = null; checkedText = null; checkedApp = null; pendingTyped = null
     showSlips("", 0, "")
   }
   override fun onInterrupt() {}
