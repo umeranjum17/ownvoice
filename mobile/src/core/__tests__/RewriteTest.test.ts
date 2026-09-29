@@ -26,3 +26,13 @@ test('selection chips deliver the full-stop instruction only for Fix spelling',(
   expect(selectionRewritePrompt('Hi',Rewrite.PLAINER)).not.toContain('do not add a full stop');
   expect(selectionRewritePrompt('Hi',Rewrite.GRAMMAR,'no dashes')).toContain("Follow the writer's rules: no dashes ");
 });
+// S05 (offline-model study §5.1): selection Shorter/Simpler on a numbered list must
+// ask the model to keep the lines, or every model flattens it to one line.
+test('selectionPromptKeepsListLines',()=>{
+  const list='Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon';
+  for(const how of [Rewrite.TIGHTEN,Rewrite.PLAINER]){
+    const prompt=selectionRewritePrompt(list,how);
+    expect(prompt).toContain('Keep its line breaks and list markers (1. 2. or -) exactly, one item per line.');
+    expect(prompt).toContain(list);
+  }
+});
