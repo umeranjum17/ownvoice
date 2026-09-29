@@ -64,6 +64,7 @@ beforeEach(() => {
   gpt.current.mockResolvedValue(nothing);
   gpt.start.mockResolvedValue(waitingCode);
   gpt.cancel.mockResolvedValue({ ...nothing, note: 'Sign-in stopped. Nothing was kept.' });
+  gpt.signOut.mockResolvedValue(nothing);
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   (native.addListener as unknown as jest.Mock).mockImplementation((event: string, cb: (event: never) => void) => {
     events[event] = cb as never;
@@ -204,10 +205,12 @@ test('permission skip with no offered apps finishes setup', async () => {
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
-test('a step saved by an older version resumes at the choice', async () => {
+test('a step saved by an older version at its last offer finishes setup without touching app choices', async () => {
   at('CHATGPT');
-  const screen = await renderSetup();
-  expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
+  await renderSetup();
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+  expect(kv.get('setup-done')).toBe('true');
+  expect(native.setBubbleRules).not.toHaveBeenCalled();
 });
 
 test('appsSaveWhatTheyShowOnDone', async () => {
@@ -533,4 +536,40 @@ test('aSignInStillWaitingComesBackAfterTheScreenIsRebuilt', async () => {
   gpt.current.mockResolvedValue(waitingCode);
   const screen = await renderSetup();
   expect(await screen.findByTestId('sign-in-code')).toBeTruthy();
+});
+
+test('backWhileTheCodeIsBeingMadeDropsItWhenItArrives', async () => {
+  at('CHOOSE');
+  let looked!: (state: GptState) => void;
+  const screen = await renderSetup();
+  await screen.findByText(words.tradeGpt1);
+  gpt.current.mockImplementationOnce(() => new Promise(resolve => { looked = resolve; }));
+  await signInWithChatGpt(screen);
+  await act(async () => { backHandlers.forEach(fire => fire()); });
+  await act(async () => { looked(nothing); });
+  expect(gpt.start).not.toHaveBeenCalled();
+  // Left while start() itself was running: the code it made is dropped.
+  let made!: (state: GptState) => void;
+  gpt.start.mockImplementationOnce(() => new Promise(resolve => { made = resolve; }));
+  await signInWithChatGpt(screen);
+  await waitFor(() => expect(gpt.start).toHaveBeenCalledTimes(1));
+  await act(async () => { backHandlers.forEach(fire => fire()); });
+  const cancels = gpt.cancel.mock.calls.length;
+  await act(async () => { made(waitingCode); });
+  await waitFor(() => expect(gpt.cancel.mock.calls.length).toBeGreaterThan(cancels));
+  expect(screen.queryByTestId('sign-in-code')).toBeNull();
+  expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
+});
+
+test.each([[true, 1], [false, 0]])('backFromConnectedSignsOutOnlyANewSignIn (new: %s)', async (fresh, signOuts) => {
+  at('CHOOSE');
+  if (fresh) gpt.start.mockResolvedValue(connected);
+  else gpt.current.mockResolvedValue(connected);
+  const screen = await renderSetup();
+  await signInWithChatGpt(screen);
+  await screen.findByText(words.connectedNote);
+  await act(async () => { backHandlers.forEach(fire => fire()); });
+  expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
+  expect(gpt.signOut).toHaveBeenCalledTimes(signOuts);
+  expect(kv.get('writer-source')).toBeUndefined();
 });

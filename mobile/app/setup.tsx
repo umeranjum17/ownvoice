@@ -53,6 +53,8 @@ export default function Setup() {
   // The ChatGPT sign-in, shown inside the choice step: null while the options show.
   const [gpt, setGpt] = useState<GptState | null>(null);
   const signing = useRef(0);
+  // Whether this attempt started a new sign-in, rather than finding ChatGPT already connected.
+  const fresh = useRef(false);
   const [source, setShownSource] = useState<Source>(() => store.get<Source>(SOURCE_KEY) ?? null);
   // The handlers that leave the screen (Done, Back) read the step at tap time, not mount time.
   const latest = useRef({ step, inserted, installed, choices, gpt });
@@ -112,6 +114,8 @@ export default function Setup() {
     phoneCanWrite().then(can => { if (mounted.current) setPhone(can); });
     // A sign-in still waiting for its code (the screen was rebuilt) comes back to its code.
     if (latest.current.step === 'CHOOSE') session.current().then(now => { if (now.waiting) showSignIn(signing.current, now); }).catch(() => {});
+    // A step saved by an older version at its last, optional ChatGPT offer: everything else was done.
+    if (latest.current.step === 'DONE') void finish(true);
     loadApps();
     const service = Native.addListener('onServiceChange', ({ state }) => setServiceOn(state === 'on'));
     // The first draft inserted into the practice chat ends the step (B11).
@@ -197,17 +201,28 @@ export default function Setup() {
   /** ChatGPT chosen: straight to connected when already signed in, otherwise a new code. */
   const signIn = () => {
     const at = ++signing.current;
+    fresh.current = false;
     setGpt({ ...nothing, waiting: true });
     void session.current()
-      .then(now => now.signedIn ? now : session.start())
+      .then(async now => {
+        if (now.signedIn || at !== signing.current) return now;
+        fresh.current = true;
+        const next = await session.start();
+        // Left while the code was being made: drop it rather than leave it waiting.
+        if (at !== signing.current) await session.cancel();
+        return next;
+      })
       .then(next => showSignIn(at, next))
       .catch(() => showSignIn(at, { ...nothing, note: words.failed }));
   };
 
-  /** Back or Cancel from the sign-in: the choice again, and a waiting code is dropped (nothing kept). */
+  /** Back or Cancel from the sign-in: the choice again, and nothing kept. A waiting code is dropped,
+   *  and an account connected just now is signed out again (one that was already there stays). */
   function leaveSignIn() {
     signing.current++;
-    if (latest.current.gpt?.waiting) void session.cancel().catch(() => {});
+    const left = latest.current.gpt;
+    if (left?.waiting) void session.cancel().catch(() => {});
+    else if (left?.signedIn && fresh.current) void session.signOut().catch(() => {});
     setGpt(null);
   }
 
@@ -228,6 +243,7 @@ export default function Setup() {
   const busyApps = !installed && !appsFailed;
 
   if (step === 'WELCOME') return <Welcome onContinue={() => advance()} />;
+  if (step === 'DONE') return <View style={{ flex: 1, backgroundColor: t.sheet }} />;
   const phoneCan = phone !== null && phone !== 'cant';
   const gptOption = <SourceOption icon={<ChatIcon size={22} color={t.onPrimaryContainer} />} title={words.srcGpt} subtitle={words.srcGptSub} selected={pick === 'chatgpt'} onPress={() => setPicked('chatgpt')}
     lines={[{ text: words.tradeGpt1, good: true }, { text: words.tradeGpt2, good: false }, { text: words.tradeGpt3, good: false }]} />;
