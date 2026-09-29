@@ -154,10 +154,11 @@ This installs the Expo app shown above (`dev.ownvoice.next`) alongside any other
 
 ## Development
 
-This repository holds two Android apps:
+This repository holds two Android apps plus the shared writing core:
 
 - **[`mobile/`](mobile/README.md)**: the Expo app shown in this README. Its README covers the checks, emulator tests, build flags and how Ownvoice writes. The writer's quality gate is in [`mobile/eval/`](mobile/eval/README.md).
 - **[`app/`](app/README.md)**: the original Kotlin app (`dev.ownvoice.app`), which the Expo app succeeds but does not yet fully replace. Its README covers how drafts are scored, its privacy details, and its build and device tests.
+- **[`packages/engine/`](packages/engine/package.json)**: the model-free writing core (`ownvoice-engine`, private until its eval gate passes), published as a package instead of copied code. The app imports it; `mobile/src/core/` holds only re-export shims.
 
 Checks for the Expo app:
 
