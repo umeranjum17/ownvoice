@@ -101,7 +101,7 @@ test('fallback padding never adds a word they did not type', () => {
 });
 
 test('the LinkedIn eval case is long enough to split', () => {
-  const t02: any = cases.find(c => c.id === 'T02-linkedin-thread');
+  const t02: any = cases.find(c => c.id === 'H02-linkedin-thread');
   expect(splitThread(t02.typed, 3000).length).toBeGreaterThan(1);
 });
 

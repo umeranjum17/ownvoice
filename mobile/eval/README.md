@@ -19,7 +19,7 @@ MODEL=qwen3.8:27b-q4_K_M node run.ts <label> http://localhost:11434 out/<m>.json
 ```
 
 Env: `MODEL` (ollama model name; unset for llama-server's loaded model),
-Thread cases `T01` (X) and `T02` (LinkedIn) run the package-5 thread writer:
+Thread cases `H01` (X) and `H02` (LinkedIn) run the package-5 thread writer:
 one model call for the split plus 3 hooks, checked for the cap, kept words,
 `addedNumbers` both ways and hook words from their text (see `scoreThread` in
 `score.ts`); they are reported but outside the enforced five-case gate.
