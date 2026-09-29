@@ -33,6 +33,14 @@ function scoreRewrite(c: any, text: string, needLayout: boolean) {
   if (missing.length) issues.push(`drops ${missing.join('/')}`);
   if (nums.length) issues.push(`numbers ${nums.join('/')}`);
   if (commentary(text)) issues.push('commentary');
+  // The selection sheet shows only the rewrite: trailing chatter/list lines past
+  // the original's line count fail, even when they restate its words (S08: two
+  // dash lines, one inventing a "deadline" framing). Real lists (S05) pass
+  // because their counts match; layoutKept covers those too.
+  if (c.kind === 'select') {
+    const lines = (s: string) => s.trim().split('\n').filter(l => l.trim()).length;
+    if (lines(text) > lines(c.typed)) issues.push('extra lines');
+  }
   if (needLayout && !layoutKept(c.typed, text)) issues.push('layout');
   if (c.exact && low(text) !== low(c.exact)) issues.push(`not exact (${JSON.stringify(text)})`);
   if (c.screen && c.screen.split('\n').some((l: string) => { const m = l.replace(/^[^:]{1,20}:\s*/, ''); return m.length > 15 && text.includes(m) && !c.typed.includes(m); })) issues.push('copied screen text');

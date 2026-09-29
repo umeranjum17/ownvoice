@@ -75,10 +75,11 @@ async function tone(c: any, calls: Call[]) {
   return { shown: [{ text: answer, slot: 0 }] };
 }
 
-// Same shape as Rewrite.tsx: one selectionRewritePrompt call, cleaned, with the
-// single-word full-stop guard for Fix spelling.
+// Same shape as Rewrite.tsx: one selectionRewritePrompt call, cleaned with the
+// selection chatter filter, with the single-word full-stop guard for Fix spelling.
 async function select(c: any, calls: Call[]) {
-  const out = J.clean(await call(J.selectionRewritePrompt(c.typed, c.how, ''), 256, calls));
+  const raw = await call(J.selectionRewritePrompt(c.typed, c.how, ''), 256, calls);
+  const out = D.cleanSelection(c.typed, J.clean(raw));
   return { shown: [{ text: c.how === 'Fix spelling' ? D.preserveFragment(c.typed, out) : out, slot: 0 }] };
 }
 

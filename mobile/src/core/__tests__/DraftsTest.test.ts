@@ -1,5 +1,5 @@
 import {
-  REPLY_SLOTS, acceptReplies, cleanDrafts, dashDecision, dashesFor, latestMessage,
+  REPLY_SLOTS, acceptReplies, cleanDrafts, cleanSelection, dashDecision, dashesFor, latestMessage,
   layoutKept, norm, numbersAndTimesKept, phoneReplyPrompt, phoneSlotPrompt, preserveFragment,
   rebuildLines, replyPrompt, replySlotPrompt, stripControlLines, undash, versionAcceptor,
 } from '../drafts';
@@ -48,6 +48,20 @@ test('only a single word loses added final punctuation', () => {
   expect(preserveFragment('see you Saturday', 'See you Saturday!')).toBe('See you Saturday!');
   expect(preserveFragment('can you come', 'Can you come?')).toBe('Can you come?');
   expect(preserveFragment('Are you coming?', 'Are you coming?')).toBe('Are you coming?');
+});
+
+// Selection rewrite (phone check 29 Sep): Shorter on 'Please bring the tent on
+// Saturday.' appended dash restatements, one inventing a "deadline" framing.
+// Trailing lines past the original are chatter and drop; real lists keep every line.
+test('cleanSelection drops trailing chatter lines past the original', () => {
+  expect(cleanSelection(
+    'Please bring the tent on Saturday.',
+    'Bring the tent on Saturday.\n- Please bring the tent.\n- The deadline is Saturday.',
+  )).toBe('Bring the tent on Saturday.');
+  expect(cleanSelection('See you Saturday!', 'See you Saturday!\nHope this helps!')).toBe('See you Saturday!');
+  const list = 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon';
+  expect(cleanSelection(list, list)).toBe(list);
+  expect(cleanSelection('tommorow', 'tomorrow')).toBe('tomorrow');
 });
 
 // ---- 5.3 Duplicates ----
