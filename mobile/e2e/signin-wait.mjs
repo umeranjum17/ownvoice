@@ -18,6 +18,7 @@ if (serial !== '127.0.0.1:4555' && !serial?.startsWith('emulator-'))
   throw new Error('Set ANDROID_SERIAL to a throwaway emulator or the claimed Mac slot 127.0.0.1:4555 (owner phones are refused).');
 const snapTool = (process.env.SNAP_TOOL ?? '').trim(); // e.g. the Mac slot script: screenshots via `$S shot <path>`
 const deviceMockBase = (process.env.DEVICE_MOCK_BASE ?? '').trim(); // the mock URL as the device sees it
+const deviceBase = (port) => deviceMockBase || `http://10.0.2.2:${port}`;
 const avd = (process.env.OWNVOICE_AVD_NAME ?? '').trim();
 if (!avd) throw new Error('Set OWNVOICE_AVD_NAME to your own AVD name.');
 const apk = process.argv[2];
@@ -119,7 +120,7 @@ const disableService = () => {
 // app's sign-in stack and from Chrome on the code page. Every request is timestamped.
 const mock = await mockOpenAI({ port, host: '0.0.0.0', log: line => appendFileSync(resolve(out, 'signin-mock.log'), `${stamp()} ${line}\n`) });
 if (dropPolls > 0) mock.state.dropPolls = dropPolls;
-log(`stand-in OpenAI on ${mock.base} (device at ${deviceMockBase || `http://10.0.2.2:${port}`}), dropPolls=${dropPolls}`);
+log(`stand-in OpenAI on ${mock.base} (device at ${deviceBase(port)}), dropPolls=${dropPolls}`);
 
 const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const priorAccessibility = adb('shell', 'settings', 'get', 'secure', 'accessibility_enabled').trim();
@@ -163,7 +164,7 @@ try {
   if (hits < want.length - 2) throw new Error(`The code ${code} is not on screen.`);
   log(`code on screen: ${code}`);
   snap('signin-02-code');
-  const page = `${deviceMockBase || mock.base.replace('0.0.0.0', '10.0.2.2')}/codex/device`;
+  const page = `${deviceBase(port)}/codex/device`;
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', page);
   await wait(3000);
   if (!focus().toLowerCase().includes('chrome')) throw new Error(`The code page did not come up (focus: ${focus()}).`);

@@ -19,26 +19,27 @@ committed here (`OWNVOICE-P7-API36-01-choose` … `OWNVOICE-P7-API36-06-connecte
 
 | Time | What happened |
 |---|---|
-| 06:03:05 | Stand-in OpenAI up on the host; fresh install on the booted API 36 AVD |
-| 06:03:41 | Setup walked to the ChatGPT choice; Continue with ChatGPT → code `MOCK-10001` issued (`POST /api/accounts/deviceauth/usercode`) |
-| 06:03:48 | Code verified on the app screen with its waiting note; page opened in Chrome |
-| 06:04:02–06:04:55 | Chrome in front, focus checked every 10 s (`ChromeTabbedActivity` throughout) |
-| 06:04:56 | Code approved the way the page's own Continue posts it (`POST /codex/device` → "Signed in") |
-| 06:04:59 | Next poll completed the exchange (`POST /api/accounts/deviceauth/token`, `POST /oauth/token`) |
-| 06:05:04 | Back in the app: "ChatGPT is connected" — signed in, setup continues |
+| 06:30:38 | Stand-in OpenAI up on the host; fresh install on the booted API 36 AVD |
+| 06:30:59 | Setup walked to the ChatGPT choice; Continue with ChatGPT → code `MOCK-10001` issued (`POST /api/accounts/deviceauth/usercode`) |
+| 06:31:01 | Code verified on the app screen with its waiting note; page opened in Chrome (`GET /codex/device`) |
+| 06:31:14–06:32:05 | Chrome in front, focus checked every 10 s (`ChromeTabbedActivity` throughout) |
+| 06:32:06 | Code approved the way the page's own Continue posts it (`POST /codex/device` → "Signed in") |
+| 06:32:09 | Next poll completed the exchange (`POST /api/accounts/deviceauth/token`, `POST /oauth/token`) |
+| 06:32:13 | Back in the app: "ChatGPT is connected" — signed in, setup continues |
 
 Stand-in request log (every request timestamped; the only evidence that matters):
 
 ```
-06:03:41 POST /api/accounts/deviceauth/usercode
-06:03:41 POST /api/accounts/deviceauth/token
-06:03:48 POST /api/accounts/deviceauth/token
-06:04:56 POST /codex/device
-06:04:59 POST /api/accounts/deviceauth/token
-06:04:59 POST /oauth/token authorization_code
+06:30:59 POST /api/accounts/deviceauth/usercode
+06:30:59 POST /api/accounts/deviceauth/token
+06:31:01 POST /api/accounts/deviceauth/token
+06:31:01 GET /codex/device
+06:32:06 POST /codex/device
+06:32:09 POST /api/accounts/deviceauth/token
+06:32:09 POST /oauth/token authorization_code
 ```
 
-No token poll reached the stand-in between 06:03:48 and the approval at 06:04:56: while
+No token poll reached the stand-in between 06:31:01 and the approval at 06:32:06: while
 Chrome was in front the backgrounded app sent nothing for over a minute, yet the wait
 never failed and the first poll after approval completed it. That is the AGENTS.md
 scenario survived — by stalling, not by dying, which is exactly what the byokit poll
