@@ -53,6 +53,7 @@ test('asking for mobile data mid-run restarts the download with mobile data allo
   expect(native.downloadModel).toHaveBeenLastCalledWith({ allowMobileData: false }, expect.any(Function));
   const second = getReady(true);
   expect(native.cancelModelDownload).toHaveBeenCalledTimes(1);
+  await Promise.resolve();
   expect(native.downloadModel).toHaveBeenLastCalledWith({ allowMobileData: true }, expect.any(Function));
   expect(kv.get(MOBILE_KEY)).toBe('true');
   wifi.resolve();

@@ -5,6 +5,9 @@ import android.util.Log
 import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.common.GenAiException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * The on-device writer: [AiCore] (Gemini Nano) wherever AICore answers,
@@ -12,6 +15,7 @@ import kotlinx.coroutines.CancellationException
  */
 internal object PhoneModel {
   @Volatile private var aiCoreReady = false
+  private val aiCoreDownload = AtomicReference<Job?>(null)
 
   /** AICore state (a FeatureStatus int), or null when the phone has no AICore to ask. */
   private suspend fun aiCore(): Int? =
@@ -26,27 +30,40 @@ internal object PhoneModel {
   }
 
   suspend fun status(context: Context): String {
-    val state = when (aiCore()) {
+    val probe = aiCore()
+    val state = when (probe) {
       FeatureStatus.AVAILABLE -> "available"
       FeatureStatus.DOWNLOADABLE -> "downloadable"
       FeatureStatus.DOWNLOADING -> "downloading"
       else -> null
     }
     if (state != null) {
+      aiCoreReady = true
       Log.i(OwnvoiceService.TAG, "model status $state (aicore)")
       return state
     }
+    if (probe == FeatureStatus.UNAVAILABLE) aiCoreReady = false
     return LocalGemma.status(context).also {
       Log.i(OwnvoiceService.TAG, "model status $it (local)")
     }
   }
 
   suspend fun download(context: Context, allowMobileData: Boolean, progress: (Float) -> Unit) {
-    if (useAiCore()) AiCore.download(progress)
-    else LocalGemma.download(context, allowMobileData, progress)
+    if (useAiCore()) {
+      aiCoreDownload.set(coroutineContext[Job])
+      try {
+        AiCore.download(progress)
+      } finally {
+        aiCoreDownload.compareAndSet(coroutineContext[Job], null)
+      }
+    } else LocalGemma.download(context, allowMobileData, progress)
   }
 
-  fun cancelDownload() = LocalGemma.cancelDownload()
+  suspend fun cancelDownload() {
+    LocalGemma.cancelDownload()
+    LocalGemma.awaitDownloadSettled()
+    aiCoreDownload.getAndSet(null)?.cancelAndJoin()
+  }
 
   fun delete(context: Context) = LocalGemma.delete(context)
 
