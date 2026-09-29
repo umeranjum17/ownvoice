@@ -76,10 +76,10 @@ Pick who writes your drafts, and change it any time. **On this phone** is privat
 
 ### Everything in one place
 
-Home shows at a glance whether Ownvoice is ready, and holds every setting: which apps show the bubble, how your writing is handled, your voice, and what Ownvoice read.
+Home shows at a glance whether Ownvoice is ready, and holds every setting: how Ownvoice writes, which apps show the bubble, your voice, and what Ownvoice read.
 
 <p align="center">
-  <img src="docs/readme/home.webp" alt="Home: 'Ready to help, tap the bubble in your chats', with rows for How your writing is handled, Where the bubble shows, Your voice, What Ownvoice read, Continue with ChatGPT and Pause for now" width="300" />
+  <img src="docs/readme/home.webp" alt="Home: 'Ready to help, tap the bubble in your chats', with rows for How Ownvoice writes, Where the bubble shows, Your voice, What Ownvoice read and Pause for now" width="300" />
 </p>
 
 **Also on your phone:**
@@ -106,7 +106,7 @@ Ownvoice reads the screen only when you tap its bubble, never in the background,
   <img src="docs/readme/reads.webp" alt="What Ownvoice read: one entry, 'Suggested replies in Ownvoice (new), read the chat on screen, Today', and Wipe everything" width="300" />
 </p>
 
-The exact data flows, including the one-time download and the remote on/off switch for ChatGPT, are written down in [mobile/README.md](mobile/README.md#chatgpt-integration).
+The exact data flows, including the one-time download and the remote on/off switch for ChatGPT, are written down in [mobile/README.md](mobile/README.md#how-ownvoice-writes).
 
 ## Get started
 
@@ -153,7 +153,7 @@ This installs the Expo app shown above (`dev.ownvoice.next`) alongside any other
 
 This repository holds two Android apps:
 
-- **[`mobile/`](mobile/README.md)**: the Expo app shown in this README. Its README covers the checks, emulator tests, build flags and the ChatGPT integration. The writer's quality gate is in [`mobile/eval/`](mobile/eval/README.md).
+- **[`mobile/`](mobile/README.md)**: the Expo app shown in this README. Its README covers the checks, emulator tests, build flags and how Ownvoice writes. The writer's quality gate is in [`mobile/eval/`](mobile/eval/README.md).
 - **[`app/`](app/README.md)**: the original Kotlin app (`dev.ownvoice.app`), which the Expo app succeeds but does not yet fully replace. Its README covers how drafts are scored, its privacy details, and its build and device tests.
 
 Checks for the Expo app:
