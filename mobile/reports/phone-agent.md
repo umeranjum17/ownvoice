@@ -84,12 +84,29 @@ Captain: the agent versions are ___ (owed judgment; the live side-by-side reruns
   (`<Redirect href="/" />` when the flag is off) and `SettingsTest` ("Home has no Try a
   writing task row outside lab builds"); emulator deeplink capture PENDING with the builds.
 - Emulator captures (flagged lab build on the lane's own AVD `ov-agent-a5`, ANDROID_AVD_HOME
-  under `/home/umer/lab-tmp/ov-agent-a5`): OWED behind the main native build fix. The flagged
-  release build (`:app:assembleRelease` from `mobile/android`, throwaway HOME/npm/Gradle home)
-  fails at `:ownvoice-native:compileReleaseKotlin` with the known PR 61 errors (unresolved
-  `coroutineContext` in `LocalGemma.kt`/`PhoneModel.kt`, `cancelDownload` overload in
-  `OwnvoiceNativeModule.kt`); the ov-native-build fix lane owns that file. No phone install
-  was attempted. The lane AVD `ov-agent-a5` stays created and booted for the rerun.
+  under `/home/umer/lab-tmp/ov-agent-a5`, serial emulator-5554 verified via `adb emu avd name`;
+  APK sha256 `dba0dba7e2647a5e5b2b598252139cb7ba5c226355a25545f69c9d5e0a423b1f`, built with
+  `EXPO_PUBLIC_PHONE_AGENT=1 EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1` after the PR 66
+  native fix; throwaway HOME/npm/Gradle home): in `mobile/reports/`
+  - `OWNVOICE-AGENT-A5-home-chatgpt.png`: setup done, Home reads "Writes with your ChatGPT".
+  - `OWNVOICE-AGENT-A5-home-row.png`: the lab row "Try a writing task" below the fold.
+  - `OWNVOICE-AGENT-A5-lab-empty.png`: the task field "What should I write?", Write it disabled.
+  - `OWNVOICE-AGENT-A5-lab-working.png`: task 1 running on the stand-in, streaming draft plus
+    the one plain line "Checking it against your rules…" (never tool names).
+  - `OWNVOICE-AGENT-A5-lab-share.png`: the approval card "Share this note?" with the exact
+    text and Share / Not now; no share sheet appeared without a tap (P4 gate as built).
+  Setup was walked with `e2e/first-run.mjs` to the practice step; its fixed Insert anchor
+  (`width*.2, height*.6`) misses the pill on current main, so practice was finished with the
+  on-screen Skip, then Done. Share/Not now reply paths and the done state are covered by
+  `AgentScreen.test` RTL (Share to done, Not now to declined, cap, streaming lines).
+  Driver: `mobile/e2e/agent-lab.mjs` (lane AVD only, refuses other AVDs, shell input +
+  screencap only, never UiAutomator).
+- Unflagged deeplink: `ownvoice://agent` on the unflagged release build (sha256
+  `62c4cb1d5161bc502500f9527c026e341fb4bd42dca3aa09f52bcf7837f224f5`, fresh HOME for a
+  clean Metro) opens the welcome flow ("Write replies that sound like you."), not the lab:
+  `OWNVOICE-AGENT-A5-unflagged-deeplink.png`. APK bundle grep: 0 `phone-agent-lab` markers
+  unflagged vs 1 flagged. With `SettingsTest` (no lab row unflagged) and the `app/agent.tsx`
+  `<Redirect href="/" />`, P8 passes on the stand-in.
 
 ## P10: speed (owed live)
 
