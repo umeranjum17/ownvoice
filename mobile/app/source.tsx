@@ -230,7 +230,8 @@ const styles = StyleSheet.create({
   status: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 56 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s, paddingLeft: 56 },
   inner: { borderRadius: shape.group, overflow: 'hidden', paddingVertical: space.xs },
-  signOut: { alignItems: 'flex-start', paddingHorizontal: space.xs, paddingBottom: space.s },
+  // The text button's own padding lines its label up with the row's title above.
+  signOut: { alignItems: 'flex-start', marginLeft: space.l - 24, paddingBottom: space.s },
   code: { borderRadius: shape.group, padding: space.l, gap: space.xs },
   codeText: { letterSpacing: 4, textAlign: 'center', paddingVertical: space.m },
   waiting: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: space.s },

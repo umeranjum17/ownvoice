@@ -210,6 +210,10 @@ async function writes(kind) {
       } else throw new Error(`Unknown flow ${kind}.`);
     }
     console.log(`How Ownvoice writes (${kind}) saved to ${out} in light and dark; every screen's words checked.`);
+  } catch (error) {
+    // What was on screen when it stopped, for whoever reads the failure.
+    try { writeFileSync(resolve(out, 'failed.png'), screenshot()); } catch {}
+    throw error;
   } finally {
     adb('shell', 'settings', priorSchedule === 'null' ? 'delete' : 'put', 'secure', 'ui_night_mode_custom_type', ...(priorSchedule === 'null' ? [] : [priorSchedule]));
     adb('shell', 'cmd', 'uimode', 'night', priorMode);
