@@ -125,14 +125,14 @@ async function writes(kind) {
     }
     throw new Error(`Could not see "${label}" on screen.`);
   };
-  const press = async label => {
+  const press = async (label, below = 0) => {
     for (let i = 0; i < 8; i++) {
       // A line that is the label, or starts with it (a card title beside its radio), wins over one that
       // only contains it ("This list stays on this phone").
       const image = screenshot();
       const pick = found => found.find(line => line.text.trim() === label) ?? found.find(line => line.text.trim().startsWith(label)) ?? found.find(line => line.text.includes(label));
       const hit = pick(lines(image, false)) ?? pick(lines(image, true));
-      if (hit) { adb('shell', 'input', 'tap', String(Math.round((hit.left + hit.right) / 2)), String(Math.round((hit.top + hit.bottom) / 2))); return; }
+      if (hit) { adb('shell', 'input', 'tap', String(below ? Math.round(width * 0.38) : Math.round((hit.left + hit.right) / 2)), String(Math.round((hit.top + hit.bottom) / 2) + below)); return; }
       await wait(1000);
     }
     throw new Error(`No visible "${label}" to tap.`);
@@ -178,8 +178,10 @@ async function writes(kind) {
         await seen('not chosen yet');
         snap(mode, '08-home-needs-a-writer');
         await press('continue with chatgpt');
-        await seen('your code');
+        // The stand-in connects about 9 s after the code shows: snap first, check the picture after.
+        await wait(2000);
         snap(mode, '10-source-signin-code');
+        if (!/kqpt|your code/.test(readable(readFileSync(resolve(out, `10-source-signin-code-${mode}.png`))))) throw new Error('No sign-in code on screen.');
         await seen('chatgpt is connected', 30);
         await wait(800);
         snap(mode, '11-source-chatgpt-phone-cant');
@@ -194,7 +196,8 @@ async function writes(kind) {
         // Cards are tapped by their subtitles: OCR mangles the titles beside their icons.
         await press('private and free');
         await seen('get this phone ready');
-        await press('get it ready');
+        // White-on-pill labels don't OCR: the button sits just under the size line.
+        await press('you write leaves the phone', Math.round(height * 0.042));
         await wait(1200);
         snap(mode, '06-settings-phone-getting-ready');
         await seen('it writes right here', 30);
