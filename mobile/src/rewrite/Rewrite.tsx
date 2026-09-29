@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Share, View } from 'react-native';
 import { classify } from '@byokit/accounts';
 import Native from '../../modules/ownvoice-native';
 import { streamSelectionRewrite } from '../chatgpt/responses';
@@ -135,6 +135,7 @@ export default function Rewrite() {
           <VerdictLine verdict={result.verdict} />
           <View style={{ flexDirection: 'row', gap: space.s, marginTop: space.m }}>
             <Button kind="filled" label="Copy" onPress={() => { void Native.finishRewrite(result.text, false); }} />
+            <Button kind="text" label={words.shareText} onPress={() => { void Share.share({ message: result.text }).catch(() => {}); }} />
           </View>
         </Card>
       </> : null}
