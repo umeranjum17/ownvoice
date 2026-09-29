@@ -53,8 +53,6 @@ export const words = {
   permissionSubtitle:'Android calls this “accessibility”. It’s the only way a helper can read a chat and fill in a message box for you.',
   promiseTap:'Reads only when you tap the bubble',
   promiseTapNote:'Never in the background',
-  promisePhone:'Choose who writes your drafts',
-  promisePhoneNote:'Nothing leaves your phone unless you sign in to ChatGPT',
   promiseSend:'You always press Send',
   promiseSendNote:'Ownvoice never sends for you',
   switchRowApp:'Ownvoice',

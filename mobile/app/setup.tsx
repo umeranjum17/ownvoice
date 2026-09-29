@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { AppState, Animated, BackHandler, Easing, Image, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, AppState, Animated, BackHandler, Easing, Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { Button } from '../src/ui/Button';
@@ -7,14 +7,19 @@ import { Row } from '../src/ui/Row';
 import { Switch } from '../src/ui/Switch';
 import { Dot } from '../src/ui/Dot';
 import { Badge } from '../src/ui/Badge';
-import { ChatIcon, CheckIcon, HandIcon, LockIcon, WarnIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, HandIcon, LockIcon, PhoneIcon, WarnIcon } from '../src/ui/icons';
+import { SourceOption } from '../src/ui/SourceOption';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
-import { words, CHATGPT_TERMS } from '../src/core/words';
+import { say } from '@byokit/accounts';
+import { words } from '../src/core/words';
 import * as Onboarding from '../src/core/onboarding';
 import type { Step } from '../src/core/onboarding';
 import { store } from '../src/core/store';
 import { completeSetup } from '../src/core/setup-completion';
 import { saveBubbleRules } from '../src/chatgpt/settings';
+import { NAME, session, nothing, type GptState } from '../src/chatgpt/session';
+import { getSource, setSource, SOURCE_KEY, type Source } from '../src/core/source';
+import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
 import Native from '../modules/ownvoice-native';
 
 type Saved = { step: Step; inserted: boolean };
@@ -23,13 +28,13 @@ type Offered = { app: string; name: string; icon: string | null };
 const readSaved = (): Saved => {
   const done = !!store.get('setup-done');
   const saved = done ? null : store.get<Saved>('setup');
-  return { step: saved?.step ?? Onboarding.first(done), inserted: !!saved?.inserted };
+  return { step: Onboarding.known(saved?.step) ?? Onboarding.first(done), inserted: !!saved?.inserted };
 };
 
-/** The first run: the welcome, the permission explained kindly, a practice chat that ends in a first
- *  inserted draft, app choices and an optional ChatGPT offer. Steps follow core/onboarding;
- *  hardware Back bypasses the offer and completes setup. The home switch later opens at
- *  permission (Onboarding.first). */
+/** The first run: the welcome, how Ownvoice writes (this phone or the person's ChatGPT, signed in right
+ *  here), the permission explained kindly, a practice chat that ends in a first inserted draft, and app
+ *  choices. Steps follow core/onboarding; hardware Back leaves a sign-in for the choice, and otherwise
+ *  completes setup. The home switch later opens at permission (Onboarding.first). */
 export default function Setup() {
   const t = useTheme();
   const [{ step, inserted }, setSaved] = useState<Saved>(readSaved);
@@ -42,9 +47,18 @@ export default function Setup() {
   const [choices, setChoices] = useState<Record<string, boolean>>({});
   const [greyed, setGreyed] = useState(false);
   const [hintOn, setHintOn] = useState(false);
+  const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
+  const [picked, setPicked] = useState<'phone' | 'chatgpt' | null>(null);
+  const pick = picked ?? (phone === 'cant' ? 'chatgpt' : 'phone');
+  // The ChatGPT sign-in, shown inside the choice step: null while the options show.
+  const [gpt, setGpt] = useState<GptState | null>(null);
+  const signing = useRef(0);
+  // Whether this attempt started a new sign-in, rather than finding ChatGPT already connected.
+  const fresh = useRef(false);
+  const [source, setShownSource] = useState<Source>(() => store.get<Source>(SOURCE_KEY) ?? null);
   // The handlers that leave the screen (Done, Back) read the step at tap time, not mount time.
-  const latest = useRef({ step, inserted, installed, choices });
-  latest.current = { step, inserted, installed, choices };
+  const latest = useRef({ step, inserted, installed, choices, gpt });
+  latest.current = { step, inserted, installed, choices, gpt };
 
   const set = (update: (current: Saved) => Saved) => {
     const next = update(latest.current);
@@ -97,11 +111,20 @@ export default function Setup() {
     // The one-time model download runs quietly behind setup (the home card reports problems later).
     Native.modelStatus().then(s => { if (s === 'downloadable') Native.downloadModel().catch(() => {}); }).catch(() => {});
     Native.serviceState().then(s => { if (mounted.current) setServiceOn(s === 'on'); }).catch(() => {});
+    phoneCanWrite().then(can => { if (mounted.current) setPhone(can); });
+    // A sign-in still waiting for its code (the screen was rebuilt) comes back to its code.
+    if (latest.current.step === 'CHOOSE') session.current().then(now => { if (now.waiting) showSignIn(signing.current, now); }).catch(() => {});
+    // A step saved by an older version at its last, optional ChatGPT offer: everything else was done.
+    if (latest.current.step === 'DONE') void finish(true);
     loadApps();
     const service = Native.addListener('onServiceChange', ({ state }) => setServiceOn(state === 'on'));
     // The first draft inserted into the practice chat ends the step (B11).
     const done = Native.addListener('onInserted', ({ ok, practice }) => { if (ok && practice && latest.current.step === 'TRY') set(current => ({ ...current, inserted: true })); });
-    const back = BackHandler.addEventListener('hardwareBackPress', () => { void finish(true); return true; });
+    const back = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (latest.current.gpt) leaveSignIn();
+      else void finish(true);
+      return true;
+    });
     return () => {
       mounted.current = false;
       service.remove(); done.remove(); back.remove();
@@ -111,7 +134,17 @@ export default function Setup() {
 
   useEffect(() => {
     Native.setPractice(step === 'TRY').catch(() => {});
+    // The permission's middle promise follows the choice.
+    if (step === 'PERMISSION') getSource().then(chosen => { if (mounted.current) setShownSource(chosen); }).catch(() => {});
   }, [step]);
+
+  // The approval happens on the ChatGPT page, so the step looks again while a code waits.
+  useEffect(() => {
+    if (!gpt?.waiting) return;
+    const at = signing.current;
+    const id = setInterval(() => { void session.current().then(now => showSignIn(at, now)).catch(() => {}); }, 1000);
+    return () => clearInterval(id);
+  }, [gpt?.waiting]);
 
   // Once the service is on, the permission step has done its job and setup moves on (B10's return).
   useEffect(() => {
@@ -135,21 +168,7 @@ export default function Setup() {
       return;
     }
     const next = Onboarding.next(current, serviceOn, !!store.get('setup-done'), (latest.current.installed?.length ?? 0) > 0);
-    // The apps step saves its own list on the way to the optional ChatGPT step.
-    if (current === 'APPS') {
-      if (savingRef.current) return;
-      savingRef.current = true;
-      setSaving(true);
-      void saveApps().then(() => {
-        savingRef.current = false;
-        setSaving(false);
-        set(saved => ({ ...saved, step: 'CHATGPT' }));
-      }, () => {
-        savingRef.current = false;
-        setSaving(false);
-      });
-      return;
-    }
+    // finish saves the apps step's list on the way out.
     if (next === 'DONE') void finish();
     else set(current => ({ ...current, step: next }));
   };
@@ -174,11 +193,76 @@ export default function Setup() {
     return () => { if (timer) clearTimeout(timer); state.remove(); };
   }, [step]);
 
+  /** A sign-in answer, unless the person has left that sign-in since it started. */
+  function showSignIn(at: number, next: GptState) {
+    if (mounted.current && at === signing.current) setGpt(next);
+  }
+
+  /** ChatGPT chosen: straight to connected when already signed in, otherwise a new code. */
+  const signIn = () => {
+    const at = ++signing.current;
+    fresh.current = false;
+    setGpt({ ...nothing, waiting: true });
+    void session.current()
+      .then(async now => {
+        if (now.signedIn || at !== signing.current) return now;
+        fresh.current = true;
+        const next = await session.start();
+        // Left while the code was being made: drop it rather than leave it waiting.
+        if (at !== signing.current) await session.cancel();
+        return next;
+      })
+      .then(next => showSignIn(at, next))
+      .catch(() => showSignIn(at, { ...nothing, note: words.failed }));
+  };
+
+  /** Back or Cancel from the sign-in: the choice again, and nothing kept. A waiting code is dropped,
+   *  and an account connected just now is signed out again (one that was already there stays). */
+  function leaveSignIn() {
+    signing.current++;
+    const left = latest.current.gpt;
+    if (left?.waiting) void session.cancel().catch(() => {});
+    else if (left?.signedIn && fresh.current) void session.signOut().catch(() => {});
+    setGpt(null);
+  }
+
+  const copyAndOpen = () => {
+    if (!gpt?.code) return;
+    void Native.copy(gpt.code).catch(() => {});
+    if (gpt.url) void Linking.openURL(gpt.url).catch(() => showSignIn(signing.current, { ...gpt, note: words.gptPageFailed }));
+  };
+
+  const choose = (chosen: 'phone' | 'chatgpt') => {
+    try { setSource(chosen); } catch { return; }
+    signing.current++;
+    setGpt(null);
+    advance('CHOOSE');
+  };
+
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const };
   const busyApps = !installed && !appsFailed;
 
   if (step === 'WELCOME') return <Welcome onContinue={() => advance()} />;
+  if (step === 'DONE') return <View style={{ flex: 1, backgroundColor: t.sheet }} />;
+  const phoneCan = phone !== null && phone !== 'cant';
+  const gptOption = <SourceOption icon={<ChatIcon size={22} color={t.onPrimaryContainer} />} title={words.srcGpt} subtitle={words.srcGptSub} selected={pick === 'chatgpt'} onPress={() => setPicked('chatgpt')}
+    lines={[{ text: words.tradeGpt1, good: true }, { text: words.tradeGpt2, good: false }, { text: words.tradeGpt3, good: false }]} />;
   return <Screen step={step} footer={<>
+    {step === 'CHOOSE' && !gpt && (phone === 'cant'
+      ? <>
+        <Button kind="filled" large label={words.gptButton} onPress={signIn} />
+        <View style={styles.skip}><Button kind="text" label={words.notNow} onPress={() => { void finish(); }} /></View>
+      </>
+      : <Button kind="filled" large disabled={!phone} label={words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : signIn()} />)}
+    {step === 'CHOOSE' && gpt?.waiting && <>
+      <Button kind="filled" large disabled={!gpt.code} label={words.copyAndOpen} onPress={copyAndOpen} />
+      <View style={styles.skip}><Button kind="text" label={words.gptCancel} onPress={leaveSignIn} /></View>
+    </>}
+    {step === 'CHOOSE' && gpt?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => choose('chatgpt')} />}
+    {step === 'CHOOSE' && gpt && !gpt.waiting && !gpt.signedIn && <>
+      <Button kind="filled" large label={words.tryAgain} onPress={signIn} />
+      {phoneCan && <View style={styles.skip}><Button kind="text" label={words.usePhoneInstead} onPress={() => choose('phone')} /></View>}
+    </>}
     {step === 'PERMISSION' && <>
       <Button kind="filled" large label={words.turnOn} onPress={() => { Native.openAccessibilitySettings(true).catch(() => {}); }} />
       <View style={styles.actions}>
@@ -190,16 +274,48 @@ export default function Setup() {
       ? <Button kind="filled" large disabled={busyApps} label={words.continueLabel} onPress={() => advance()} />
       : <View style={styles.skip}><Button kind="text" disabled={busyApps} label={words.skip} onPress={() => advance()} /></View>)}
     {step === 'APPS' && <Button kind="filled" large disabled={!installed || saving} label={words.done} onPress={() => advance()} />}
-    {step === 'CHATGPT' && <>
-      <Button kind="filled" large label={words.gptButton} onPress={() => { router.push('/chatgpt'); }} />
-      <View style={styles.skip}><Button kind="text" label={words.notNow} onPress={() => { void finish(); }} /></View>
-    </>}
   </>}>
+    {step === 'CHOOSE' && !gpt && <>
+      <Head title={words.chooseTitle} note={phone === 'cant' ? words.chooseNoteCant : words.chooseNote} />
+      {phone && <View style={styles.options} accessibilityRole="radiogroup">
+        {phone === 'cant'
+          ? <>{gptOption}<SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable /></>
+          : <><SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneSub} selected={pick === 'phone'} onPress={() => setPicked('phone')}
+            lines={[{ text: words.tradePhone1, good: true }, { text: words.tradePhone2, good: true }, { text: words.tradePhone3, good: false }]} />{gptOption}</>}
+      </View>}
+    </>}
+    {step === 'CHOOSE' && gpt?.waiting && <>
+      <Head title={words.signInTitle} note={words.signInNote} />
+      <View style={[styles.code, { backgroundColor: t.raised }]}>
+        {gpt.code && <>
+          <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
+          <Text testID="sign-in-code" accessibilityLabel={`${words.yourCode} ${gpt.code.split('').join(' ')}`} style={[type.headline, styles.codeText, { color: t.text }]}>{gpt.code}</Text>
+        </>}
+        <View style={styles.waiting}>
+          <ActivityIndicator size="small" color={t.primary} />
+          <Text style={[type.note, { color: t.muted }]}>{gpt.code ? words.waiting : gpt.note ?? words.waiting}</Text>
+        </View>
+      </View>
+      <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
+        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: NAME, company: 'OpenAI' })}</Text>
+      </View>
+    </>}
+    {step === 'CHOOSE' && gpt?.signedIn && <>
+      <View style={styles.connectedDot}><Dot mood="done" size={112} /></View>
+      <Head title={words.gptSignedInNow.replace(/\.$/, '')} note={words.connectedNote} />
+      <View style={[styles.sent, { backgroundColor: t.group }]}>
+        <Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>
+        <Text style={[type.body, { color: t.text, flex: 1 }]}>{`${words.privacyGpt} ${words.sentOnlyOnTap}`}</Text>
+      </View>
+    </>}
+    {step === 'CHOOSE' && gpt && !gpt.waiting && !gpt.signedIn && <Head title={words.signInTitle} note={gpt.note ?? words.failed} />}
     {step === 'PERMISSION' && <>
       <Head title={words.permissionTitle} note={words.permissionSubtitle} />
       <View style={[group, { gap: 2 }]}>
         <Row lead={<Badge><HandIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseTap} subtitle={words.promiseTapNote} />
-        <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promisePhone} subtitle={words.promisePhoneNote} />
+        {source === 'chatgpt'
+          ? <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseGpt} subtitle={words.promiseGptNote} />
+          : <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseStays} subtitle={words.promiseStaysNote} />}
         <Row lead={<Badge><ChatIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseSend} subtitle={words.promiseSendNote} />
       </View>
       <Text style={[type.label, { color: t.primary, marginTop: space.xl }]}>{words.permissionNext}</Text>
@@ -253,13 +369,6 @@ export default function Setup() {
         <Button kind="text" label={words.tryAgain} onPress={loadApps} />
       </View>}
     </>}
-    {step === 'CHATGPT' && <>
-      <Head title={words.gptTitle} note={words.gptNote} />
-      <View style={[styles.fine, { backgroundColor: t.group }]}>
-        <Text style={[type.note, { color: t.muted }]}>{CHATGPT_TERMS}</Text>
-        <Text style={[type.note, { color: t.muted }]}>{words.switchNote}</Text>
-      </View>
-    </>}
   </Screen>;
 
   function toggle(app: string) {
@@ -267,7 +376,7 @@ export default function Setup() {
   }
 }
 
-const STEPPED: Step[] = ['PERMISSION', 'TRY', 'APPS', 'CHATGPT'];
+const STEPPED: Step[] = ['CHOOSE', 'PERMISSION', 'TRY', 'APPS'];
 
 /** A setup step: where you are, the step's words scrolling, and its actions held at the bottom. */
 function Screen({ step, footer, children }: { step: Step; footer: ReactNode; children: ReactNode }) {
@@ -276,7 +385,7 @@ function Screen({ step, footer, children }: { step: Step; footer: ReactNode; chi
   const at = STEPPED.indexOf(step);
   return <View style={{ flex: 1, backgroundColor: t.sheet }}>
     <ScrollView contentContainerStyle={[styles.page, { paddingTop: top + space.l }]} keyboardShouldPersistTaps="always">
-      <View style={styles.steps} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: STEPPED.length, now: at + 1 }}>
+      <View testID="setup-steps" style={styles.steps} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: STEPPED.length, now: at + 1 }}>
         {STEPPED.map((s, i) => <View key={s} style={[styles.stepBar, { backgroundColor: i <= at ? t.primary : t.yours }]} />)}
       </View>
       {children}
@@ -371,6 +480,12 @@ const styles = StyleSheet.create({
   appIcon: { width: 40, height: 40, borderRadius: 12 },
   problem: { flexDirection: 'row', alignItems: 'center', gap: space.m, borderRadius: shape.group, paddingLeft: space.l, paddingVertical: space.s, marginTop: space.m },
   fine: { borderRadius: shape.group, padding: space.l, gap: space.s },
+  options: { gap: space.m },
+  code: { borderRadius: shape.group, padding: space.l, gap: space.xs },
+  codeText: { letterSpacing: 4, textAlign: 'center', paddingVertical: space.m },
+  waiting: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: space.s },
+  connectedDot: { alignItems: 'center', marginTop: space.s, marginBottom: space.l },
+  sent: { flexDirection: 'row', alignItems: 'flex-start', gap: space.l, borderRadius: shape.group, padding: space.l },
   welcome: { flex: 1 },
   welcomeScroll: { flexGrow: 1 },
   stage: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: space.xl, paddingVertical: space.l },

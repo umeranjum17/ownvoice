@@ -14,6 +14,8 @@ import { Row } from '../Row';
 import { ReasonRow } from '../ReasonRow';
 import { Progress } from '../Progress';
 import { Dot } from '../Dot';
+import { SourceOption } from '../SourceOption';
+import { PhoneIcon } from '../icons';
 import { useReducedMotion, useTheme } from '../theme';
 
 jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
@@ -49,6 +51,9 @@ const cases: [string, () => React.ReactElement][] = [
   ['reason-concern', () => <ReasonRow ok={false} name="A bit stock" detail="On your never-say list: delve" />],
   ['progress', () => <Progress fraction={0.42} />],
   ['dot-idle', () => <Dot mood="idle" size={40} />],
+  ['source-selected', () => <SourceOption icon={<PhoneIcon size={22} color="#000" />} title="On this phone" subtitle="Private and free" selected onPress={() => {}}
+    lines={[{ text: 'Free, and works without internet', good: true }, { text: 'Simpler drafts, and a bit slower on some phones', good: false }]} />],
+  ['source-unavailable', () => <SourceOption icon={<PhoneIcon size={22} color="#000" />} title="On this phone" subtitle="This phone can't write on its own. Only some newer phones can." selected={false} unavailable />],
 ];
 
 test('a failed motion query still settles the UI', async () => {
