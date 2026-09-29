@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { say } from '@byokit/accounts';
 import { Badge } from '../src/ui/Badge';
@@ -9,7 +9,7 @@ import { PhoneWriter } from '../src/ui/PhoneWriter';
 import { Row } from '../src/ui/Row';
 import { Sheet } from '../src/ui/Sheet';
 import { SourceOption } from '../src/ui/SourceOption';
-import { ChatIcon, CheckIcon, EyeIcon, LockIcon, PhoneIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, ChevIcon, EyeIcon, LockIcon, PhoneIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
@@ -183,10 +183,12 @@ export default function SourceScreen() {
       : null;
 
   // What happens to the writing, for the chosen option only: nothing chosen means nothing is written or sent.
-  const notes = [
-    ...(chosen === 'chatgpt' ? [[LockIcon, words.privacyGpt], [ChatIcon, words.switchNote]] as const : chosen === 'phone' ? [[LockIcon, words.privacyPhone]] as const : []),
-    [EyeIcon, words.readsNote],
-  ] as const;
+  // Each reads as a short headline first, with the full sentence under it; the read log opens its own screen.
+  const notes: [typeof LockIcon, string, string, (() => void)?][] = [
+    ...(chosen === 'chatgpt' ? [[LockIcon, words.headGpt, words.privacyGpt], [ChatIcon, words.headSwitch, words.switchNote]] as [typeof LockIcon, string, string][]
+      : chosen === 'phone' ? [[LockIcon, words.headPhone, words.privacyPhone]] as [typeof LockIcon, string, string][] : []),
+    [EyeIcon, words.headReads, words.readsNote, () => router.push('/reads')],
+  ];
 
   return <View style={{ flex: 1 }}>
     <Page title={words.rowSource} note={words.sourceNote} onBack={() => router.back()}>
@@ -202,10 +204,22 @@ export default function SourceScreen() {
       </View>}
       {problem && <Text style={[type.body, { color: t.text }]}>{problem}</Text>}
       <Text accessibilityRole="header" style={[type.label, styles.section, { color: t.primary }]}>{words.writingSection}</Text>
-      {notes.map(([Icon, text]) => <View key={text} style={[styles.card, { backgroundColor: t.group }]}>
-        <Badge>{icon(Icon)}</Badge>
-        <Text style={[type.body, { color: t.text, flex: 1 }]}>{text}</Text>
-      </View>)}
+      <View style={[styles.notes, { backgroundColor: t.group }]}>
+        {notes.map(([Icon, head, text, open], i) => {
+          const inner = <>
+            <Badge>{icon(Icon)}</Badge>
+            <View style={{ flex: 1 }}>
+              <Text style={[type.body, { color: t.text, fontWeight: '600' }]}>{head}</Text>
+              <Text style={[type.note, { color: t.muted, marginTop: 2 }]}>{text}</Text>
+            </View>
+            {open ? <ChevIcon size={24} color={t.muted} /> : null}
+          </>;
+          const line = i > 0 ? { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line } : null;
+          return open
+            ? <Pressable key={head} accessibilityRole="button" onPress={open} android_ripple={{ color: t.text + '12', foreground: true }} style={[styles.card, line]}>{inner}</Pressable>
+            : <View key={head} style={[styles.card, line]}>{inner}</View>;
+        })}
+      </View>
     </Page>
     {confirm && <View style={StyleSheet.absoluteFill}>
       <Sheet title={words.switchTitle} mood="listening" onClose={() => setConfirm(false)}>
@@ -236,7 +250,8 @@ const styles = StyleSheet.create({
   codeText: { letterSpacing: 4, textAlign: 'center', paddingVertical: space.m },
   waiting: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingBottom: space.s },
   section: { marginTop: space.l, paddingHorizontal: space.s },
-  card: { flexDirection: 'row', alignItems: 'flex-start', gap: space.l, borderRadius: shape.group, padding: space.l },
+  notes: { borderRadius: shape.group, overflow: 'hidden' },
+  card: { flexDirection: 'row', alignItems: 'flex-start', gap: space.l, padding: space.l },
   sheet: { gap: space.m, paddingHorizontal: space.s, paddingTop: space.s },
   sheetActions: { gap: space.xs, marginTop: space.s },
 });
