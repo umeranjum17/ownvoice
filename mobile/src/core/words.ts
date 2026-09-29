@@ -69,6 +69,7 @@ export const words = {
   tryTitle:'Try it',
   tryInsert:'Tap the round bubble on the right, then Insert.',
   tryTurnOnFirst:'Turn Ownvoice on first, then come back here to try it.',
+  tryDoneTitle:'You did it',
   tryDone:'That’s it. In your apps, read it over and press Send yourself.',
   practiceFriend:'Sam',
   practiceMessage1:'Are we still on for Saturday?',

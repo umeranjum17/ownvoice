@@ -82,7 +82,7 @@ const at = (step: string, inserted = false) => kv.set('setup', JSON.stringify({ 
 test.each(['WELCOME', 'CHOOSE', 'PERMISSION', 'TRY', 'APPS'])('%s uses plain visible wording', async step => {
   at(step, true);
   const screen = await renderSetup();
-  await screen.findByText(({ WELCOME: words.welcomeTitle, CHOOSE: words.tradeGpt3, PERMISSION: words.permissionTitle, TRY: words.tryTitle, APPS: words.appsTitle } as Record<string, string>)[step]);
+  await screen.findByText(({ WELCOME: words.welcomeTitle, CHOOSE: words.tradeGpt3, PERMISSION: words.permissionTitle, TRY: words.tryDoneTitle, APPS: words.appsTitle } as Record<string, string>)[step]);
   const visible: string[] = [];
   const collect = (node: unknown): void => {
     if (typeof node === 'string') visible.push(node);
@@ -337,7 +337,7 @@ test.each([
   let loaded!: (apps: { app: string; label: string; icon: null }[]) => void;
   native.launcherApps.mockImplementation(() => new Promise(resolve => { loaded = resolve; }));
   const screen = await renderSetup();
-  await screen.findByText(step === 'TRY' ? words.tryTitle : words.permissionTitle);
+  await screen.findByText(step === 'TRY' ? (inserted ? words.tryDoneTitle : words.tryTitle) : words.permissionTitle);
   await fireEvent.press(screen.getByText(action));
   expect(screen.queryByText(words.appsTitle)).toBeNull();
   await act(async () => { loaded([{ app: 'com.whatsapp', label: 'WhatsApp', icon: null }]); });
@@ -390,6 +390,8 @@ test('practiceLetsTheBubbleWorkOnlyThereAndEndsOnInsert', async () => {
   expect(screen.queryByText(words.tryDone)).toBeNull();
   events.onInserted?.({ ok: true, newlinesLost: false, practice: true });
   expect(await screen.findByText(words.tryDone)).toBeTruthy();
+  expect(screen.getByText(words.tryDoneTitle)).toBeTruthy();
+  expect(screen.queryByText(words.tryTitle)).toBeNull();
   expect(screen.getByRole('button', { name: words.continueLabel })).toBeTruthy();
   expect(screen.queryByText(words.skip)).toBeNull();
   await screen.unmount();

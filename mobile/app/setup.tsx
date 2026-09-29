@@ -352,7 +352,7 @@ export default function Setup() {
       {greyed && <Text style={[type.body, { color: t.text, marginTop: space.l }]}>{words.greyedHelp}</Text>}
     </>}
     {step === 'TRY' && <>
-      <Head title={words.tryTitle} note={inserted ? words.tryDone : serviceOn ? words.tryInsert : words.tryTurnOnFirst} done={inserted} />
+      <Head title={inserted ? words.tryDoneTitle : words.tryTitle} note={inserted ? words.tryDone : serviceOn ? words.tryInsert : words.tryTurnOnFirst} done={inserted} />
       <View style={[styles.chat, { backgroundColor: t.card, borderColor: t.cardLine }]}>
         <View style={styles.chatHead}>
           <View style={[styles.avatar, { backgroundColor: t.glow }]}><Text style={[type.label, { color: t.text }]} importantForAccessibility="no">{words.practiceFriend[0]}</Text></View>
@@ -421,12 +421,31 @@ function Screen({ step, footer, children }: { step: Step; footer: ReactNode; chi
 function Head({ title, note, done = false }: { title: string; note: string; done?: boolean }) {
   const t = useTheme();
   return <View style={styles.head}>
-    <Text accessibilityRole="header" style={[type.display, { color: t.text }]}>{title}</Text>
+    <View style={styles.headTitle}>
+      <Text accessibilityRole="header" style={[type.display, { color: t.text, flexShrink: 1 }]}>{title}</Text>
+      {done && <Cheer />}
+    </View>
     <View style={styles.headNote}>
       {done && <View style={[styles.tick, { backgroundColor: t.primary }]}><CheckIcon size={16} color={t.onPrimary} /></View>}
       <Text style={[type.body, { color: done ? t.text : t.muted, flex: 1 }]}>{note}</Text>
     </View>
   </View>;
+}
+
+/** Dot celebrating a step that worked: one spring in from small, a little tilt that settles. Still when motion is reduced. */
+function Cheer() {
+  const reduced = useReducedMotion();
+  const pop = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reduced === null) return;
+    if (reduced) { pop.setValue(1); return; }
+    Animated.spring(pop, { toValue: 1, damping: 9, stiffness: 160, mass: 0.8, useNativeDriver: true }).start();
+  }, [reduced, pop]);
+  const scale = pop.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] });
+  const rotate = pop.interpolate({ inputRange: [0, 1], outputRange: ['-18deg', '0deg'] });
+  return <Animated.View style={{ opacity: pop.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 1, 1] }), transform: [{ scale }, { rotate }] }}>
+    <Dot mood="done" size={52} />
+  </Animated.View>;
 }
 
 /** The first screen shows the whole idea at a glance: a friend's message, Dot, and a reply in your
@@ -486,6 +505,7 @@ const styles = StyleSheet.create({
   steps: { flexDirection: 'row', gap: 6, marginBottom: space.xl },
   stepBar: { flex: 1, height: 4, borderRadius: 2 },
   head: { marginBottom: space.xl },
+  headTitle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: space.m },
   headNote: { flexDirection: 'row', alignItems: 'flex-start', gap: space.s, marginTop: space.s },
   tick: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   footer: { paddingHorizontal: space.xl, paddingTop: space.m, gap: space.xs },
