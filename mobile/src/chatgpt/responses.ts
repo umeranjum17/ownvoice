@@ -105,6 +105,8 @@ export const chatgptWriter: Writer = {
       return { drafts: request.typed.trim() ? await polish(request, on) : await replies(request, on) };
     } catch (error) {
       if (error instanceof SendVeto) throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      if (classify(message)?.kind === 'network') throw error;
       throw new Error(words.chatgptFailed);
     }
   },

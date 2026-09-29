@@ -8,7 +8,8 @@ import { Row } from '../src/ui/Row';
 import { space, type, useTheme } from '../src/ui/theme';
 import { words, CHATGPT_TERMS } from '../src/core/words';
 import { session, nothing, type GptState } from '../src/chatgpt/session';
-import { gptApps } from '../src/chatgpt/settings';
+import { PHONE_ONLY_KEY } from '../src/core/source';
+import { store } from '../src/core/store';
 import Native from '../modules/ownvoice-native';
 
 /** Signing in to the person's own ChatGPT plan: one button, a code to type on the page that opens,
@@ -34,7 +35,7 @@ export default function ChatGpt() {
   }, [state?.waiting]);
 
   useEffect(() => {
-    if (state?.signedIn && !gptApps()) router.push('/gptapps');
+    if (state?.signedIn && !store.get(PHONE_ONLY_KEY)) router.push('/gptapps');
   }, [state?.signedIn]);
 
   const openPage = (url: string | null) => {
@@ -56,7 +57,7 @@ export default function ChatGpt() {
       ? <>
         <Text style={[type.body, { color: t.text }]}>{state?.note ?? words.gptSignedInNow}</Text>
         <View style={{ borderRadius: 20, backgroundColor: t.group, overflow: 'hidden' }}>
-          <Row title={words.gptApps} onPress={() => router.push('/gptapps')} />
+          <Row title={words.phoneOnlyApps} onPress={() => router.push('/gptapps')} />
         </View>
         <Button kind="text" label={words.gptSignOut} onPress={() => { void session.signOut().then(show).catch(() => { if (live.current) setState(current => ({ ...(current ?? nothing), note: words.gptSignOutFailed })); }); }} />
       </>

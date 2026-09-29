@@ -11,20 +11,7 @@ import { needWriter, routeWriters, SendVeto, type WriterEvents, type WriterRoute
 >>>>>>> d355308 (feat(mobile): route every draft through the chosen writing source (P3))
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
-import { GPT_APPS_KEY, mocked, session, sessionNow, signOutGuard } from './session';
-
-export type GptApps = { on: string[] };
-
-export const gptApps = (strict = false): GptApps | null => store.get<GptApps>(GPT_APPS_KEY, strict);
-export async function saveGptApps(apps: GptApps): Promise<boolean> {
-  const before = signOutGuard();
-  if (before.active || !(await session.current()).signedIn) return false;
-  const after = signOutGuard();
-  if (after.active || after.epoch !== before.epoch) return false;
-  store.set(GPT_APPS_KEY, apps);
-  return true;
-}
-export const gptChoice = (app: string): boolean => !!gptApps()?.on.includes(app);
+import { mocked, session, sessionNow, signOutGuard } from './session';
 type BubbleRules = Awaited<ReturnType<typeof Native.bubbleRules>>;
 let rulesNow: BubbleRules | null = null;
 let rulesVersion = 0;
@@ -116,8 +103,8 @@ export function chatgptConsent(app: string | null): Required<Pick<WriterEvents, 
 export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<WriterRoute> {
   const source = await getSource();
   if (source === 'phone') return { writer: phoneWriter, note: null };
-  if (source == null) return { writer: needWriter, note: null };
   const practice = isOwnApp(app);
+  if (source == null) return practice ? { writer: phoneWriter, note: null } : { writer: needWriter, note: null };
   const state = await session.current();
   const version = rulesVersion;
   const pending = rulesPending;

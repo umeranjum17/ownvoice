@@ -58,7 +58,7 @@ export function routeWriters(options: { source: Source; signedIn: boolean; phone
   if (options.source == null) return { writer: needWriter, note: null };
   if (options.phoneOnlyApp) return { writer: phoneWriter, note: null };
   if (!options.signedIn) return options.phone === 'cant'
-    ? { writer: thrower(options.note ?? words.needWriterPanel), note: null }
+    ? { writer: thrower(options.note ?? words.needWriterNote), note: null }
     : { writer: phoneWriter, note: null };
   if (!options.enabled) return options.phone === 'cant'
     ? { writer: thrower(words.gptOffNoPhone), note: null }
