@@ -86,26 +86,11 @@ export function preserveFragment(original: string, text: string): string {
  * Shorter, one inventing a "deadline" framing). Drop them; a real list keeps
  * every line because the counts match.
  */
-const bareInterjection = /^(sure|okay|ok|of course|certainly|great|thanks)[,!.]?$/i;
-const hereRewrite = /here(?: is|'s) (?:your|the|a|an|my)\b.*(version|rewrite|rewritten|shorter|tighter|polished|improved)/i;
-
-const preambleLine = (text: string) => text.endsWith(':') || hereRewrite.test(text);
-
 export function cleanSelection(original: string, text: string): string {
   const expected = original.split(/\r?\n/).filter(line => line.trim()).length;
-  const lines = text.split(/\r?\n/);
-  while (lines.filter(line => line.trim()).length > expected) {
-    const first = lines.findIndex(line => line.trim());
-    if (first < 0) break;
-    const next = lines.findIndex((line, j) => j > first && line.trim());
-    const following = next < 0 ? null : lines[next].trim();
-    const text = lines[first].trim();
-    if (!preambleLine(text) && !(following != null && bareInterjection.test(text) && preambleLine(following))) break;
-    lines.splice(first, 1);
-  }
   let seen = 0;
   const kept: string[] = [];
-  for (const line of lines) {
+  for (const line of text.split(/\r?\n/)) {
     if (line.trim()) { seen += 1; if (seen > expected) continue; }
     kept.push(line);
   }

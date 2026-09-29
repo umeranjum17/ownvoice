@@ -3,7 +3,7 @@ import {
   layoutKept, norm, numbersAndTimesKept, phoneReplyPrompt, phoneSlotPrompt, preserveFragment,
   rebuildLines, replyPrompt, replySlotPrompt, stripControlLines, undash, versionAcceptor,
 } from '../drafts';
-import { clean, versionsList } from '../judge';
+import { versionsList } from '../judge';
 
 // ---- 5.5 cleanDrafts (unchanged; now living here) ----
 
@@ -62,68 +62,6 @@ test('cleanSelection drops trailing chatter lines past the original', () => {
   const list = 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon';
   expect(cleanSelection(list, list)).toBe(list);
   expect(cleanSelection('tommorow', 'tomorrow')).toBe('tomorrow');
-});
-
-test('a leading shorter-version preamble is stripped before the line window', () => {
-  expect(cleanSelection(
-    'Please bring the tent on Saturday.',
-    clean('Sure, here is your shorter version:\nBring the tent on Saturday.'),
-  )).toBe('Bring the tent on Saturday.');
-  expect(cleanSelection(
-    'Please bring the tent on Saturday.',
-    clean('Okay! Here is your shorter version:\nBring the tent on Saturday.'),
-  )).toBe('Bring the tent on Saturday.');
-  expect(cleanSelection(
-    'Please bring the tent on Saturday.',
-    clean('Of course! Here is your shorter version:\nBring the tent on Saturday.'),
-  )).toBe('Bring the tent on Saturday.');
-  expect(cleanSelection(
-    'Please bring the tent on Saturday.',
-    'Certainly, here is your shorter version.\nBring the tent on Saturday.',
-  )).toBe('Bring the tent on Saturday.');
-  expect(cleanSelection(
-    'Please bring the tent on Saturday.',
-    'Sure!\nHere is your shorter version:\nBring the tent on Saturday.',
-  )).toBe('Bring the tent on Saturday.');
-  expect(cleanSelection(
-    'Please bring the tent on Saturday.',
-    'Shorter version:\nBring the tent on Saturday.',
-  )).toBe('Bring the tent on Saturday.');
-  expect(cleanSelection(
-    'Please bring the tent on Saturday.',
-    clean('Ok, here is your version:\nBring the tent on Saturday.'),
-  )).toBe('Bring the tent on Saturday.');
-});
-
-test('cleanSelection keeps a genuine rewrite that starts like an opener', () => {
-  expect(cleanSelection(
-    'Send me the report by Friday. No excuses this time.',
-    'Sure, please send the report by Friday!\nHope this helps!',
-  )).toBe('Sure, please send the report by Friday!');
-  expect(cleanSelection(
-    'Here is the report for Friday.',
-    "Here is Friday's report.\nHope this helps!",
-  )).toBe("Here is Friday's report.");
-  expect(cleanSelection(
-    'Here is the Q3 report.',
-    'Here is the report.\nHope this helps!',
-  )).toBe('Here is the report.');
-  expect(cleanSelection(
-    'Please release version 2 on Friday.',
-    'Release version 2 Friday.\nHope this helps!',
-  )).toBe('Release version 2 Friday.');
-  expect(cleanSelection(
-    'We must meet Friday morning.',
-    'We need a shorter meeting Friday.\nHope this helps!',
-  )).toBe('We need a shorter meeting Friday.');
-  expect(cleanSelection(
-    'Thank you very much for your help today.',
-    'Thanks!\nHope this helps!',
-  )).toBe('Thanks!');
-  expect(cleanSelection(
-    'Please bring the tent on Saturday.',
-    'Sure!\nBring the tent on Saturday.',
-  )).toBe('Sure!');
 });
 
 // ---- 5.3 Duplicates ----
