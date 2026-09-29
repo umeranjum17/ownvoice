@@ -136,14 +136,15 @@ export function inventedTimes(original: string, rewrite: string): string[] {
   const seen = new Set<string>();
   const clocks = [...rewrite.matchAll(TIMES)].map(m => m[0]).filter(t => {
     const { core, mer } = timeParts(t);
-    if (seen.has(core)) return false;
+    const key = core + '|' + mer;
+    if (seen.has(key)) return false;
     const mers = have.get(core);
-    if (mers !== undefined && (mer === '' || mers.has('') || mers.has(mer))) { seen.add(core); return false; }
+    if (mers !== undefined && (mer === '' || mers.has('') || mers.has(mer))) { seen.add(key); return false; }
     if (mers === undefined) {
       const normCore = core.replace(/^0+(?=\d)/, '');
-      if (!normCore.includes(':') && haveHours.has(normCore)) { seen.add(core); return false; }
+      if (!normCore.includes(':') && haveHours.has(normCore)) { seen.add(key); return false; }
     }
-    seen.add(core);
+    seen.add(key);
     return true;
   });
   const haveWords = new Set([...original.matchAll(DAYWORDS)].map(m => wordKey(m[0])));
