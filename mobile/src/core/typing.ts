@@ -1,5 +1,5 @@
 import type NSpell from 'nspell';
-import * as Slop from './slop';
+import * as Slop from './slop.ts';
 
 // The typing check (off unless the person switches it on): spelling from a dictionary on the phone,
 // a short list of common slips, and the stock-phrase rules. Nothing here is sent or kept.
