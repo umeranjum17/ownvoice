@@ -113,6 +113,33 @@ test('leaving the page mid sign-in keeps nothing', async () => {
   expect(chosen()).toBe('phone');
 });
 
+test('a slow first code cancelled and replaced never cancels the newer sign-in', async () => {
+  const screen = await open('phone');
+  let first!: (state: GptState) => void;
+  fake.start.mockImplementationOnce(() => new Promise(done => { first = done; }));
+  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(words.gptCancel));
+  expect(fake.cancel).toHaveBeenCalledTimes(1);
+  fake.start.mockImplementation(async () => (reports = waiting));
+  await fireEvent.press(screen.getByText(words.srcGpt));
+  expect(await screen.findByText('KQPT-MXVD')).toBeTruthy();
+  await act(async () => { first(waiting); });
+  expect(fake.cancel).toHaveBeenCalledTimes(1);
+  expect(screen.getByText('KQPT-MXVD')).toBeTruthy();
+});
+
+test('a slow code for a sign-in the person left is dropped', async () => {
+  const screen = await open('phone');
+  let first!: (state: GptState) => void;
+  fake.start.mockImplementationOnce(() => new Promise(done => { first = done; }));
+  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(words.srcPhone));
+  await act(async () => { first(waiting); });
+  expect(fake.cancel).toHaveBeenCalledTimes(2);
+  expect(screen.queryByText('KQPT-MXVD')).toBeNull();
+  expect(chosen()).toBe('phone');
+});
+
 test('a failed sign-in says what happened and offers Try again', async () => {
   const screen = await open('phone');
   fake.start.mockResolvedValue({ ...nothing, note: 'The code expired before it was used.' });
@@ -166,6 +193,17 @@ test('signing out on a phone that cannot write leaves nothing chosen', async () 
   fake.signOut.mockResolvedValue({ ...nothing, note: "ChatGPT isn't signed in yet." });
   await fireEvent.press(screen.getByText(words.gptSignOut));
   await waitFor(() => expect(chosen()).toBeNull());
+});
+
+test('a phone that stopped writing reads as not chosen, with no promise about where drafts are written', async () => {
+  native.modelStatus.mockResolvedValue('unavailable');
+  const screen = await open('phone', signedIn);
+  expect(screen.getByText(words.srcPhoneCant)).toBeTruthy();
+  expect(screen.queryByText(words.privacyPhone)).toBeNull();
+  expect(screen.getByText(words.readsNote)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.srcGpt));
+  expect(screen.getByText(words.cancel)).toBeTruthy();
+  expect(screen.queryByText(words.switchNo)).toBeNull();
 });
 
 test('a failed sign-out says so and keeps ChatGPT', async () => {

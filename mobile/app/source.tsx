@@ -75,7 +75,8 @@ export default function SourceScreen() {
     setProblem(null);
     setSignIn({ ...nothing, waiting: true });
     void session.start()
-      .then(async next => { if (at !== attempt.current) await session.cancel(); return next; })
+      // Left while the code was being made: drop it, unless a newer sign-in is already waiting (that one is the same session's).
+      .then(async next => { if (at !== attempt.current && (!live.current || !latest.current)) await session.cancel(); return next; })
       .then(next => shown(at, next))
       .catch(() => shown(at, { ...nothing, note: words.failed }));
   };
@@ -114,11 +115,13 @@ export default function SourceScreen() {
 
   const signOut = () => {
     setProblem(null);
-    void session.signOut().then(next => {
+    void session.signOut().then(async next => {
+      // Signed out while ChatGPT wrote: this phone takes over where it can, otherwise nothing is chosen.
+      const can = await phoneCanWrite();
       if (!live.current) return;
       setGpt(next);
-      // Signed out while ChatGPT wrote: this phone takes over where it can, otherwise nothing is chosen.
-      if (source === 'chatgpt') choose(phone === 'cant' ? null : 'phone');
+      setPhone(can);
+      if (source === 'chatgpt') choose(can === 'cant' ? null : 'phone');
     }).catch(() => { if (live.current) setProblem(words.gptSignOutFailed); });
   };
 
@@ -129,6 +132,8 @@ export default function SourceScreen() {
   };
 
   const phoneCan = phone !== null && phone !== 'cant';
+  // A phone that was chosen but can no longer write reads as not chosen (Home resets the stored choice).
+  const chosen = source === 'phone' && phone === 'cant' ? null : source;
   const icon = (Icon: typeof ChatIcon) => <Icon size={22} color={t.onPrimaryContainer} />;
   const indent = (text: string, color = t.text) => <Text style={[type.note, styles.indent, { color }]}>{text}</Text>;
   const resting = !!gpt?.resting;
@@ -177,9 +182,9 @@ export default function SourceScreen() {
       </>
       : null;
 
+  // What happens to the writing, for the chosen option only: nothing chosen means nothing is written or sent.
   const notes = [
-    [LockIcon, source === 'chatgpt' ? words.privacyGpt : words.privacyPhone],
-    ...(source === 'chatgpt' ? [[ChatIcon, words.switchNote] as const] : []),
+    ...(chosen === 'chatgpt' ? [[LockIcon, words.privacyGpt], [ChatIcon, words.switchNote]] as const : chosen === 'phone' ? [[LockIcon, words.privacyPhone]] as const : []),
     [EyeIcon, words.readsNote],
   ] as const;
 
@@ -209,7 +214,7 @@ export default function SourceScreen() {
           <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: NAME, company: 'OpenAI' })}</Text>
           <View style={styles.sheetActions}>
             <Button kind="filled" large label={words.switchYes} onPress={() => { choose('chatgpt'); setConfirm(false); }} />
-            <Button kind="text" label={source === 'phone' ? words.switchNo : words.cancel} onPress={() => setConfirm(false)} />
+            <Button kind="text" label={chosen === 'phone' ? words.switchNo : words.cancel} onPress={() => setConfirm(false)} />
           </View>
         </View>
       </Sheet>

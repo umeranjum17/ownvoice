@@ -200,6 +200,7 @@ export const words = {
   needWriter:'Choose how Ownvoice writes',
   needWriterNote:'This phone can\'t write drafts on its own. Sign in with your ChatGPT to use Ownvoice here.',
   needWriterPanel:'Choose how Ownvoice writes first.',
+  phoneOnlyCant:'This app is set to stay on this phone, and this phone can\'t write. Open Ownvoice to change that.',
   openOwnvoice:'Open Ownvoice',
   homePhone:'Writes on this phone.',
   homeGpt:'Writes with your ChatGPT.',

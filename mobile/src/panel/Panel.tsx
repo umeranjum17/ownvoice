@@ -29,7 +29,7 @@ type Draft = { text: string; label?: string; slot: number; scores: Scores; meani
 type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
 
 /** Lines only Ownvoice itself can fix (choosing a writer, signing in, the phone's one-time download): the panel offers to open it. */
-const opensApp: Set<string> = new Set([words.needWriterPanel, words.needWriterNote, words.readyPanel]);
+const opensApp: Set<string> = new Set([words.needWriterPanel, words.needWriterNote, words.phoneOnlyCant, words.readyPanel]);
 const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
 
 const modeOf = (typed: string, written: string): Mode =>
