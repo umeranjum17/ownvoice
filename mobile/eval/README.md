@@ -28,7 +28,8 @@ one model call for the split plus 3 hooks, checked for the cap, kept words,
 thinking models, default 0), `ONLY` (comma prefixes, e.g.
 `ONLY=P01,P13,S05,R01,R07` for the gate cases only). All commands run from
 this directory. The pure core it imports (`judge`, `drafts`, `slop`,
-`platforms`, `voice`) loads under plain node with type stripping and no
+`platforms`, `voice`, owned by `ownvoice-engine` in
+`../../packages/engine/src/`, re-exported from `../src/core/`) loads under plain node with type stripping and no
 loader; prompts, pipeline and scorer are the app's own.
 
 ## Threshold rule
