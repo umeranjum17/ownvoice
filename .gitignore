@@ -15,9 +15,11 @@ mobile/android/
 .fm-env.sh
 .work-home/
 .task-home/
+.lab-*/
 mobile/.avd/
 mobile/.emu-home/
 mobile/.build-*.log
 mobile/.rn08.log
 mobile/.rn08.pid
 mobile/.run08.sh
+*.log

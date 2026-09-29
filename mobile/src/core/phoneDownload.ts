@@ -36,14 +36,14 @@ export async function modelStatus(): Promise<ModelStatus> {
 /** The person said yes: remember it and get the phone ready. A bare call reuses the stored
  *  mobile-data choice; an explicit choice overwrites it. Joins a running download, except a
  *  mobile-data yes restarts a Wi-Fi-only run with data allowed. */
-export function getReady(allowMobileData?: boolean): Promise<void> {
+export async function getReady(allowMobileData?: boolean): Promise<void> {
   const mobile = allowMobileData ?? !!store.get<boolean>(MOBILE_KEY);
   if (running) {
     if (mobile && !runningMobile) {
       const prev = running;
       running = null;
       runningMobile = false;
-      try { if (!pretend()) Native.cancelModelDownload(); } catch {}
+      try { if (!pretend()) await Native.cancelModelDownload(); } catch {}
       prev.catch(() => {});
     } else return running;
   }
@@ -78,7 +78,7 @@ export async function resume(): Promise<void> {
 /** Removes the downloaded writer and forgets the yes and the mobile-data choice, so the phone asks again before any new download. */
 export async function removeDownload(): Promise<void> {
   if (pretend()) { pretendStatus = 'downloadable'; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
-  try { Native.cancelModelDownload(); } catch {}
+  try { await Native.cancelModelDownload(); } catch {}
   await Native.deleteModel();
   store.set(AGREED_KEY, null);
   store.set(MOBILE_KEY, null);

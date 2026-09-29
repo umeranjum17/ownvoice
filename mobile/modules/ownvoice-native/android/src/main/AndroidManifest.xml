@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- The only network use besides ChatGPT-by-choice: the one-time on-device model download. -->
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <queries>
     <intent>
       <action android:name="android.intent.action.MAIN" />
@@ -6,6 +9,7 @@
     </intent>
   </queries>
   <application>
+    <uses-native-library android:name="libOpenCL.so" android:required="false" />
     <!-- The drafts panel: a see-through React Native screen, so Ownvoice is the app in front while the phone's model runs. -->
     <activity
         android:name="dev.ownvoice.bridge.PanelActivity"

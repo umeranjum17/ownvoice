@@ -21,6 +21,11 @@ class PanelActivity : ReactActivity() {
     super.onStop()
   }
 
+  override fun onDestroy() {
+    PhoneModel.release()
+    super.onDestroy()
+  }
+
   companion object {
     @Volatile var current: PanelActivity? = null
   }

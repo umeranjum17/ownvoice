@@ -38,11 +38,12 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   modelStatus(): Promise<ModelStatus>;
   /** The one-time download of the phone's writer: Wi-Fi only unless allowMobileData, resumable. */
   downloadModel(opts: { allowMobileData?: boolean }, onProgress: (fraction: number) => void): Promise<void>;
-  cancelModelDownload(): void;
+  cancelModelDownload(): Promise<void>;
   /** Removes the downloaded writer; the status goes back to 'downloadable'. */
   deleteModel(): Promise<void>;
   ask(id: string, prompt: string, options: { maxTokens: number }): Promise<string>;
   draftStream(id: string, prompt: string, maxTokens: number): Promise<string>;
   drafts(prompt: string, options: { candidates: number; maxTokens: number }): Promise<string[]>;
 }
-export default requireNativeModule<OwnvoiceNativeModule>('OwnvoiceNative');
+const Native: OwnvoiceNativeModule = requireNativeModule<OwnvoiceNativeModule>('OwnvoiceNative');
+export default Native;

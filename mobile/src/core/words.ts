@@ -217,7 +217,7 @@ export const words = {
 
   // The one-time download of the phone's writer: asked for only after the person picks this phone.
   readyTitle:'Get this phone ready to write',
-  readyNote:'It needs about 2 GB, once, on Wi-Fi. Nothing you write leaves the phone.',
+  readyNote:'It needs about 2 to 3 GB, once, on Wi-Fi. Nothing you write leaves the phone.',
   getReady:'Get it ready',
   readyStopped:'Getting ready stopped. Connect to Wi-Fi, then tap Try again.',
   useMobileData:'Use mobile data instead',
@@ -225,7 +225,7 @@ export const words = {
   phoneReady:'Ready. It writes right here.',
   removeRow:'Free up space',
   removeRowNote:'Removes what this phone downloaded to write. You can get it again later.',
-  removeAsk:'Ownvoice won’t write on this phone until you get it ready again, which takes about 2 GB on Wi-Fi.',
+  removeAsk:'Ownvoice won’t write on this phone until you get it ready again, which takes about 2 to 3 GB on Wi-Fi.',
   removeYes:'Remove',
   removeNo:'Keep it',
   removeFailed:"That didn't work. Please try again.",
