@@ -62,6 +62,8 @@ for (const mode of ['light', 'dark']) {
   save(`${mode}-reads`);
 }
 tap('Wipe');
+await wait(500);
+tap('Wipe');
 await wait(800);
 expect('Nothing read in the last 30 days', visible());
 save('dark-wiped');

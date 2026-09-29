@@ -161,6 +161,9 @@ export const words = {
   wipeVoiceNote:'Wipe everything also deletes Your voice.',
   nothingRead:'Nothing read in the last 30 days.',
   today:'Today',
+  yesterday:'Yesterday',
+  wipeAsk:'This deletes the list above and Your voice from this phone. They can’t be brought back.',
+  wipeYes:'Wipe',
 
   // How Ownvoice writes (the choice: setup, sign-in, settings, Home, panel).
   chooseTitle:'How should Ownvoice write?',

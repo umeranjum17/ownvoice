@@ -504,8 +504,21 @@ test('a tap is logged with the app and the time, and never any text', async () =
   const screen = await show(<Reads />);
   await waitFor(() => expect(readLog().length).toBe(1));
   expect(screen.getByText('Suggested replies in WhatsApp')).toBeTruthy();
-  expect(screen.getByText(/Read the chat on screen · Today, /)).toBeTruthy();
+  expect(screen.getByText('Read the chat on screen')).toBeTruthy();
+  expect(screen.getByText(words.today)).toBeTruthy();
   expect(kv.has('reads')).toBe(false);
+});
+
+test('Wipe everything asks once, and Keep it keeps everything', async () => {
+  native.takeTapFacts.mockResolvedValue([fact()]);
+  const screen = await show(<Reads />);
+  await waitFor(() => expect(readLog().length).toBe(1));
+  fireEvent.press(screen.getByText(words.wipe));
+  expect(await screen.findByText(words.wipeAsk)).toBeTruthy();
+  expect(native.forget).not.toHaveBeenCalled();
+  fireEvent.press(screen.getByText(words.removeNo));
+  await waitFor(() => expect(screen.queryByText(words.wipeAsk)).toBeNull());
+  expect(readLog()).toHaveLength(1);
 });
 
 test('an empty log says so in plain words', async () => {
@@ -521,6 +534,7 @@ test('Wipe everything clears the log, Your voice and what is held in memory', as
   expect(screen.getByText('Suggested replies in WhatsApp')).toBeTruthy();
   kv.set('voice', JSON.stringify({ never: ['delve'], noDashes: true, statementEndings: true, note: '' }));
   fireEvent.press(screen.getByText(words.wipe));
+  fireEvent.press(await screen.findByText(words.wipeYes));
   await waitFor(() => expect(screen.getByText(words.nothingRead)).toBeTruthy());
   expect(readLog()).toEqual([]);
   expect(loadVoice().never).toEqual([]);
@@ -535,10 +549,12 @@ test('a failed native wipe keeps saved choices and offers a retry', async () => 
   await waitFor(() => expect(readLog()).toHaveLength(1));
   kv.set('voice', JSON.stringify({ never: ['delve'], noDashes: true, statementEndings: false, note: '' }));
   fireEvent.press(screen.getByText(words.wipe));
+  fireEvent.press(await screen.findByText(words.wipeYes));
   expect(await screen.findByText(words.failed)).toBeTruthy();
   expect(readLog()).toHaveLength(1);
   expect(loadVoice().never).toEqual(['delve']);
   fireEvent.press(screen.getByText(words.wipe));
+  fireEvent.press(await screen.findByText(words.wipeYes));
   await waitFor(() => expect(readLog()).toEqual([]));
 });
 
@@ -564,6 +580,7 @@ test('a wipe waits for Home transfer and cannot be undone by it', async () => {
   home.unmount();
   const screen = await show(<Reads />);
   fireEvent.press(screen.getByText(words.wipe));
+  fireEvent.press(await screen.findByText(words.wipeYes));
   await act(async () => { await Promise.resolve(); });
   expect(native.clearTapFacts).not.toHaveBeenCalled();
   await act(async () => { deliver([tap]); });
