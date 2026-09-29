@@ -49,16 +49,39 @@ class LocalGemmaTest {
     assertEquals(-107, PhoneModel.errorCode(IllegalStateException()))
   }
 
-  @Test fun pinnedDownloadIdentity() {
-    // The one-time files: name, immutable revision URL, byte size and content hash move together.
-    for (variant in listOf(LocalGemma.GPU, LocalGemma.CPU)) {
-      assertTrue(variant.url.startsWith("https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/"))
-      assertTrue(variant.url.endsWith("/" + variant.file))
+  @Test fun pinnedRevisionBinding() {
+    val revisions = listOf(LocalGemma.GPU, LocalGemma.CPU).map { variant ->
+      val segments = variant.url.split("/")
+      val revision = segments[segments.indexOf("resolve") + 1]
+      assertTrue(revision.matches(Regex("[0-9a-f]{40}")))
+      assertEquals(variant.file, segments.last())
       assertEquals(64, variant.sha256.length)
+      assertTrue(variant.sha256.all { it in '0'..'9' || it in 'a'..'f' })
       assertTrue(variant.size > 1_000_000_000L)
+      revision
     }
-    // The GPU build carries no CPU signatures, so the CPU fallback needs the base build.
+    assertEquals(revisions[0], revisions[1])
     assertTrue(LocalGemma.GPU.file != LocalGemma.CPU.file)
+  }
+
+  @Test fun hashGateVerifiesOnceThenTrustsMarker() {
+    val dir = tmp.newFolder("gate")
+    val pinned = LocalGemma.Variant("tiny.bin", "https://example.invalid/tiny.bin", LocalGemma.sha256Hex("abc".toByteArray()), 3)
+    val file = File(dir, pinned.file)
+    file.writeBytes("abc".toByteArray())
+    assertTrue(LocalGemma.isVerified(dir, file, pinned))
+    assertTrue(File(dir, "${pinned.file}.verified").exists())
+    file.writeBytes("abd".toByteArray())
+    assertTrue(LocalGemma.isVerified(dir, file, pinned))
+  }
+
+  @Test fun hashGateRejectsUnmarkedBytes() {
+    val dir = tmp.newFolder("gate-bad")
+    val pinned = LocalGemma.Variant("tiny.bin", "https://example.invalid/tiny.bin", LocalGemma.sha256Hex("abc".toByteArray()), 3)
+    val file = File(dir, pinned.file)
+    file.writeBytes("abd".toByteArray())
+    assertFalse(LocalGemma.isVerified(dir, file, pinned))
+    assertFalse(file.exists())
   }
 
   @Test fun engineStartFailureSurfacesRealError() {

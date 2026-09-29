@@ -98,13 +98,13 @@ internal object LocalGemma {
   suspend fun status(context: Context): String {
     if (downloading.get()) return "downloading"
     val want = variant()
-    val file = File(context.filesDir, want.file)
-    // Fast path: size match means a download this code verified (marker written after the hash check).
-    if (file.exists() && file.length() == want.size) return "available"
+    val dir = context.filesDir
+    val file = File(dir, want.file)
+    if (file.exists() && file.length() == want.size && File(dir, "${want.file}.verified").exists()) return "available"
     if (file.exists()) file.delete()
     // A stale other-variant file only wastes space.
     val other = if (want == GPU) CPU else GPU
-    File(context.filesDir, other.file).delete()
+    File(dir, other.file).delete()
     val info = ActivityManager.MemoryInfo()
     context.getSystemService(ActivityManager::class.java).getMemoryInfo(info)
     return selectStatus(false, info.totalMem, context.filesDir.usableSpace, Build.SUPPORTED_ABIS)
@@ -221,7 +221,7 @@ internal object LocalGemma {
     }
   }
 
-  private fun isVerified(dir: File, file: File, variant: Variant): Boolean {
+  internal fun isVerified(dir: File, file: File, variant: Variant): Boolean {
     if (!file.exists() || file.length() != variant.size) return false
     if (File(dir, "${variant.file}.verified").exists()) return true
     if (!variant.sha256.equals(fileSha256Hex(file), ignoreCase = true)) {
@@ -246,7 +246,7 @@ internal object LocalGemma {
     val want = variant()
     val dir = context.filesDir
     val file = File(dir, want.file)
-    if (file.exists() && file.length() == want.size) {
+    if (isVerified(dir, file, want)) {
       progress(1f)
       return
     }
