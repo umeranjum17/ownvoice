@@ -115,18 +115,21 @@ async function writes(kind) {
     }
     return found;
   };
+  // Light words on a dark card (the dark ready card) only read from the negative.
+  const readable = image => `${visible(image)} ${visible(execFileSync('magick', ['png:', '-negate', 'png:-'], { input: image }))}`;
   const seen = async (label, tries = 20) => {
     for (let i = 0; i < tries; i++) {
-      if (rows().map(c => c[11]).join(' ').toLowerCase().includes(label)) return;
+      if (readable(screenshot()).includes(label)) return;
       await wait(1000);
     }
     throw new Error(`Could not see "${label}" on screen.`);
   };
   const press = async label => {
     for (let i = 0; i < 8; i++) {
-      // A line that is just the label wins over one that only contains it ("Apps that stay on this phone").
+      // A line that is the label, or starts with it (a card title beside its radio), wins over one that
+      // only contains it ("This list stays on this phone").
       const image = screenshot();
-      const pick = found => found.find(line => line.text.trim() === label) ?? found.find(line => line.text.includes(label));
+      const pick = found => found.find(line => line.text.trim() === label) ?? found.find(line => line.text.trim().startsWith(label)) ?? found.find(line => line.text.includes(label));
       const hit = pick(lines(image, false)) ?? pick(lines(image, true));
       if (hit) { adb('shell', 'input', 'tap', String(Math.round((hit.left + hit.right) / 2)), String(Math.round((hit.top + hit.bottom) / 2))); return; }
       await wait(1000);
@@ -138,7 +141,7 @@ async function writes(kind) {
     if (!adb('shell', 'dumpsys', 'uimode').includes(`mComputedNightMode=${mode === 'dark'}`)) throw new Error(`Wrong colour mode for ${name}.`);
     const image = screenshot();
     writeFileSync(resolve(out, `${name}-${mode}.png`), image);
-    const text = visible(image);
+    const text = readable(image);
     if (BANNED.test(text)) throw new Error(`${name}: technical or dead-end words on screen: ${text}`);
   };
   const service = on => {
