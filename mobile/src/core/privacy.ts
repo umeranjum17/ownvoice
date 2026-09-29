@@ -7,8 +7,6 @@ export type Read={time:number;app:string;label:string;summary:string;id?:string}
 export const allowed=(app:string,choice?:boolean|null)=>choice??DEFAULT_ON.has(app);
 /** Whether the bubble shows in this app: the person's own list wins, otherwise the defaults. */
 export const showsBubble=(app:string,rules:{on:string[];off:string[]})=>rules.on.includes(app)||!rules.off.includes(app)&&DEFAULT_ON.has(app);
-/** Whether this app's screen may be sent to ChatGPT. */
-export const chatgptAllowed=(shows:boolean,choice?:boolean|null)=>shows&&choice===true;
 export const keep=(reads:Read[],now:number)=>reads.filter(r=>now-r.time<KEEP_MS);
 export function encode(r:Read){return [r.time,r.app,r.label,r.summary].map(x=>String(x).replace(/[\t\n\r]/g,' ')).join('\t');}
 export function decode(s:string):Read|null{const f=s.split('\t');if(f.length!==4||!Number.isFinite(Number(f[0])))return null;return {time:Number(f[0]),app:f[1],label:f[2],summary:f[3]};}

@@ -1,6 +1,7 @@
 import { classify } from '@byokit/accounts';
+import { PHONE_ONLY_KEY, SOURCE_KEY, setSource } from '../../core/source';
 import { store } from '../../core/store';
-import { gptChoice, gptApps, saveGptApps, saveBubbleRules, gptRoute } from '../settings';
+import { saveBubbleRules, gptRoute } from '../settings';
 import { status } from '../accounts';
 import { CHATGPT_OFF } from '../../core/switch';
 import Native from '../../../modules/ownvoice-native';
@@ -11,7 +12,7 @@ import { words } from '../../core/words';
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
-  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}) },
+  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}), modelStatus: jest.fn(async () => 'available') },
 }));
 jest.mock('../accounts', () => ({
   reportFailure: jest.fn(async () => null),
@@ -34,7 +35,9 @@ beforeEach(() => {
   kv.clear();
   jest.clearAllMocks();
   native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: ['com.reddit.frontpage'] });
+  native.modelStatus.mockResolvedValue('available');
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
+  store.set(SOURCE_KEY, 'chatgpt');
 });
 
 test('byokit 0.3.1 treats undated rate limits as temporary', () => {
@@ -42,24 +45,53 @@ test('byokit 0.3.1 treats undated rate limits as temporary', () => {
   expect(classify('rate_limit_exceeded')).toMatchObject({ kind: 'rate_limit' });
 });
 
-test('only signed-in saved choices permit ChatGPT', async () => {
-  expect(gptApps()).toBeNull();
-  expect(gptChoice('com.twitter.android')).toBe(false);
-  ready.mockResolvedValueOnce({ account: 'owner', name: 'ChatGPT', state: 'signed_out', words: 'Signed out.' });
-  expect(await saveGptApps({ on: ['com.Slack'] })).toBe(false);
-  expect(gptApps()).toBeNull();
-  expect(await saveGptApps({ on: ['com.Slack'] })).toBe(true);
-  expect(gptApps()).toEqual({ on: ['com.Slack'] });
-  expect(gptChoice('com.Slack')).toBe(true);
-  expect(gptChoice('com.twitter.android')).toBe(false);
+test('phone chosen means never ChatGPT, even when signed in', async () => {
+  store.set(SOURCE_KEY, 'phone');
+  const fetcher = jest.fn(offline);
+  const route = await gptRoute('com.twitter.android', fetcher);
+  expect(route.writer).toBe(phoneWriter);
+  expect(route.note).toBeNull();
+  expect(fetcher).not.toHaveBeenCalled();
 });
 
-test('the switch is checked only after a signed-in app choice', async () => {
+test('the recorded choice routes ChatGPT without a pre-seeded source', async () => {
+  store.set(SOURCE_KEY, null);
+  store.set('setup-done', true);
+  setSource('chatgpt');
   const fetcher = jest.fn(offline);
-  const before = await gptRoute('com.twitter.android', fetcher);
+  const route = await gptRoute('com.twitter.android', fetcher);
+  expect(route.writer).not.toBe(phoneWriter);
+  expect(route.note).toBeNull();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
+test('no source tells the panel to choose first instead of drafting', async () => {
+  store.set(SOURCE_KEY, null);
+  const route = await gptRoute('com.twitter.android', offline);
+  expect(route.note).toBeNull();
+  await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.needWriterPanel);
+});
+
+test('the practice call drafts on the phone before a source is chosen', async () => {
+  store.set(SOURCE_KEY, null);
+  const route = await gptRoute('dev.ownvoice.app', offline);
+  expect(route.writer).toBe(phoneWriter);
+  expect(route.note).toBeNull();
+});
+
+test('the practice call goes through ChatGPT when it is chosen and signed in', async () => {
+  const route = await gptRoute('dev.ownvoice.app', offline);
+  expect(route.note).toBeNull();
+  expect(route.writer).not.toBe(phoneWriter);
+});
+
+test('the switch is checked only for a ChatGPT app', async () => {
+  const fetcher = jest.fn(offline);
+  const before = await gptRoute('com.Slack', fetcher);
+  expect(before.writer).toBe(phoneWriter);
   expect(before.note).toBeNull();
   expect(fetcher).not.toHaveBeenCalled();
-  expect(await saveGptApps({ on: ['com.twitter.android'] })).toBe(true);
+  store.set(PHONE_ONLY_KEY, []);
   const route = await gptRoute('com.twitter.android', fetcher);
   expect(fetcher).toHaveBeenCalledTimes(1);
   expect(route.note).toBeNull();
@@ -81,7 +113,6 @@ test('the emulator stand-in drafts without marking a send', async () => {
     await mockSession.start();
     const now = jest.spyOn(Date, 'now').mockReturnValue(start + 10_000);
     try {
-      await saveGptApps({ on: ['com.twitter.android'] });
       const route = await mockRoute('com.twitter.android');
       const sent = jest.fn();
       global.fetch = jest.fn();
@@ -97,23 +128,56 @@ test('the emulator stand-in drafts without marking a send', async () => {
   }
 });
 
-test('a workplace chat stays with the phone unless it is switched on', async () => {
+test('a workplace chat stays with the phone unless it leaves the phone-only list', async () => {
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.Slack'], off: [] });
   const before = await gptRoute('com.Slack', offline);
+  expect(before.writer).toBe(phoneWriter);
   expect(before.note).toBeNull();
-  await saveGptApps({ on: ['com.Slack'] });
+  store.set(PHONE_ONLY_KEY, []);
   expect((await gptRoute('com.Slack', offline)).writer).not.toBe(before.writer);
 });
 
+test('an unreadable phone-only list keeps the app on the phone', async () => {
+  store.set(PHONE_ONLY_KEY, ['com.google.android.gm']);
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
+    if (key === PHONE_ONLY_KEY) throw new Error('storage unavailable');
+    return kv.get(key as string) ?? null;
+  });
+  const fetcher = jest.fn(offline);
+  try {
+    const route = await gptRoute('com.google.android.gm', fetcher);
+    expect(route.writer).toBe(phoneWriter);
+    expect(route.note).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+  } finally { get.mockRestore(); }
+});
+
+test('a phone-only list that turns unreadable mid-send blocks the send', async () => {
+  const route = await gptRoute('com.twitter.android', offline);
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
+    if (key === PHONE_ONLY_KEY) throw new Error('storage unavailable');
+    return kv.get(key as string) ?? null;
+  });
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  try {
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(global.fetch).not.toHaveBeenCalled();
+  } finally {
+    global.fetch = originalFetch;
+    get.mockRestore();
+  }
+});
+
 test('an app the bubble is off in never checks the switch', async () => {
-  await saveGptApps({ on: ['com.reddit.frontpage'] });
   const fetcher = jest.fn(offline);
   expect((await gptRoute('com.reddit.frontpage', fetcher)).note).toBeNull();
   expect(fetcher).not.toHaveBeenCalled();
 });
 
 test('a paused bubble does not check the switch', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   native.bubbleRules.mockResolvedValue({ paused: true, on: [], off: [] });
   const fetcher = jest.fn(offline);
   const route = await gptRoute('com.twitter.android', fetcher);
@@ -122,13 +186,11 @@ test('a paused bubble does not check the switch', async () => {
 });
 
 test('the off switch means the phone writes, with the one plain line', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
   expect((await gptRoute('com.twitter.android', offline)).note).toBe(CHATGPT_OFF);
 });
 
 test.each([1, 2])('an unreadable switch on read %i uses the phone without losing a verified off choice', async failedRead => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: 0 });
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
   let reads = 0;
@@ -150,7 +212,6 @@ test.each([1, 2])('an unreadable switch on read %i uses the phone without losing
 });
 
 test('a switch read failure during verification cannot reuse an earlier on choice', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'on', fetchedAt: 0 });
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
   let reads = 0;
@@ -170,7 +231,6 @@ test('a switch read failure during verification cannot reuse an earlier on choic
 });
 
 test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the Responses send', async mode => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   const route = await gptRoute('com.twitter.android', offline);
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
   const get = mode === 'unreadable'
@@ -194,7 +254,6 @@ test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the R
 });
 
 test('an unreadable switch without a verified off choice uses a neutral phone reason', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
   const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
     if (key === 'chatgpt-switch') throw new Error('unavailable');
@@ -207,22 +266,20 @@ test('an unreadable switch without a verified off choice uses a neutral phone re
   } finally { get.mockRestore(); }
 });
 
-test('a pending consent save cannot restore choices after sign-out', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
-  const readyState = await session.current();
-  let release!: (state: typeof readyState) => void;
-  const current = jest.spyOn(session, 'current').mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+test('an unreadable switch on a phone that cannot write says it did not answer', async () => {
+  native.modelStatus.mockResolvedValue('unavailable');
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
+    if (key === 'chatgpt-switch') throw new Error('unavailable');
+    return kv.get(key as string) ?? null;
+  });
   try {
-    const saving = saveGptApps({ on: ['com.Slack'] });
-    await session.signOut();
-    release(readyState);
-    expect(await saving).toBe(false);
-    expect(gptApps()).toBeNull();
-  } finally { current.mockRestore(); }
+    const route = await gptRoute('com.twitter.android', offline);
+    await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.gptFailedNoPhone);
+  } finally { get.mockRestore(); }
 });
 
-test('pending logout blocks a credentialed send even with stale choices and ready status', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
+test('pending logout blocks a credentialed send even with ready status', async () => {
   const route = await gptRoute('com.twitter.android', offline);
   let releaseAuth!: (auth: { access: string; accountId: string }) => void;
   let authStarted!: () => void;
@@ -242,8 +299,6 @@ test('pending logout blocks a credentialed send even with stale choices and read
     const clear = jest.spyOn(store, 'set').mockImplementationOnce(() => { throw new Error('full'); });
     const leaving = session.signOut();
     clear.mockRestore();
-    expect(gptChoice('com.twitter.android')).toBe(true);
-    expect(await saveGptApps({ on: [] })).toBe(false);
     releaseAuth({ access: 'fixture-access', accountId: 'fixture-account' });
     expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(global.fetch).not.toHaveBeenCalled();
@@ -254,7 +309,6 @@ test('pending logout blocks a credentialed send even with stale choices and read
 });
 
 test('sign-out blocks an in-flight send even when clearing app choices fails', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   const route = await gptRoute('com.twitter.android', offline);
   let release!: (auth: { access: string; accountId: string }) => void;
   let authStarted!: () => void;
@@ -276,7 +330,6 @@ test('sign-out blocks an in-flight send even when clearing app choices fails', a
       });
       await session.signOut();
     } finally { clear.mockRestore(); }
-    expect(gptChoice('com.twitter.android')).toBe(true);
     expect(signOut).toHaveBeenCalledTimes(1);
     release({ access: 'fixture-access', accountId: 'fixture-account' });
     expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
@@ -286,7 +339,6 @@ test('sign-out blocks an in-flight send even when clearing app choices fails', a
 });
 
 test('a choice withdrawn while the tap is marked gives a phone-only reason', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   const route = await gptRoute('com.twitter.android', offline);
   let releaseMark!: () => void;
   let markStarted!: () => void;
@@ -300,7 +352,7 @@ test('a choice withdrawn while the tap is marked gives a phone-only reason', asy
   try {
     const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent });
     await started;
-    await saveGptApps({ on: [] });
+    store.set(PHONE_ONLY_KEY, ['com.twitter.android']);
     releaseMark();
     expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(sent).toHaveBeenCalledTimes(1);
@@ -309,7 +361,6 @@ test('a choice withdrawn while the tap is marked gives a phone-only reason', asy
 });
 
 test('a saved pause during the final native re-check cannot be overwritten by its stale result', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   const route = await gptRoute('com.twitter.android', offline);
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
@@ -335,19 +386,40 @@ test('a saved pause during the final native re-check cannot be overwritten by it
   } finally { global.fetch = originalFetch; }
 });
 
-test('a started request that fails says ChatGPT did not answer', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
+test('an offline send falls back to the phone with the offline line', async () => {
   const route = await gptRoute('com.twitter.android', offline);
   const originalFetch = global.fetch;
-  global.fetch = jest.fn(async () => { throw new Error('offline'); });
+  global.fetch = jest.fn(async () => { throw new Error('fetch failed'); });
   try {
-    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.fallback });
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.offlinePhone });
     expect(global.fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
 
+test('offline on a phone that cannot write says to connect instead', async () => {
+  native.modelStatus.mockResolvedValue('unavailable');
+  const route = await gptRoute('com.twitter.android', offline);
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn(async () => { throw new Error('fetch failed'); });
+  try {
+    await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.offlineNoPhone);
+  } finally { global.fetch = originalFetch; }
+});
+
+test('an offline sign-in refresh before the send falls back with the offline line', async () => {
+  const route = await gptRoute('com.twitter.android', offline);
+  (codexAuth as jest.Mock).mockRejectedValueOnce(new Error('fetch failed'));
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  const sent = jest.fn(async () => {});
+  try {
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.offlinePhone });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
 test('a newer off choice blocks a later reply request', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   const route = await gptRoute('com.twitter.android', offline);
   const originalFetch = global.fetch;
   global.fetch = jest.fn(async () => {
@@ -365,20 +437,18 @@ test('a newer off choice blocks a later reply request', async () => {
 });
 
 test('a resting ChatGPT says so instead of trying to write', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' });
   expect((await gptRoute('com.twitter.android', offline)).note).toBe('ChatGPT is resting until 3:40pm.');
 });
 
 test('choice withdrawn during the switch wait is rechecked before sending', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   let release!: (response: Response) => void;
   let started!: () => void;
   const checking = new Promise<void>(resolve => { started = resolve; });
   const fetcher = jest.fn(() => { started(); return new Promise<Response>(resolve => { release = resolve; }); }) as typeof fetch;
   const pending = gptRoute('com.twitter.android', fetcher);
   await checking;
-  await saveGptApps({ on: [] });
+  store.set(PHONE_ONLY_KEY, ['com.twitter.android']);
   release({ ok: false } as Response);
   const route = await pending;
   const originalFetch = global.fetch;
@@ -393,7 +463,6 @@ test.each([
   { paused: false, on: [], off: ['com.twitter.android'] },
   { paused: true, on: [], off: [] },
 ])('a bubble rule changed after routing blocks the send', async rules => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   const route = await gptRoute('com.twitter.android', offline);
   native.bubbleRules.mockResolvedValue(rules);
   const originalFetch = global.fetch;
@@ -405,7 +474,6 @@ test.each([
 });
 
 test('a limit gives the same tap byokits words over phone drafts', async () => {
-  await saveGptApps({ on: ['com.twitter.android'] });
   const route = await gptRoute('com.twitter.android', offline);
   (reportFailure as jest.Mock).mockImplementation(async () => {
     ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', words: 'ChatGPT is resting until 3:40pm.' });

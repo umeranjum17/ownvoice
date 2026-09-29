@@ -47,7 +47,7 @@ const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'>
     ...capture,
   });
   const screen = await render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-    <Panel select={select ?? (async () => routeWriters({ allowed: true, enabled: true, signedIn: true, phone: writer('Phone'), ...options }))} />
+    <Panel select={select ?? (async () => routeWriters({ source: 'chatgpt', signedIn: true, phoneOnlyApp: false, enabled: true, phone: 'ready', phoneWriter: writer('Phone'), ...options }))} />
   </SafeAreaProvider>);
   await waitFor(() => expect(native.capture).toHaveBeenCalled());
   return screen;
@@ -151,6 +151,22 @@ test('the off switch keeps the drafts on the phone and says which wrote them', a
   expect(shown(screen)).not.toContain('ChatGPT one');
   expect(times(shown(screen), CHATGPT_OFF)).toBe(1);
   expect(sentTap()).toEqual([]);
+});
+
+test('with no source the panel says to choose first and marks nothing sent', async () => {
+  const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => routeWriters({ source: null, signedIn: false, phoneOnlyApp: false, enabled: true, phone: 'cant', chatgpt: () => writer('ChatGPT'), phoneWriter: writer('Phone') }));
+  await waitFor(() => expect(shown(screen)).toContain(words.needWriterPanel));
+  expect(shown(screen)).not.toContain('Phone one');
+  expect(shown(screen)).not.toContain('ChatGPT one');
+  expect(sentTap()).toEqual([]);
+  expect(kv.has('reads')).toBe(false);
+});
+
+test('ChatGPT failing on a phone that cannot write leaves Try again', async () => {
+  const screen = await open({ chatgpt: () => broken, phone: 'cant' });
+  await waitFor(() => expect(shown(screen)).toContain(words.gptFailedNoPhone));
+  expect(shown(screen)).not.toContain('Phone one');
+  expect(shown(screen)).toContain(words.tryAgain);
 });
 
 test('a screen with nothing to help with is logged as nothing read', async () => {

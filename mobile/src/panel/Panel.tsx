@@ -8,7 +8,7 @@ import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide, loadVoice } from '../core/voice';
 import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
-import type { Writer, WriterRoute } from '../core/writers';
+import { retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
@@ -290,7 +290,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       : null}
     {empty && mainNote
       ? <Empty mood={mood} text={mainNote}>
-        {phase === 'ready' && mode !== 'empty' ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
+        {phase === 'ready' && mode !== 'empty' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
       </Empty>
       : null}
     {reason && shown.length ? <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{reason}</Text> : null}

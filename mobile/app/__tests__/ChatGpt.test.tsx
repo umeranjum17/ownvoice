@@ -73,7 +73,7 @@ test('a failed sign-in says what happened and offers the button again', async ()
 test('a connected account is named, and signing out is offered', async () => {
   const screen = await open(signedIn);
   expect(screen.getByText('ChatGPT is connected.')).toBeTruthy();
-  expect(screen.getByText(words.gptApps)).toBeTruthy();
+  expect(screen.getByText(words.phoneOnlyApps)).toBeTruthy();
   fake.signOut.mockResolvedValue({ ...nothing, note: "ChatGPT isn't signed in yet." });
   await fireEvent.press(screen.getByText(words.gptSignOut));
   await waitFor(() => expect(fake.signOut).toHaveBeenCalled());
@@ -81,7 +81,7 @@ test('a connected account is named, and signing out is offered', async () => {
   expect(visible.filter(text => technicalWords.test(text))).toEqual([]);
 });
 
-test('a newly connected account opens app choices until Done saves them', async () => {
+test('a newly connected account opens the phone-only list until Done saves it', async () => {
   await open(signedIn);
   await waitFor(() => expect(router.push).toHaveBeenCalledWith('/gptapps'));
 });
