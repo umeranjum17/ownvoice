@@ -147,8 +147,12 @@ export const words = {
   howIWrite:'How I write',
   howIWriteHint:'For example: short sentences, lowercase, blunt',
   neverSay:'Never say',
-  neverSayHint:'One phrase per line',
-  neverSayHelp:'One phrase per line. Any capitals; whole words only.',
+  neverSayHint:'Add a phrase',
+  neverSayHelp:'Ownvoice points these out when a draft uses them. Any capitals; whole words only.',
+  neverSayNone:'Nothing here yet.',
+  addPhrase:'Add',
+  removePhrase:'Remove',
+  rulesTitle:'Rules',
   wipeElsewhere:'Wipe everything, under What Ownvoice read, deletes these too.',
 
   // What Ownvoice read (ReadsActivity).

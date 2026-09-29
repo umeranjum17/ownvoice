@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Text, TextInput, View } from 'react-native';
+import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { File } from 'expo-file-system';
 import Native from '../modules/ownvoice-native';
+import { Badge } from '../src/ui/Badge';
 import { Button } from '../src/ui/Button';
 import { Card } from '../src/ui/Card';
 import { Row } from '../src/ui/Row';
 import { Page } from '../src/ui/Page';
 import { Switch } from '../src/ui/Switch';
+import { ChatIcon, CloseIcon, FileIcon, PenIcon, PlusIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { loadVoice, merge, parse, saveVoice, type Found } from '../src/core/voice';
@@ -28,11 +30,11 @@ export function foundLines(found: Found): string {
   return lines.join('\n');
 }
 
-/** Your voice: the never-say list, a few rules and a "how I write" note, kept on this phone. */
+/** Your voice: a few rules, a "how I write" note, and the never-say phrases as chips, kept on this phone. */
 export default function Voice({ shared = false }: { shared?: boolean }) {
   const t = useTheme();
   const [rules, setRules] = useState<Rules>(loadVoice);
-  const [neverText, setNeverText] = useState(() => loadVoice().never.join('\n'));
+  const [phrase, setPhrase] = useState('');
   const [preview, setPreview] = useState('');
   const [pending, setPending] = useState<Found | null>(null);
   const [saveFailed, setSaveFailed] = useState(false);
@@ -40,6 +42,18 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
   const change = (next: Rules): boolean => {
     try { saveVoice(next); setRules(next); setSaveFailed(false); return true; }
     catch { setSaveFailed(true); return false; }
+  };
+  // Typed or pasted phrases join the list once a line ends; a phrase already there isn't added twice.
+  const add = (text: string) => {
+    const fresh = text.split('\n').map(x => x.trim()).filter(x => x && !rules.never.some(y => y.toLowerCase() === x.toLowerCase()));
+    if (!fresh.length || change({ ...rules, never: [...rules.never, ...new Set(fresh)] })) setPhrase('');
+  };
+  const typed = (text: string) => {
+    if (!text.includes('\n')) { setPhrase(text); return; }
+    const parts = text.split('\n');
+    const rest = parts.pop() ?? '';
+    add(parts.join('\n'));
+    if (rest.trim()) setPhrase(rest);
   };
   const show = useCallback((markdown: string) => {
     const found = parse(markdown);
@@ -65,20 +79,48 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
       show(await picked.result.text());
     } catch { setPreview(words.cantOpen); setPending(null); }
   };
-  const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };
-  const field = { color: t.text, backgroundColor: t.raised, borderRadius: shape.group, padding: space.l, textAlignVertical: 'top' as const };
+  const field = { color: t.text, backgroundColor: t.raised, borderRadius: shape.card, paddingHorizontal: space.l, paddingVertical: space.m };
+  const head = (Icon: typeof PenIcon, title: string) => <View style={styles.head}>
+    <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>
+    <Text accessibilityRole="header" style={[type.heading, { color: t.text, fontSize: 18, lineHeight: 24 }]}>{title}</Text>
+  </View>;
 
   return <Page title={words.rowVoice} note={words.voiceNote} onBack={() => { if (shared) void Native.finishRewrite(null, false); else router.back(); }}>
-    <View style={{ alignItems: 'flex-start', marginLeft: -space.s }}><Button kind="text" label={words.importFile} onPress={() => { void pick(); }} /></View>
     {saveFailed && <Text style={[type.body, { color: t.text }]}>{words.failed}</Text>}
     {preview !== '' && <Card variant="filled">
       <Text style={[type.body, { color: t.text }]}>{preview}</Text>
       {pending !== null && <View style={styles.actions}>
-        <Button kind="filled" label={words.addThese} onPress={() => { const next = merge(rules, pending); if (change(next)) { setNeverText(next.never.join('\n')); setPreview(words.added); setPending(null); } }} />
+        <Button kind="filled" label={words.addThese} onPress={() => { if (change(merge(rules, pending))) { setPreview(words.added); setPending(null); } }} />
         <Button kind="text" label={words.cancel} onPress={() => { setPreview(''); setPending(null); }} />
       </View>}
     </Card>}
-    <View style={group}>
+    <View style={[styles.section, { backgroundColor: t.group }]}>
+      {head(ChatIcon, words.neverSay)}
+      <Text style={[type.note, { color: t.muted }]}>{words.neverSayHelp}</Text>
+      <View style={styles.chips}>
+        {rules.never.length ? rules.never.map(x => <Pressable key={x} accessibilityRole="button" accessibilityLabel={`${words.removePhrase} ${x}`}
+          onPress={() => change({ ...rules, never: rules.never.filter(y => y !== x) })} hitSlop={4}
+          android_ripple={{ color: t.text + '1F', foreground: true }} style={[styles.chip, { backgroundColor: t.primaryContainer }]}>
+          <Text style={[type.label, { color: t.onPrimaryContainer, flexShrink: 1 }]}>{x}</Text>
+          <CloseIcon size={16} color={t.onPrimaryContainer} />
+        </Pressable>) : <Text style={[type.body, { color: t.muted }]}>{words.neverSayNone}</Text>}
+      </View>
+      <View style={styles.addRow}>
+        <TextInput accessibilityLabel={words.neverSay} placeholder={words.neverSayHint} placeholderTextColor={t.muted} value={phrase}
+          onChangeText={typed} onSubmitEditing={() => add(phrase)} submitBehavior="submit" returnKeyType="done" style={[type.body, field, { flex: 1, minHeight: 48 }]} />
+        <Pressable accessibilityRole="button" accessibilityLabel={words.addPhrase} disabled={!phrase.trim()} onPress={() => add(phrase)}
+          android_ripple={{ color: t.onPrimary + '1F', foreground: true }} style={[styles.plus, { backgroundColor: phrase.trim() ? t.primary : t.text + '1F' }]}>
+          <PlusIcon size={22} color={phrase.trim() ? t.onPrimary : t.muted} />
+        </Pressable>
+      </View>
+    </View>
+    <View style={[styles.section, { backgroundColor: t.group }]}>
+      {head(PenIcon, words.howIWrite)}
+      <TextInput accessibilityLabel={words.howIWrite} placeholder={words.howIWriteHint} placeholderTextColor={t.muted} multiline maxLength={300}
+        autoCapitalize="sentences" value={rules.note} onChangeText={note => change({ ...rules, note })} style={[type.body, field, { minHeight: 88, textAlignVertical: 'top' }]} />
+    </View>
+    <Text style={[type.label, { color: t.primary, marginTop: space.s }]}>{words.rulesTitle}</Text>
+    <View style={[styles.group, { backgroundColor: t.group }]}>
       <Row title={words.ruleDashes} subtitle={words.ruleDashesNote}
         end={<View pointerEvents="none"><Switch value={rules.noDashes} onValueChange={v => change({ ...rules, noDashes: v })} /></View>}
         onPress={() => change({ ...rules, noDashes: !rules.noDashes })} />
@@ -86,19 +128,20 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
         end={<View pointerEvents="none"><Switch value={rules.statementEndings} onValueChange={v => change({ ...rules, statementEndings: v })} /></View>}
         onPress={() => change({ ...rules, statementEndings: !rules.statementEndings })} />
     </View>
-    <Text style={[type.label, { color: t.text, marginTop: space.m }]}>{words.howIWrite}</Text>
-    <TextInput accessibilityLabel={words.howIWrite} placeholder={words.howIWriteHint} placeholderTextColor={t.muted} multiline maxLength={300}
-      autoCapitalize="sentences" value={rules.note} onChangeText={note => change({ ...rules, note })} style={[type.body, field, styles.tall]} />
-    <Text style={[type.label, { color: t.text, marginTop: space.m }]}>{words.neverSay}</Text>
-    <Text style={[type.note, { color: t.muted }]}>{words.neverSayHelp}</Text>
-    <TextInput accessibilityLabel={words.neverSay} placeholder={words.neverSayHint} placeholderTextColor={t.muted} multiline
-      value={neverText} onChangeText={text => { if (change({ ...rules, never: text.split('\n').map(x => x.trim()).filter(Boolean) })) setNeverText(text); }} style={[type.body, field, styles.wide]} />
-    <Text style={[type.body, { color: t.muted, marginTop: space.m }]}>{words.wipeElsewhere}</Text>
+    <View style={[styles.group, { backgroundColor: t.group }]}>
+      <Row lead={<Badge><FileIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.importFile} onPress={() => { void pick(); }} />
+    </View>
+    <Text style={[type.note, { color: t.muted, textAlign: 'center', marginTop: space.s }]}>{words.wipeElsewhere}</Text>
   </Page>;
 }
 
-const styles = {
-  actions: { flexDirection: 'row' as const, gap: space.m, marginTop: space.m },
-  tall: { minHeight: 72 },
-  wide: { minHeight: 100 },
-};
+const styles = StyleSheet.create({
+  actions: { flexDirection: 'row', gap: space.m, marginTop: space.m },
+  section: { borderRadius: shape.group, padding: space.l, gap: space.m },
+  head: { flexDirection: 'row', alignItems: 'center', gap: space.m },
+  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: space.xs, minHeight: 36, borderRadius: shape.round, paddingLeft: space.m, paddingRight: space.s, overflow: 'hidden', maxWidth: '100%' },
+  addRow: { flexDirection: 'row', alignItems: 'center', gap: space.s },
+  plus: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  group: { borderRadius: shape.group, overflow: 'hidden', paddingVertical: space.xs },
+});
