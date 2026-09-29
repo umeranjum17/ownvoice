@@ -278,3 +278,20 @@ test('a node straddling the field top edge, a clickable row, or no field sends n
   expect(latestMessage(PRACTICE_NODES)).toBe('');
   expect(latestMessage([], 1000)).toBe('');
 });
+
+// Phone-model markdown (offline-model study §5.2, Appendix E): Nano answers the
+// numbered reply call with a preamble line, **bold** headers and "Draft N: label"
+// headers. All three must go before splitting, leaving three clean drafts.
+test('acceptReplies strips phone-model markdown, preamble and label headers', () => {
+  const r04 = `Okay, here are three reply drafts for Jake's messages, keeping in mind the instructions.\n\n**Draft 1: Agreeing & Answering**\n\nDraft 1: Yeah, I saw. It's frustrating. I think we should roll back. The last build had that memory leak, right? It was causing crashes.\n\n**Draft 2: Declining/Suggesting Change**\n\nDraft 2: Hmm, I don't think we should roll back just yet. Let's try a different configuration first. Maybe tweaking the database connection? It might resolve the issue without a rollback.\n\n**Draft 3: Uncertain & Asking a Question**\n\nDraft 3: Not sure yet. What's the root cause this time? Knowing that would help me decide.`;
+  expect(acceptReplies([r04], [], 3)).toEqual([
+    "Yeah, I saw. It's frustrating. I think we should roll back. The last build had that memory leak, right? It was causing crashes.",
+    "Hmm, I don't think we should roll back just yet. Let's try a different configuration first. Maybe tweaking the database connection? It might resolve the issue without a rollback.",
+    "Not sure yet. What's the root cause this time? Knowing that would help me decide.",
+  ]);
+  const r06 = `Okay, here are three reply drafts for Alex, responding to "I got the job!!! starting Oct 14", each following your instructions.\n\n**Draft 1: Agree/Yes**\n\nDraft 1: That's awesome Alex! Congrats. Oct 14 is great. So happy for you.\n\n**Draft 2: Decline/Suggest Change (Kindly)**\n\nDraft 2: Congrats Alex! That's fantastic news. Oct 14 works for you? Just checking if that's okay with the team.\n\n**Draft 3: Not Sure Yet**\n\nDraft 3: Wow, congrats Alex! That's great news. What kind of role is it?`;
+  const drafts = acceptReplies([r06], [], 3);
+  expect(drafts).toHaveLength(3);
+  expect(drafts.every(d => d && !d.includes('**') && !/^(Okay|Sure),? here are/i.test(d))).toBe(true);
+  expect(drafts.join('\n')).not.toMatch(/Agree\/Yes|Suggest Change|Not Sure Yet/);
+});

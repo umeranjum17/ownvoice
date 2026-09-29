@@ -12,13 +12,26 @@ function unquote(text: string) {
     .replace(/^'([\s\S]*)'$/, '$1').replace(/^‘([\s\S]*)’$/, '$1').trim();
 }
 
+const markerLine = (line: string) => line.match(/^\s*(draft|option|version)\s*([1-3])\s*[:.)]\s*(\S[\s\S]*)$/i);
+
 function body(text: string, polishing: boolean) {
-  const lines = text.trim().split(/\r?\n/);
+  const lines = (!polishing ? text.replace(/\*\*/g, '') : text).trim().split(/\r?\n/);
   const first = lines[0]?.trim() ?? '';
   if (/^(?:(?:okay|sure)[,!.]?\s*)?here(?:'s| is) (?:a|the|your) reply\s*:/i.test(first) ||
-    !polishing && /^(?:(?:okay|sure)[,!.]?\s*)?(?:here (?:are|is)|these are|below are)\b[^:]*\b(?:versions?|options?|drafts?)\b\s*:/i.test(first)) {
+    !polishing && /^(?:(?:okay|sure)[,!.]?\s*)?(?:here (?:are|is)|these are|below are)\b[^:]*\b(?:versions?|options?|drafts?)\b[^:]*[!:.]?\s*$/i.test(first)) {
     const colon = first.indexOf(':');
     lines[0] = colon < 0 ? '' : first.slice(colon + 1).trim();
+  }
+  if (!polishing) {
+    // A "Draft 1: <label>" line restated as "Draft 1: <draft>" just below is a
+    // header, not a draft: drop the stub and keep the longer restatement.
+    for (let i = 0; i < lines.length; i++) {
+      const head = markerLine(lines[i]);
+      if (!head) continue;
+      const next = lines.findIndex((line, j) => j > i && line.trim());
+      const tail = next < 0 ? null : markerLine(lines[next]);
+      if (tail && tail[2] === head[2] && tail[3].length > head[3].length) lines[i] = '';
+    }
   }
   return lines.join('\n').trim();
 }
