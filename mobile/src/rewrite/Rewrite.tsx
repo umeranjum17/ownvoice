@@ -9,6 +9,8 @@ import { words } from '../core/words';
 import { preserveFragment } from '../core/drafts';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
+import { Choices } from '../ui/Choices';
+import { Empty } from '../ui/Empty';
 import { Marked } from '../ui/Marked';
 import { MeaningLine } from '../ui/MeaningLine';
 import { Placeholder } from '../ui/Placeholder';
@@ -73,15 +75,15 @@ export default function Rewrite() {
   };
 
   const enabled = !!input?.text.trim();
-  return <Sheet title="Make it better" note={note} mood={busy ? 'thinking' : result ? 'ready' : 'idle'} onClose={() => { void Native.finishRewrite(null, false); }}>
-    {!enabled ? null : <>
+  return <Sheet title="Make it better" note={enabled ? note : undefined} mood={enabled ? (busy ? 'thinking' : result ? 'ready' : 'idle') : undefined} onClose={() => { void Native.finishRewrite(null, false); }}>
+    {!enabled ? (input ? <Empty mood="check" text={note} /> : null) : <>
       <Card variant="filled" label="You selected"><Marked text={input!.text} hits={Slop.hits(input!.text, rules)} /></Card>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginVertical: space.m }}>
-        {Object.values(Judge.Rewrite).map(how => <Button key={how} kind={choice === how ? 'filled' : 'text'} label={how} onPress={() => { void rewrite(how); }} />)}
+      <View style={{ marginVertical: space.l }}>
+        <Choices options={Object.values(Judge.Rewrite)} value={choice} onPick={how => { void rewrite(how); }} />
       </View>
       {busy ? <Placeholder /> : null}
       {result ? <>
-        <Card variant="outlined">
+        <Card variant="outlined" label={choice ?? undefined}>
           <Marked text={result.text} hits={result.scores.hits} />
           <MeaningLine check={result.meaning} same="Same meaning as yours" />
           <VerdictLine verdict={result.verdict} />
