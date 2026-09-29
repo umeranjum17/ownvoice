@@ -1,6 +1,6 @@
 import Native, { type ModelStatus } from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
-import { agreed, getReady, modelStatus, watch } from '../core/phoneDownload';
+import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
 import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
 import { rewrite, versionPrompt, versionsList } from '../core/judge';
@@ -103,7 +103,7 @@ export const phoneWriter = {
       if (status !== 'available') {
         on.state?.('downloading');
         const stop = watch(fraction => { if (fraction != null) on.fraction?.(fraction); });
-        try { await getReady(); } finally { stop(); }
+        try { await (status === 'downloadable' ? getReady() : settle()); } finally { stop(); }
       }
       on.state?.('writing');
       const drafts = request.typed.trim()

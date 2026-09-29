@@ -6,6 +6,7 @@ import { store } from './store';
 // it stopped, and can be removed again in Settings, which also forgets the yes.
 
 export const AGREED_KEY = 'phone-download-agreed';
+export const MOBILE_KEY = 'phone-download-mobile-data';
 export const agreed = () => !!store.get<boolean>(AGREED_KEY);
 
 // Emulator acceptance only (EXPO_PUBLIC_E2E_DOWNLOAD=1): a pretend download, so the ask, the bar and
@@ -14,6 +15,7 @@ const pretend = () => process.env.EXPO_PUBLIC_E2E_DOWNLOAD === '1';
 let pretendStatus: ModelStatus = 'downloadable';
 
 let running: Promise<void> | null = null;
+let runningMobile = false;
 /** Progress (0 to 1) while a download runs, then null once it settles either way. */
 const watchers = new Set<(fraction: number | null) => void>();
 const tell = (fraction: number | null) => watchers.forEach(watch => watch(fraction));
@@ -32,27 +34,45 @@ export async function modelStatus(): Promise<ModelStatus> {
 
 /** The person said yes: remember it and get the phone ready, joining a download that's already running. */
 export function getReady(allowMobileData = false): Promise<void> {
+  if (running) {
+    if (allowMobileData && !runningMobile) {
+      const prev = running;
+      running = null;
+      runningMobile = false;
+      try { if (!pretend()) Native.cancelModelDownload(); } catch {}
+      prev.catch(() => {});
+    } else return running;
+  }
   store.set(AGREED_KEY, true);
-  if (running) return running;
+  store.set(MOBILE_KEY, allowMobileData ? true : null);
+  runningMobile = allowMobileData;
   tell(0);
   const download = pretend() ? pretendDownload() : Native.downloadModel({ allowMobileData }, tell);
-  const current: Promise<void> = download.finally(() => { running = null; tell(null); });
+  const current: Promise<void> = download.finally(() => {
+    if (running === current) { running = null; runningMobile = false; tell(null); }
+  });
   running = current;
   return current;
+}
+
+/** Joins a download already running without recording a yes (the bubble tapping mid-provisioning). */
+export function settle(): Promise<void> {
+  return running ?? Promise.resolve();
 }
 
 /** Picks an agreed download back up where it stopped (the app was closed, or Wi-Fi came back). */
 export async function resume(): Promise<void> {
   if (!agreed() || running) return;
-  try { if (await modelStatus() === 'downloadable') await getReady(); } catch {}
+  try { if (await modelStatus() === 'downloadable') await getReady(!!store.get<boolean>(MOBILE_KEY)); } catch {}
 }
 
 /** Removes the downloaded writer and forgets the yes, so the phone asks again before any new download. */
 export async function removeDownload(): Promise<void> {
-  store.set(AGREED_KEY, null);
-  if (pretend()) { pretendStatus = 'downloadable'; return; }
+  if (pretend()) { pretendStatus = 'downloadable'; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
   try { Native.cancelModelDownload(); } catch {}
   await Native.deleteModel();
+  store.set(AGREED_KEY, null);
+  store.set(MOBILE_KEY, null);
 }
 
 function pretendDownload(): Promise<void> {
