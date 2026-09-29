@@ -1,15 +1,23 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 // H1–H5 release-device proof; never connect to a phone or dump UiAutomation (it unbinds the service).
+// `node e2e/settings.mjs <dir> writes-cant|writes-ready` instead walks How Ownvoice writes (see writes() below).
 const serial = process.env.ANDROID_SERIAL;
-if (!serial?.startsWith('emulator-')) throw new Error('Use a throwaway emulator.');
+const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
+// Throwaway emulators only: a local emulator-NNNN, or a borrowed one over adb connect that says it is one.
+if (!serial || !serial.startsWith('emulator-') && adb('shell', 'getprop', 'ro.kernel.qemu').trim() !== '1') throw new Error('Use a throwaway emulator.');
 const out = resolve(process.argv[2] ?? 'reports/ov-rn-07');
 mkdirSync(out, { recursive: true });
-const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-const screenshot = () => execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 16 * 1024 * 1024 });
+// Through a file on the device: `exec-out screencap` comes back cut short over a forwarded adb.
+const screenshot = () => {
+  adb('shell', 'screencap', '-p', '/sdcard/ov-shot.png');
+  const local = resolve(out, '.shot.png');
+  execFileSync('adb', ['-s', serial, 'pull', '/sdcard/ov-shot.png', local], { stdio: 'ignore' });
+  return readFileSync(local);
+};
 const rows = () => execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: screenshot(), encoding: 'utf8' }).split('\n').slice(1)
   .map(line => line.split('\t')).filter(cols => cols.length >= 12 && cols[11].trim());
 const visible = () => rows().map(cols => cols[11]).join(' ').toLowerCase();
@@ -41,6 +49,9 @@ const pick = async () => {
   await wait(1100);
 };
 
+const flow = process.argv[3];
+if (flow) { await writes(flow); process.exit(0); }
+
 for (const mode of ['light', 'dark']) {
   adb('shell', 'cmd', 'uimode', 'night', mode === 'light' ? 'no' : 'yes');
   adb('shell', 'am', 'force-stop', 'dev.ownvoice.next');
@@ -70,3 +81,136 @@ save('dark-wiped');
 await open('voice');
 if (visible().includes('delve')) throw new Error('Wipe left the imported voice phrase behind.');
 console.log(`H1–H5 release proof saved to ${out}; import preview, persistent read fact and Wipe checked.`);
+
+// ---- How Ownvoice writes (mocks 05-09), light and dark, on an installed release build with
+// EXPO_PUBLIC_E2E_GPT=1 (the offline sign-in stand-in connects about 9 s after the code shows).
+//   writes-cant:  an emulator as it is, whose phone can't write. Setup's Not now lands on Home's
+//                 "Choose how Ownvoice writes" (08), never a dead end; Continue with ChatGPT signs in
+//                 on How Ownvoice writes and Home is ready (09).
+//   writes-ready: also EXPO_PUBLIC_E2E_DOWNLOAD=1, so this phone can write after a pretend download.
+//                 This phone getting ready (06), ChatGPT signed in and chosen (05), and the question
+//                 before switching back to ChatGPT (07).
+async function writes(kind) {
+  const pkg = 'dev.ownvoice.next';
+  const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
+  const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+  const BANNED = /\bmodel|\btokens?\b|\bprompt|gemini|gemma|\bnano\b|aicore|ml ?kit|\bllm\b|\bjudge\b|\bslop\b|characters|on-device|gpt-\d|\bcodex\b|\bresponses\b|\/100|doesn't work on this phone|doesn.t work on this phone/;
+  // One OCR line per Tesseract line, with its box; banded crops read the white-on-pill labels too.
+  const lines = image => {
+    const found = [];
+    for (const top of [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)]) {
+      const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
+      const byLine = new Map();
+      for (const row of execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '6'] : []), 'tsv'], { input, encoding: 'utf8' }).split('\n').slice(1)) {
+        const c = row.split('\t');
+        if (c.length < 12 || !c[11].trim()) continue;
+        const key = c.slice(0, 5).join(':');
+        const line = byLine.get(key) ?? { text: '', left: Infinity, top: Infinity, right: 0, bottom: 0 };
+        line.text += ` ${c[11].toLowerCase()}`;
+        line.left = Math.min(line.left, +c[6]); line.right = Math.max(line.right, +c[6] + +c[8]);
+        line.top = Math.min(line.top, +c[7] + top); line.bottom = Math.max(line.bottom, +c[7] + +c[9] + top);
+        byLine.set(key, line);
+      }
+      found.push(...byLine.values());
+    }
+    return found;
+  };
+  const seen = async (label, tries = 20) => {
+    for (let i = 0; i < tries; i++) {
+      if (rows().map(c => c[11]).join(' ').toLowerCase().includes(label)) return;
+      await wait(1000);
+    }
+    throw new Error(`Could not see "${label}" on screen.`);
+  };
+  const press = async label => {
+    for (let i = 0; i < 8; i++) {
+      // A line that is just the label wins over one that only contains it ("Apps that stay on this phone").
+      const found = lines(screenshot());
+      const hit = found.find(line => line.text.trim() === label) ?? found.find(line => line.text.includes(label));
+      if (hit) { adb('shell', 'input', 'tap', String(Math.round((hit.left + hit.right) / 2)), String(Math.round((hit.top + hit.bottom) / 2))); return; }
+      await wait(1000);
+    }
+    throw new Error(`No visible "${label}" to tap.`);
+  };
+  const plain = label => { const text = visible(); if (BANNED.test(text)) throw new Error(`${label}: technical or dead-end words on screen: ${text}`); };
+  const snap = (mode, name) => {
+    if (!adb('shell', 'dumpsys', 'uimode').includes(`mComputedNightMode=${mode === 'dark'}`)) throw new Error(`Wrong colour mode for ${name}.`);
+    plain(name);
+    writeFileSync(resolve(out, `${name}-${mode}.png`), screenshot());
+  };
+  const service = on => {
+    const now = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
+    const list = new Set(now === 'null' ? [] : now.split(':'));
+    if (on) list.add(component); else list.delete(component);
+    adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', list.size ? [...list].join(':') : 'com.example.disabled/NoService');
+    if (on) adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
+  };
+  const fresh = async mode => {
+    adb('shell', 'cmd', 'uimode', 'night', mode === 'dark' ? 'yes' : 'no');
+    adb('shell', 'pm', 'clear', pkg);
+    service(false);
+    await wait(1500);
+  };
+  const priorMode = adb('shell', 'cmd', 'uimode', 'night').trim().match(/^Night mode: (\w+)$/)?.[1] ?? 'no';
+  const priorSchedule = adb('shell', 'settings', 'get', 'secure', 'ui_night_mode_custom_type').trim();
+  const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
+  try {
+    adb('shell', 'settings', 'put', 'secure', 'ui_night_mode_custom_type', '-1');
+    for (const mode of ['light', 'dark']) {
+      await fresh(mode);
+      if (kind === 'writes-cant') {
+        adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+        await press('continue');
+        await seen('only some newer phones');
+        await press('not now');
+        await seen('choose how ownvoice writes');
+        // Ownvoice switched on, as after the permission step: the card still asks for a writer.
+        service(true);
+        await wait(2500);
+        await seen('sign in with your chatgpt');
+        await seen('not chosen yet');
+        snap(mode, '08-home-needs-a-writer');
+        await press('continue with chatgpt');
+        await seen('your code');
+        snap(mode, '10-source-signin-code');
+        await seen('chatgpt is connected', 30);
+        await wait(800);
+        snap(mode, '11-source-chatgpt-phone-cant');
+        adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
+        await seen('ready to help');
+        await seen('writes with your chatgpt');
+        snap(mode, '09-home-ready-chatgpt');
+        service(false);
+      } else if (kind === 'writes-ready') {
+        adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
+        await seen('private and free');
+        await press('on this phone');
+        await seen('get this phone ready');
+        await press('get it ready');
+        await wait(1200);
+        snap(mode, '06-settings-phone-getting-ready');
+        await seen('it writes right here', 30);
+        await press('with your chatgpt');
+        await seen('your code');
+        await seen('chatgpt is connected', 30);
+        await wait(800);
+        snap(mode, '05-settings-chatgpt');
+        await press('on this phone');
+        await seen('it writes right here');
+        await press('with your chatgpt');
+        await seen('write with chatgpt?');
+        await wait(800);
+        snap(mode, '07-settings-switch-confirm');
+        await press('keep it on this phone');
+        await wait(800);
+        if (visible().includes('write with chatgpt?')) throw new Error('The question stayed open.');
+      } else throw new Error(`Unknown flow ${kind}.`);
+    }
+    console.log(`How Ownvoice writes (${kind}) saved to ${out} in light and dark; every screen's words checked.`);
+  } finally {
+    adb('shell', 'settings', priorSchedule === 'null' ? 'delete' : 'put', 'secure', 'ui_night_mode_custom_type', ...(priorSchedule === 'null' ? [] : [priorSchedule]));
+    adb('shell', 'cmd', 'uimode', 'night', priorMode);
+    adb('shell', 'settings', priorServices === 'null' ? 'delete' : 'put', 'secure', 'enabled_accessibility_services', ...(priorServices === 'null' ? [] : [priorServices]));
+    rmSync(resolve(out, '.shot.png'), { force: true });
+  }
+}
