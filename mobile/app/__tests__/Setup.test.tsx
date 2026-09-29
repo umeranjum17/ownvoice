@@ -584,7 +584,10 @@ test('whereThePhoneCantWriteChatGptLeadsAndNotNowEndsSetup', async () => {
   expect(screen.getByText(words.srcPhoneCant)).toBeTruthy();
   expect(screen.queryByText(words.tradePhone1)).toBeNull();
   expect(radio(screen, words.srcGpt).props.accessibilityState).toEqual({ checked: true, disabled: false });
-  expect(radio(screen, words.srcPhone).props.accessibilityState).toEqual({ checked: false, disabled: true });
+  expect(screen.queryByText(words.phoneCantWhy)).toBeNull();
+  await fireEvent.press(screen.getByText(words.srcPhone));
+  expect(screen.getByText(words.phoneCantWhy)).toBeTruthy();
+  expect(radio(screen, words.srcGpt).props.accessibilityState).toEqual({ checked: true, disabled: false });
   expect(screen.queryByText(words.continueLabel)).toBeNull();
   await fireEvent.press(screen.getByText(words.notNow));
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
