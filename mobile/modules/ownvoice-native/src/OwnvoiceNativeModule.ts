@@ -45,4 +45,5 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   draftStream(id: string, prompt: string, maxTokens: number): Promise<string>;
   drafts(prompt: string, options: { candidates: number; maxTokens: number }): Promise<string[]>;
 }
-export default requireNativeModule<OwnvoiceNativeModule>('OwnvoiceNative');
+const Native: OwnvoiceNativeModule = requireNativeModule<OwnvoiceNativeModule>('OwnvoiceNative');
+export default Native;

@@ -15,6 +15,7 @@ mobile/android/
 .fm-env.sh
 .work-home/
 .task-home/
+.lab-*/
 mobile/.avd/
 mobile/.emu-home/
 mobile/.build-*.log

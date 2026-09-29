@@ -1,100 +1,63 @@
 package dev.ownvoice.bridge
 
-import com.google.mlkit.genai.common.DownloadStatus
+import android.content.Context
+import android.util.Log
 import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.common.GenAiException
-import android.util.Log
-import com.google.mlkit.genai.prompt.Generation
-import com.google.mlkit.genai.prompt.TextPart
-import com.google.mlkit.genai.prompt.generateContentRequest
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 
+/**
+ * The on-device writer: [AiCore] (Gemini Nano) wherever AICore answers,
+ * [LocalGemma] (a downloaded Gemma file) on phones without it.
+ */
 internal object PhoneModel {
-  private val model by lazy { Generation.getClient() }
+  /** AICore state (a FeatureStatus int), or null when the phone has no AICore to ask. */
+  private suspend fun aiCore(): Int? =
+    try { AiCore.checkStatus() } catch (_: Throwable) { null }
 
-  suspend fun status(): String {
-    val state = when (model.checkStatus()) {
+  private suspend fun useAiCore(): Boolean {
+    val state = aiCore()
+    return state != null && state != FeatureStatus.UNAVAILABLE
+  }
+
+  suspend fun status(context: Context): String {
+    val state = when (aiCore()) {
       FeatureStatus.AVAILABLE -> "available"
       FeatureStatus.DOWNLOADABLE -> "downloadable"
       FeatureStatus.DOWNLOADING -> "downloading"
-      else -> "unavailable"
+      else -> null
     }
-    Log.i(OwnvoiceService.TAG, "model status $state")
-    return state
-  }
-
-  suspend fun download(progress: (Float) -> Unit) {
-    when (model.checkStatus()) {
-      FeatureStatus.AVAILABLE -> return
-      FeatureStatus.UNAVAILABLE -> throw UnsupportedOperationException()
-      else -> Unit
+    if (state != null) {
+      Log.i(OwnvoiceService.TAG, "model status $state (aicore)")
+      return state
     }
-    coroutineScope {
-      val download = launch {
-        var total = 0L
-        model.download().collect { state ->
-          when (state) {
-            is DownloadStatus.DownloadStarted -> total = state.bytesToDownload
-            is DownloadStatus.DownloadProgress -> if (total > 0) progress(state.totalBytesDownloaded.toFloat() / total)
-            is DownloadStatus.DownloadFailed -> throw state.e
-            DownloadStatus.DownloadCompleted -> progress(1f)
-          }
-        }
-      }
-      while (true) {
-        when (model.checkStatus()) {
-          FeatureStatus.AVAILABLE -> break
-          FeatureStatus.UNAVAILABLE -> throw UnsupportedOperationException()
-          else -> delay(1000)
-        }
-      }
-      download.cancel()
+    return LocalGemma.status(context).also {
+      Log.i(OwnvoiceService.TAG, "model status $it (local)")
     }
   }
 
-  suspend fun ask(prompt: String, maxTokens: Int, partial: (String) -> Unit): String {
-    val request = generateContentRequest(TextPart(prompt)) {
-      temperature = 0f
-      topK = 1
-      maxOutputTokens = maxTokens
-    }
-    val text = StringBuilder()
-    model.generateContentStream(request).collect { response ->
-      response.candidates.firstOrNull()?.text?.let { delta ->
-        text.append(delta)
-        partial(delta)
-      }
-    }
-    return text.toString().trim().ifEmpty { throw IllegalStateException("Empty answer") }
+  suspend fun download(context: Context, allowMobileData: Boolean, progress: (Float) -> Unit) {
+    if (useAiCore()) AiCore.download(progress)
+    else LocalGemma.download(context, allowMobileData, progress)
   }
 
-  suspend fun draftStream(prompt: String, maxTokens: Int, partial: (String) -> Unit): String {
-    val request = generateContentRequest(TextPart(prompt)) {
-      temperature = 0.9f
-      topK = 40
-      maxOutputTokens = maxTokens
-    }
-    val text = StringBuilder()
-    model.generateContentStream(request).collect { response ->
-      response.candidates.firstOrNull()?.text?.let { delta -> text.append(delta); partial(delta) }
-    }
-    return text.toString().trim()
-  }
+  fun cancelDownload() = LocalGemma.cancelDownload()
 
-  suspend fun drafts(prompt: String, candidates: Int, maxTokens: Int): List<String> {
-    val request = generateContentRequest(TextPart(prompt)) {
-      temperature = 0.9f
-      topK = 40
-      candidateCount = candidates
-      maxOutputTokens = maxTokens
-    }
-    return collectDrafts(candidates) {
-      model.generateContent(request).candidates.map { it.text }
-    }
-  }
+  fun delete(context: Context) = LocalGemma.delete(context)
+
+  fun release() = LocalGemma.release()
+
+  suspend fun ask(context: Context, prompt: String, maxTokens: Int, partial: (String) -> Unit): String =
+    if (useAiCore()) AiCore.ask(prompt, maxTokens, partial)
+    else LocalGemma.ask(context, prompt, maxTokens, partial)
+
+  suspend fun draftStream(context: Context, prompt: String, maxTokens: Int, partial: (String) -> Unit): String =
+    if (useAiCore()) AiCore.draftStream(prompt, maxTokens, partial)
+    else LocalGemma.draftStream(context, prompt, maxTokens, partial)
+
+  suspend fun drafts(context: Context, prompt: String, candidates: Int, maxTokens: Int): List<String> =
+    if (useAiCore()) AiCore.drafts(prompt, candidates, maxTokens)
+    else LocalGemma.drafts(context, prompt, candidates, maxTokens)
 
   internal suspend fun collectDrafts(candidates: Int, generate: suspend () -> List<String>): List<String> {
     val result = mutableListOf<String>()
@@ -113,6 +76,9 @@ internal object PhoneModel {
 
   fun errorCode(error: Throwable): Int = when (error) {
     is GenAiException -> error.errorCode
+    is ModelBusyException -> 9
+    is NoSpaceException -> 501
+    is OutOfMemoryError -> 16
     is UnsupportedOperationException -> 16
     else -> -107
   }
