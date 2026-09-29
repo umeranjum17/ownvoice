@@ -7,7 +7,7 @@ import { Row } from '../src/ui/Row';
 import { space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
-import { PHONE_ONLY_KEY, phoneOnly, setSource } from '../src/core/source';
+import { PHONE_ONLY_KEY, getSource, phoneOnly, setSource } from '../src/core/source';
 import { completeSetup } from '../src/core/setup-completion';
 import { store } from '../src/core/store';
 import Native from '../modules/ownvoice-native';
@@ -26,7 +26,7 @@ export default function GptApps() {
 
   const load = () => {
     setFailed(false);
-    void Promise.all([Native.launcherApps(null), Native.bubbleRules()])
+    void Promise.all([Native.launcherApps(null), Native.bubbleRules(), getSource()])
       .then(([shown, rules]) => {
         const visible = shown.filter(({ app }) => showsBubble(app, rules));
         const saved = phoneOnly(true);

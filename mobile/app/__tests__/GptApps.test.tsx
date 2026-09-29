@@ -56,7 +56,11 @@ test('an initial list read failure shows no defaults and retry restores the save
   kv.set('setup-done', 'true');
   store.set(PHONE_ONLY_KEY, ['com.Slack']);
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
-  const get = jest.spyOn(storage, 'getItemSync').mockImplementationOnce(() => { throw new Error('unavailable'); });
+  let reads = 0;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
+    if (key === PHONE_ONLY_KEY && ++reads === 1) throw new Error('unavailable');
+    return kv.get(key as string) ?? null;
+  });
   const screen = await render(<GptApps />);
   try {
     await screen.findByText(words.gptAppsUnavailable);
@@ -102,6 +106,19 @@ test('Done does not erase hidden choices when the saved list cannot be read', as
     get.mockRestore();
   }
   expect(phoneOnly()).toEqual(['com.whatsapp']);
+});
+
+test('a pre-P1 choice list migrates before the editor shows defaults', async () => {
+  kv.set('setup-done', 'true');
+  kv.set('chatgpt-apps', JSON.stringify({ on: ['com.google.android.gm', 'com.twitter.android'] }));
+  const screen = await render(<GptApps />);
+  await screen.findByText('Gmail');
+  expect(screen.getAllByText(words.on)).toHaveLength(1);
+  expect(screen.getAllByText(words.off)).toHaveLength(1);
+  await fireEvent.press(screen.getByText(words.done));
+  await waitFor(() => expect(router.dismissAll).toHaveBeenCalled());
+  expect(await getSource()).toBe('chatgpt');
+  expect(phoneOnly()).toEqual(['com.linkedin.android', 'com.whatsapp', 'com.whatsapp.w4b', 'com.reddit.frontpage', 'com.Slack']);
 });
 
 test('setup sign-in choice finishes setup and lands Home', async () => {
