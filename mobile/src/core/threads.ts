@@ -131,7 +131,15 @@ export function cleanThread(answer: string, original: string, limit: number): Th
         if (esc === 'n') value += '\n';
         else if (esc === 't') value += '\t';
         else if (esc === 'r') value += '\r';
+        else if (esc === 'b') value += '\b';
+        else if (esc === 'f') value += '\f';
         else if (esc === '"' || esc === '\\' || esc === '/') value += esc;
+        else if (esc === 'u') {
+          const hex = answer.slice(i, i + 4);
+          if (!/^[0-9a-fA-F]{4}$/.test(hex)) return out;
+          value += String.fromCharCode(parseInt(hex, 16));
+          i += 4;
+        }
         else return out;
       }
       out.push(value);
@@ -161,8 +169,27 @@ const firstSentences = (text: string): string[] => segments(text).slice(0, 3);
 /** The offline answer: the deterministic split, with the text's own first
  *  lines as the hooks. Same shape as the model's, always within the cap. */
 export function fallbackThread(text: string, limit: number): Thread {
-  const sentences = firstSentences(text);
-  const hooks = [0, 1, 2].map(i => sentences[i] ?? sentences[0] ?? text.trim()).map(hook =>
-    hook.length > limit ? `${hook.slice(0, hook.lastIndexOf(' ', limit)).trim() || hook.slice(0, limit)}` : hook);
-  return { parts: splitThread(text, limit), hooks: [...new Set(hooks.map(hook => hook.trim()))].filter(Boolean).slice(0, 3) };
+  const clean = text.trim();
+  const trunc = (hook: string): string => {
+    const h = hook.trim();
+    if (h.length <= limit) return h;
+    const idx = h.lastIndexOf(' ', limit);
+    return (idx > 0 ? h.slice(0, idx) : h.slice(0, limit)).trim() || h.slice(0, limit);
+  };
+  const flatWords = flat(clean).split(' ').filter(Boolean);
+  const cands = [...firstSentences(clean).map(trunc)];
+  for (let n = 1; n <= flatWords.length; n++) cands.push(trunc(flatWords.slice(0, n).join(' ')));
+  const uniq = [...new Set(cands.map(hook => hook.trim()))].filter(Boolean);
+  for (let guard = 0; uniq.length < 3 && uniq.length > 0 && guard < 5; guard++) {
+    const base = uniq[0];
+    const k = uniq.length;
+    const cand = trunc(base.length + k <= limit ? `${base}${'.'.repeat(k)}` : `${base.slice(0, Math.max(1, limit - k))}${'.'.repeat(k)}`);
+    if (cand && cand.length <= limit && !uniq.includes(cand)) uniq.push(cand);
+    else {
+      const shorter = trunc(base.slice(0, Math.max(1, base.length - k)));
+      if (shorter && shorter.length <= limit && !uniq.includes(shorter)) uniq.push(shorter);
+      else break;
+    }
+  }
+  return { parts: splitThread(text, limit), hooks: uniq.slice(0, 3) };
 }
