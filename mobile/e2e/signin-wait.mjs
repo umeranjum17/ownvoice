@@ -13,7 +13,11 @@ import { resolve } from 'node:path';
 import { mockOpenAI } from '@byokit/accounts/testing';
 
 const serial = process.env.ANDROID_SERIAL;
-if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (owner phones are refused).');
+// The shared Mac slot tunnels its emulator as 127.0.0.1:4555; anything else must be a local emulator. Phones are refused either way.
+if (serial !== '127.0.0.1:4555' && !serial?.startsWith('emulator-'))
+  throw new Error('Set ANDROID_SERIAL to a throwaway emulator or the claimed Mac slot 127.0.0.1:4555 (owner phones are refused).');
+const snapTool = (process.env.SNAP_TOOL ?? '').trim(); // e.g. the Mac slot script: screenshots via `$S shot <path>`
+const deviceMockBase = (process.env.DEVICE_MOCK_BASE ?? '').trim(); // the mock URL as the device sees it
 const avd = (process.env.OWNVOICE_AVD_NAME ?? '').trim();
 if (!avd) throw new Error('Set OWNVOICE_AVD_NAME to your own AVD name.');
 const apk = process.argv[2];
@@ -28,8 +32,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 const stamp = () => new Date().toISOString().slice(11, 19);
 const log = line => { console.log(`${stamp()} ${line}`); appendFileSync(resolve(out, 'signin-run.log'), `${stamp()} ${line}\n`); };
 const snap = name => {
+  const path = resolve(out, `${name}.png`);
+  if (snapTool) { execFileSync('bash', [snapTool, 'shot', path], { stdio: 'inherit' }); return; }
   adb('shell', 'screencap', '-p', `/sdcard/${name}.png`);
-  execFileSync('adb', ['-s', serial, 'pull', `/sdcard/${name}.png`, resolve(out, `${name}.png`)], { stdio: 'inherit' });
+  execFileSync('adb', ['-s', serial, 'pull', `/sdcard/${name}.png`, path], { stdio: 'inherit' });
 };
 const focus = () => adb('shell', 'dumpsys', 'window').match(/mCurrentFocus=Window\{[^}]+\s+([^\s}]+)/)?.[1] ?? '?';
 
@@ -75,6 +81,19 @@ const tapText = async (label, tries = 10) => {
       }
       const line = [...lines.values()].find(item => item.words.join(' ').toLowerCase().includes(label.toLowerCase()));
       if (line) { tap(Math.round((line.left + line.right) / 2), Math.round((line.top + line.bottom) / 2)); return; }
+      // Filled pills read only with a raw-line pass on the same band.
+      const band = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
+      const raw = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '13', 'tsv'], { input: band, encoding: 'utf8' });
+      const words = raw.split('\n').slice(1).map(row => row.split('\t')).filter(columns => columns.length >= 12 && columns[11].trim());
+      const text = words.map(columns => columns[11]).join(' ').toLowerCase();
+      if (text.includes(label.toLowerCase()) && words.length) {
+        const left = Math.min(...words.map(c => Number(c[6])));
+        const right = Math.max(...words.map(c => Number(c[6]) + Number(c[8])));
+        const wordTop = Math.min(...words.map(c => Number(c[7]))) + top;
+        const bottom = Math.max(...words.map(c => Number(c[7]) + Number(c[9]))) + top;
+        tap(Math.round((left + right) / 2), Math.round((wordTop + bottom) / 2));
+        return;
+      }
     }
     await wait(1000);
   }
@@ -100,7 +119,7 @@ const disableService = () => {
 // app's sign-in stack and from Chrome on the code page. Every request is timestamped.
 const mock = await mockOpenAI({ port, host: '0.0.0.0', log: line => appendFileSync(resolve(out, 'signin-mock.log'), `${stamp()} ${line}\n`) });
 if (dropPolls > 0) mock.state.dropPolls = dropPolls;
-log(`stand-in OpenAI on ${mock.base} (device at http://10.0.2.2:${port}), dropPolls=${dropPolls}`);
+log(`stand-in OpenAI on ${mock.base} (device at ${deviceMockBase || `http://10.0.2.2:${port}`}), dropPolls=${dropPolls}`);
 
 const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const priorAccessibility = adb('shell', 'settings', 'get', 'secure', 'accessibility_enabled').trim();
@@ -140,20 +159,41 @@ try {
   await waitForLine('write with chatgpt');
   snap('signin-01-offer');
 
-  // The offer: Continue with ChatGPT shows the code and opens the page in Chrome.
+  // The offer leads to the ChatGPT screen, whose own Continue starts the sign-in,
+  // shows the code and opens the page in Chrome.
   await tapText('Continue with ChatGPT');
-  await waitForLine('sign in on the');
-  const code = mock.lastCode();
+  await waitForLine('uses your chatgpt plan');
+  snap('signin-01b-chatgpt');
+  await tapText('Continue with ChatGPT');
+  // The app opens the page itself, which fronts Chrome over the code screen; the
+  // issued code (ground truth from the stand-in) proves the wait started.
+  let code;
+  for (let attempt = 0; attempt < 30 && !(code = mock.lastCode()); attempt++) await wait(1000);
   if (!code) throw new Error('The app never asked the stand-in for a code.');
-  if (!screenText().includes(code.toLowerCase())) throw new Error(`The code ${code} is not on screen.`);
+  log(`code issued: ${code}`);
+  // Back to the app's own ChatGPT screen to see the code it shows (BACK would only
+  // pop routes or tab history, so deep-link straight there; the wait carries on).
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://chatgpt');
+  await wait(3000);
+  await waitForLine('sign in on the');
+  // The code is letter-spaced on screen and OCR confuses a couple of glyphs
+  // (0/T), so match fuzzily: nearly every character in place.
+  const bare = (text) => text.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const seen = bare(screenText());
+  const want = bare(code);
+  let hits = 0;
+  for (let i = 0; i + want.length <= seen.length; i++) {
+    let same = 0;
+    for (let j = 0; j < want.length; j++) if (seen[i + j] === want[j]) same++;
+    hits = Math.max(hits, same);
+  }
+  if (hits < want.length - 2) throw new Error(`The code ${code} is not on screen.`);
   log(`code on screen: ${code}`);
   snap('signin-02-code');
+  const page = `${deviceMockBase || mock.base.replace('0.0.0.0', '10.0.2.2')}/codex/device`;
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', page);
   await wait(3000);
-  if (!focus().toLowerCase().includes('chrome')) {
-    log(`page did not open itself (focus: ${focus()}); opening it`);
-    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `${mock.base.replace('0.0.0.0', '10.0.2.2')}/codex/device`);
-    await wait(3000);
-  }
+  if (!focus().toLowerCase().includes('chrome')) throw new Error(`The code page did not come up (focus: ${focus()}).`);
 
   // 60 s in the browser with the app backgrounded, then approve exactly as the page's
   // own Continue button would (same endpoint, same form body).
@@ -175,12 +215,8 @@ try {
   snap('signin-05-page-signed-in');
 
   // Back in the app: the wait must have survived, and the screen says connected.
-  adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
-  await wait(2000);
-  for (let attempt = 0; attempt < 5 && !focus().toLowerCase().includes('ownvoice'); attempt++) {
-    adb('shell', 'input', 'keyevent', 'KEYCODE_BACK');
-    await wait(2000);
-  }
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://chatgpt');
+  await wait(3000);
   await waitForLine(['chatgpt is connected', 'which apps can use chatgpt']);
   snap('signin-06-connected');
   log('connected: the sign-in survived 60 s in the browser');
