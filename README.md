@@ -170,6 +170,15 @@ npm run typecheck
 npm test -- --ci
 ```
 
+Checks for the shared engine:
+
+```sh
+cd packages/engine
+npm ci
+npm run lint
+npm run typecheck
+```
+
 Build and unit-test the Kotlin app from the repository root:
 
 ```sh
