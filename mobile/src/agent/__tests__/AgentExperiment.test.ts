@@ -168,7 +168,6 @@ test('A5: six tasks, loop vs script, on the scripted stand-in', async () => {
       const p7 = !technicalWords.test(final);
       rows.push(`${mode} t${task.id}: steps=${r.out.steps} calls=${r.calls} ms=${r.ms} stop=${r.out.stop} P1=${p1 ? 'pass' : 'FAIL'} P2=${p2 ? 'pass' : 'FAIL'} P4=${p4 ? 'pass' : 'FAIL'} P5=${p5 ? 'pass' : 'FAIL'}${task.id === 5 && mode === 'loop' ? ` P6=${p6 ? 'pass' : 'FAIL'}` : ''} P7=${p7 ? 'pass' : 'FAIL'} final=${JSON.stringify(final)}`);
       if (mode === 'loop') loopSteps.push(r.out.steps); else scriptSteps.push(r.out.steps);
-      expect(`t${task.id} ${mode} P1`).toBe(`t${task.id} ${mode} P1`);
       expect(p1).toBe(true);
       expect(p2).toBe(true);
       // Task 5 via the fixed script keeps the facts and rules but can not say the limit line:
