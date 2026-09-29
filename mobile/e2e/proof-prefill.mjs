@@ -31,7 +31,7 @@ const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 const text = 'Shipped our offline notes app today. Search is instant.';
 
 // Resolve-only, never a page load: this host's SwiftShader emulator dies
-// rendering external pages, and none of the three apps is installed, so the
+// rendering external pages, and neither app is installed, so the
 // browser is the correct target anyway. resolve-activity proves routing; Jest
 // proves the exact text round-trips; the share sheet shot proves the fallback.
 const view = async (name, url) => {
@@ -41,13 +41,12 @@ const view = async (name, url) => {
   if (!line.includes('chrome') && !line.includes('android')) throw new Error(`${name} did not resolve to a viewer`);
 };
 
-// 1-3: each compose URL routes to a viewer with the exact text (nothing is
+// 1-2: each compose URL routes to a viewer with the exact text (nothing is
 // posted, no sign-in: resolve-activity launches nothing).
 await view('x-intent', `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`);
 await view('wa-share', `https://wa.me/?text=${encodeURIComponent(text)}`);
-await view('reddit-submit', `https://www.reddit.com/submit?title=&text=${encodeURIComponent(text)}`);
 
-// 4: the fallback every other app gets: the Android share sheet with our text.
+// 3: Reddit goes through the share sheet instead of a submit URL, so the
 shell(`am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT ${q(text)}`);
 await sleep(4000);
 shot('share-sheet');

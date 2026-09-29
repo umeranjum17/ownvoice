@@ -51,7 +51,7 @@ const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {})
  *  sheet when it has no compose link; either way the person presses Send. */
 const openPrefill = (app: string | undefined, text: string) => {
   const url = prefillUrl(prefillFor(platformForApp(app)).dest, text);
-  if (url) void Linking.openURL(url).catch(() => {});
+  if (url) void Linking.openURL(url).catch(() => { void Share.share({ message: text }).catch(() => {}); });
   else void Share.share({ message: text }).catch(() => {});
 };
 

@@ -10,7 +10,7 @@ test('each place gets its own hand-off, unknown apps the share sheet', () => {
   expect(prefillFor(x)).toEqual({ dest: 'x', label: 'Open in X with this text' });
   expect(prefillFor(whatsapp)).toEqual({ dest: 'whatsapp', label: 'Open in WhatsApp with this text' });
   expect(prefillFor(platformForApp('com.whatsapp.w4b')).dest).toBe('whatsapp');
-  expect(prefillFor(reddit)).toEqual({ dest: 'reddit', label: 'Open in Reddit with this text' });
+  expect(prefillFor(reddit)).toEqual({ dest: 'share', label: 'Share this text' });
   for (const app of ['com.linkedin.android', 'com.Slack', 'com.google.android.gm', 'com.example.other', undefined, null]) {
     expect(prefillFor(platformForApp(app ?? undefined))).toEqual({ dest: 'share', label: 'Share this text' });
   }
@@ -23,10 +23,8 @@ test('compose links carry the whole text, encoded, and never send', () => {
   expect(xUrl).toBe(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`);
   expect(xUrl).not.toMatch(/post|send|publish/);
   expect(prefillUrl('whatsapp', text)).toBe(`https://wa.me/?text=${encodeURIComponent(text)}`);
-  expect(prefillUrl('reddit', text)).toBe(`https://www.reddit.com/submit?title=&text=${encodeURIComponent(text)}`);
   expect(prefillUrl('share', text)).toBeNull();
-  // Every link round-trips the exact text.
-  for (const dest of ['x', 'whatsapp', 'reddit'] as const) {
+  for (const dest of ['x', 'whatsapp'] as const) {
     const url = new URL(prefillUrl(dest, text)!);
     expect(url.searchParams.get('text')).toBe(text);
   }

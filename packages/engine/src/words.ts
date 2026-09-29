@@ -258,7 +258,6 @@ export const words = {
   // Prefill hand-off (parity package 6): the app's own compose opens with the text; the person presses Post or Send.
   openInX:'Open in X with this text',
   openInWhatsapp:'Open in WhatsApp with this text',
-  openInReddit:'Open in Reddit with this text',
   shareText:'Share this text',
 
   // Thread writer and hooks (parity package 5): from text they typed in a feed app.

@@ -5,7 +5,7 @@
 import type { Platform } from './platforms.ts';
 import { words } from './words.ts';
 
-export type PrefillDest = 'x' | 'whatsapp' | 'reddit' | 'share';
+export type PrefillDest = 'x' | 'whatsapp' | 'share';
 export type Prefill = { dest: PrefillDest; label: string };
 
 /** Which hand-off one place gets: its own compose link, else the share sheet. */
@@ -13,7 +13,6 @@ export function prefillFor(platform?: Platform | null): Prefill {
   switch (platform?.id) {
     case 'x': return { dest: 'x', label: words.openInX };
     case 'whatsapp': return { dest: 'whatsapp', label: words.openInWhatsapp };
-    case 'reddit': return { dest: 'reddit', label: words.openInReddit };
     default: return { dest: 'share', label: words.shareText };
   }
 }
@@ -30,9 +29,6 @@ export function prefillUrl(dest: PrefillDest, text: string): string | null {
     // WhatsApp click-to-chat with no number: the person picks the chat and the
     // text lands in the box, unsent. https://faq.whatsapp.com/5913398998672934
     case 'whatsapp': return `https://wa.me/?text=${body}`;
-    // Reddit's submit page reads the title and text off the URL, the same shape
-    // its share buttons use; the person picks the place and presses Post.
-    case 'reddit': return `https://www.reddit.com/submit?title=&text=${body}`;
     default: return null;
   }
 }
