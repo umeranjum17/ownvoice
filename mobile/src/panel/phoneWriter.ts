@@ -19,7 +19,7 @@ async function ask(prompt: string, maxTokens: number): Promise<string> {
 }
 
 /** Polish and compose: the C2 rewrite, streamed as versions land, with layout kept and near-duplicates dropped. */
-async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]> {
+async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> {
   const dashes = request.dashes ?? 'remove';
   const avoid = request.avoid ?? [];
   const note = avoidLine(avoid);
@@ -41,7 +41,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
       if (fixed != null) landed(fixed, fail.slot, fail.label);
     } catch { continue; }
   }
-  return acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
+  return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: acceptor.unchanged };
 }
 
 /** Replies: one numbered call, then one retry per empty slot within 8 s of its answer. */
@@ -85,6 +85,12 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
 export const phoneWriter = {
   async write(request: DraftRequest, on: WriterEvents = {}): Promise<Choice> {
     if (process.env.EXPO_PUBLIC_E2E_STUB === '1') {
+      // A typed 'Quick update' comes back as it was, through the real acceptor: the already-minimal case.
+      if (request.typed.startsWith('Quick update')) {
+        const acceptor = versionAcceptor(request.typed, 'remove', []);
+        versionsList.forEach((version, slot) => acceptor.accept(request.typed, slot, version.label));
+        return { drafts: [], unchanged: acceptor.unchanged };
+      }
       // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).
       const drafts = request.typed.includes('stock')
@@ -106,10 +112,9 @@ export const phoneWriter = {
         try { await (status === 'downloadable' ? getReady() : settle()); } finally { stop(); }
       }
       on.state?.('writing');
-      const drafts = request.typed.trim()
+      return request.typed.trim()
         ? await polish(request, on)
-        : await replies(request, on, started);
-      return { drafts };
+        : { drafts: await replies(request, on, started) };
     } catch (error) {
       throw new Error(message(errorCode(error)));
     }

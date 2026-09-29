@@ -374,16 +374,22 @@ test('every shown card keeps the list; a fix that duplicates a shown card is dro
 test('flattened versions stay out after the single layout retry', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
     ? '{"versions":["Flat stove and tent plan."]}' : 'Still one flat line, again.');
-  const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toEqual([]);
+  expect(await phoneWriter.write(request({ typed: LIST }))).toEqual({ drafts: [], unchanged: false });
   expect(native.ask).toHaveBeenCalledTimes(6);
 });
 
 test('no accepted polish leaves the original out of cleaned-up cards', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
     ? '{"versions":["unchanged input"]}' : 'unchanged input');
-  const { drafts } = await phoneWriter.write(request({ typed: 'unchanged input' }));
-  expect(drafts).toEqual([]);
+  expect(await phoneWriter.write(request({ typed: 'unchanged input' }))).toEqual({ drafts: [], unchanged: true });
+});
+
+test('an already-minimal list that comes back as it was is unchanged; a flattened one is a failure', async () => {
+  const minimal = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
+  native.ask.mockResolvedValue('{"versions":["Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday"]}');
+  expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: true });
+  native.ask.mockResolvedValue('{"versions":["Pack the stove, meet Saturday."]}');
+  expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: false });
 });
 
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
@@ -419,4 +425,11 @@ test('the prompt carries the nearest message above the field and never the contr
   expect(prompt).toContain('Latest message:\nAre we still on for Saturday?\nI can bring the tent if you bring the stove.');
   expect(prompt).not.toContain('Recent activity');
   expect(prompt).not.toContain('Clear last screen');
+});
+
+test('emulator stub hands an already-minimal text back unchanged', async () => {
+  process.env.EXPO_PUBLIC_E2E_STUB = '1';
+  try {
+    expect(await phoneWriter.write(request({ typed: 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday' }))).toEqual({ drafts: [], unchanged: true });
+  } finally { delete process.env.EXPO_PUBLIC_E2E_STUB; }
 });

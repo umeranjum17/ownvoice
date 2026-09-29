@@ -63,6 +63,7 @@ test('readLog', () => { const shown = (['REPLY', 'COMPOSE', 'EMPTY'] as Judge.Mo
 test('displayedHomeCopy', () => { const html = renderToStaticMarkup(React.createElement(Home)); expect(html).toContain(words.home); expect(html).toContain(words.rowWriting); expect(html).not.toContain(words.privacyNote); expect(html).not.toContain(words.switchNote); assertPlain([html.replace(/<[^>]*>/g, ''), ...Object.values(words)]); });
 test('writingDetails', () => { const html = renderToStaticMarkup(React.createElement(Writing)); for (const line of [words.privacyNote, words.switchNote, words.readsNote]) expect(html).toContain(line); assertPlain([html.replace(/<[^>]*>/g, '')]); });
 test('offeredApps', () => { assertPlain(offeredApps(() => true).map(x => x[1])); });
+test('looksGood', () => assertPlain([words.looksGood, words.looksGoodNote]));
 test('switchMessage', () => assertPlain([CHATGPT_OFF, CHATGPT_TERMS]));
 test('dualSourceWords', () => { const keys = ['chooseTitle', 'chooseNote', 'chooseNoteCant', 'srcPhone', 'srcPhoneSub', 'srcPhoneCant', 'srcGpt', 'srcGptSub', 'tradePhone1', 'tradePhone2', 'tradePhone3', 'tradeGpt1', 'tradeGpt2', 'tradeGpt3', 'signInTitle', 'signInNote', 'yourCode', 'waiting', 'copyAndOpen', 'connectedNote', 'usePhoneInstead', 'rowSource', 'rowSourcePhone', 'rowSourceGpt', 'rowSourceNone', 'sourceNote', 'writingSection', 'privacyPhone', 'privacyGpt', 'sentOnlyOnTap', 'phoneBackup', 'phoneOnlyApps', 'phoneOnlyNote', 'switchTitle', 'switchBody', 'switchYes', 'switchNo', 'needWriter', 'needWriterNote', 'needWriterPanel', 'openOwnvoice', 'homePhone', 'homeGpt', 'offlinePhone', 'offlineNoPhone', 'gptFailedNoPhone', 'gptOffNoPhone', 'restingPhone', 'promiseStays', 'promiseStaysNote', 'promiseGpt', 'promiseGptNote']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
 test('phoneDownloadWords', () => { const keys = ['readyTitle', 'readyNote', 'getReady', 'readyStopped', 'useMobileData', 'readyPanel', 'phoneReady', 'removeRow', 'removeRowNote', 'removeAsk', 'removeYes', 'removeNo', 'removeFailed']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
@@ -81,6 +82,8 @@ describe('panel copy', () => {
   test.each<[string, StubOptions, { typed?: string; written?: string; hasField?: boolean }]>([
     ['reply-ready', {}, {}],
     ['polish-ready', {}, { typed: LIST }],
+    ['polish-unchanged', { unchanged: true }, { typed: LIST }],
+    ['polish-failed', { empty: true }, { typed: LIST }],
     ['compose-ready', {}, { typed: 'i can bring the stove, super excited', written: '' }],
     ['empty', {}, { typed: '', written: '' }],
     ['writing', { delay: 150 }, {}],

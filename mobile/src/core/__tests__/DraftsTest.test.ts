@@ -220,6 +220,22 @@ test('versionAcceptor drops a version equal to the writer text and near-duplicat
   expect(versionAcceptor('see you Saturday', 'remove', []).accept('See you on Saturday!', 0)).toBe('See you on Saturday!');
 });
 
+test('versionAcceptor calls their text unchanged only when it comes back the same, give or take spacing', () => {
+  const list = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
+  const same = versionAcceptor(list, 'remove', []);
+  expect(same.accept('Quick update:\n1. Pack the stove\n2.  Meet Saturday ', 0)).toBeNull();
+  expect(same.unchanged).toBe(true);
+  expect(same.accept('Quick update:\n\n1. Pack the stove.\n2. Meet on Saturday', 1)).not.toBeNull();
+  expect(same.unchanged).toBe(false); // a real version shows instead
+  const failed = versionAcceptor(list, 'remove', []);
+  failed.accept('Pack the stove and meet Saturday.', 0); // flattened: a failure, not "looks good"
+  failed.accept('', 1);
+  expect(failed.unchanged).toBe(false);
+  const recased = versionAcceptor(list, 'remove', []);
+  recased.accept('quick update:\n\n1. pack the stove\n2. meet saturday', 0); // dropped as a duplicate, but not the same text
+  expect(recased.unchanged).toBe(false);
+});
+
 test('versionAcceptor queues a flattened list for one fix, then drops it', () => {
   const acceptor = versionAcceptor(list, 'remove', []);
   expect(acceptor.accept('I can bring the stove, and you the tent.', 1, versionsList[1].label)).toBeNull();
