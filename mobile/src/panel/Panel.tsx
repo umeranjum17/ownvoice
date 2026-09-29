@@ -4,7 +4,7 @@ import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import { dashesFor } from '../core/drafts';
-import { platformForApp } from '../core/platforms';
+import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
 import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide, loadVoice } from '../core/voice';
 import { words } from '../core/words';
@@ -111,6 +111,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
   const kind = useRef<{ message: boolean } | null>(null);
+  const platformOf = useRef<Platform>(DEFAULT_PLATFORM);
   const voice = useRef(loadVoice());
 
   const shown = cards.filter((card): card is Draft => !!card);
@@ -134,6 +135,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setNote(words.writing);
     setPhase('writing');
     const platform = platformForApp(value.app);
+    platformOf.current = platform;
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
       setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, rules, post, person, platform), meaning: null });
@@ -221,7 +223,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       }
       const message = post ? false : kind.current?.message;
       const answer = model && message !== undefined ? await ask(Judge.draftPrompt(conversation, draft.text, message, voiceGuide(rules, post && !message)), 220) : null;
-      const scores = answer && message !== undefined && Judge.validDraftAnswer(answer, message) ? Judge.scoreDraft(draft.text, answer, message, rules, post, who) : null;
+      const scores = answer && message !== undefined && Judge.validDraftAnswer(answer, message) ? Judge.scoreDraft(draft.text, answer, message, rules, post, who, platformOf.current) : null;
       let meaning = draft.meaning;
       if (model && draft.label && yours) {
         meaning = Judge.meaning(yours.text, draft.text, await ask(Judge.rewriteCheckPrompt(yours.text, draft.text), 80));
