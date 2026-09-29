@@ -37,7 +37,7 @@ Ownvoice lives where you already write. It reads the screen only when you tap it
 
 ### Reply ideas, one tap away
 
-Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen and offers a few short replies: one that agrees, one that kindly disagrees, and one that asks the thing you need to know. **Insert** puts one in your message box, **Copy** copies it, and **Write new ones** tries again.
+Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen and offers three short replies shaped to the place you are writing in: a feed post, a chat, or an email each gets its own three kinds of reply. **Insert** puts one in your message box, **Copy** copies it, and **Write new ones** tries again.
 
 <p align="center">
   <img src="docs/readme/replies.webp" alt="Suggested replies to Sam's question about Saturday, each with Insert, Copy and Why?" width="300" />
