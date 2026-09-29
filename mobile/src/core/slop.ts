@@ -94,6 +94,70 @@ export const score = (hitCount: number, generic?: number | null, specific?: numb
   Math.min(20, Math.max(0, 2 * hitCount + (generic == null || specific == null ? 0 : generic + (10 - specific)))) * 5;
 export const natural = (s: number) => s < 25;
 export const words = (s: number) => (natural(s) ? 'Sounds natural' : s <= 55 ? 'A bit stock' : 'Sounds canned');
+const TIMES = /\b\d{1,2}(?::\d{2})?\s*(?:a\.m\.|p\.m\.|(?:am|pm)\b)|\b\d{1,2}[:.]\d{2}\b/gi;
+const timeParts = (t: string) => {
+  const norm = t.toLowerCase().replace(/a\s*\.\s*m\s*\./g, 'am').replace(/p\s*\.\s*m\s*\./g, 'pm').replace(/\s+/g, '');
+  const m = norm.match(/(am|pm)$/);
+  return { core: norm.replace(/(am|pm)$/, '').replace(/(\d)[.:](\d)/g, '$1:$2'), mer: m ? m[1] : '' };
+};
+const DAYWORDS = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|today|tomorrow|tonight|yesterday|morning|afternoon|evening|noon|midnight|midday)\b/gi;
+const DAYABBR = /\b(Sat|Sun)\b/g;
+const wordKey = (w: string) => {
+  const l = w.toLowerCase();
+  if (/^(mon(day)?)$/.test(l)) return 'mon';
+  if (/^(tue(s)?|tuesday)$/.test(l)) return 'tue';
+  if (/^(wed(nesday)?)$/.test(l)) return 'wed';
+  if (/^(thu(r(s)?)?|thursday)$/.test(l)) return 'thu';
+  if (/^(fri(day)?)$/.test(l)) return 'fri';
+  if (/^(sat(urday)?)$/.test(l)) return 'sat';
+  if (/^(sun(day)?)$/.test(l)) return 'sun';
+  if (/^(jan(uary)?)$/.test(l)) return 'jan';
+  if (/^(feb(ruary)?)$/.test(l)) return 'feb';
+  if (/^(mar(ch)?)$/.test(l)) return 'mar';
+  if (/^(apr(il)?)$/.test(l)) return 'apr';
+  if (/^(jun(e)?)$/.test(l)) return 'jun';
+  if (/^(jul(y)?)$/.test(l)) return 'jul';
+  if (/^(aug(ust)?)$/.test(l)) return 'aug';
+  if (/^(sep(t)?(ember)?)$/.test(l)) return 'sep';
+  if (/^(oct(ober)?)$/.test(l)) return 'oct';
+  if (/^(nov(ember)?)$/.test(l)) return 'nov';
+  if (/^(dec(ember)?)$/.test(l)) return 'dec';
+  return l;
+};
+/** Times, days and dates in the rewrite that never appear in the original ("my flight is at 10 AM" with no time on screen). */
+export function inventedTimes(original: string, rewrite: string): string[] {
+  const have = new Map<string, Set<string>>();
+  for (const m of original.matchAll(TIMES)) {
+    const { core, mer } = timeParts(m[0]);
+    if (!have.has(core)) have.set(core, new Set());
+    have.get(core)!.add(mer);
+  }
+  const haveHours = new Set([...original.matchAll(/\b(?:at|around|about|by|after|before|past|until|till|toward|towards|from|between)\s+(\d{1,2})\b/gi)].map(m => m[1].replace(/^0+(?=\d)/, '')));
+  const seen = new Set<string>();
+  const clocks = [...rewrite.matchAll(TIMES)].map(m => m[0]).filter(t => {
+    const { core, mer } = timeParts(t);
+    const key = core + '|' + mer;
+    if (seen.has(key)) return false;
+    const mers = have.get(core);
+    if (mers !== undefined && (mer === '' || mers.has('') || mers.has(mer))) { seen.add(key); return false; }
+    if (mers === undefined) {
+      const normCore = core.replace(/^0+(?=\d)/, '');
+      if (!normCore.includes(':') && haveHours.has(normCore)) { seen.add(key); return false; }
+    }
+    seen.add(key);
+    return true;
+  });
+  const haveWords = new Set([...original.matchAll(DAYWORDS)].map(m => wordKey(m[0])));
+  for (const m of original.matchAll(DAYABBR)) haveWords.add(wordKey(m[0]));
+  const wordCands = [...rewrite.matchAll(DAYWORDS), ...rewrite.matchAll(DAYABBR)].sort((a, b) => a.index! - b.index!);
+  const daywords = wordCands.map(m => m[0]).filter(w => {
+    const key = wordKey(w);
+    if (haveWords.has(key) || seen.has('w:' + key)) return false;
+    seen.add('w:' + key);
+    return true;
+  });
+  return [...clocks, ...daywords];
+}
 export function addedNumbers(original: string, rewrite: string): string[] {
   const nums = (s: string) => [...s.matchAll(/\d+(?:[.,:]\d+)*/g)].map(m => m[0]);
   const key = (s: string) => s.replace(/,(?=\d{3}(?!\d))/g, '').replace(/:/g, '.');

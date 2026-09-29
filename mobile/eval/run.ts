@@ -1,0 +1,104 @@
+// Runs the eval set through the app's live phone-writer pipeline
+// (mobile/src/panel/phoneWriter.ts polish + replies, mobile/src/rewrite/Rewrite.tsx
+// selection) against an OpenAI-compatible endpoint (llama-server on the host,
+// or ollama's /v1). Dev-only: never imported by the app, never bundled.
+//
+// Usage: node --import ./register.mjs run.ts <label> <baseUrl> <out.json>
+// Env: MODEL (default llama-server's loaded model), TEMP (default 0),
+//      SEED (default 7), ONLY (comma prefixes, e.g. ONLY=R07 or ONLY=P01,P13,S05,R01,R07).
+import { writeFileSync } from 'node:fs';
+import { cases } from './cases';
+import * as J from '../src/core/judge';
+import * as D from '../src/core/drafts';
+
+const [label, base, outPath] = process.argv.slice(2);
+if (!label || !base || !outPath) {
+  console.error('usage: node --import ./register.mjs run.ts <label> <baseUrl> <out.json>');
+  process.exit(2);
+}
+const MODEL = process.env.MODEL ?? '';
+type Call = { prompt: string; maxTokens: number; answer: string; ms: number; promptTokens: number; genTokens: number };
+
+async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<string> {
+  const started = Date.now();
+  const res = await fetch(`${base}/v1/chat/completions`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      ...(MODEL ? { model: MODEL } : {}),
+      messages: [{ role: 'user', content: prompt }],
+      // MAXTOK_EXTRA is headroom for thinking models (their thinking consumes
+      // the same budget); 0 keeps the phone pipeline's budgets untouched.
+      max_tokens: maxTokens + Number(process.env.MAXTOK_EXTRA ?? 0),
+      temperature: Number(process.env.TEMP ?? 0),
+      seed: Number(process.env.SEED ?? 7),
+    }),
+  });
+  const json: any = await res.json();
+  if (!res.ok) throw new Error(JSON.stringify(json).slice(0, 300));
+  let answer: string = json.choices[0].message.content ?? '';
+  answer = answer.replace(/<think>[\s\S]*?<\/think>\s*/g, '').replace(/^<think>[\s\S]*$/, '');
+  calls.push({
+    prompt, maxTokens, answer, ms: Date.now() - started,
+    promptTokens: json.usage?.prompt_tokens ?? 0, genTokens: json.usage?.completion_tokens ?? 0,
+  });
+  return answer;
+}
+
+// Same shape as phoneWriter.polish: C2 rewrite streamed into versionAcceptor,
+// then one layout retry per flattened slot with the same line-prefix instruction.
+async function polish(c: any, calls: Call[]) {
+  const dashes = D.dashDecision(false, c.typed);
+  const engine = { ask: (p: string, n: number) => call(p, n, calls) };
+  const acceptor = D.versionAcceptor(c.typed, dashes, []);
+  const raw: Record<string, string> = {};
+  await J.rewrite(engine, c.typed, c.screen, c.guide ?? '', (v: any, text: string) => {
+    raw[v.name] = text;
+    acceptor.accept(text, J.versionsList.findIndex((x: any) => x.name === v.name), v.label);
+  }, dashes).catch(e => { raw.error = String(e); });
+  const rescued: number[] = [];
+  for (const fail of acceptor.layoutFails) {
+    const lines = c.typed.split('\n');
+    const prompt = J.versionPrompt(c.typed, c.screen, J.versionsList[fail.slot], c.guide ?? '', dashes)
+      + `\nKeep exactly ${lines.length} lines in this order, including blank lines. Keep these line prefixes exactly: ${lines.map((line: string, i: number) => `${i + 1}: ${line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '(none)'}`).join('; ')}. Do not combine lines.`;
+    const fixed = acceptor.fix(await call(prompt, 256, calls), fail.slot, fail.label);
+    if (fixed != null) rescued.push(fail.slot);
+  }
+  return { raw, shown: acceptor.results.sort((a: any, b: any) => a.slot - b.slot), rescued };
+}
+
+// Same shape as Rewrite.tsx: one selectionRewritePrompt call, cleaned, with the
+// single-word full-stop guard for Fix spelling.
+async function select(c: any, calls: Call[]) {
+  const out = J.clean(await call(J.selectionRewritePrompt(c.typed, c.how, ''), 256, calls));
+  return { shown: [{ text: c.how === 'Fix spelling' ? D.preserveFragment(c.typed, out) : out, slot: 0 }] };
+}
+
+// Same shape as phoneWriter.replies: one numbered call, then one retry per empty slot.
+async function reply(c: any, calls: Call[]) {
+  const input = { latest: c.latest ?? '', conversation: c.screen, guide: c.guide };
+  const exclude: string[] = [];
+  const made: (string | null)[] = [null, null, null];
+  const first = await call(D.phoneReplyPrompt(input), 220, calls);
+  D.acceptReplies([first], exclude, 3, 'remove', []).forEach((t, i) => { if (t) { made[i] = t; exclude.push(t); } });
+  for (let slot = 0; slot < 3; slot++) {
+    if (made[slot]) continue;
+    const [d] = D.acceptReplies([await call(D.phoneSlotPrompt(D.REPLY_SLOTS[slot], input, exclude), 120, calls)], exclude, 1, 'remove', []);
+    if (d) { made[slot] = d; exclude.push(d); }
+  }
+  return { shown: made.map((text, slot) => ({ text, slot })).filter(x => x.text) };
+}
+
+const results: any[] = [];
+for (const c of cases) {
+  if ((c as any).from) continue; // P13 is scored off the P01 run, same as the report
+  if (process.env.ONLY && !process.env.ONLY.split(',').some((p: string) => c.id.startsWith(p))) continue;
+  const calls: Call[] = [];
+  const started = Date.now();
+  let r: any;
+  try { r = c.kind === 'polish' ? await polish(c, calls) : c.kind === 'select' ? await select(c, calls) : await reply(c, calls); }
+  catch (e) { r = { error: String(e), shown: [] }; }
+  results.push({ id: c.id, ...r, calls, wallMs: Date.now() - started });
+  process.stderr.write(`${label} ${c.id} ${Date.now() - started}ms shown=${r.shown.length}\n`);
+}
+writeFileSync(outPath, JSON.stringify({ label, results }, null, 1));

@@ -17,6 +17,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - RN reads the colour scheme from the process start; a later `cmd uimode night yes/no` may not reach an already-running app process, so for per-mode screenshots force-stop `dev.ownvoice.next` and re-toggle the service after each mode flip. The emulator's twilight schedule (default 22:00–06:00) re-enables night mode over `cmd uimode night no`; `cmd uimode night custom -o off` first.
 - The listening bubble mood lasts under a second (read is instant, panel draws fast). Catch it with `adb shell screenrecord` plus ffmpeg frame extraction, not `screencap`.
 - No user-facing string may carry technical words (model names, scores, "characters"); `PlainWordsTest` checks the app's messages, check names, verdicts, read log and `strings.xml` for them, so new user-facing text needs a case there, and the technical detail belongs in `README.md`.
+- A model or prompt change must pass the writer eval gate (`mobile/eval/README.md`): P01, P13, S05, R01 and R07 all pass, run from `mobile/eval` against llama-server or ollama on the host.
 - To hand the app a file on the phone (for example a voice profile for the share import), write it with `adb shell run-as dev.ownvoice.app` into the app's `files/` and share `file:///data/data/dev.ownvoice.app/files/...`. The app can't read a folder `adb shell` creates under `/sdcard/Android/data`.
 
 ## Maintaining this file
