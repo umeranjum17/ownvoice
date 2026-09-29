@@ -20,6 +20,7 @@ import { saveBubbleRules } from '../src/chatgpt/settings';
 import { NAME, session, nothing, type GptState } from '../src/chatgpt/session';
 import { getSource, setSource, SOURCE_KEY, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
+import { getReady, resume } from '../src/core/phoneDownload';
 import Native from '../modules/ownvoice-native';
 
 type Saved = { step: Step; inserted: boolean };
@@ -108,8 +109,8 @@ export default function Setup() {
 
   useEffect(() => {
     mounted.current = true;
-    // The one-time model download runs quietly behind setup (the home card reports problems later).
-    Native.modelStatus().then(s => { if (s === 'downloadable') Native.downloadModel().catch(() => {}); }).catch(() => {});
+    // A one-time download the person already agreed to picks up where it stopped; nothing starts without a yes.
+    void resume();
     Native.serviceState().then(s => { if (mounted.current) setServiceOn(s === 'on'); }).catch(() => {});
     phoneCanWrite().then(can => { if (mounted.current) setPhone(can); });
     // A sign-in still waiting for its code (the screen was rebuilt) comes back to its code.
@@ -234,6 +235,8 @@ export default function Setup() {
 
   const choose = (chosen: 'phone' | 'chatgpt') => {
     try { setSource(chosen); } catch { return; }
+    // Picking this phone where it still needs its one-time download is the yes to that download.
+    if (chosen === 'phone' && phone === 'needsDownload') void getReady().catch(() => {});
     signing.current++;
     setGpt(null);
     advance('CHOOSE');
@@ -253,7 +256,7 @@ export default function Setup() {
         <Button kind="filled" large label={words.gptButton} onPress={signIn} />
         <View style={styles.skip}><Button kind="text" label={words.notNow} onPress={() => { void finish(); }} /></View>
       </>
-      : <Button kind="filled" large disabled={!phone} label={words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : signIn()} />)}
+      : <Button kind="filled" large disabled={!phone} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : signIn()} />)}
     {step === 'CHOOSE' && gpt?.waiting && <>
       <Button kind="filled" large disabled={!gpt.code} label={words.copyAndOpen} onPress={copyAndOpen} />
       <View style={styles.skip}><Button kind="text" label={words.gptCancel} onPress={leaveSignIn} /></View>
@@ -261,7 +264,10 @@ export default function Setup() {
     {step === 'CHOOSE' && gpt?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => choose('chatgpt')} />}
     {step === 'CHOOSE' && gpt && !gpt.waiting && !gpt.signedIn && <>
       <Button kind="filled" large label={words.tryAgain} onPress={signIn} />
-      {phoneCan && <View style={styles.skip}><Button kind="text" label={words.usePhoneInstead} onPress={() => choose('phone')} /></View>}
+      {phoneCan && <View style={styles.skip}><Button kind="text" label={words.usePhoneInstead} onPress={() => {
+        // A phone that still needs its download goes back to the choice, where the ask and its size show.
+        if (phone === 'needsDownload') { signing.current++; setGpt(null); setPicked('phone'); } else choose('phone');
+      }} /></View>}
     </>}
     {step === 'PERMISSION' && <>
       <Button kind="filled" large label={words.turnOn} onPress={() => { Native.openAccessibilitySettings(true).catch(() => {}); }} />
@@ -282,6 +288,10 @@ export default function Setup() {
           ? <>{gptOption}<SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable /></>
           : <><SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneSub} selected={pick === 'phone'} onPress={() => setPicked('phone')}
             lines={[{ text: words.tradePhone1, good: true }, { text: words.tradePhone2, good: true }, { text: words.tradePhone3, good: false }]} />{gptOption}</>}
+      </View>}
+      {pick === 'phone' && phone === 'needsDownload' && <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
+        <Text style={[type.label, { color: t.text }]}>{words.readyTitle}</Text>
+        <Text style={[type.note, { color: t.muted }]}>{words.readyNote}</Text>
       </View>}
     </>}
     {step === 'CHOOSE' && gpt?.waiting && <>

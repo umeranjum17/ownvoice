@@ -13,6 +13,8 @@ import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { store } from '../src/core/store';
+import { SOURCE_KEY, type Source } from '../src/core/source';
+import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
 import { readLog, syncReadLog } from '../src/core/readLog';
 import { loadVoice } from '../src/core/voice';
 import { saveBubbleRules } from '../src/chatgpt/settings';
@@ -45,6 +47,7 @@ export default function Home() {
   const [service, setService] = useState<ServiceState>('off');
   const [model, setModel] = useState<ModelStatus>('available');
   const [fraction, setFraction] = useState(0);
+  const [fetching, setFetching] = useState(downloading);
   const [apps, setApps] = useState<App[]>([]);
   const [phrases, setPhrases] = useState(0);
   const [week, setWeek] = useState(0);
@@ -54,7 +57,7 @@ export default function Home() {
 
   const reload = useCallback(() => {
     void Native.serviceState().then(setService).catch(() => {});
-    void Native.modelStatus().then(setModel).catch(() => {});
+    void modelStatus().then(setModel).catch(() => {});
     void Native.bubbleRules().then(setRules).catch(() => {});
     void Native.launcherApps(null).then(setApps).catch(() => {});
     setPhrases(loadVoice().never.length);
@@ -70,9 +73,14 @@ export default function Home() {
     if (!store.get('setup-done')) { router.replace('/setup'); return; }
     const shown = AppState.addEventListener('change', state => { if (state === 'active') reload(); });
     const serviceChange = Native.addListener('onServiceChange', ({ state }) => setService(state));
-    const modelProgress = Native.addListener('onModelProgress', ({ fraction: f }) => setFraction(f));
-    const modelSettled = Native.addListener('onModelSettled', () => { void Native.modelStatus().then(setModel).catch(() => {}); });
-    return () => { shown.remove(); serviceChange.remove(); modelProgress.remove(); modelSettled.remove(); };
+    const modelProgress = watch(f => {
+      setFetching(f != null);
+      if (f == null) reload(); else setFraction(f);
+    });
+    const modelSettled = Native.addListener('onModelSettled', () => { void modelStatus().then(setModel).catch(() => {}); });
+    // A download the person agreed to picks up where it stopped.
+    void resume();
+    return () => { shown.remove(); serviceChange.remove(); modelProgress(); modelSettled.remove(); };
   }, [reload]);
 
   useFocusEffect(useCallback(() => {
@@ -93,15 +101,21 @@ export default function Home() {
     if (want) router.push('/setup');
     else { void Native.turnOff().then(reload).catch(() => { reload(); setSettingsFailed(true); }); }
   };
-  const retry = () => { void Native.downloadModel().catch(() => {}).finally(reload); };
+  // The person's yes starts the one-time download (on Wi-Fi unless they pick mobile data).
+  const start = (mobileData = false) => { void getReady(mobileData).catch(() => {}); };
 
   const paused = !!rules?.paused;
   const on = service === 'on';
-  const problem = model === 'unavailable' ? words.unsupported : model === 'downloadable' ? words.statusNotReadyNote : null;
-  const green = on && !paused && problem === null;
-  const headline = !on ? words.statusOff : problem ? words.statusNotReady : model !== 'available' ? words.statusGettingReady : paused ? words.statusPaused : words.statusReady;
-  const detail = !on ? words.statusOffNote : problem ?? (model !== 'available' ? words.gettingReady : paused ? words.statusPausedNote : words.statusReadyNote);
-  const mood = !on ? 'idle' : problem ? 'check' : model !== 'available' ? 'thinking' : paused ? 'idle' : 'ready';
+  const yes = agreed();
+  const getting = model === 'downloading' || fetching;
+  // Ask for the download only where the person picked this phone (or hasn't picked yet), never under ChatGPT.
+  const ask = model === 'downloadable' && !yes && !getting && store.get<Source>(SOURCE_KEY) !== 'chatgpt';
+  const stopped = model === 'downloadable' && yes && !getting;
+  const problem = model === 'unavailable' ? words.unsupported : stopped ? words.readyStopped : null;
+  const green = on && !paused && problem === null && !ask;
+  const headline = !on ? words.statusOff : ask ? words.readyTitle : problem ? words.statusNotReady : getting ? words.statusGettingReady : paused ? words.statusPaused : words.statusReady;
+  const detail = !on ? words.statusOffNote : ask ? words.readyNote : problem ?? (getting ? words.gettingReady : paused ? words.statusPausedNote : words.statusReadyNote);
+  const mood = !on ? 'idle' : ask ? 'hello' : problem ? 'check' : getting ? 'thinking' : paused ? 'idle' : 'ready';
   const onCard = green ? t.onPrimaryContainer : t.text;
   const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
   const shown = apps.filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
@@ -118,10 +132,13 @@ export default function Home() {
       </View>
       <Text style={[type.heading, { color: onCard, marginTop: space.l }]}>{headline}</Text>
       <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted, marginTop: space.xs }]}>{detail}</Text>
-      {on && model !== 'available' && !problem && <View style={{ marginTop: space.l }}><Progress fraction={fraction} /></View>}
+      {on && getting && <View style={{ marginTop: space.l }}><Progress fraction={fraction} /></View>}
       {settingsFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
-      {(on && problem !== null || service === 'stuck') && <View style={styles.statusActions}>
-        {on && problem !== null && <Button kind="filled" label={words.tryAgain} onPress={retry} />}
+      {(on && (problem !== null || ask) || service === 'stuck') && <View style={styles.statusActions}>
+        {on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
+        {on && stopped && <Button kind="filled" label={words.tryAgain} onPress={() => start()} />}
+        {on && stopped && <Button kind="text" label={words.useMobileData} onPress={() => start(true)} />}
+        {on && model === 'unavailable' && <Button kind="filled" label={words.tryAgain} onPress={reload} />}
         {service === 'stuck' && <Button kind="filled" label={words.turnBackOn} onPress={() => router.push('/setup')} />}
       </View>}
     </View>

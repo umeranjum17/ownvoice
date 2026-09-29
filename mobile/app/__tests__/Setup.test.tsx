@@ -8,6 +8,7 @@ import Home from '../index';
 import Native from '../../modules/ownvoice-native';
 import { words, technicalWords } from '../../src/core/words';
 import { session, nothing, type GptState } from '../../src/chatgpt/session';
+import { AGREED_KEY } from '../../src/core/phoneDownload';
 
 jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,
@@ -112,13 +113,14 @@ test('homeSettingsDoesNotRequestASetupReturn', async () => {
   expect(router.push).toHaveBeenCalledWith('/apps');
 });
 
-test('welcomeStartsTheDownloadAndMovesToTheChoice', async () => {
+test('welcomeDownloadsNothingAndMovesToTheChoice', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
   const screen = await renderSetup();
   expect(await screen.findByText(words.welcomeTitle)).toBeTruthy();
   const continueButton = screen.getByRole('button', { name: words.continueLabel });
   expect(StyleSheet.flatten(continueButton.parent?.props.style).alignItems).toBeUndefined();
-  await waitFor(() => expect(native.downloadModel).toHaveBeenCalled());
+  await act(async () => { await Promise.resolve(); });
+  expect(native.downloadModel).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText(words.continueLabel));
   expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
   expect(kv.get('setup')).toContain('CHOOSE');
@@ -484,6 +486,60 @@ test.each([['Back', true], ['Cancel', false]])('%sFromSignInReturnsToTheChoiceAn
   gpt.current.mockResolvedValue(connected);
   await act(async () => { await new Promise(r => setTimeout(r, 1200)); });
   expect(screen.queryByText(words.connectedNote)).toBeNull();
+});
+
+test('pickingThePhoneThatNeedsItsDownloadAsksWithTheSizeAndGetItReadyIsTheYes', async () => {
+  at('CHOOSE');
+  native.modelStatus.mockResolvedValue('downloadable');
+  const screen = await renderSetup();
+  // This phone is picked by default: the ask and its size show, and the button says what it does.
+  expect(await screen.findByText(words.readyTitle)).toBeTruthy();
+  expect(screen.getByText(words.readyNote)).toBeTruthy();
+  expect(screen.queryByText(words.continueLabel)).toBeNull();
+  // Picking ChatGPT takes the ask away.
+  await fireEvent.press(screen.getByText(words.srcGpt));
+  expect(screen.queryByText(words.readyTitle)).toBeNull();
+  expect(screen.getByText(words.continueLabel)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.srcPhone));
+  expect(native.downloadModel).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText(words.getReady));
+  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+  expect(kv.get(AGREED_KEY)).toBe('true');
+  expect(kv.get('writer-source')).toBe('"phone"');
+  expect(await screen.findByText(words.permissionTitle)).toBeTruthy();
+});
+
+test('aPhoneThatIsReadyOrCantNeverShowsTheAsk', async () => {
+  at('CHOOSE');
+  const ready = await renderSetup();
+  expect(await ready.findByText(words.tradePhone1)).toBeTruthy();
+  expect(ready.queryByText(words.readyTitle)).toBeNull();
+  expect(ready.getByText(words.continueLabel)).toBeTruthy();
+  await ready.unmount();
+  native.modelStatus.mockResolvedValue('unavailable');
+  const cant = await renderSetup();
+  expect(await cant.findByText(words.srcPhoneCant)).toBeTruthy();
+  expect(cant.queryByText(words.readyTitle)).toBeNull();
+});
+
+test('anAgreedDownloadPicksUpWhereItStopped', async () => {
+  kv.set(AGREED_KEY, 'true');
+  native.modelStatus.mockResolvedValue('downloadable');
+  await renderSetup();
+  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+});
+
+test('usePhoneInsteadWhereTheDownloadIsNeededGoesBackToTheAsk', async () => {
+  at('CHOOSE');
+  native.modelStatus.mockResolvedValue('downloadable');
+  gpt.start.mockRejectedValue(new Error('offline'));
+  const screen = await renderSetup();
+  await fireEvent.press(await screen.findByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(words.continueLabel));
+  await fireEvent.press(await screen.findByText(words.usePhoneInstead));
+  expect(await screen.findByText(words.readyTitle)).toBeTruthy();
+  expect(native.downloadModel).not.toHaveBeenCalled();
+  expect(kv.get('writer-source')).toBeUndefined();
 });
 
 test('aFailedSignInSaysWhyAndOffersThePhone', async () => {
