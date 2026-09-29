@@ -48,7 +48,7 @@ beforeEach(() => {
   store.set(SOURCE_KEY, 'chatgpt');
 });
 
-test('byokit 0.3.1 treats undated rate limits as temporary', () => {
+test('byokit treats undated rate limits as temporary', () => {
   expect(classify('429 Too many requests')).toMatchObject({ kind: 'rate_limit' });
   expect(classify('rate_limit_exceeded')).toMatchObject({ kind: 'rate_limit' });
 });
