@@ -75,13 +75,14 @@ const RULES: Rule[] = [
   { re: /\b(it['’]s)(?= (own)\b)/gi, fix: w => keepCase(w, 'its') },
   // "lets go" at the start of a sentence or after "so", "ok", "and": "she lets go" stays.
   { re: new RegExp(`(?:^|[.!?]\\s+|,\\s+|\\b(?:so|ok|okay|and|but|then|now|yes|yeah|sure),?\\s+)(lets)(?= (${LETS})\\b)`, 'gim'), fix: w => keepCase(w, "let's") },
-  { re: /\b(a)(?= ([aeiou]\p{Ll}*)\b)/giu, fix: (w, next) => (A_AN_SOUND.test(next) ? null : keepCase(w, 'an')) },
-  { re: /\b(an)(?= ([b-df-hj-np-tv-z]\p{Ll}*)\b)/giu, fix: (w, next) => (AN_SILENT_H.test(next) ? null : keepCase(w, 'a')) },
+  // Only before a lowercase word: "an MBA" and "a UFO" go by their sound, not their first letter.
+  { re: /\b([Aa])(?= ([aeiou]\p{Ll}*)\b)/gu, fix: (w, next) => (A_AN_SOUND.test(next) ? null : keepCase(w, 'an')) },
+  { re: /\b([Aa]n)(?= ([b-df-hj-np-tv-z]\p{Ll}*)\b)/gu, fix: (w, next) => (AN_SILENT_H.test(next) ? null : keepCase(w, 'a')) },
   { re: new RegExp(`\\b(?:${THAN}) (then)\\b`, 'gi'), fix: w => keepCase(w, 'than') },
   { re: new RegExp(`\\b(your)(?= (${YOURE})\\b)`, 'gi'), fix: w => keepCase(w, "you're") },
 ];
-// A full stop that ends an abbreviation, an initial or a number, not a sentence.
-const NOT_AN_END = /(?:\b(?:e\.g|i\.e|etc|vs|mr|mrs|ms|dr|st|approx)|\b\p{L}|\d)[.]\s+$/iu;
+// A full stop that ends an abbreviation, an initial, a number or "...", not a sentence.
+const NOT_AN_END = /(?:\b(?:e\.g|i\.e|etc|vs|mr|mrs|ms|dr|st|approx)|\b\p{L}|\d|\.\.)[.]\s+$/iu;
 
 /** Common slips a dictionary can't see. Lowercase i and a missing capital are only called out when the text uses capitals elsewhere. */
 function grammar(text: string): Slip[] {

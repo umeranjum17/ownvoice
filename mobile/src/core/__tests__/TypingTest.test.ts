@@ -15,6 +15,8 @@ test.each<[string, string[]]>([
   ['She lets go of the rope every time.', []],
   ['I saw a elephant and an bike today.', ['a→an', 'an→a']],
   ['It was an honest mistake, a unique one.', []],
+  ['She got an MBA and a UFO sticker, An apple too.', []],
+  ['Wait... then we go. Maybe later?', []],
   ['I think the the meeting moved to Friday.', [' the→']],
   ['Yesterday i went home and i\'m tired now.', ['i→I', 'i→I']],
   ['i went home and im tired, see you tmrw', ['im→I\'m']],
