@@ -158,6 +158,20 @@ test('Home says who writes, and one row leads to How Ownvoice writes', async () 
   expect(chatgpt.getByText(words.rowSourceGpt)).toBeTruthy();
 });
 
+test('ChatGPT chosen and connected on a phone that cannot write reads ready, never the old dead end', async () => {
+  native.modelStatus.mockResolvedValue('unavailable');
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  gpt.current.mockResolvedValue(connected);
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.statusReady)).toBeTruthy();
+  expect(screen.getByText(words.statusReadyNote)).toBeTruthy();
+  expect(screen.getByText(words.homeGpt)).toBeTruthy();
+  expect(screen.getByText(words.rowSourceGpt)).toBeTruthy();
+  const text = JSON.stringify(screen.toJSON());
+  for (const gone of [words.unsupported, words.statusNotReady, words.tryAgain, words.gptButton]) expect(text).not.toContain(gone);
+  expect(storedSource()).toBe('chatgpt');
+});
+
 test('ChatGPT chosen but signed out: the card asks to sign in again, and this phone writes until then', async () => {
   kv.set(SOURCE_KEY, '"chatgpt"');
   const screen = await show(<Home />);
