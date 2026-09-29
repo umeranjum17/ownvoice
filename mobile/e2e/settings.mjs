@@ -115,11 +115,12 @@ async function writes(kind) {
     }
     return found;
   };
-  // Light words on a dark card (the dark ready card) only read from the negative.
-  const readable = image => `${visible(image)} ${visible(execFileSync('magick', ['png:', '-negate', 'png:-'], { input: image }))}`;
+  // Light words on a dark card (the dark ready card) only read band by band.
+  const readable = image => `${visible(image)} ${lines(image, true).map(line => line.text).join(' ')}`;
   const seen = async (label, tries = 20) => {
     for (let i = 0; i < tries; i++) {
-      if (readable(screenshot()).includes(label)) return;
+      const image = screenshot();
+      if (visible(image).includes(label) || readable(image).includes(label)) return;
       await wait(1000);
     }
     throw new Error(`Could not see "${label}" on screen.`);
@@ -190,20 +191,21 @@ async function writes(kind) {
       } else if (kind === 'writes-ready') {
         adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
         await seen('private and free');
-        await press('on this phone');
+        // Cards are tapped by their subtitles: OCR mangles the titles beside their icons.
+        await press('private and free');
         await seen('get this phone ready');
         await press('get it ready');
         await wait(1200);
         snap(mode, '06-settings-phone-getting-ready');
         await seen('it writes right here', 30);
-        await press('with your chatgpt');
+        await press('the plan you already pay for');
         await seen('your code');
         await seen('chatgpt is connected', 30);
         await wait(800);
         snap(mode, '05-settings-chatgpt');
-        await press('on this phone');
+        await press('private and free');
         await seen('it writes right here');
-        await press('with your chatgpt');
+        await press('the plan you already pay for');
         await seen('write with chatgpt?');
         await wait(800);
         snap(mode, '07-settings-switch-confirm');
