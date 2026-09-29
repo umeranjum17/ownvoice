@@ -29,10 +29,11 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
     // transmitted-then-failed; only a network throw leaves it unmarked.
     const mark = async () => { await on?.sent?.(); marked = true; };
     let text: string;
+    let answered = false;
     try {
-      text = await accounts.respond('owner', { instructions, input: prompt, model: CHATGPT_MODEL, onText });
+      text = await accounts.respond('owner', { instructions, input: prompt, model: CHATGPT_MODEL, onText: delta => { answered = true; onText?.(delta); } });
     } catch (error) {
-      if (error instanceof ResponseError && error.kind !== 'network') await mark();
+      if (error instanceof ResponseError && (error.kind !== 'network' || answered)) await mark();
       throw error;
     }
     await mark();
@@ -50,7 +51,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
     if (error instanceof SendVeto) throw error;
     const message = error instanceof Error ? error.message : String(error);
     if (!started && classify(message)?.kind !== 'network') throw new SendVeto(words.phoneWrote);
-    await reportFailure(message).catch(() => {});
+    if (!(error instanceof ResponseError && error.kind != null)) await reportFailure(message).catch(() => {});
     throw error;
   }
 }

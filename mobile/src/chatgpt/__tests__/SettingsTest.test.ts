@@ -495,15 +495,12 @@ test.each([
 
 test('a limit gives the same tap byokits words over phone drafts', async () => {
   const route = await gptRoute('com.twitter.android', offline);
-  (reportFailure as jest.Mock).mockImplementation(async () => {
-    ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', words: 'ChatGPT is resting until 3:40pm.' });
-    return { kind: 'rate_limit', until: 1 };
-  });
+  ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', words: 'ChatGPT is resting until 3:40pm.' });
   const originalFetch = global.fetch;
   global.fetch = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'Too many requests', body: null } as Response));
   try {
     expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: 'ChatGPT is resting until 3:40pm.' });
-    expect(reportFailure).toHaveBeenCalledWith('You have hit your ChatGPT usage limit.');
+    expect(reportFailure).not.toHaveBeenCalled();
     expect(global.fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });

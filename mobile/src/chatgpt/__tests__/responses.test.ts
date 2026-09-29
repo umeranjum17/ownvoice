@@ -66,28 +66,29 @@ test('an http failure never shows a number', async () => {
 });
 
 test.each([
-  [429, 'Too many requests. Try again in 12 min', 'You have hit your ChatGPT usage limit.'],
-  [403, 'Unauthorized', 'Unauthorized'],
-  [400, 'Usage limit reached', 'Usage limit reached'],
-])('account refusal %s is reported and reply slots are not retried', async (status, message, shown) => {
+  [429, 'Too many requests. Try again in 12 min', false],
+  [403, 'Unauthorized', false],
+  [400, 'Usage limit reached', true],
+])('account refusal %s stops reply-slot retries and is reported only when the kit did not act', async (status, message, reports) => {
   const originalFetch = global.fetch;
   const fetch = jest.fn(async () => ({ ok: false, status, text: async () => message, body: null } as unknown as Response));
   global.fetch = fetch as unknown as typeof fetch;
   try {
     await expect(chatgptWriter.write({ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' })).rejects.toThrow(words.chatgptFailed);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(reported).toHaveBeenCalledWith(shown);
+    if (reports) expect(reported).toHaveBeenCalledWith(message);
+    else expect(reported).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
-test('streamed account refusal is reported and polish slots are not retried', async () => {
+test('streamed account refusal is not re-reported and polish slots are not retried', async () => {
   const originalFetch = global.fetch;
   const fetch = fetcher(body(`${event({ type: 'response.failed', response: { error: { message: 'Rate limit: try again in 3 min' } } })}\n\n`));
   global.fetch = fetch as unknown as typeof fetch;
   try {
     await expect(chatgptWriter.write({ conversation: '', written: '', typed: 'hello' })).rejects.toThrow(words.chatgptFailed);
     expect(fetch).toHaveBeenCalledTimes(1);
-    expect(reported).toHaveBeenCalledWith('Rate limit: try again in 3 min');
+    expect(reported).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
@@ -103,7 +104,7 @@ test.each(retryCases)('account failure during a slot retry stops further request
   try {
     await expect(chatgptWriter.write(request)).rejects.toThrow(words.chatgptFailed);
     expect(fetch).toHaveBeenCalledTimes(2);
-    expect(reported).toHaveBeenCalledWith('You have hit your ChatGPT usage limit.');
+    expect(reported).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
@@ -146,9 +147,21 @@ test('a transmitted request that fails stays marked as sent', async () => {
     await expect(chatgptWriter.write({ conversation: 'chat', written: 'chat', typed: '' }, { sent, unsent })).rejects.toThrow(words.chatgptFailed);
     expect(sent).toHaveBeenCalledTimes(1);
     expect(unsent).not.toHaveBeenCalled();
-    expect(reported).toHaveBeenCalledWith('You have hit your ChatGPT usage limit.');
+    expect(reported).not.toHaveBeenCalled();
     expect(log).toHaveBeenCalledWith(expect.stringContaining('kind=rate_limit'));
   } finally { global.fetch = originalFetch; log.mockRestore(); }
+});
+
+test('a mid-stream drop after deltas arrived stays marked as sent', async () => {
+  const originalFetch = global.fetch;
+  const sent = jest.fn();
+  const unsent = jest.fn();
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: '{"versions":[' })}\n\n`)) as unknown as typeof fetch;
+  try {
+    await expect(chatgptWriter.write({ conversation: '', written: '', typed: 'hello' }, { sent, unsent })).rejects.toThrow(words.chatgptFailed);
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(unsent).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
 });
 
 test('a network failure throws without the no-answer log', async () => {
