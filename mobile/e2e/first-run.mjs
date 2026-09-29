@@ -161,7 +161,8 @@ const run = async mode => {
   await tapText('Copy code');
   await waitForLine('chatgpt is connected', 30);
   await waitForLine('nothing is sent at any other time');
-  await wait(600);
+  await wait(8000); // Android's clipboard preview from Copy covers Continue for a few seconds.
+  if (/insert result|kqpt-mxvd/.test(screenText())) throw new Error('The copied-code preview still covers the connected screen.');
   expectPlain('connected');
   snap(tag('04-connected'));
 
