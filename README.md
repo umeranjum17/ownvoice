@@ -16,6 +16,7 @@
 <h3 align="center"><a href="#get-started"><ins>Get started</ins></a></h3>
 
 <p align="center">
+  <a href="#download--install">Download</a> ·
   <a href="#see-it-in-action">See it in action</a> ·
   <a href="#your-words-stay-yours">Privacy</a> ·
   <a href="#build-it-yourself">Build it yourself</a> ·
@@ -108,9 +109,11 @@ Ownvoice reads the screen only when you tap its bubble, never in the background,
 
 The exact data flows, including the one-time download and the remote on/off switch for ChatGPT, are written down in [mobile/README.md](mobile/README.md#how-ownvoice-writes).
 
-## Get started
+## Download / Install
 
-Ownvoice isn't in an app store yet, and there is no ready-made download. For now it goes on your phone by building it from this repository: see [Build it yourself](#build-it-yourself), or ask someone who builds Android apps to do it for you. On your phone it shows up as **Ownvoice (new)**.
+Download the APK from the [latest release](https://github.com/umeranjum17/ownvoice/releases/latest) (all releases: https://github.com/umeranjum17/ownvoice/releases). No ready-made APK is published yet, and Ownvoice isn't in an app store yet. For now it goes on your phone by building it from this repository: see [Build it yourself](#build-it-yourself), or ask someone who builds Android apps to do it for you. On your phone it shows up as **Ownvoice (new)**.
+
+## Get started
 
 Then setup takes about a minute:
 
