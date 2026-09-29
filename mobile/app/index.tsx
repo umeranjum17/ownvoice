@@ -8,7 +8,7 @@ import { Progress } from '../src/ui/Progress';
 import { Button } from '../src/ui/Button';
 import { Badge } from '../src/ui/Badge';
 import { Dot } from '../src/ui/Dot';
-import { EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon } from '../src/ui/icons';
+import { ChatIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
@@ -179,6 +179,11 @@ export default function Home() {
         onPress={() => { if (rules) changeRules(r => ({ ...r, paused: !r.paused })); }} />
       <Row lead={icon(HandIcon)} title={words.rowRewrite} subtitle={words.rowRewriteNote} />
     </View>
+
+    {/* Lab builds only, the one way into the writing-task screen. */}
+    {process.env.EXPO_PUBLIC_PHONE_AGENT === '1' && <View style={group}>
+      <Row lead={icon(ChatIcon)} title={words.agentRow} onPress={() => router.push('/agent')} />
+    </View>}
   </ScrollView>;
 }
 

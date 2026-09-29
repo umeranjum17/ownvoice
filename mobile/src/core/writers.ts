@@ -23,7 +23,7 @@ export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.of
 export const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });
 
 /** The one plain line for a failed ChatGPT call on a phone that cannot write instead. */
-function noPhoneLine(error: unknown): string {
+export function noPhoneLine(error: unknown): string {
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof SendVeto && message === CHATGPT_OFF) return words.gptOffNoPhone;
   if (classify(message)?.kind === 'network') return words.offlineNoPhone;

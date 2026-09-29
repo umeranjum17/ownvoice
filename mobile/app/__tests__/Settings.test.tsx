@@ -89,6 +89,19 @@ test('Home places its title beneath the status bar inset', async () => {
   expect(page.props.contentContainerStyle).toEqual(expect.arrayContaining([expect.objectContaining({ paddingTop: 32 + space.xl })]));
 });
 
+test('Home has no Try a writing task row outside lab builds', async () => {
+  expect((await homeCopy()).queryByText(words.agentRow)).toBeNull();
+});
+
+test('in a lab build, Home\'s Try a writing task row opens the task screen', async () => {
+  process.env.EXPO_PUBLIC_PHONE_AGENT = '1';
+  try {
+    const screen = await homeCopy();
+    await fireEvent.press(screen.getByText(words.agentRow));
+    expect(router.push).toHaveBeenCalledWith('/agent');
+  } finally { delete process.env.EXPO_PUBLIC_PHONE_AGENT; }
+});
+
 // ---- H1: the status card ----
 test('the card says off, with the switch waiting for the permission screen', async () => {
   native.serviceState.mockResolvedValue('off');
