@@ -313,6 +313,21 @@ test('a phone that cannot write never starts a download', async () => {
   expect(native.downloadModel).not.toHaveBeenCalled();
 });
 
+test('a phone still getting ready is waited for without recording a yes', async () => {
+  let reads = 0;
+  native.modelStatus.mockImplementation(async () => (++reads <= 2 ? 'downloading' : 'available'));
+  native.draftStream.mockImplementation(async () => {
+    if (reads < 3) throw new Error('not ready');
+    return 'Draft 1: Yes, I will bring the stove.\nDraft 2: Not sure yet, what time works?\nDraft 3: Sunday works better for me and my stove.';
+  });
+  const states: string[] = [];
+  const { drafts } = await phoneWriter.write(request(), { state: state => states.push(state) });
+  expect(states).toEqual(['downloading', 'writing']);
+  expect(drafts).toHaveLength(3);
+  expect(native.downloadModel).not.toHaveBeenCalled();
+  expect(kv.has(AGREED_KEY)).toBe(false);
+});
+
 // ---- Polish and compose ----
 
 test('polish runs the C2 rewrite through the phone model and lands labelled versions', async () => {

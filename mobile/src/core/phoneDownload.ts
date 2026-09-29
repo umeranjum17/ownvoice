@@ -57,8 +57,12 @@ export function getReady(allowMobileData?: boolean): Promise<void> {
 }
 
 /** Joins a download already running without recording a yes (the bubble tapping mid-provisioning). */
-export function settle(): Promise<void> {
-  return running ?? Promise.resolve();
+export async function settle(): Promise<void> {
+  if (running) return running;
+  for (let i = 0; i < 120; i++) {
+    try { if (await modelStatus() !== 'downloading') return; } catch { return; }
+    await new Promise(done => setTimeout(done, 1000));
+  }
 }
 
 /** Picks an agreed download back up where it stopped (the app was closed, or Wi-Fi came back). */
