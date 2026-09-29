@@ -100,8 +100,11 @@ const timeParts = (t: string) => {
   const m = norm.match(/(am|pm)$/);
   return { core: norm.replace(/(am|pm)$/, '').replace(/(\d)[.:](\d)/g, '$1:$2'), mer: m ? m[1] : '' };
 };
-const DAYWORDS = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|today|tomorrow|tonight|yesterday|morning|afternoon|evening|noon|midnight|midday)\b/gi;
-const DAYABBR = /\b(Sat|Sun)\b/g;
+const DAYWORDS = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|may\s+\d{1,2}(?:st|nd|rd|th)?\b|january|february|march|april|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|today|tomorrow|tonight|yesterday|morning|afternoon|evening|noon|midnight|midday)\b/gi;
+// Sat/Sun match in any case; lowercase needs day-like left context so the verb "sat" ("we sat down") and the noun "sun" ("the sun") stay quiet.
+const DAYABBR = /\b(Sat|Sun)\b|(?<=\b(?:on|this|next|last|every)\s)(sat|sun)\b/g;
+const HOURPREP = /\b(?:at|around|about|by|after|before|past|until|till|toward|towards|from|between)\s+(\d{1,2})\b(?![.:]\d)/gi;
+const hourKey = (h: string) => h.replace(/^0+(?=\d)/, '');
 const wordKey = (w: string) => {
   const l = w.toLowerCase();
   if (/^(mon(day)?)$/.test(l)) return 'mon';
@@ -132,7 +135,8 @@ export function inventedTimes(original: string, rewrite: string): string[] {
     if (!have.has(core)) have.set(core, new Set());
     have.get(core)!.add(mer);
   }
-  const haveHours = new Set([...original.matchAll(/\b(?:at|around|about|by|after|before|past|until|till|toward|towards|from|between)\s+(\d{1,2})\b/gi)].map(m => m[1].replace(/^0+(?=\d)/, '')));
+  const haveHours = new Set([...original.matchAll(HOURPREP)].map(m => hourKey(m[1])));
+  for (const m of original.matchAll(TIMES)) haveHours.add(hourKey(timeParts(m[0]).core.split(':')[0]));
   const seen = new Set<string>();
   const clocks = [...rewrite.matchAll(TIMES)].map(m => m[0]).filter(t => {
     const { core, mer } = timeParts(t);
@@ -147,6 +151,13 @@ export function inventedTimes(original: string, rewrite: string): string[] {
     seen.add(key);
     return true;
   });
+  const bare = [...rewrite.matchAll(HOURPREP)].sort((a, b) => a.index! - b.index!).map(m => m[1]).filter(h => {
+    const key = hourKey(h);
+    if (haveHours.has(key) || seen.has('h:' + key)) return false;
+    if ([...seen].some(k => k.split('|')[0] === key)) return false;
+    seen.add('h:' + key);
+    return true;
+  });
   const haveWords = new Set([...original.matchAll(DAYWORDS)].map(m => wordKey(m[0])));
   for (const m of original.matchAll(DAYABBR)) haveWords.add(wordKey(m[0]));
   const wordCands = [...rewrite.matchAll(DAYWORDS), ...rewrite.matchAll(DAYABBR)].sort((a, b) => a.index! - b.index!);
@@ -156,7 +167,7 @@ export function inventedTimes(original: string, rewrite: string): string[] {
     seen.add('w:' + key);
     return true;
   });
-  return [...clocks, ...daywords];
+  return [...clocks, ...bare, ...daywords];
 }
 export function addedNumbers(original: string, rewrite: string): string[] {
   const nums = (s: string) => [...s.matchAll(/\d+(?:[.,:]\d+)*/g)].map(m => m[0]);
