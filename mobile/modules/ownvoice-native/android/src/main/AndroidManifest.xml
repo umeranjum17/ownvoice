@@ -1,6 +1,12 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
   <!-- The only network use besides ChatGPT-by-choice: the one-time on-device model download. -->
   <uses-permission android:name="android.permission.INTERNET" />
+  <!-- Only the kit's window-host path uses these; Ownvoice rides its own accessibility
+    service instead, so the kit's unused entries never merge in. (SYSTEM_ALERT_WINDOW stays:
+    Expo's own app template declares it, and removing that pre-existing entry is not this change.) -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" tools:node="remove" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" tools:node="remove" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" tools:node="remove" />
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <queries>
     <intent>
