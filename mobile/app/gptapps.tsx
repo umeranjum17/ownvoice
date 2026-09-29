@@ -7,7 +7,7 @@ import { Row } from '../src/ui/Row';
 import { space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
-import { PHONE_ONLY_KEY, phoneOnly } from '../src/core/source';
+import { PHONE_ONLY_KEY, phoneOnly, setSource } from '../src/core/source';
 import { completeSetup } from '../src/core/setup-completion';
 import { store } from '../src/core/store';
 import Native from '../modules/ownvoice-native';
@@ -59,6 +59,7 @@ export default function GptApps() {
         const shown = new Set(apps.map(({ app }) => app));
         const on = [...phoneOnly(true).filter(app => !shown.has(app)), ...apps.filter(({ app }) => chosen[app]).map(({ app }) => app)];
         store.set(PHONE_ONLY_KEY, on);
+        setSource('chatgpt');
         const fromSetup = !store.get('setup-done');
         if (fromSetup) await completeSetup();
         router.dismissAll();

@@ -18,7 +18,8 @@ export const needWriter: Writer = { write: async () => { throw new Error(words.n
 /** Failed lines worth a Try again button: sending again can work once the network, ChatGPT or its switch recovers. */
 export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.offlineNoPhone, words.gptOffNoPhone]);
 
-const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });
+/** A writer that never drafts: the panel shows its line instead. */
+export const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });
 
 /** The one plain line for a failed ChatGPT call on a phone that cannot write instead. */
 function noPhoneLine(error: unknown): string {

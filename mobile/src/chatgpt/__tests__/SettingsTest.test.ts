@@ -221,6 +221,19 @@ test('an unreadable switch without a verified off choice uses a neutral phone re
   } finally { get.mockRestore(); }
 });
 
+test('an unreadable switch on a phone that cannot write says it did not answer', async () => {
+  native.modelStatus.mockResolvedValue('unavailable');
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
+    if (key === 'chatgpt-switch') throw new Error('unavailable');
+    return kv.get(key as string) ?? null;
+  });
+  try {
+    const route = await gptRoute('com.twitter.android', offline);
+    await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.gptFailedNoPhone);
+  } finally { get.mockRestore(); }
+});
+
 test('pending logout blocks a credentialed send even with ready status', async () => {
   const route = await gptRoute('com.twitter.android', offline);
   let releaseAuth!: (auth: { access: string; accountId: string }) => void;
@@ -345,6 +358,19 @@ test('offline on a phone that cannot write says to connect instead', async () =>
   global.fetch = jest.fn(async () => { throw new Error('fetch failed'); });
   try {
     await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.offlineNoPhone);
+  } finally { global.fetch = originalFetch; }
+});
+
+test('an offline sign-in refresh before the send falls back with the offline line', async () => {
+  const route = await gptRoute('com.twitter.android', offline);
+  (codexAuth as jest.Mock).mockRejectedValueOnce(new Error('fetch failed'));
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  const sent = jest.fn(async () => {});
+  try {
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.offlinePhone });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
