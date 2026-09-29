@@ -5,7 +5,6 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
-import android.util.Log
 import com.google.ai.edge.litertlm.Backend
 import com.google.ai.edge.litertlm.Content
 import com.google.ai.edge.litertlm.ConversationConfig
@@ -200,33 +199,25 @@ internal object LocalGemma {
   private fun buildEngine(context: Context): Engine {
     val dir = context.filesDir
     val cache = File(context.cacheDir, "litertlm").apply { mkdirs() }
-    val cachePath = cache.absolutePath
-    val gpuFile = File(dir, GPU.file)
-    // GPU first where OpenCL exists and the GPU build is verified on disk; then CPU with the base build.
-    val gpuError = if (hasOpenCl() && isVerified(dir, gpuFile, GPU)) {
-      try {
-        return Engine(EngineConfig(
-          modelPath = gpuFile.absolutePath, backend = Backend.GPU(),
-          maxNumTokens = 4096, cacheDir = cachePath,
-        )).also { it.initialize() }
-      } catch (error: Throwable) {
-        if (error is CancellationException) throw error
-        Log.w(OwnvoiceService.TAG, "GPU engine failed, falling back to CPU", error)
-        error
-      }
-    } else null
-    val cpuFile = File(dir, CPU.file)
-    ensureVerified(dir, cpuFile, CPU)
-    try {
-      return Engine(EngineConfig(
-        modelPath = cpuFile.absolutePath, backend = Backend.CPU(6),
-        maxNumTokens = 4096, cacheDir = cachePath,
+    val want = variant()
+    val file = File(dir, want.file)
+    ensureVerified(dir, file, want)
+    val backend = if (want == GPU) Backend.GPU() else Backend.CPU(6)
+    return startEngineOrThrow {
+      Engine(EngineConfig(
+        modelPath = file.absolutePath, backend = backend,
+        maxNumTokens = 4096, cacheDir = cache.absolutePath,
       )).also { it.initialize() }
+    }
+  }
+
+  internal fun <T> startEngineOrThrow(start: () -> T): T {
+    try {
+      return start()
+    } catch (error: CancellationException) {
+      throw error
     } catch (error: Throwable) {
-      if (error is CancellationException) throw error
-      throw UnsupportedOperationException("model failed to start", error).also {
-        if (gpuError != null) it.addSuppressed(gpuError)
-      }
+      throw UnsupportedOperationException("model failed to start", error)
     }
   }
 

@@ -1,8 +1,10 @@
 package dev.ownvoice.bridge
 
+import kotlinx.coroutines.CancellationException
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -57,6 +59,24 @@ class LocalGemmaTest {
     }
     // The GPU build carries no CPU signatures, so the CPU fallback needs the base build.
     assertTrue(LocalGemma.GPU.file != LocalGemma.CPU.file)
+  }
+
+  @Test fun engineStartFailureSurfacesRealError() {
+    val gpuFailure = IllegalStateException("CL_OUT_OF_RESOURCES")
+    try {
+      LocalGemma.startEngineOrThrow { throw gpuFailure }
+      fail("expected the engine failure to surface")
+    } catch (error: UnsupportedOperationException) {
+      assertEquals(gpuFailure, error.cause)
+      assertEquals(16, PhoneModel.errorCode(error))
+    }
+    try {
+      LocalGemma.startEngineOrThrow { throw CancellationException("gone") }
+      fail("expected cancellation to propagate")
+    } catch (error: CancellationException) {
+      assertEquals("gone", error.message)
+    }
+    assertEquals("ok", LocalGemma.startEngineOrThrow { "ok" })
   }
 
   @Test fun noOpenClMeansCpuBuild() {
