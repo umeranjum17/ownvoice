@@ -1,5 +1,5 @@
 import { classify } from '@byokit/accounts';
-import { PHONE_ONLY_KEY, SOURCE_KEY } from '../../core/source';
+import { PHONE_ONLY_KEY, SOURCE_KEY, setSource } from '../../core/source';
 import { store } from '../../core/store';
 import { saveBubbleRules, gptRoute } from '../settings';
 import { status } from '../accounts';
@@ -52,6 +52,17 @@ test('phone chosen means never ChatGPT, even when signed in', async () => {
   expect(route.writer).toBe(phoneWriter);
   expect(route.note).toBeNull();
   expect(fetcher).not.toHaveBeenCalled();
+});
+
+test('the recorded choice routes ChatGPT without a pre-seeded source', async () => {
+  store.set(SOURCE_KEY, null);
+  store.set('setup-done', true);
+  setSource('chatgpt');
+  const fetcher = jest.fn(offline);
+  const route = await gptRoute('com.twitter.android', fetcher);
+  expect(route.writer).not.toBe(phoneWriter);
+  expect(route.note).toBeNull();
+  expect(fetcher).toHaveBeenCalledTimes(1);
 });
 
 test('no source tells the panel to choose first instead of drafting', async () => {
@@ -124,6 +135,40 @@ test('a workplace chat stays with the phone unless it leaves the phone-only list
   expect(before.note).toBeNull();
   store.set(PHONE_ONLY_KEY, []);
   expect((await gptRoute('com.Slack', offline)).writer).not.toBe(before.writer);
+});
+
+test('an unreadable phone-only list keeps the app on the phone', async () => {
+  store.set(PHONE_ONLY_KEY, ['com.google.android.gm']);
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
+    if (key === PHONE_ONLY_KEY) throw new Error('storage unavailable');
+    return kv.get(key as string) ?? null;
+  });
+  const fetcher = jest.fn(offline);
+  try {
+    const route = await gptRoute('com.google.android.gm', fetcher);
+    expect(route.writer).toBe(phoneWriter);
+    expect(route.note).toBeNull();
+    expect(fetcher).not.toHaveBeenCalled();
+  } finally { get.mockRestore(); }
+});
+
+test('a phone-only list that turns unreadable mid-send blocks the send', async () => {
+  const route = await gptRoute('com.twitter.android', offline);
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
+    if (key === PHONE_ONLY_KEY) throw new Error('storage unavailable');
+    return kv.get(key as string) ?? null;
+  });
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  try {
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(global.fetch).not.toHaveBeenCalled();
+  } finally {
+    global.fetch = originalFetch;
+    get.mockRestore();
+  }
 });
 
 test('an app the bubble is off in never checks the switch', async () => {

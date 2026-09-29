@@ -1,6 +1,6 @@
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
-import { getSource, isOwnApp, phoneOnly } from '../core/source';
+import { getSource, isOwnApp, phoneListed } from '../core/source';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { CHATGPT_OFF, chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
 import { store } from '../core/store';
@@ -75,7 +75,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   const rules = await Native.bubbleRules().catch(() => null);
   if (version === rulesVersion && !pending && !rulesPending) rulesNow = rules;
   const visible = practice || (!!rules && !rules.paused && showsBubble(app, rules));
-  const listed = !practice && phoneOnly().includes(app);
+  const listed = !practice && phoneListed(app);
   let switchFailed = false;
   const enabled = state.signedIn && !listed && visible && (mocked || await chatgptEnabled(switchStore, fetcher).catch(() => { switchFailed = true; return false; }));
   if (enabled && !mocked) switchNow = await currentSwitch(switchStore).catch(() => null);
@@ -98,7 +98,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
         const pending = rulesPending;
         const current = await Native.bubbleRules().catch(() => null);
         if (version === rulesVersion && !pending && !rulesPending) rulesNow = current;
-        if (!practice && (!current || current.paused || !showsBubble(app, current) || phoneOnly().includes(app))) return false;
+        if (!practice && (!current || current.paused || !showsBubble(app, current) || phoneListed(app))) return false;
         if (!mocked) {
           const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(words.switchUnavailable); });
           switchNow = choice;
@@ -115,7 +115,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
       const beforeFetch = () => {
         const guard = signOutGuard();
         return !guard.active && guard.epoch === epoch && sessionNow().signedIn
-          && (practice || (!!rulesNow && !rulesNow.paused && showsBubble(app, rulesNow) && !phoneOnly().includes(app)))
+          && (practice || (!!rulesNow && !rulesNow.paused && showsBubble(app, rulesNow) && !phoneListed(app)))
           && switchNow?.chatgpt !== 'off';
       };
       const epoch = signOutGuard().epoch;
