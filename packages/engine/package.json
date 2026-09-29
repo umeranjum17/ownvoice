@@ -1,0 +1,17 @@
+{
+  "name": "ownvoice-engine",
+  "version": "0.1.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "description": "Ownvoice pure writing core (model-free checks, prompts and parsers). No store, source, readLog, switch, writers, chatgpt or native code.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "node --test test/bundle.test.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}
