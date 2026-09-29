@@ -13,6 +13,7 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.SamplerConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -114,12 +115,12 @@ internal object LocalGemma {
 
   suspend fun download(context: Context, allowMobileData: Boolean, progress: (Float) -> Unit) {
     if (!downloading.compareAndSet(false, true)) throw ModelBusyException()
-    downloadJob.set(coroutineContext[Job])
+    downloadJob.set(currentCoroutineContext()[Job])
     cancelled.set(false)
     try {
       withContext(Dispatchers.IO) { downloadBlocking(context, allowMobileData, progress) }
     } finally {
-      if (downloadJob.compareAndSet(coroutineContext[Job], null)) downloading.set(false)
+      if (downloadJob.compareAndSet(currentCoroutineContext()[Job], null)) downloading.set(false)
       activeConnection.getAndSet(null)?.disconnect()
     }
   }
