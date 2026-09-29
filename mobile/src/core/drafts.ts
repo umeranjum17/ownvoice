@@ -1,5 +1,6 @@
 // Draft-quality logic (look spec section 5). Pure TypeScript; the writers call it.
 import type { Rules } from './slop';
+import { addedNumbers, inventedTimes } from './slop';
 
 // ---- Cleanup of raw model output (moved from the phone writer; behaviour unchanged, spec 5.5) ----
 
@@ -100,6 +101,55 @@ export function layoutKept(original: string, version: string): boolean {
   return had.length === has.length && had.every((marker, i) => marker === has[i])
     && paragraphBreaks(original) === paragraphBreaks(version)
     && (!original.includes('\n') || nonEmptyLines(version) >= nonEmptyLines(original) - 1);
+}
+
+const leadingMarker = /^\s*(?:\d+[.)]|[-*•])\s+/;
+const rowLine = /^\s*row\s*(\d+)\s*[.:)-]\s*(.*)$/i;
+
+/** A row answer that is only its list marker ('1.', '2)', '-') carries no content. */
+const shellOnly = (text: string) => /^\s*(?:\d+[.)]|[-*•])?\s*$/.test(text);
+
+/**
+ * True when the version keeps every number and time of the original and invents none, in
+ * both directions: numbers/times in the original but missing from the version are dropped,
+ * and ones in the version but missing from the original are invented.
+ */
+export function numbersAndTimesKept(original: string, version: string): boolean {
+  return !addedNumbers(original, version).length && !inventedTimes(original, version).length
+    && !addedNumbers(version, original).length && !inventedTimes(version, original).length;
+}
+
+/**
+ * Rebuilds a row-by-row rescue (see judge.lineRetryPrompt) onto the original lines: the
+ * original's blank lines and list markers win, so the layout is kept by construction even when
+ * the model flattened the list. Only "Row N:" lines for the expected rows (1..the original's
+ * line count) count as rows, each exactly its marker line's text; every other line - sign-offs,
+ * chatter, blanks, wrapped text - is dropped. A missing or empty row, a marker-only shell, or
+ * padded repetition across every row means the answer was unusable and null drops the version.
+ */
+export function rebuildLines(original: string, answer: string): string | null {
+  const lines = original.split(/\r?\n/);
+  const rows = new Map<number, string>();
+  for (const line of answer.split(/\r?\n/)) {
+    const row = line.match(rowLine);
+    if (!row) continue; // chatter, blanks and wrapped text never become row content
+    const number = Number(row[1]);
+    if (number >= 1 && number <= lines.length && row[2].trim() && !rows.has(number)) rows.set(number, row[2].trim());
+  }
+  const plain = (text: string) => text.replace(leadingMarker, '').replace(/\s+/g, ' ').trim();
+  const kept = [...rows.values()].filter(text => !shellOnly(text)).map(plain).filter(Boolean);
+  if (kept.length > 1 && new Set(kept.map(norm)).size === 1) return null; // padded repetition throughout
+  const rebuilt = lines.map((line, index) => {
+    if (!line.trim()) return line; // blank lines pass through; rows number every line
+    const rewritten = rows.get(index + 1)?.trim() ?? '';
+    if (!rewritten) return null; // a missing row fails the rescue
+    const marker = line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '';
+    // a marker-only shell carries no meaning: the original line's content wins
+    const content = !shellOnly(rewritten) ? rewritten.replace(leadingMarker, '').trim() : line.slice(marker.length).trim();
+    return marker + content.replace(leadingMarker, '');
+  });
+  if (rebuilt.some(line => line == null)) return null;
+  return (rebuilt as string[]).join('\n');
 }
 
 // ---- 5.4 The dash rule: the writer's text and their own switch win ----
@@ -264,7 +314,7 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
   const same = (text: string) => { if (flat(text) === flat(original)) unchanged = true; };
   const clean = (text: string) => (dashes === 'remove' ? undash(text) : text).trim();
   const distinct = (text: string) => norm(text) !== norm(original) && fresh(text, [...shown, ...avoid]);
-  const usable = (text: string) => distinct(text) && layoutKept(original, text);
+  const usable = (text: string) => distinct(text) && layoutKept(original, text) && numbersAndTimesKept(original, text);
   return {
     results,
     layoutFails,

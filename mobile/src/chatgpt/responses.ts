@@ -2,8 +2,8 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { classify } from '@byokit/accounts';
 import { codexAuth, reportFailure } from './accounts';
 import { readDraftStream, readTextStream } from '../core/responses-stream';
-import { acceptReplies, avoidLine, latestMessage, replyPrompt, replySlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
-import { rewritePrompt, selectionRewritePrompt, versionPrompt, versionsList, type Rewrite } from '../core/judge';
+import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
+import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 
@@ -90,11 +90,15 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     if (clean != null) landed(clean, slot, versionsList[slot].label);
   });
   for (const fail of acceptor.layoutFails) {
-    const prompt = versionPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes)
-      + '\n- Keep their line breaks and list exactly.' + (note ? `\n\n${note}` : '');
-    let again: string[] = [];
-    try { again = await ask(prompt, VERSION_INSTRUCTIONS, 'versions', 1, on); } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; continue; }
-    const fixed = acceptor.fix(again[0] ?? '', fail.slot, fail.label);
+    // The rescue answer is plain Row lines, not the versions JSON: read it as text, then rebuild.
+    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes) + (note ? `\n\n${note}` : '');
+    let rebuilt: string | null;
+    try {
+      const [rows] = await ask(prompt, 'Output only the rewritten rows as the prompt asks.', 'text', 1, on);
+      rebuilt = rebuildLines(request.typed, rows ?? '');
+    } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; continue; }
+    if (rebuilt == null) continue;
+    const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
     if (fixed != null) landed(fixed, fail.slot, fail.label);
   }
   return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: acceptor.unchanged };

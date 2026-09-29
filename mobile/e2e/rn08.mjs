@@ -1,8 +1,8 @@
 // OWNVOICE-RN-08 emulator evidence driver (adapted from e2e/rn05.mjs helpers).
 // Proves rows R1-R5 with the release build and the build-flagged stand-in writer:
 // direct process-text and share intents (not the selection-menu chooser), the three chips,
-// Replace returning a changed version into an editable field, read-only offering only Copy, a new number
-// warned, the bubble hidden while the sheet shows, and the drafts panel's verdict note.
+// the copy-only sheet (Copy copies the version, the field is left untouched, no Replace anywhere),
+// a new number warned, the bubble hidden while the sheet shows, and the drafts panel's verdict note.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -129,7 +129,7 @@ const bubbleVisible = () => {
   const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
   return window?.match(/mViewVisibility=(0x[0-9a-f]+)/)?.[1] === '0x0';
 };
-const scrollSheet = async () => { shell('input', 'swipe', '540', '2000', '540', '900', '400'); await wait(700); }; // the Replace/Copy row sits under the fold in the sheet's scroll view
+const scrollSheet = async () => { shell('input', 'swipe', '540', '2000', '540', '900', '400'); await wait(700); }; // the Copy row sits under the fold in the sheet's scroll view
 const parsePx = out => {
   const pat = /^\s*(\d+),(\d+):\s*\((\d+),(\d+),(\d+)/;
   const px = [];
@@ -340,35 +340,37 @@ for (const mode of ['no', 'yes']) {
   await shot(`08-02-chips-${scheme}`);
   await tapText('Shorter');
   await wait(1200);
-  if (!(await textPresent('Replace your text with it'))) throw new Error(`editable note missing (${scheme})`);
-  await scrollSheet(); // bring the Replace/Copy row into view for the shot and the tap
+  if (!(await textPresent('Copy it, then paste it'))) throw new Error(`copy note missing (${scheme})`);
+  if (await textPresent('Replace')) throw new Error(`Replace offered on the copy-only sheet (${scheme})`);
+  await scrollSheet(); // bring the Copy row into view for the shot and the tap
   await shot(`08-03-result-editable-${scheme}`);
 
   clearLog();
-  await tapButtonRow('Replace', SHORT);
+  await tapButtonRow('Copy', SHORT);
   await wait(500);
-  await shot(`08-04-replaced-toast-${scheme}`);
-  if (!logcat().includes(`rewrite returned sha=${sha(SHORT)}`)) throw new Error(`Replace did not return the chosen version (${scheme})`);
+  await shot(`08-04-copied-toast-${scheme}`);
+  if (!logcat().includes(`rewrite copied sha=${sha(SHORT)}`)) throw new Error(`Copy did not copy the chosen version (${scheme})`);
 
   await freshSetup(mode);
   await openEditableSelection();
   if (!(await textPresent(RECEIVER_ORIGINAL))) throw new Error(`selected editor text missing (${scheme})`);
   await tapText('Shorter');
-  if (!(await textPresent('Replace your text with it'))) throw new Error(`editable selection did not rewrite (${scheme})`);
+  if (!(await textPresent('Copy it, then paste it'))) throw new Error(`editable selection did not rewrite (${scheme})`);
+  if (await textPresent('Replace')) throw new Error(`Replace offered on the copy-only sheet (${scheme})`);
   await scrollSheet();
   clearLog();
-  await tapButtonRow('Replace', RECEIVER_SHORT);
+  await tapButtonRow('Copy', RECEIVER_SHORT);
   await wait(900);
-  if (!(await waitForFocus('.MainActivity')) || !(await textPresent(RECEIVER_SHORT)) || await textPresent(RECEIVER_ORIGINAL))
-    throw new Error(`Replace did not update the receiving editable selection (${scheme})`);
-  if (!logcat().includes(`rewrite returned sha=${sha(RECEIVER_SHORT)}`)) throw new Error(`Replace did not return the changed text (${scheme})`);
+  if (!(await waitForFocus('.MainActivity')) || !(await textPresent(RECEIVER_ORIGINAL)) || await textPresent(RECEIVER_SHORT))
+    throw new Error(`Copy changed the receiving editable selection (${scheme})`);
+  if (!logcat().includes(`rewrite copied sha=${sha(RECEIVER_SHORT)}`)) throw new Error(`Copy did not copy the changed text (${scheme})`);
 
   // R4: a read-only share offers only Copy.
   await openRewrite({ text: SELECTION, action: 'android.intent.action.SEND', readonly: true });
   await tapText('Simpler');
   await wait(1200);
   if (!(await textPresent('Copy it, then paste it'))) throw new Error(`share note missing (${scheme})`);
-  if (await textPresent('Replace your text')) throw new Error(`read-only offers Replace (${scheme})`);
+  if (await textPresent('Replace')) throw new Error(`read-only offers Replace (${scheme})`);
   await scrollSheet(); // bring the Copy row into view for the shot and the tap
   await shot(`08-05-result-readonly-${scheme}`);
   clearLog();
@@ -462,4 +464,4 @@ await shot('08-13-panel-differing-verdicts-dark');
 await back();
 page.close();
 
-console.log(`Screenshots saved to ${out}. Rewrite R1-R5, Replace and Copy fingerprints, the new-number warning, the hidden bubble and the panel verdict note all check out.`);
+console.log(`Screenshots saved to ${out}. Rewrite R1-R5, Copy fingerprints, the new-number warning, the hidden bubble and the panel verdict note all check out.`);

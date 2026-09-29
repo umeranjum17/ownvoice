@@ -2,8 +2,8 @@ import Native, { type ModelStatus } from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
-import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
-import { rewrite, versionPrompt, versionsList } from '../core/judge';
+import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
+import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
 // Drafts on the phone (spec 5): replies fill three fixed slots from one numbered call,
@@ -31,15 +31,17 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     const clean = acceptor.accept(text, slot, version.label);
     if (clean != null) landed(clean, slot, version.label);
   }, dashes);
-  // A flattened list goes back through its slot once; still flat means dropped (spec 5.2).
+  // A flattened list goes back row by row; the rebuild keeps the original markers, so the
+  // layout is kept by construction - only a missing row or a changed number/time drops it.
   for (const fail of acceptor.layoutFails) {
-    const lines = request.typed.split('\n');
-    const prompt = versionPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes)
-      + `\nKeep exactly ${lines.length} lines in this order, including blank lines. Keep these line prefixes exactly: ${lines.map((line, i) => `${i + 1}: ${line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '(none)'}`).join('; ')}. Do not combine lines.` + (note ? `\n\n${note}` : '');
+    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes) + (note ? `\n\n${note}` : '');
+    let rebuilt: string | null;
     try {
-      const fixed = acceptor.fix(await engine.ask(prompt, 256), fail.slot, fail.label);
-      if (fixed != null) landed(fixed, fail.slot, fail.label);
+      rebuilt = rebuildLines(request.typed, await engine.ask(prompt, 256));
     } catch { continue; }
+    if (rebuilt == null) continue;
+    const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
+    if (fixed != null) landed(fixed, fail.slot, fail.label);
   }
   return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: acceptor.unchanged };
 }

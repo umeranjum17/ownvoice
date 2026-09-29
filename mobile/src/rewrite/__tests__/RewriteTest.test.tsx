@@ -60,7 +60,7 @@ test('the three chips read Shorter, Simpler and Fix spelling and the note explai
   expect(visibleStrings(screen)).toContain('You selected');
 });
 
-test('Replace returns the chosen version and copies it (R4)', async () => {
+test('Copy returns the chosen version and copies it (R4)', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'GENERIC: 2\nSPECIFICITY: 8\nMEANING: pass' : 'Move the call to Tuesday.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
@@ -71,10 +71,10 @@ test('Replace returns the chosen version and copies it (R4)', async () => {
   const shown = visibleStrings(screen);
   expect(shown).toContain('Same meaning as yours');
   expect(shown).toContain('Sounds natural');
-  expect(shown).toContain('Replace your text with it, or copy it.');
-  expect(shown).toContain("If the app doesn't take it, it's copied too. Just paste.");
-  fireEvent.press(screen.getByRole('button', { name: 'Replace' }));
-  expect(native.finishRewrite).toHaveBeenCalledWith('Move the call to Tuesday.', true);
+  expect(shown).toContain('Copy it, then paste it where you like.');
+  expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull();
+  fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
+  expect(native.finishRewrite).toHaveBeenCalledWith('Move the call to Tuesday.', false);
   expect(shown.filter(x => technicalWords.test(x))).toEqual([]);
 });
 
@@ -113,11 +113,11 @@ test('result is usable before the check, but the verdict waits', async () => {
     ? new Promise<string>(() => {}) : Promise.resolve('Tuesday works.'));
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy());
+  await waitFor(() => expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy());
   expect(visibleStrings(screen)).toContain('Tuesday works.');
   expect(visibleStrings(screen)).not.toContain('Sounds natural');
-  fireEvent.press(screen.getByRole('button', { name: 'Replace' }));
-  expect(native.finishRewrite).toHaveBeenCalledWith('Tuesday works.', true);
+  fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
+  expect(native.finishRewrite).toHaveBeenCalledWith('Tuesday works.', false);
 });
 
 test('saved writing rules guide and flag the rewrite', async () => {
