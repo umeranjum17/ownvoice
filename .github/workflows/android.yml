@@ -22,6 +22,12 @@ jobs:
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test -- --ci
+      - run: npm ci
+        working-directory: packages/engine
+      - run: npm run lint
+        working-directory: packages/engine
+      - run: npm run typecheck
+        working-directory: packages/engine
 
   ownvoice-native:
     runs-on: ubuntu-latest

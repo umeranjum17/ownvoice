@@ -10,9 +10,14 @@
     "./src/*": "./src/*"
   },
   "scripts": {
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "node --test test/bundle.test.mjs"
   },
   "devDependencies": {
-    "esbuild": "0.28.2"
+    "@typescript-eslint/parser": "^8.0.0",
+    "esbuild": "0.28.2",
+    "eslint": "^9.0.0",
+    "typescript": "~5.9.2"
   }
 }
