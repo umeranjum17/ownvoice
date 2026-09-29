@@ -1,4 +1,4 @@
-import {RewriteEngine,Version,versionsList,versions,clean,rewrite,rewritePrompt,versionPrompt,Rewrite,rewriteAsk,selectionRewritePrompt} from '../judge';
+import {RewriteEngine,Version,versionsList,versions,clean,rewrite,rewritePrompt,versionPrompt,Rewrite,rewriteAsk,selectionRewritePrompt,tonePrompt,parseTones,cleanTone,toneLine} from '../judge';
 test('readsTheVersions',()=>{expect(versions('{"versions":["hey, i\'m in","in","i\'m in, see you at 7"]}')).toEqual(["hey, i'm in",'in',"i'm in, see you at 7"]);const fenced='Sure:\n```json\n{ "versions" : [\n  "line one\\nline \\"two\\"",\n  "caf\\u00e9 at 9" ,"a\\\\b"\n] }\n```';expect(versions(fenced)).toEqual(['line one\nline "two"','café at 9','a\\b']);expect(versions('["one", "two"]')).toEqual([]);});
 test('keepsQuotedStructuredDraftText',async()=>{const json='{"versions":["\\\"OK\\\""," keep this ","third"]}';expect(versions(json)).toEqual(['"OK"',' keep this ','third']);const {got,landed}=await run(new Fake(json));expect(got.map(x=>x[1])).toEqual(['"OK"',' keep this ','third']);expect(landed).toContain('LIGHT="OK"');});
 test('readsVersionsAsTheyLand',()=>{const full='{"versions":["first one","second\\none","third"]}';const seen=[...full].map((_,i)=>versions(full.slice(0,i+1)).length);expect(seen).toEqual([...seen].sort((a,b)=>a-b));expect([...new Set(seen)]).toEqual([0,1,2,3]);expect(versions('{"versions":["first one","sec')).toEqual(['first one']);expect(versions('{"versions":["first one","a\\u00')).toEqual(['first one']);});
@@ -17,7 +17,11 @@ test('triesLaterFallbacksAfterTheFirstFails',async()=>{const calls:string[]=[];c
 test('anErrorBeforeAnyVersionReachesTheUser',async()=>{await expect(run(new Fake(null))).rejects.toBeInstanceOf(Error);});
 // Slice 8 (R3): the selection-menu chips and their prompts, word for word from the Kotlin Judge.Rewrite and Judge.rewritePrompt.
 test('selection chips deliver the full-stop instruction only for Fix spelling',()=>{
-  expect([Rewrite.TIGHTEN,Rewrite.PLAINER,Rewrite.GRAMMAR]).toEqual(['Shorter','Simpler','Fix spelling']);
+  expect([Rewrite.TIGHTEN,Rewrite.PLAINER,Rewrite.GRAMMAR,Rewrite.FRIENDLIER,Rewrite.FIRMER]).toEqual(['Shorter','Simpler','Fix spelling','Friendlier','Firmer']);
+  expect(selectionRewritePrompt('Hi',Rewrite.FRIENDLIER)).toContain(rewriteAsk[Rewrite.FRIENDLIER]);
+  expect(selectionRewritePrompt('Hi',Rewrite.FIRMER)).toContain(rewriteAsk[Rewrite.FIRMER]);
+  expect(selectionRewritePrompt('Hi',Rewrite.FRIENDLIER)).not.toContain('do not add a full stop');
+  expect(selectionRewritePrompt('Hi',Rewrite.FIRMER)).not.toContain('do not add a full stop');
   expect(selectionRewritePrompt('Hi',Rewrite.TIGHTEN)).toContain(rewriteAsk[Rewrite.TIGHTEN]);
   expect(selectionRewritePrompt('Hi',Rewrite.PLAINER)).toContain(rewriteAsk[Rewrite.PLAINER]);
   expect(selectionRewritePrompt('Hi',Rewrite.GRAMMAR)).toContain(rewriteAsk[Rewrite.GRAMMAR]);
@@ -25,6 +29,21 @@ test('selection chips deliver the full-stop instruction only for Fix spelling',(
   expect(selectionRewritePrompt('Hi',Rewrite.TIGHTEN)).not.toContain('do not add a full stop');
   expect(selectionRewritePrompt('Hi',Rewrite.PLAINER)).not.toContain('do not add a full stop');
   expect(selectionRewritePrompt('Hi',Rewrite.GRAMMAR,'no dashes')).toContain("Follow the writer's rules: no dashes ");
+});
+test('tonePromptNamesOneWordPerTextAndParsesOnlyCleanOnes',()=>{
+  const prompt=tonePrompt(['Fine. Do whatever you want.','Thanks so much!']);
+  expect(prompt).toContain('1: Fine. Do whatever you want.');
+  expect(prompt).toContain('2: Thanks so much!');
+  expect(parseTones('1: a bit sharp\n2: friendly')).toEqual(['a bit sharp','friendly']);
+  expect(parseTones('Sure! Here you go:\n1: Friendly.\n2: "warm"')).toEqual(['friendly','warm']);
+  expect(parseTones('no numbered lines here')).toEqual([]);
+  expect(parseTones(null)).toEqual([]);
+  expect(parseTones('1: the on-device model is ready')).toEqual([]);
+  expect(parseTones('1: quite extraordinarily and remarkably verbose today')).toEqual([]);
+  expect(cleanTone('Friendly.')).toBe('friendly');
+  expect(cleanTone('42')).toBe(null);
+  expect(toneLine('friendly')).toBe('Sounds friendly');
+  expect(toneLine('a bit sharp')).toBe('Sounds a bit sharp');
 });
 // S05 (offline-model study §5.1): selection Shorter/Simpler on a numbered list must
 // ask the model to keep the lines, or every model flattens it to one line.

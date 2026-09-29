@@ -53,9 +53,9 @@ test('empty selection shows only the plain hint (R2)', async () => {
   expect(native.ask).not.toHaveBeenCalled();
 });
 
-test('the three chips read Shorter, Simpler and Fix spelling and the note explains what happens next (R2, R3)', async () => {
+test('the five chips read Shorter, Simpler, Fix spelling, Friendlier and Firmer and the note explains what happens next (R2, R3)', async () => {
   const screen = await renderRewrite({ text: SELECTION, editable: true });
-  for (const label of ['Shorter', 'Simpler', 'Fix spelling']) expect(screen.getByRole('button', { name: label })).toBeTruthy();
+  for (const label of ['Shorter', 'Simpler', 'Fix spelling', 'Friendlier', 'Firmer']) expect(screen.getByRole('button', { name: label })).toBeTruthy();
   expect(visibleStrings(screen)).toContain("Pick how you'd like it. You'll see it before anything changes.");
   expect(visibleStrings(screen)).toContain('You selected');
 });
@@ -76,6 +76,15 @@ test('Copy returns the chosen version and copies it (R4)', async () => {
   fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
   expect(native.finishRewrite).toHaveBeenCalledWith('Move the call to Tuesday.', false);
   expect(shown.filter(x => technicalWords.test(x))).toEqual([]);
+});
+
+test('Friendlier sends its own ask (tone polish)', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Sure thing, Tuesday works great.');
+  const screen = await renderRewrite({ text: SELECTION, editable: true });
+  fireEvent.press(screen.getByRole('button', { name: 'Friendlier' }));
+  await waitFor(() => expect(visibleStrings(screen)).toContain('Sure thing, Tuesday works great.'));
+  expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-/), expect.stringContaining('in a friendlier, warmer way'), { maxTokens: 256 });
+  expect(visibleStrings(screen).filter(x => technicalWords.test(x))).toEqual([]);
 });
 
 test('a rewrite with a new number is warned', async () => {

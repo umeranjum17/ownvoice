@@ -71,7 +71,8 @@ test('switchMessage', () => assertPlain([CHATGPT_OFF, CHATGPT_TERMS]));
 test('dualSourceWords', () => { const keys = ['chooseTitle', 'chooseNote', 'chooseNoteCant', 'srcPhone', 'srcPhoneSub', 'srcPhoneCant', 'srcGpt', 'srcGptSub', 'tradePhone1', 'tradePhone2', 'tradePhone3', 'tradeGpt1', 'tradeGpt2', 'tradeGpt3', 'signInTitle', 'signInNote', 'yourCode', 'waiting', 'copyAndOpen', 'connectedNote', 'usePhoneInstead', 'rowSource', 'rowSourcePhone', 'rowSourceGpt', 'rowSourceNone', 'sourceNote', 'writingSection', 'privacyPhone', 'privacyGpt', 'sentOnlyOnTap', 'phoneBackup', 'phoneOnlyApps', 'phoneOnlyNote', 'switchTitle', 'switchBody', 'switchYes', 'switchNo', 'needWriter', 'needWriterNote', 'needWriterPanel', 'phoneOnlyCant', 'openOwnvoice', 'homePhone', 'homeGpt', 'offlinePhone', 'offlineNoPhone', 'gptFailedNoPhone', 'gptOffNoPhone', 'restingPhone', 'promiseStays', 'promiseStaysNote', 'promiseGpt', 'promiseGptNote']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
 test('phoneDownloadWords', () => { const keys = ['readyTitle', 'readyNote', 'getReady', 'readyStopped', 'useMobileData', 'readyPanel', 'phoneReady', 'removeRow', 'removeRowNote', 'removeAsk', 'removeYes', 'removeNo', 'removeFailed']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
 test('agentWords', () => { const keys = ['agentRow', 'agentAsk', 'agentGo', 'agentChecking', 'agentShareTitle', 'agentShare', 'agentNotNow', 'agentCant', 'agentStopped']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
-test('catchesATechnicalWord', () => { for (const bad of ['Scored by the judge', 'Slop: clean (10/100)', 'The on-device model is ready (nano-v3).', '117 characters on screen', 'Update AICore', 'Gemini Nano', 'Gemma', 'Done in 42%', '78 percent ready', '(500) something broke']) expect(technicalWords.test(bad)).toBe(true); for (const fine of ['Sounds natural and answers Sam', 'Getting Ownvoice ready… this happens once.', 'A bit stock']) expect(technicalWords.test(fine)).toBe(false); });
+test('catchesATechnicalWord', () => { for (const bad of ['Scored by the judge', 'Slop: clean (10/100)', 'The on-device model is ready (nano-v3).', '117 characters on screen', 'Update AICore', 'Gemini Nano', 'Gemma', 'Done in 42%', '78 percent ready', '(500) something broke']) expect(technicalWords.test(bad)).toBe(true); for (const fine of ['Sounds natural and answers Sam', 'Getting Ownvoice ready… this happens once.', 'A bit stock', 'Sounds friendly', 'Sounds a bit sharp', 'Friendlier', 'Firmer']) expect(technicalWords.test(fine)).toBe(false); });
+test('toneLineAndPolishChoices', () => { assertPlain([words.toneSounds, Judge.toneLine('friendly'), Judge.toneLine('a bit sharp'), Judge.Rewrite.FRIENDLIER, Judge.Rewrite.FIRMER, Judge.rewriteAsk[Judge.Rewrite.FRIENDLIER], Judge.rewriteAsk[Judge.Rewrite.FIRMER], Judge.tonePrompt(['Fine. Do whatever you want.'])]); });
 
 // The panel speaks in plain words in every state (spec 4.3: render it with a stub writer and scan the markup).
 describe('panel copy', () => {
@@ -125,17 +126,27 @@ describe('panel copy', () => {
 
   test('compose keeps post checks with a model answer on a quiet screen', async () => {
     native.modelStatus.mockResolvedValue('available');
-    native.ask.mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: concern - needs a question\nNOT_INTERESTED: pass\nHOOK: concern - start with the result').mockResolvedValueOnce('MEANING: pass');
+    // The first answer feeds the panel's one batched tone call; Why? then takes the next two.
+    native.ask.mockResolvedValueOnce('1: matter-of-fact').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: concern - needs a question\nNOT_INTERESTED: pass\nHOOK: concern - start with the result').mockResolvedValueOnce('MEANING: pass');
     const screen = await renderPanel(stubWriter(), { typed: 'Shipped the fix today', written: '' });
     fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
     await waitFor(() => expect(visibleStrings(screen)).toContain('Weak first line'));
     expect(visibleStrings(screen)).not.toContain('Answers the question');
-    expect(native.ask).toHaveBeenCalledTimes(2);
+    expect(native.ask).toHaveBeenCalledTimes(3);
+  });
+
+  test('the tone line shows on Yours and each card once the writer names it', async () => {
+    native.modelStatus.mockResolvedValue('available');
+    native.ask.mockResolvedValue('1: blunt\n2: warm\n3: warm\n4: warm');
+    const screen = await renderPanel(stubWriter(), { typed: LIST });
+    const shown = () => visibleStrings(screen).join(' ').replace(/\s+/g, ' ');
+    await waitFor(() => expect(shown()).toContain('Sounds blunt'));
+    expect(shown()).toContain('Sounds warm');
   });
 
   test('Why hides technical model reasons in both draft and meaning checks', async () => {
     native.modelStatus.mockResolvedValue('available');
-    native.ask.mockResolvedValueOnce('MESSAGE').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: concern - The model token limit was low\nFITS: pass\nCLAIMS: pass\nANSWERS: concern - The model token limit was low\nNEXT_STEP: pass').mockResolvedValueOnce('MEANING: concern - The model token limit was low');
+    native.ask.mockResolvedValueOnce('1: calm').mockResolvedValueOnce('MESSAGE').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: concern - The model token limit was low\nFITS: pass\nCLAIMS: pass\nANSWERS: concern - The model token limit was low\nNEXT_STEP: pass').mockResolvedValueOnce('MEANING: concern - The model token limit was low');
     const screen = await renderPanel(stubWriter(), { typed: 'hello there' });
     fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
     await waitFor(() => expect(visibleStrings(screen)).toContain('It may change what you meant.'));
@@ -146,7 +157,7 @@ describe('panel copy', () => {
     assertPlain(shown);
   });
 
-  test.each([['unclear kind', ['not sure'], 1], ['unreadable checks', ['MESSAGE', 'looks fine'], 2]] as const)('%s keeps quick checks when the model cannot answer', async (_name, answers, calls) => {
+  test.each([['unclear kind', ['1: blunt', 'not sure'], 2], ['unreadable checks', ['1: flat', 'MESSAGE', 'looks fine'], 3]] as const)('%s keeps quick checks when the model cannot answer', async (_name, answers, calls) => {
     native.modelStatus.mockResolvedValue('available');
     for (const answer of answers) native.ask.mockResolvedValueOnce(answer);
     const screen = await renderPanel(stubWriter());

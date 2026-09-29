@@ -1,7 +1,7 @@
 import * as Slop from './slop.ts';
 import * as Voice from './voice.ts';
 import { DEFAULT_PLATFORM, platformLine, polishLine, type Platform } from './platforms.ts';
-import {plainReason, words} from './words.ts';
+import {plainReason, technicalWords, words} from './words.ts';
 export type Check={name:string;ok:boolean;reason:string};
 export type Verdict={good:boolean;lead:string;rest:string};
 export type Mode='COMPOSE'|'REPLY'|'EMPTY';
@@ -28,9 +28,9 @@ export function verdict(s:Scores):Verdict{const concern=[...s.quality,...(s.mess
 export const mode=(typed:string,written:string):Mode=>typed.trim()?'COMPOSE':replying(written)?'REPLY':'EMPTY';
 export const replying=(written:string)=>written.split(/\r?\n/).some(l=>l.trim().split(/\s+/).length>=4);
 export const WRITE_FIRST=words.writeFirst;
-export const Rewrite={TIGHTEN:'Shorter',PLAINER:'Simpler',GRAMMAR:'Fix spelling'} as const;
+export const Rewrite={TIGHTEN:'Shorter',PLAINER:'Simpler',GRAMMAR:'Fix spelling',FRIENDLIER:'Friendlier',FIRMER:'Firmer'} as const;
 export type Rewrite=typeof Rewrite[keyof typeof Rewrite];
-export const rewriteAsk:Record<Rewrite,string>={[Rewrite.TIGHTEN]:'Make it shorter and tighter. Cut filler, keep every point',[Rewrite.PLAINER]:'Say it in plainer, simpler words',[Rewrite.GRAMMAR]:'Fix only spelling, grammar and punctuation. Change nothing else'};
+export const rewriteAsk:Record<Rewrite,string>={[Rewrite.TIGHTEN]:'Make it shorter and tighter. Cut filler, keep every point',[Rewrite.PLAINER]:'Say it in plainer, simpler words',[Rewrite.GRAMMAR]:'Fix only spelling, grammar and punctuation. Change nothing else',[Rewrite.FRIENDLIER]:'Say the same thing in a friendlier, warmer way',[Rewrite.FIRMER]:'Say the same thing in a firmer, more direct way'};
 /** The selection-menu rewrite prompt (Judge.rewritePrompt in the Kotlin app's RewriteActivity). */
 export function selectionRewritePrompt(text:string,how:Rewrite,guide=''){return `Rewrite the text below. ${rewriteAsk[how]}. ${how===Rewrite.GRAMMAR?'If the input is a single word without punctuation, do not add a full stop. ':''}Keep its line breaks and list markers (1. 2. or -) exactly, one item per line. Keep its meaning, facts, language and tone. ${guide?`Follow the writer's rules: ${guide} `:''}Don't add anything new. Output only the rewritten text.\n\nText:\n${text}`;}
 export const Boost={TIGHTER:'Shorter',PLAINER:'More like you',DETAIL:'Start with a detail'} as const;
@@ -41,6 +41,26 @@ const dashRule=(dashes:'keep'|'remove')=>`- their dashes: ${dashes}`;
 const placeLines=(platform?:Platform)=>[platformLine(platform),polishLine(platform)].filter(Boolean).join('\n');
 export function rewritePrompt(text:string,screen:string,guide='',dashes:'keep'|'remove'='remove',platform?:Platform){const line=placeLines(platform);return `You improve a text someone wrote on their phone, before they send it. The screen is context only.\nReturn 3 versions of THEIR text, in this order:\n${versionsList.map((v,i)=>`${i+1}. ${v.ask}`).join('\n')}\n${REWRITE_RULES}\n${dashRule(dashes)}${line?`\n${line}`:''}\n- Each version must read naturally and be clearly different from the other two, unless the text is already fine: then version 1 may equal their text.\n- Follow their rules and note. Output only JSON: {"versions":["...","...","..."]}\n\nScreen (context only):\n${screen.slice(-1500)||'(none)'}\n\nTheir text:\n${text}${guide?`\n\nTheir rules and note: ${guide}`:''}`;}
 export function rewriteCheckPrompt(original:string,rewrite:string){return `Compare a rewrite with its original. Be strict, and brief.\n\nOriginal:\n${original}\n\nRewrite:\n${rewrite}\n\nAnswer in exactly these lines and nothing else.\nGENERIC: 0-10 (10 = the rewrite could be sent to anyone about anything)\nSPECIFICITY: 0-10 (10 = the rewrite has concrete details)\nMEANING: pass or concern - concern if the rewrite adds, drops or changes a claim, fact, number or promise; explain in everyday words for someone with no technical knowledge, at most 10 words\n`;}
+/** One batched tone call for the panel: one plain tone word per text, on tap only, never per keystroke. */
+export function tonePrompt(texts:string[]):string{
+const numbered=texts.map((text,i)=>`${i+1}: ${text.replace(/\s+/g,' ').trim().slice(0,300)}`).join('\n');
+return `What tone does each text below sound like? Answer with one or two plain everyday words per text, like "friendly" or "a bit sharp". One line per text, like "1: friendly". No sentences, no punctuation.\n\n${numbered}`;}
+/** One tone word per numbered line; anything longer, punctuated or technical is dropped, so no tone line beats a wrong one. */
+export function cleanTone(value:string):string|null{
+const tone=value.replace(/^["'“‘]+|["'”’.,;:!?]+$/g,'').trim().toLowerCase();
+if(!tone||tone.length>24||!/^[a-z][a-z' \-]*$/.test(tone)||tone.split(/\s+/).length>3||/\d/.test(tone)||technicalWords.test(tone))return null;
+return tone;}
+export function parseTones(answer:string|null):string[]{
+if(!answer)return[];
+const tones:string[]=[];
+for(const line of answer.split(/\r?\n/)){
+const m=line.match(/^\s*(\d+)\s*[:.)-]\s*(.+)$/);
+if(!m)continue;
+const tone=cleanTone(m[2]);
+if(tone)tones[Number(m[1])-1]=tone;}
+return tones.filter(Boolean);}
+/** The tone line on a draft card and on "Yours": "Sounds friendly", "Sounds a bit sharp". */
+export const toneLine=(tone:string)=>`Sounds ${tone}`;
 export function meaning(original:string,rewrite:string,answer:string|null):Check|null{const a=Slop.addedNumbers(original,rewrite),b=Slop.addedNumbers(rewrite,original);const quote=(xs:string[])=>xs.map(x=>`“${x}”`).join(' and ');const changes=[a.length?'adds '+quote(a):'',b.length?'leaves out '+quote(b):''].filter(Boolean);const times=Slop.inventedTimes(original,rewrite);if(times.length)return {name:'Meaning',ok:false,reason:'It adds '+quote(times)};if(changes.length)return {name:'Meaning',ok:false,reason:'It '+changes.join(' and ')};return checks(answer?parse(answer):{},[{key:'MEANING',pass:'Same meaning',concern:'Check this'}])[0]||null;}
 export function clean(text:string){const lines=text.trim().split(/\r?\n/);const body=lines.length>1&&/^here/i.test(lines[0].trim())&&lines[0].trim().endsWith(':')?lines.slice(1):lines;return body.join('\n').trim().replace(/^"([\s\S]*)"$/,'$1').trim();}
 export type Version={name:'LIGHT'|'TIGHTER'|'FIRST';label:string;ask:string};
