@@ -7,7 +7,7 @@ import { Row } from '../src/ui/Row';
 import { Switch } from '../src/ui/Switch';
 import { Dot } from '../src/ui/Dot';
 import { Badge } from '../src/ui/Badge';
-import { ChatIcon, CheckIcon, ChevIcon, HandIcon, LockIcon, PhoneIcon, WarnIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, HandIcon, LockIcon, PhoneIcon, WarnIcon } from '../src/ui/icons';
 import { SourceOption } from '../src/ui/SourceOption';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
 import { say } from '@byokit/accounts';
@@ -331,10 +331,7 @@ export default function Setup() {
       <Text style={[type.label, { color: t.primary, marginTop: space.xl, marginBottom: space.s }]}>{words.permissionNext}</Text>
       <View style={[styles.guide, { backgroundColor: t.card, borderColor: t.cardLine }]}>
         {([
-          [words.stepApp, null, <View key="app" style={[styles.mock, { backgroundColor: t.group }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-            <Text style={[type.body, { color: t.text }]}>{words.switchRowApp}</Text>
-            <ChevIcon size={20} color={t.muted} />
-          </View>],
+          [words.stepApp, null, null],
           [words.stepSwitch, null, <View key="switch" style={[styles.mock, { backgroundColor: t.group }]} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
             <Text style={[type.body, { color: t.text }]}>{words.switchRowAction}</Text>
             <View pointerEvents="none"><Switch value={hintOn} onValueChange={() => {}} /></View>
@@ -345,7 +342,7 @@ export default function Setup() {
             <View style={[styles.number, { backgroundColor: t.primary }]}><Text style={[type.label, { color: t.onPrimary }]}>{i + 1}</Text></View>
             {i < all.length - 1 && <View style={[styles.line, { backgroundColor: t.line }]} />}
           </View>
-          <View style={[styles.stepBody, i < all.length - 1 && { paddingBottom: space.l }]}>
+          <View style={[styles.stepBody, i < all.length - 1 && { paddingBottom: space.m }]}>
             <Text style={[type.body, { color: t.text, fontWeight: '600' }]}>{title}</Text>
             {note ? <Text style={[type.note, { color: t.muted, marginTop: 2 }]}>{note}</Text> : null}
             {mock}
@@ -494,13 +491,13 @@ const styles = StyleSheet.create({
   footer: { paddingHorizontal: space.xl, paddingTop: space.m, gap: space.xs },
   // Text buttons are 40 dp; the 4 dp of padding lets their hit slop reach the 48 dp touch target.
   actions: { flexDirection: 'row', justifyContent: 'center', gap: space.xs, flexWrap: 'wrap', paddingVertical: space.xs },
-  guide: { borderWidth: 1, borderRadius: shape.group, padding: space.l },
+  guide: { borderWidth: 1, borderRadius: shape.group, paddingHorizontal: space.l, paddingVertical: space.m },
   step: { flexDirection: 'row', gap: space.m },
   rail: { alignItems: 'center', width: 28 },
   number: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   line: { width: 2, flex: 1, marginTop: space.xs, borderRadius: 1 },
   stepBody: { flex: 1, paddingTop: 2 },
-  mock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: shape.card, paddingHorizontal: space.l, minHeight: 48, marginTop: space.s },
+  mock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderRadius: shape.card, paddingHorizontal: space.l, minHeight: 44, marginTop: space.xs },
   chat: { borderRadius: 28, borderWidth: 1, padding: space.l, gap: space.s },
   chatHead: { flexDirection: 'row', alignItems: 'center', gap: space.m, marginBottom: space.xs },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
