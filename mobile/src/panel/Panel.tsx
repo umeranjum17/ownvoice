@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
@@ -11,8 +11,7 @@ import type { Check, Scores, Verdict } from '../core/judge';
 import type { Writer, WriterRoute } from '../core/writers';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
-import { Dot } from '../ui/Dot';
-import type { Mood } from '../ui/dot';
+import { Empty } from '../ui/Empty';
 import { MeaningLine } from '../ui/MeaningLine';
 import { Marked } from '../ui/Marked';
 import { Placeholder } from '../ui/Placeholder';
@@ -85,16 +84,6 @@ function WhyCover({ draft, checks, who }: { draft: Draft; checks: WhyState; who:
       {checks.state === 'none' ? <Text style={[type.note, { color: t.muted, paddingVertical: space.s }]}>{words.noChecks}</Text> : null}
     </Card>
     <Text style={[type.note, { color: t.muted, marginTop: space.l, marginBottom: space.l }]}>{Judge.quickChecks(who)}</Text>
-  </View>;
-}
-
-/** Nothing to show: Dot says so with the one plain line, and the one thing to do next if there is one. */
-function Empty({ mood, text, children }: { mood: Mood; text: string; children?: ReactNode }) {
-  const t = useTheme();
-  return <View style={styles.empty}>
-    <Dot mood={mood} size={72} />
-    <Text style={[type.body, { color: t.text, textAlign: 'center', marginTop: space.m }]}>{text}</Text>
-    {children ? <View style={{ marginTop: space.l }}>{children}</View> : null}
   </View>;
 }
 
@@ -313,5 +302,4 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.xs, marginTop: space.m, marginLeft: -space.xs },
   quote: { flexDirection: 'row', gap: space.m, borderRadius: shape.card, padding: space.l },
   quoteBar: { width: 3, borderRadius: 2 },
-  empty: { alignItems: 'center', paddingHorizontal: space.xl, paddingTop: space.s, paddingBottom: space.xl },
 });
