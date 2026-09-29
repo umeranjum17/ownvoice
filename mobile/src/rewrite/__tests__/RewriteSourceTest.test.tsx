@@ -6,6 +6,7 @@ import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import Native from '../../../modules/ownvoice-native';
 import Rewrite from '../Rewrite';
 import { words } from '../../core/words';
+import { CHATGPT_OFF } from '../../core/switch';
 import { SOURCE_KEY } from '../../core/source';
 import { store } from '../../core/store';
 import { session } from '../../chatgpt/session';
@@ -93,7 +94,7 @@ test('ChatGPT chosen without a phone writer still rewrites, with only the number
   expect(native.ask).not.toHaveBeenCalled();
 });
 
-test('a paused bubble keeps the rewrite on the phone', async () => {
+test('a paused bubble keeps the rewrite on the phone, saying the phone wrote it', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
   native.bubbleRules.mockResolvedValue({ paused: true, on: [], off: [] });
   (global as unknown as { fetch: unknown }).fetch = jest.fn();
@@ -102,7 +103,23 @@ test('a paused bubble keeps the rewrite on the phone', async () => {
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain('Tuesday works.'));
+  expect(visibleStrings(screen)).toContain(words.phoneWrote);
   expect(global.fetch).not.toHaveBeenCalled();
+});
+
+test('a switched-off ChatGPT keeps the rewrite on the phone under the switch line', async () => {
+  store.set(SOURCE_KEY, 'chatgpt');
+  (global as unknown as { fetch: unknown }).fetch = jest.fn();
+  native.ask.mockImplementation(async (_id: string, prompt: string) =>
+    prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Tuesday works.');
+  const screen = await renderRewrite({ text: SELECTION, editable: true });
+  store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
+  try {
+    fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
+    await waitFor(() => expect(visibleStrings(screen)).toContain('Tuesday works.'));
+    expect(visibleStrings(screen)).toContain(CHATGPT_OFF);
+    expect(global.fetch).not.toHaveBeenCalled();
+  } finally { store.set('chatgpt-switch', null); }
 });
 
 test('a ChatGPT failure falls back to the phone with its plain line', async () => {

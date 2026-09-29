@@ -11,7 +11,7 @@ import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { getSource, SOURCE_KEY, type Source } from '../core/source';
 import { store } from '../core/store';
-import type { WriterEvents } from '../core/writers';
+import { SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
 import { preserveFragment } from '../core/drafts';
 import { Button } from '../ui/Button';
@@ -95,16 +95,17 @@ export default function Rewrite() {
         await showResult(finish(await streamSelectionRewrite(input.text, how, guide, consent())), canWrite);
       } catch (error) {
         if (id !== run.current) return;
+        const veto = error instanceof SendVeto ? error.message : null;
         const offline = classify(error instanceof Error ? error.message : String(error))?.kind === 'network';
         if (canWrite) {
           let shown = false;
           try { shown = await showResult(await phoneRewrite(), true); }
           catch (fallback) { if (id !== run.current) return; setNote(message(errorCode(fallback))); return; }
           if (!shown || id !== run.current) return;
-          setNote(offline ? words.offlinePhone : words.fallback);
+          setNote(veto ?? (offline ? words.offlinePhone : words.fallback));
           return;
         }
-        setNote(offline ? words.offlineNoPhone : words.chatgptFailed);
+        setNote(veto ?? (offline ? words.offlineNoPhone : words.chatgptFailed));
       }
     } catch (error) {
       if (id !== run.current) return;
