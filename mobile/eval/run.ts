@@ -82,7 +82,7 @@ async function select(c: any, calls: Call[]) {
 async function thread(c: any, calls: Call[]) {
   const platform = c.app ? platformForApp(c.app) : undefined;
   const limit = T.threadLimit(platform) ?? 280;
-  const answer = await call(T.threadPrompt(c.typed, platform, c.guide ?? '', 'remove'), 512, calls);
+  const answer = await call(T.threadPrompt(c.typed, platform, c.guide ?? '', 'remove'), 512 + Math.ceil(c.typed.length / 4), calls);
   const good = T.cleanThread(answer, c.typed, limit);
   if (good) return { shown: good.parts.map((text, slot) => ({ text, slot })), hooks: good.hooks, fallback: false };
   const fb = T.fallbackThread(c.typed, limit);
