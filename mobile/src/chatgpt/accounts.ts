@@ -5,7 +5,11 @@ import { CHATGPT_TERMS } from '../core/words';
 export { CHATGPT_TERMS };
 const member = 'owner';
 const store = secureStore(SecureStore, 'ownvoice.chatgpt.1');
-export const accounts = new Accounts({ offer: ['chatgpt'], app: 'Ownvoice', store: () => store }, portable);
+// Emulator-only proof builds point the real sign-in stack at the host stand-in
+// (mockOpenAI) with EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<port>; never set
+// in a distributable build, where sign-in always goes to OpenAI itself.
+const authBase = process.env.EXPO_PUBLIC_E2E_AUTH_BASE || undefined;
+export const accounts = new Accounts({ offer: ['chatgpt'], app: 'Ownvoice', store: () => store, ...(authBase ? { authBase } : {}) }, portable);
 export const signIn = () => accounts.login(member, 'chatgpt', { via: 'code' });
 export const signOut = () => accounts.logout(member, 'chatgpt');
 export const refresh = () => accounts.keepFresh([member]);
