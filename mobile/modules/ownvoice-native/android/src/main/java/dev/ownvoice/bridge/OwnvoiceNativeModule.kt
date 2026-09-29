@@ -123,7 +123,7 @@ class OwnvoiceNativeModule : Module() {
       catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
       finally { sendEvent("onModelSettled", emptyMap<String, Any>()) }
     }
-    AsyncFunction("cancelModelDownload") Coroutine { PhoneModel.cancelDownload() }
+    AsyncFunction("cancelModelDownload") Coroutine { -> PhoneModel.cancelDownload() }
     AsyncFunction("deleteModel") Coroutine { -> PhoneModel.delete(context) }
     AsyncFunction("ask") Coroutine { id: String, prompt: String, options: Map<String, Any?> ->
       try {

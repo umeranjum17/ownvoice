@@ -6,6 +6,7 @@ import com.google.mlkit.genai.common.FeatureStatus
 import com.google.mlkit.genai.common.GenAiException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.cancelAndJoin
 import java.util.concurrent.atomic.AtomicReference
 
@@ -50,11 +51,11 @@ internal object PhoneModel {
 
   suspend fun download(context: Context, allowMobileData: Boolean, progress: (Float) -> Unit) {
     if (useAiCore()) {
-      aiCoreDownload.set(coroutineContext[Job])
+      aiCoreDownload.set(currentCoroutineContext()[Job])
       try {
         AiCore.download(progress)
       } finally {
-        aiCoreDownload.compareAndSet(coroutineContext[Job], null)
+        aiCoreDownload.compareAndSet(currentCoroutineContext()[Job], null)
       }
     } else LocalGemma.download(context, allowMobileData, progress)
   }
