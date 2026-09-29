@@ -2,8 +2,9 @@ import Native, { type ModelStatus } from '../../modules/ownvoice-native';
 import { store } from './store';
 
 // The one-time download of the phone's writer on phones without one built in. It starts only after the
-// person says yes (kept under AGREED_KEY), runs on Wi-Fi unless they choose mobile data, picks up where
-// it stopped, and can be removed again in Settings, which also forgets the yes.
+// person says yes (kept under AGREED_KEY, with the mobile-data choice under MOBILE_KEY), runs on Wi-Fi
+// unless they choose mobile data, picks up where it stopped, and can be removed again in Settings,
+// which also forgets the yes and the data choice.
 
 export const AGREED_KEY = 'phone-download-agreed';
 export const MOBILE_KEY = 'phone-download-mobile-data';
@@ -32,7 +33,9 @@ export async function modelStatus(): Promise<ModelStatus> {
   return Native.modelStatus();
 }
 
-/** The person said yes: remember it and get the phone ready, joining a download that's already running. */
+/** The person said yes: remember it and get the phone ready. A bare call reuses the stored
+ *  mobile-data choice; an explicit choice overwrites it. Joins a running download, except a
+ *  mobile-data yes restarts a Wi-Fi-only run with data allowed. */
 export function getReady(allowMobileData?: boolean): Promise<void> {
   const mobile = allowMobileData ?? !!store.get<boolean>(MOBILE_KEY);
   if (running) {
@@ -56,7 +59,8 @@ export function getReady(allowMobileData?: boolean): Promise<void> {
   return current;
 }
 
-/** Joins a download already running without recording a yes (the bubble tapping mid-provisioning). */
+/** Waits without recording a yes: joins a JS-tracked run, else polls native provisioning
+ *  until it leaves 'downloading' (the bubble tapping mid-provisioning). */
 export async function settle(): Promise<void> {
   if (running) return running;
   for (let i = 0; i < 120; i++) {
@@ -71,7 +75,7 @@ export async function resume(): Promise<void> {
   try { if (await modelStatus() === 'downloadable') await getReady(!!store.get<boolean>(MOBILE_KEY)); } catch {}
 }
 
-/** Removes the downloaded writer and forgets the yes, so the phone asks again before any new download. */
+/** Removes the downloaded writer and forgets the yes and the mobile-data choice, so the phone asks again before any new download. */
 export async function removeDownload(): Promise<void> {
   if (pretend()) { pretendStatus = 'downloadable'; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
   try { Native.cancelModelDownload(); } catch {}
