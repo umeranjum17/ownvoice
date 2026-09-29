@@ -1,4 +1,4 @@
-export async function readDraftStream(body: ReadableStream<Uint8Array>, key: 'drafts' | 'versions', onText?: (text: string) => void, count = 3): Promise<string[]> {
+async function collectStreamText(body: ReadableStream<Uint8Array>, onText?: (text: string) => void): Promise<string> {
   const reader = body.getReader(), decoder = new TextDecoder();
   let pending = '', text = '', completed = false;
   const consume = (event: string) => {
@@ -23,8 +23,20 @@ export async function readDraftStream(body: ReadableStream<Uint8Array>, key: 'dr
   }
   if (pending.trim()) consume(pending);
   if (!completed) throw new Error('ChatGPT could not answer.');
+  return text;
+}
+
+export async function readDraftStream(body: ReadableStream<Uint8Array>, key: 'drafts' | 'versions', onText?: (text: string) => void, count = 3): Promise<string[]> {
+  const text = await collectStreamText(body, onText);
   let drafts: unknown;
   try { const parsed = JSON.parse(text); drafts = parsed[key]; } catch { throw new Error('ChatGPT could not answer.'); }
   if (!Array.isArray(drafts) || drafts.length !== count || drafts.some(draft => typeof draft !== 'string' || !draft.trim())) throw new Error('ChatGPT could not answer.');
   return drafts;
+}
+
+/** One plain-text answer (selection rewrite): the same stream, without the JSON envelope. */
+export async function readTextStream(body: ReadableStream<Uint8Array>, onText?: (text: string) => void): Promise<string> {
+  const text = (await collectStreamText(body, onText)).trim();
+  if (!text) throw new Error('ChatGPT could not answer.');
+  return text;
 }

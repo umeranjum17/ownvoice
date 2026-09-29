@@ -13,9 +13,9 @@ import { NO_RULES } from '../../core/slop';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   rewriteInput: jest.fn(), finishRewrite: jest.fn(async () => {}), ask: jest.fn(),
+  modelStatus: jest.fn(async () => 'available'),
 } }));
-
-const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock; ask: jest.Mock };
+const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock; ask: jest.Mock; modelStatus: jest.Mock };
 
 const renderRewrite = async (input: { text: string; editable: boolean } | null) => {
   native.rewriteInput.mockReturnValue(input);
@@ -43,7 +43,8 @@ const visibleStrings = (screen: { toJSON: () => unknown }): string[] => {
 
 const SELECTION = 'I think we should move the call to Tuesday. Really.';
 
-beforeEach(() => { jest.clearAllMocks(); wipeVoice(); });
+// The rewrite checks the meaning on the phone, so the phone can write here.
+beforeEach(() => { jest.clearAllMocks(); wipeVoice(); native.modelStatus.mockResolvedValue('available'); });
 
 test('empty selection shows only the plain hint (R2)', async () => {
   const screen = await renderRewrite({ text: '   ', editable: true });

@@ -1,10 +1,17 @@
 import { useEffect, useRef, useState } from 'react';
 import { Text, View } from 'react-native';
+import { classify } from '@byokit/accounts';
 import Native from '../../modules/ownvoice-native';
+import { streamSelectionRewrite } from '../chatgpt/responses';
+import { session, sessionNow, signOutGuard } from '../chatgpt/session';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import * as Voice from '../core/voice';
 import { errorCode, message } from '../core/nano';
+import { phoneCanWrite } from '../core/phoneStatus';
+import { getSource, SOURCE_KEY, type Source } from '../core/source';
+import { store } from '../core/store';
+import type { WriterEvents } from '../core/writers';
 import { words } from '../core/words';
 import { preserveFragment } from '../core/drafts';
 import { Button } from '../ui/Button';
@@ -44,6 +51,15 @@ export default function Rewrite() {
     setNote(value?.text.trim() ? "Pick how you'd like it. You'll see it before anything changes." : 'Select some text first, then choose Ownvoice.');
   }, []);
 
+  /** The consent the ChatGPT rewrite sends under: still the chosen source, still signed in, never mid-sign-out. */
+  const consent: WriterEvents = useRef({
+    beforeSend: async () => {
+      if (store.peek<Source>(SOURCE_KEY) !== 'chatgpt' || signOutGuard().active) return false;
+      try { return (await session.current()).signedIn; } catch { return false; }
+    },
+    beforeFetch: () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && !signOutGuard().active && sessionNow().signedIn,
+  }).current;
+
   const rewrite = async (how: Judge.Rewrite) => {
     if (!input?.text.trim()) return;
     const id = ++run.current;
@@ -52,18 +68,44 @@ export default function Rewrite() {
     setResult(null);
     setNote(words.writing);
     const stub = process.env.EXPO_PUBLIC_E2E_STUB === '1' ? stubRewrite(input.text, how) : null;
-    try {
-      const rewritten = stub ?? Judge.clean(await Native.ask(`rewrite-${Date.now()}`, Judge.selectionRewritePrompt(input.text, how, Voice.guide(rules, false)), { maxTokens: 256 }));
-      const text = how === Judge.Rewrite.GRAMMAR ? preserveFragment(input.text, rewritten) : rewritten;
-      if (id !== run.current) return;
-      if (!text) { setNote("Couldn't rewrite that. Try again."); return; }
+    const guide = Voice.guide(rules, false);
+    const finish = (raw: string) => how === Judge.Rewrite.GRAMMAR ? preserveFragment(input.text, Judge.clean(raw)) : Judge.clean(raw);
+    const phoneRewrite = async () => finish(stub ?? await Native.ask(`rewrite-${Date.now()}`, Judge.selectionRewritePrompt(input.text, how, guide), { maxTokens: 256 }));
+    // The meaning check stays on the phone when it can write; otherwise only the number check runs.
+    const showResult = async (text: string, canWrite: boolean) => {
+      if (id !== run.current) return false;
+      if (!text) { setNote("Couldn't rewrite that. Try again."); return false; }
       setNote(input.editable ? 'Replace your text with it, or copy it.' : 'Copy it, then paste it where you like.');
       setResult({ text, meaning: Judge.meaning(input.text, text, null), scores: Judge.scoreDraft(text, null, true, rules), verdict: null });
       setBusy(false);
-      const answer = stub === null ? await Native.ask(`rewrite-check-${Date.now()}`, Judge.rewriteCheckPrompt(input.text, text), { maxTokens: 80 }).catch(() => null) : null;
-      if (id !== run.current) return;
+      const answer = stub === null && canWrite ? await Native.ask(`rewrite-check-${Date.now()}`, Judge.rewriteCheckPrompt(input.text, text), { maxTokens: 80 }).catch(() => null) : null;
+      if (id !== run.current) return false;
       const scores = Judge.scoreDraft(text, answer, true, rules);
       setResult({ text, meaning: Judge.meaning(input.text, text, answer), scores, verdict: answer && scores.generic !== null && scores.specific !== null ? Judge.verdict(scores) : null });
+      return true;
+    };
+    try {
+      const source = await getSource().catch(() => null);
+      const canWrite = await phoneCanWrite() !== 'cant';
+      if (stub !== null || source !== 'chatgpt') {
+        await showResult(await phoneRewrite(), canWrite);
+        return;
+      }
+      try {
+        await showResult(finish(await streamSelectionRewrite(input.text, how, guide, consent)), canWrite);
+      } catch (error) {
+        if (id !== run.current) return;
+        const offline = classify(error instanceof Error ? error.message : String(error))?.kind === 'network';
+        if (canWrite) {
+          let shown = false;
+          try { shown = await showResult(await phoneRewrite(), true); }
+          catch (fallback) { if (id !== run.current) return; setNote(message(errorCode(fallback))); return; }
+          if (!shown || id !== run.current) return;
+          setNote(offline ? words.offlinePhone : words.fallback);
+          return;
+        }
+        setNote(offline ? words.offlineNoPhone : words.chatgptFailed);
+      }
     } catch (error) {
       if (id !== run.current) return;
       setNote(message(errorCode(error)));

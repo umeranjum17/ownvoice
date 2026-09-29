@@ -1,9 +1,9 @@
 import { fetch as expoFetch } from 'expo/fetch';
 import { classify } from '@byokit/accounts';
 import { codexAuth, reportFailure } from './accounts';
-import { readDraftStream } from '../core/responses-stream';
+import { readDraftStream, readTextStream } from '../core/responses-stream';
 import { acceptReplies, avoidLine, latestMessage, replyPrompt, replySlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
-import { rewritePrompt, versionPrompt, versionsList } from '../core/judge';
+import { rewritePrompt, selectionRewritePrompt, versionPrompt, versionsList, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 
@@ -12,8 +12,8 @@ import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvent
 const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested three rewrite versions as JSON.';
 
-/** One streamed Responses call; the last `count` array entries must all be non-empty strings. */
-async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> {
+/** One streamed Responses call; the last `count` array entries must all be non-empty strings (`text` returns one plain-text line instead). */
+async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> {
   let started = false;
   let marked = false;
   try {
@@ -32,6 +32,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
     const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', request);
     if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
     if (!response.body) throw new Error('ChatGPT did not answer.');
+    if (key === 'text') return [await readTextStream(response.body, onText)];
     return await readDraftStream(response.body, key, onText, count);
   } catch (error) {
     if (!started && marked) await on?.unsent?.();
@@ -44,6 +45,12 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
 
 export const streamResponses = (prompt: string, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> =>
   ask(prompt, VERSION_INSTRUCTIONS, 'versions', 3, undefined, onText, fetcher);
+
+const REWRITE_INSTRUCTIONS = 'Output only the rewritten text.';
+
+/** Selection rewrite (Shorter / Simpler / Fix spelling) through one ChatGPT call, with the same consent guards. */
+export const streamSelectionRewrite = (text: string, how: Rewrite, guide: string, on: WriterEvents = {}, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string> =>
+  ask(selectionRewritePrompt(text, how, guide), REWRITE_INSTRUCTIONS, 'text', 1, on, onText, fetcher).then(([line]) => line ?? '');
 
 const accountFailure = (error: unknown) => {
   const kind = classify(error instanceof Error ? error.message : String(error))?.kind;
