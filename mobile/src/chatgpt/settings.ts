@@ -2,7 +2,7 @@ import Native from '../../modules/ownvoice-native';
 import { chatgptAllowed, showsBubble } from '../core/privacy';
 import { CHATGPT_OFF, chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
 import { store } from '../core/store';
-import { routeWriters, SendVeto, type WriterRoute } from '../core/writers';
+import { routeWriters, SendVeto, type WriterEvents, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
 import { GPT_APPS_KEY, mocked, session, sessionNow, signOutGuard } from './session';
@@ -42,6 +42,35 @@ const switchStore = {
   set: async (value: SwitchState) => { switchNow = value; store.set('chatgpt-switch', value); },
 };
 
+/** The consent every ChatGPT request sends under, re-checked immediately before sending: still signed in, never mid-sign-out, not paused, the app still chosen and the switch not off (`app` is null for the app-agnostic rewrite sheet). */
+export function chatgptConsent(app: string | null): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
+  const beforeSend = async () => {
+    const before = signOutGuard();
+    if (before.active) return false;
+    const version = rulesVersion;
+    const pending = rulesPending;
+    const current = await Native.bubbleRules().catch(() => null);
+    if (version === rulesVersion && !pending && !rulesPending) rulesNow = current;
+    if (!current || current.paused || (app != null && !chatgptAllowed(showsBubble(app, current), gptChoice(app)))) return false;
+    if (!mocked) {
+      const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(words.switchUnavailable); });
+      switchNow = choice;
+      if (choice?.chatgpt === 'off') throw new SendVeto(CHATGPT_OFF);
+    }
+    const signedIn = (await session.current()).signedIn;
+    const after = signOutGuard();
+    return signedIn && !after.active && after.epoch === before.epoch;
+  };
+  const epoch = signOutGuard().epoch;
+  const beforeFetch = () => {
+    const guard = signOutGuard();
+    return !guard.active && guard.epoch === epoch && sessionNow().signedIn
+      && !!rulesNow && !rulesNow.paused && (app == null || chatgptAllowed(showsBubble(app, rulesNow), !!store.peek<GptApps>(GPT_APPS_KEY)?.on.includes(app)))
+      && switchNow?.chatgpt !== 'off';
+  };
+  return { beforeSend, beforeFetch };
+}
+
 /** Who writes this app's drafts, and the one plain line the panel says above them. */
 export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<WriterRoute> {
   const state = await session.current();
@@ -59,34 +88,11 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
     enabled,
     note: state.resting,
     chatgpt: () => ({ write: async (request, on = {}) => {
-      const beforeSend = async () => {
-        const before = signOutGuard();
-        if (before.active) return false;
-        const version = rulesVersion;
-        const pending = rulesPending;
-        const current = await Native.bubbleRules().catch(() => null);
-        if (version === rulesVersion && !pending && !rulesPending) rulesNow = current;
-        if (!current || current.paused || !chatgptAllowed(showsBubble(app, current), gptChoice(app))) return false;
-        if (!mocked) {
-          const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(words.switchUnavailable); });
-          switchNow = choice;
-          if (choice?.chatgpt === 'off') throw new SendVeto(CHATGPT_OFF);
-        }
-        const signedIn = (await session.current()).signedIn;
-        const after = signOutGuard();
-        return signedIn && !after.active && after.epoch === before.epoch;
-      };
+      const { beforeSend, beforeFetch } = chatgptConsent(app);
       if (mocked) {
         if (!(await beforeSend())) throw new SendVeto(words.phoneWrote);
         return require('../panel/stubWriter').stubWriter().write(request, on);
       }
-      const beforeFetch = () => {
-        const guard = signOutGuard();
-        return !guard.active && guard.epoch === epoch && sessionNow().signedIn
-          && !!rulesNow && !rulesNow.paused && chatgptAllowed(showsBubble(app, rulesNow), !!store.peek<GptApps>(GPT_APPS_KEY)?.on.includes(app))
-          && switchNow?.chatgpt !== 'off';
-      };
-      const epoch = signOutGuard().epoch;
       return require('./responses').chatgptWriter.write(request, { ...on, beforeSend, beforeFetch });
     } }),
     fallbackNote: async () => {

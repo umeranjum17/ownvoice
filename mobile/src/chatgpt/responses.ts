@@ -21,7 +21,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
     if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
     const request = {
       method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
-      body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: { verbosity: 'low', format: { type: 'json_object' } } }),
+      body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: key === 'text' ? { verbosity: 'low' } : { verbosity: 'low', format: { type: 'json_object' } } }),
     };
     await on?.sent?.();
     marked = true;
@@ -49,8 +49,8 @@ export const streamResponses = (prompt: string, onText?: (text: string) => void,
 const REWRITE_INSTRUCTIONS = 'Output only the rewritten text.';
 
 /** Selection rewrite (Shorter / Simpler / Fix spelling) through one ChatGPT call, with the same consent guards. */
-export const streamSelectionRewrite = (text: string, how: Rewrite, guide: string, on: WriterEvents = {}, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string> =>
-  ask(selectionRewritePrompt(text, how, guide), REWRITE_INSTRUCTIONS, 'text', 1, on, onText, fetcher).then(([line]) => line ?? '');
+export const streamSelectionRewrite = (text: string, how: Rewrite, guide: string, on: WriterEvents = {}): Promise<string> =>
+  ask(selectionRewritePrompt(text, how, guide), REWRITE_INSTRUCTIONS, 'text', 1, on).then(([line]) => line ?? '');
 
 const accountFailure = (error: unknown) => {
   const kind = classify(error instanceof Error ? error.message : String(error))?.kind;

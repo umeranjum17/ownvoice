@@ -3,7 +3,7 @@ import { Text, View } from 'react-native';
 import { classify } from '@byokit/accounts';
 import Native from '../../modules/ownvoice-native';
 import { streamSelectionRewrite } from '../chatgpt/responses';
-import { session, sessionNow, signOutGuard } from '../chatgpt/session';
+import { chatgptConsent } from '../chatgpt/settings';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import * as Voice from '../core/voice';
@@ -51,14 +51,14 @@ export default function Rewrite() {
     setNote(value?.text.trim() ? "Pick how you'd like it. You'll see it before anything changes." : 'Select some text first, then choose Ownvoice.');
   }, []);
 
-  /** The consent the ChatGPT rewrite sends under: still the chosen source, still signed in, never mid-sign-out. */
-  const consent: WriterEvents = useRef({
-    beforeSend: async () => {
-      if (store.peek<Source>(SOURCE_KEY) !== 'chatgpt' || signOutGuard().active) return false;
-      try { return (await session.current()).signedIn; } catch { return false; }
-    },
-    beforeFetch: () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && !signOutGuard().active && sessionNow().signedIn,
-  }).current;
+  /** The consent the ChatGPT rewrite sends under: the chosen source plus the panel's full guard set (sign-in, pause, switch, never mid-sign-out); the sheet works in any app, so no per-app row applies. */
+  const consent = (): WriterEvents => {
+    const guards = chatgptConsent(null);
+    return {
+      beforeSend: async () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && await guards.beforeSend(),
+      beforeFetch: () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && guards.beforeFetch(),
+    };
+  };
 
   const rewrite = async (how: Judge.Rewrite) => {
     if (!input?.text.trim()) return;
@@ -92,7 +92,7 @@ export default function Rewrite() {
         return;
       }
       try {
-        await showResult(finish(await streamSelectionRewrite(input.text, how, guide, consent)), canWrite);
+        await showResult(finish(await streamSelectionRewrite(input.text, how, guide, consent())), canWrite);
       } catch (error) {
         if (id !== run.current) return;
         const offline = classify(error instanceof Error ? error.message : String(error))?.kind === 'network';
