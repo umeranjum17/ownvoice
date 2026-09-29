@@ -8,12 +8,14 @@ import { Progress } from '../src/ui/Progress';
 import { Button } from '../src/ui/Button';
 import { Badge } from '../src/ui/Badge';
 import { Dot } from '../src/ui/Dot';
-import { ChatIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon } from '../src/ui/icons';
+import { EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { store } from '../src/core/store';
-import { SOURCE_KEY, type Source } from '../src/core/source';
+import { getSource, setSource, storedSource, type Source } from '../src/core/source';
+import { NAME, session, type GptState } from '../src/chatgpt/session';
+import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
 import { readLog, syncReadLog } from '../src/core/readLog';
 import { loadVoice } from '../src/core/voice';
@@ -52,6 +54,8 @@ export default function Home() {
   const [phrases, setPhrases] = useState(0);
   const [week, setWeek] = useState(0);
   const [settingsFailed, setSettingsFailed] = useState(false);
+  const [source, setShownSource] = useState<Source | undefined>(storedSource);
+  const [gpt, setGpt] = useState<GptState | null>(null);
   const busy = useRef(Promise.resolve());
   const readsBusy = useRef(Promise.resolve());
 
@@ -59,6 +63,8 @@ export default function Home() {
     void Native.serviceState().then(setService).catch(() => {});
     void modelStatus().then(setModel).catch(() => {});
     void Native.bubbleRules().then(setRules).catch(() => {});
+    void getSource().then(setShownSource).catch(() => {});
+    void session.current().then(setGpt).catch(() => {});
     void Native.launcherApps(null).then(setApps).catch(() => {});
     setPhrases(loadVoice().never.length);
     readsBusy.current = readsBusy.current.then(async () => {
@@ -87,6 +93,13 @@ export default function Home() {
     if (store.get('setup-done')) reload();
   }, [reload]));
 
+  // This phone was chosen but can't write any more (a new phone restored from a backup, a system
+  // change): the choice goes back to not chosen, and nothing is sent anywhere until the person picks.
+  useEffect(() => {
+    if (source !== 'phone' || model !== 'unavailable' || process.env.EXPO_PUBLIC_E2E_STUB === '1') return;
+    try { setSource(null); setShownSource(null); } catch {}
+  }, [source, model]);
+
   const changeRules = (update: (current: Rules) => Rules) => {
     busy.current = busy.current.then(async () => {
       const next = update(await Native.bubbleRules());
@@ -107,15 +120,24 @@ export default function Home() {
   const paused = !!rules?.paused;
   const on = service === 'on';
   const yes = agreed();
-  const getting = model === 'downloading' || fetching;
-  // Ask for the download only where the person picked this phone (or hasn't picked yet), never under ChatGPT.
-  const ask = model === 'downloadable' && !yes && !getting && store.get<Source>(SOURCE_KEY) !== 'chatgpt';
-  const stopped = model === 'downloadable' && yes && !getting;
-  const problem = model === 'unavailable' ? words.unsupported : stopped ? words.readyStopped : null;
-  const green = on && !paused && problem === null && !ask;
-  const headline = !on ? words.statusOff : ask ? words.readyTitle : problem ? words.statusNotReady : getting ? words.statusGettingReady : paused ? words.statusPaused : words.statusReady;
-  const detail = !on ? words.statusOffNote : ask ? words.readyNote : problem ?? (getting ? words.gettingReady : paused ? words.statusPausedNote : words.statusReadyNote);
-  const mood = !on ? 'idle' : ask ? 'hello' : problem ? 'check' : getting ? 'thinking' : paused ? 'idle' : 'ready';
+  const phoneCan = model !== 'unavailable';
+  // Nothing chosen: the card says so and offers the one way that works here, never a dead end.
+  const needs = source === null;
+  const viaGpt = source === 'chatgpt';
+  const viaPhone = source === 'phone';
+  const getting = viaPhone && (model === 'downloading' || fetching);
+  // Ask for the download only where the person picked this phone, never under ChatGPT.
+  const ask = viaPhone && model === 'downloadable' && !yes && !getting;
+  const stopped = viaPhone && model === 'downloadable' && yes && !getting;
+  // ChatGPT chosen but not writing right now: signed out, or resting (in byokit's own words).
+  const gptLine = viaGpt && gpt ? (!gpt.signedIn ? say('status.needsAgain', { name: NAME }) : gpt.resting) : null;
+  const problem = stopped ? words.readyStopped : null;
+  const green = !needs && on && !paused && problem === null && !ask && !gptLine;
+  const headline = needs ? words.needWriter : !on ? words.statusOff : ask ? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : words.statusReady);
+  const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : !on ? words.statusOffNote : ask ? words.readyNote : problem
+    ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : words.statusReadyNote);
+  const mood = needs ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (gpt?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : 'ready';
+  const signIn = needs && !phoneCan || on && viaGpt && !!gpt && !gpt.signedIn;
   const onCard = green ? t.onPrimaryContainer : t.text;
   const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
   const shown = apps.filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
@@ -123,7 +145,7 @@ export default function Home() {
 
   return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={[styles.page, { paddingTop: inset + space.xl }]}>
     <Text accessibilityRole="header" style={[type.display, { color: t.text }]}>{words.homeTitle}</Text>
-    <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{words.home}</Text>
+    <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{viaPhone ? words.homePhone : viaGpt ? words.homeGpt : words.welcomeNote}</Text>
 
     <View style={[styles.status, { backgroundColor: green ? t.primaryContainer : t.group }]}>
       <View style={styles.statusHead}>
@@ -131,24 +153,24 @@ export default function Home() {
         <Switch accessibilityLabel={words.powerRow} value={on} onValueChange={power} />
       </View>
       <Text style={[type.heading, { color: onCard, marginTop: space.l }]}>{headline}</Text>
-      <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted, marginTop: space.xs }]}>{detail}</Text>
+      {detail && <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted, marginTop: space.xs }]}>{detail}</Text>}
       {on && getting && <View style={{ marginTop: space.l }}><Progress fraction={fraction} /></View>}
       {settingsFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
-      {(on && (problem !== null || ask) || service === 'stuck') && <View style={styles.statusActions}>
-        {on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
-        {on && stopped && <Button kind="filled" label={words.tryAgain} onPress={() => start()} />}
-        {on && stopped && <Button kind="text" label={words.useMobileData} onPress={() => start(true)} />}
-        {on && model === 'unavailable' && <Button kind="filled" label={words.tryAgain} onPress={reload} />}
+      {(needs || signIn || on && (problem !== null || ask) || service === 'stuck') && <View style={styles.statusActions}>
+        {signIn && <Button kind="filled" label={words.gptButton} onPress={() => router.push('/source?start=chatgpt')} />}
+        {needs && phoneCan && <Button kind="filled" label={words.continueLabel} onPress={() => router.push('/source')} />}
+        {!needs && on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
+        {!needs && on && stopped && <Button kind="filled" label={words.tryAgain} onPress={() => start()} />}
+        {!needs && on && stopped && <Button kind="text" label={words.useMobileData} onPress={() => start(true)} />}
         {service === 'stuck' && <Button kind="filled" label={words.turnBackOn} onPress={() => router.push('/setup')} />}
       </View>}
     </View>
 
     <View style={group}>
-      <Row lead={icon(LockIcon)} title={words.rowWriting} onPress={() => router.push('/writing')} />
+      <Row lead={icon(LockIcon)} title={words.rowSource} subtitle={viaPhone ? words.rowSourcePhone : viaGpt ? words.rowSourceGpt : words.rowSourceNone} onPress={() => router.push('/source')} />
       <Row lead={icon(GridIcon)} title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
       <Row lead={icon(PenIcon)} title={words.rowVoice} subtitle={phrases === 0 ? words.noPhrases : phrases === 1 ? `1 ${words.phraseOne}` : `${phrases} ${words.phraseMany}`} onPress={() => router.push('/voice')} />
       <Row lead={icon(EyeIcon)} title={words.rowReads} subtitle={week === 0 ? words.nothingWeek : week === 1 ? words.onceWeek : `${week} ${words.timesWeek}`} onPress={() => router.push('/reads')} />
-      <Row lead={icon(ChatIcon)} title={words.gptButton} subtitle={words.gptNote} onPress={() => router.push('/chatgpt')} />
     </View>
 
     <View style={group}>

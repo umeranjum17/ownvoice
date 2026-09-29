@@ -59,7 +59,10 @@ export function routeWriters(options: { source: Source; signedIn: boolean; phone
   const { phoneWriter } = options;
   if (options.source === 'phone') return { writer: phoneWriter, note: null };
   if (options.source == null) return { writer: needWriter, note: null };
-  if (options.phoneOnlyApp) return { writer: phoneWriter, note: null };
+  // An app kept on this phone never goes to ChatGPT, even where the phone can't write: say how to change it.
+  if (options.phoneOnlyApp) return options.phone === 'cant'
+    ? { writer: thrower(words.phoneOnlyCant), note: null }
+    : { writer: phoneWriter, note: null };
   if (!options.signedIn) return options.phone === 'cant'
     ? { writer: thrower(options.note ?? words.needWriterNote), note: null }
     : { writer: phoneWriter, note: null };

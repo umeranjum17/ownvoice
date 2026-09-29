@@ -2,12 +2,14 @@ import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
 import { getSource, isOwnApp, phoneListed } from '../core/source';
 import { phoneCanWrite } from '../core/phoneStatus';
+import { modelStatus } from '../core/phoneDownload';
 import { CHATGPT_OFF, chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
 import { store } from '../core/store';
 import { needWriter, routeWriters, SendVeto, thrower, type WriterEvents, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
 import { mocked, session, sessionNow, signOutGuard } from './session';
+const stubbed = process.env.EXPO_PUBLIC_E2E_STUB === '1';
 type BubbleRules = Awaited<ReturnType<typeof Native.bubbleRules>>;
 let rulesNow: BubbleRules | null = null;
 let rulesVersion = 0;
@@ -66,7 +68,9 @@ export function chatgptConsent(app: string | null): Required<Pick<WriterEvents, 
  *  ChatGPT unless this app stays on the phone, nobody is signed in, or it is switched off remotely. */
 export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<WriterRoute> {
   const source = await getSource();
-  if (source === 'phone') return { writer: phoneWriter, note: null };
+  // This phone was chosen but can no longer write: the panel says to choose again, as Home does
+  // (stub builds pretend the phone writes).
+  if (source === 'phone') return !stubbed && await modelStatus().catch(() => null) === 'unavailable' ? { writer: needWriter, note: null } : { writer: phoneWriter, note: null };
   const practice = isOwnApp(app);
   if (source == null) return practice ? { writer: phoneWriter, note: null } : { writer: needWriter, note: null };
   const state = await session.current();

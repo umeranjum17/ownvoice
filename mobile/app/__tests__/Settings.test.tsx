@@ -5,9 +5,11 @@ import Home from '../index';
 import Apps from '../apps';
 import Voice, { foundLines } from '../voice';
 import Reads from '../reads';
-import Writing from '../writing';
+import Source from '../source';
+import { router } from 'expo-router';
+import { session, nothing, type GptState } from '../../src/chatgpt/session';
 import { AGREED_KEY } from '../../src/core/phoneDownload';
-import { SOURCE_KEY } from '../../src/core/source';
+import { SOURCE_KEY, setSource, storedSource } from '../../src/core/source';
 import Native, { type TapFact } from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
 import { space } from '../../src/ui/theme';
@@ -24,6 +26,17 @@ jest.mock('../../modules/ownvoice-native', () => ({
 }));
 
 jest.mock('expo-file-system', () => ({ File: { pickFileAsync: jest.fn() } }));
+jest.mock('../../src/chatgpt/session', () => ({
+  NAME: 'ChatGPT',
+  GPT_APPS_KEY: 'chatgpt-apps',
+  mocked: false,
+  nothing: { signedIn: false, waiting: false, code: null, url: null, note: null, resting: null },
+  sessionNow: jest.fn(() => ({ signedIn: false })),
+  signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
+  session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
+}));
+const gpt = session as jest.Mocked<typeof session>;
+const connected: GptState = { ...nothing, signedIn: true, note: 'ChatGPT is connected.' };
 
 const native = Native as jest.Mocked<typeof Native>;
 const picker = jest.requireMock('expo-file-system').File as { pickFileAsync: jest.Mock };
@@ -61,6 +74,7 @@ beforeEach(() => {
   (native.addListener as jest.Mock).mockReturnValue({ remove: () => {} });
   jest.spyOn(AppState, 'addEventListener').mockReturnValue({ remove: () => {} });
   picker.pickFileAsync.mockRejectedValue(new Error('no picker in jest'));
+  gpt.current.mockResolvedValue(nothing);
 });
 
 const homeCopy = async () => {
@@ -103,15 +117,82 @@ test('off hides Try again even when the model is not ready', async () => {
   expect(native.downloadModel).not.toHaveBeenCalled();
 });
 
-test('a phone that cannot write offers Try again in plain words, which only looks again', async () => {
+test('a phone that cannot write asks how Ownvoice should write, never a dead end', async () => {
   native.modelStatus.mockResolvedValue('unavailable');
+  kv.set(SOURCE_KEY, '"phone"');
   const screen = await show(<Home />);
-  expect(await screen.findByText(words.statusNotReady)).toBeTruthy();
-  expect(screen.getByText(words.unsupported)).toBeTruthy();
-  const looks = native.modelStatus.mock.calls.length;
-  await fireEvent.press(screen.getByText(words.tryAgain));
-  await waitFor(() => expect(native.modelStatus.mock.calls.length).toBeGreaterThan(looks));
+  expect(await screen.findByText(words.needWriter)).toBeTruthy();
+  expect(screen.getByText(words.needWriterNote)).toBeTruthy();
+  expect(screen.getByText(words.rowSourceNone)).toBeTruthy();
+  expect(JSON.stringify(screen.toJSON())).not.toContain(words.unsupported);
+  expect(screen.queryByText(words.tryAgain)).toBeNull();
+  // This phone was chosen but can't write any more: the choice goes back to not chosen.
+  expect(storedSource()).toBeNull();
+  await fireEvent.press(screen.getByText(words.gptButton));
+  expect(router.push).toHaveBeenCalledWith('/source?start=chatgpt');
   expect(native.downloadModel).not.toHaveBeenCalled();
+});
+
+test('nothing chosen on a phone that can write offers the choice', async () => {
+  setSource(null);
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.needWriter)).toBeTruthy();
+  expect(screen.getByText(words.sourceNote)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.continueLabel));
+  expect(router.push).toHaveBeenCalledWith('/source');
+});
+
+test('Home says who writes, and one row leads to How Ownvoice writes', async () => {
+  kv.set(SOURCE_KEY, '"phone"');
+  const phone = await homeCopy();
+  expect(phone.getByText(words.homePhone)).toBeTruthy();
+  expect(phone.getByText(words.rowSourcePhone)).toBeTruthy();
+  expect(phone.queryByText(words.gptButton)).toBeNull();
+  await fireEvent.press(phone.getByText(words.rowSource));
+  expect(router.push).toHaveBeenCalledWith('/source');
+  await phone.unmount();
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  gpt.current.mockResolvedValue(connected);
+  const chatgpt = await homeCopy();
+  expect(chatgpt.getByText(words.homeGpt)).toBeTruthy();
+  expect(chatgpt.getByText(words.rowSourceGpt)).toBeTruthy();
+});
+
+test('ChatGPT chosen and connected on a phone that cannot write reads ready, never the old dead end', async () => {
+  native.modelStatus.mockResolvedValue('unavailable');
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  gpt.current.mockResolvedValue(connected);
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.statusReady)).toBeTruthy();
+  expect(screen.getByText(words.statusReadyNote)).toBeTruthy();
+  expect(screen.getByText(words.homeGpt)).toBeTruthy();
+  expect(screen.getByText(words.rowSourceGpt)).toBeTruthy();
+  const text = JSON.stringify(screen.toJSON());
+  for (const gone of [words.unsupported, words.statusNotReady, words.tryAgain, words.gptButton]) expect(text).not.toContain(gone);
+  expect(storedSource()).toBe('chatgpt');
+});
+
+test('ChatGPT chosen but signed out: the card asks to sign in again, and this phone writes until then', async () => {
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  const screen = await show(<Home />);
+  expect(await screen.findByText('ChatGPT needs you to sign in again.')).toBeTruthy();
+  expect(screen.getByText(words.restingPhone)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.gptButton));
+  expect(router.push).toHaveBeenCalledWith('/source?start=chatgpt');
+});
+
+test('ChatGPT resting says so in its own words', async () => {
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  gpt.current.mockResolvedValue({ ...connected, note: 'ChatGPT is resting until 3:40pm.', resting: 'ChatGPT is resting until 3:40pm.' });
+  const screen = await show(<Home />);
+  expect(await screen.findByText('ChatGPT is resting until 3:40pm.')).toBeTruthy();
+  expect(screen.getByText(words.restingPhone)).toBeTruthy();
+});
+
+test.each([['writing'], ['chatgpt']])('the old %s page lands on How Ownvoice writes', async name => {
+  const Moved = require(`../${name}`).default;
+  const screen = await show(<Moved />);
+  expect(screen.toJSON()).toMatchObject({ type: 'Redirect', props: { href: '/source' } });
 });
 
 test('a phone that needs its download asks first, with the size, and downloads nothing on its own', async () => {
@@ -129,6 +210,7 @@ test('a phone that needs its download asks first, with the size, and downloads n
 
 test('with ChatGPT chosen, Home never asks for the phone download', async () => {
   kv.set(SOURCE_KEY, '"chatgpt"');
+  gpt.current.mockResolvedValue(connected);
   native.modelStatus.mockResolvedValue('downloadable');
   const screen = await show(<Home />);
   expect(await screen.findByText(words.statusReady)).toBeTruthy();
@@ -167,12 +249,12 @@ test('a stopped download says what to do, and can use mobile data instead', asyn
 test('Settings asks for the download only where this phone is the chosen writer', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
   kv.set(SOURCE_KEY, '"chatgpt"');
-  const chatgpt = await show(<Writing />);
+  const chatgpt = await show(<Source />);
   await act(async () => { await Promise.resolve(); });
   expect(chatgpt.queryByText(words.readyTitle)).toBeNull();
   await chatgpt.unmount();
   kv.set(SOURCE_KEY, '"phone"');
-  const screen = await show(<Writing />);
+  const screen = await show(<Source />);
   expect(await screen.findByText(words.readyTitle)).toBeTruthy();
   expect(screen.getByText(words.readyNote)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.getReady));
@@ -184,7 +266,7 @@ test('Free up space removes the download after a second tap, and the phone asks 
   kv.set(AGREED_KEY, 'true');
   kv.set(SOURCE_KEY, '"phone"');
   native.modelStatus.mockResolvedValue('available');
-  const screen = await show(<Writing />);
+  const screen = await show(<Source />);
   await fireEvent.press(await screen.findByText(words.removeRow));
   expect(screen.getByText(words.removeAsk)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.removeNo));
@@ -202,7 +284,7 @@ test('a failed Free up space keeps the card and says so plainly', async () => {
   kv.set(SOURCE_KEY, '"phone"');
   native.modelStatus.mockResolvedValue('available');
   native.deleteModel.mockRejectedValueOnce(new Error('locked'));
-  const screen = await show(<Writing />);
+  const screen = await show(<Source />);
   await fireEvent.press(await screen.findByText(words.removeRow));
   await fireEvent.press(screen.getByText(words.removeYes));
   expect(await screen.findByText(words.removeFailed)).toBeTruthy();
@@ -212,7 +294,7 @@ test('a failed Free up space keeps the card and says so plainly', async () => {
 
 test('a writer the phone came with has nothing to remove', async () => {
   native.modelStatus.mockResolvedValue('available');
-  const screen = await show(<Writing />);
+  const screen = await show(<Source />);
   await act(async () => { await Promise.resolve(); });
   expect(screen.queryByText(words.removeRow)).toBeNull();
 });
