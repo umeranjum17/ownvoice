@@ -45,7 +45,7 @@ export function suggestion(word: string, speller: Speller): string | undefined {
 }
 
 /** Words the dictionary doesn't know. Capitalised words are left alone: they are mostly names. */
-function spelling(text: string, speller: Speller, fixes: boolean): Slip[] {
+function spelling(text: string, speller: Speller): Slip[] {
   const out: Slip[] = [];
   // Links, addresses, handles and tags are blanked out first, keeping every other word where it is.
   const words = text.replace(/\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu, m => ' '.repeat(m.length));
@@ -54,7 +54,7 @@ function spelling(text: string, speller: Speller, fixes: boolean): Slip[] {
     // ponytail: capitalised words are skipped, so "Recieve" at a sentence start goes unmarked; a name list would fix that.
     if (/\p{Lu}/u.test(word) || word.length < 2 || SHORTHAND.has(word) || /^i'(?:m|ve|ll|d)$/.test(word)) continue;
     if (!APOSTROPHE[word] && speller.correct(word)) continue;
-    out.push({ start: m.index!, end: m.index! + word.length, reason: SPELLING, fix: fixes ? suggestion(word, speller) : undefined });
+    out.push({ start: m.index!, end: m.index! + word.length, reason: SPELLING, fix: APOSTROPHE[word] });
   }
   return out;
 }
@@ -104,9 +104,9 @@ function grammar(text: string): Slip[] {
   return out;
 }
 
-/** Every slip in [text], sorted, one per spot. Suggestions for spelling are worked out only when [fixes] (a tap), never on a pause. */
-export function slips(text: string, speller: Speller | null, fixes = false): Slip[] {
-  const found = [...(speller ? spelling(text, speller, fixes) : []), ...grammar(text)];
+/** Every slip in [text], sorted, one per spot. A spelling slip's fix is left to [suggestion], on a tap only: it can be slow. */
+export function slips(text: string, speller: Speller | null): Slip[] {
+  const found = [...(speller ? spelling(text, speller) : []), ...grammar(text)];
   const seen = new Set<number>();
   return found.sort((a, b) => a.start - b.start).filter(s => !seen.has(s.start) && !!seen.add(s.start));
 }

@@ -6,7 +6,8 @@ import { NO_RULES } from '../slop';
 const speller = nspell(readFileSync(`${__dirname}/../../../assets/dictionary/en-affixes.aff`, 'utf8'), readFileSync(`${__dirname}/../../../assets/dictionary/en-words.dic`, 'utf8'));
 
 /** Each slip as "word→fix", in order. */
-const shown = (text: string) => slips(text, speller, true).map(s => `${text.slice(s.start, s.end)}→${s.fix ?? '?'}`);
+const withFixes = (text: string) => slips(text, speller).map(s => ({ ...s, fix: s.fix ?? (s.reason === SPELLING ? suggestion(text.slice(s.start, s.end), speller) : undefined) }));
+const shown = (text: string) => withFixes(text).map(s => `${text.slice(s.start, s.end)}→${s.fix ?? '?'}`);
 
 // The fixed list the rules grow from: [what was typed, what is marked].
 test.each<[string, string[]]>([
@@ -34,16 +35,17 @@ test.each<[string, string[]]>([
 
 test('a slip is fixed only where it is', () => {
   const text = 'I think the the meeting moved.';
-  const [slip] = slips(text, speller, true);
+  const [slip] = withFixes(text);
   expect(slip.reason).toBe(GRAMMAR);
   expect(fixed(text, slip)).toBe('I think the meeting moved.');
-  const typo = slips('We shoud go.', speller, true)[0];
+  const typo = withFixes('We shoud go.')[0];
   expect(typo.reason).toBe(SPELLING);
   expect(fixed('We shoud go.', typo)).toBe('We should go.');
 });
 
 test('a pause never works out fixes, and counts stock phrases too', () => {
-  expect(slips('We shoud go now.', speller).every(s => s.fix === undefined)).toBe(true);
+  expect(slips('We shoud go now.', speller).map(s => s.fix)).toEqual([undefined]);
+  expect(slips('i think im late, Sam.', speller).map(s => s.fix)).toEqual(['I', "I'm"]);
   expect(count('We shoud circle back at the end of the day.', speller, NO_RULES)).toBe(3);
   expect(count('See you at the cafe at noon.', speller, NO_RULES)).toBe(0);
 });

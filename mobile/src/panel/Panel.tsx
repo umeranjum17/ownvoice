@@ -253,7 +253,13 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     try {
       if (!text || !await Native.typingCheck()) return;
       const spell = await speller().catch(() => null);
-      setSlips(Typing.slips(text, spell, true));
+      const found = Typing.slips(text, spell);
+      // One word at a time, giving the screen a turn in between: an unusual word can take a moment.
+      for (const slip of found) if (spell && slip.fix === undefined && slip.reason === Typing.SPELLING) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+        slip.fix = Typing.suggestion(text.slice(slip.start, slip.end), spell);
+      }
+      setSlips(found);
     } catch {}
   };
 
