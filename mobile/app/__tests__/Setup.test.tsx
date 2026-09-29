@@ -150,6 +150,9 @@ test('permissionExplainsAndOpensTheSwitch', async () => {
   expect(screen.queryByText(words.promiseGpt)).toBeNull();
   expect(screen.getByText(words.promiseSend)).toBeTruthy();
   expect(screen.getByText(words.switchRowAction, { includeHiddenElements: true })).toBeTruthy();
+  expect(screen.getByText(words.stepApp)).toBeTruthy();
+  expect(screen.getByText(words.stepSwitch)).toBeTruthy();
+  expect(screen.getByText(words.stepAllow)).toBeTruthy();
   expect(screen.getByText(words.fullControl)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.turnOn));
   expect(native.openAccessibilitySettings).toHaveBeenCalledWith(true);

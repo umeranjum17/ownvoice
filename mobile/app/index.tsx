@@ -156,7 +156,8 @@ export default function Home() {
       {detail && <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted, marginTop: space.xs }]}>{detail}</Text>}
       {on && getting && <View style={{ marginTop: space.l }}><Progress fraction={fraction} /></View>}
       {settingsFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
-      {(needs || signIn || on && (problem !== null || ask) || service === 'stuck') && <View style={styles.statusActions}>
+      {(needs || signIn || on && (problem !== null || ask) || service !== 'on') && <View style={styles.statusActions}>
+        {service === 'off' && !needs && !signIn && <Button kind="filled" label={words.turnOn} onPress={() => power(true)} />}
         {signIn && <Button kind="filled" label={words.gptButton} onPress={() => router.push('/source?start=chatgpt')} />}
         {needs && phoneCan && <Button kind="filled" label={words.continueLabel} onPress={() => router.push('/source')} />}
         {!needs && on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}

@@ -113,6 +113,13 @@ test('the card says off, with the switch waiting for the permission screen', asy
   expect(screen.getByLabelText(words.powerRow)).toBeTruthy();
 });
 
+test('off shows a Turn on button that opens the permission screen', async () => {
+  native.serviceState.mockResolvedValue('off');
+  const screen = await show(<Home />);
+  await fireEvent.press(await screen.findByText(words.turnOn));
+  expect(router.push).toHaveBeenCalledWith('/setup');
+});
+
 test('the card gets ready with a bar, never a number', async () => {
   native.modelStatus.mockResolvedValue('downloading');
   const screen = await show(<Home />);
