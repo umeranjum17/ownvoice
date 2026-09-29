@@ -223,10 +223,16 @@ test('versionAcceptor drops a version equal to the writer text and near-duplicat
 test('versionAcceptor calls their text unchanged only when it comes back the same, give or take spacing', () => {
   const list = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
   const same = versionAcceptor(list, 'remove', []);
-  expect(same.accept('Quick update:\n1. Pack the stove\n2.  Meet Saturday ', 0)).toBeNull();
+  expect(same.accept('Quick update:\n\n1. Pack the stove\n2.  Meet Saturday ', 0)).toBeNull();
   expect(same.unchanged).toBe(true);
   expect(same.accept('Quick update:\n\n1. Pack the stove.\n2. Meet on Saturday', 1)).not.toBeNull();
   expect(same.unchanged).toBe(false); // a real version shows instead
+  const collapsed = versionAcceptor(list, 'remove', []);
+  expect(collapsed.accept('Quick update:\n1. Pack the stove\n2. Meet Saturday', 0)).toBeNull();
+  expect(collapsed.unchanged).toBe(false);
+  const flattened = versionAcceptor(list, 'remove', []);
+  expect(flattened.accept('Quick update: 1. Pack the stove 2. Meet Saturday', 0)).toBeNull();
+  expect(flattened.unchanged).toBe(false);
   const failed = versionAcceptor(list, 'remove', []);
   failed.accept('Pack the stove and meet Saturday.', 0); // flattened: a failure, not "looks good"
   failed.accept('', 1);

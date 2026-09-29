@@ -260,7 +260,8 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
   const layoutFails: { slot: number; label?: string }[] = [];
   // Set when a version came back as their own text; with nothing else shown, that is "looks good as it is".
   let unchanged = false;
-  const same = (text: string) => { if (text.replace(/\s+/g, ' ').trim() === original.replace(/\s+/g, ' ').trim()) unchanged = true; };
+  const flat = (value: string) => value.replace(/\r\n/g, '\n').split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).join('\n').trim();
+  const same = (text: string) => { if (flat(text) === flat(original)) unchanged = true; };
   const clean = (text: string) => (dashes === 'remove' ? undash(text) : text).trim();
   const distinct = (text: string) => norm(text) !== norm(original) && fresh(text, [...shown, ...avoid]);
   const usable = (text: string) => distinct(text) && layoutKept(original, text);
