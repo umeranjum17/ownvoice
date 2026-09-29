@@ -86,14 +86,20 @@ export function preserveFragment(original: string, text: string): string {
  * Shorter, one inventing a "deadline" framing). Drop them; a real list keeps
  * every line because the counts match.
  */
-const chatterLine = /^(here|sure|okay|ok,|certainly|of course|rewritten|version \d|improved|polished)\b/i;
+const bareInterjection = /^(sure|okay|ok|of course|certainly|great|thanks)[,!.]?$/i;
+const preambleMention = /(version|rewrite|rewritten|shorter|tighter|polished|improved|here(?: is|'s) (?:your|the|a|an|my)\b)/i;
+
+const isPreamble = (line: string) => {
+  const text = line.trim();
+  return text.endsWith(':') || bareInterjection.test(text) || preambleMention.test(text);
+};
 
 export function cleanSelection(original: string, text: string): string {
   const expected = original.split(/\r?\n/).filter(line => line.trim()).length;
   const lines = text.split(/\r?\n/);
   while (lines.filter(line => line.trim()).length > expected) {
     const first = lines.findIndex(line => line.trim());
-    if (first < 0 || !chatterLine.test(lines[first].trim())) break;
+    if (first < 0 || !isPreamble(lines[first])) break;
     lines.splice(first, 1);
   }
   let seen = 0;

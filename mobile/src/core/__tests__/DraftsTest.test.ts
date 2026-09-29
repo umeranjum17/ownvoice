@@ -89,6 +89,25 @@ test('a leading shorter-version preamble is stripped before the line window', ()
     'Please bring the tent on Saturday.',
     'Sure!\nHere is your shorter version:\nBring the tent on Saturday.',
   )).toBe('Bring the tent on Saturday.');
+  expect(cleanSelection(
+    'Please bring the tent on Saturday.',
+    'Shorter version:\nBring the tent on Saturday.',
+  )).toBe('Bring the tent on Saturday.');
+  expect(cleanSelection(
+    'Please bring the tent on Saturday.',
+    clean('Ok, here is your version:\nBring the tent on Saturday.'),
+  )).toBe('Bring the tent on Saturday.');
+});
+
+test('cleanSelection keeps a genuine rewrite that starts like an opener', () => {
+  expect(cleanSelection(
+    'Send me the report by Friday. No excuses this time.',
+    'Sure, please send the report by Friday!\nHope this helps!',
+  )).toBe('Sure, please send the report by Friday!');
+  expect(cleanSelection(
+    'Here is the report for Friday.',
+    "Here is Friday's report.\nHope this helps!",
+  )).toBe("Here is Friday's report.");
 });
 
 // ---- 5.3 Duplicates ----
