@@ -4,6 +4,7 @@ import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import { dashesFor } from '../core/drafts';
+import { platformForApp } from '../core/platforms';
 import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide, loadVoice } from '../core/voice';
 import { words } from '../core/words';
@@ -132,9 +133,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     }
     setNote(words.writing);
     setPhase('writing');
+    const platform = platformForApp(value.app);
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
-      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, rules, post, person), meaning: null });
+      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, rules, post, person, platform), meaning: null });
     }
     void (async () => {
       let path: WriterRoute;
@@ -150,6 +152,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           nodes: value.nodes,
           fieldTop: value.fieldTop ?? undefined,
           typed: value.typed.trim(),
+          platform,
           guide: voiceGuide(rules, post),
           dashes: dashesFor(rules, nextMode === 'reply' ? value.written : value.typed),
           avoid,
@@ -166,7 +169,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
           landed: (text, slot, label) => {
             if (run.current !== id) return;
-            const scores = Judge.scoreDraft(text, null, !post, rules, post, person);
+            const scores = Judge.scoreDraft(text, null, !post, rules, post, person, platform);
             const meaning = label ? Judge.meaning(value.typed, text, null) : null;
             setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
           },

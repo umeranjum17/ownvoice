@@ -64,7 +64,7 @@ const accountFailure = (error: unknown) => {
 /** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt). */
 async function replies(request: DraftRequest, on: WriterEvents): Promise<string[]> {
   const dashes = request.dashes ?? 'remove' as const;
-  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide, dashes };
+  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide, dashes, platform: request.platform };
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
@@ -87,14 +87,14 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const note = avoidLine(avoid);
   const landed = on.landed ?? (() => {});
   const acceptor = versionAcceptor(request.typed, dashes, avoid);
-  const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', 3, on);
+  const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', 3, on);
   raw.slice(0, versionsList.length).forEach((text, slot) => {
     const clean = acceptor.accept(text, slot, versionsList[slot].label);
     if (clean != null) landed(clean, slot, versionsList[slot].label);
   });
   for (const fail of acceptor.layoutFails) {
     // The rescue answer is plain Row lines, not the versions JSON: read it as text, then rebuild.
-    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes) + (note ? `\n\n${note}` : '');
+    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : '');
     let rebuilt: string | null;
     try {
       const [rows] = await ask(prompt, 'Output only the rewritten rows as the prompt asks.', 'text', 1, on);

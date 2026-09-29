@@ -30,11 +30,11 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     const slot = versionsList.findIndex(v => v.name === version.name);
     const clean = acceptor.accept(text, slot, version.label);
     if (clean != null) landed(clean, slot, version.label);
-  }, dashes);
+  }, dashes, request.platform);
   // A flattened list goes back row by row; the rebuild keeps the original markers, so the
   // layout is kept by construction - only a missing row or a changed number/time drops it.
   for (const fail of acceptor.layoutFails) {
-    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes) + (note ? `\n\n${note}` : '');
+    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : '');
     let rebuilt: string | null;
     try {
       rebuilt = rebuildLines(request.typed, await engine.ask(prompt, 256));
@@ -49,7 +49,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
 /** Replies: one numbered call, then one retry per empty slot within 8 s of its answer. */
 async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
-  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide };
+  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide, platform: request.platform };
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
