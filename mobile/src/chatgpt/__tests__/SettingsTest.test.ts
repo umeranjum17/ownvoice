@@ -5,7 +5,7 @@ import { saveBubbleRules, gptRoute } from '../settings';
 import { status } from '../accounts';
 import { CHATGPT_OFF } from '../../core/switch';
 import Native from '../../../modules/ownvoice-native';
-import { codexAuth, reportFailure, signOut } from '../accounts';
+import { accounts, codexAuth, reportFailure, signOut } from '../accounts';
 import { session } from '../session';
 import { phoneWriter } from '../../panel/phoneWriter';
 import { words } from '../../core/words';
@@ -14,20 +14,28 @@ jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}), modelStatus: jest.fn(async () => 'available') },
 }));
-jest.mock('../accounts', () => ({
-  reportFailure: jest.fn(async () => null),
-  signOut: jest.fn(async () => {}),
-  codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })),
-  refresh: jest.fn(async () => {}),
-  signInState: jest.fn(() => null),
-  status: jest.fn(async () => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' })),
-}));
+jest.mock('../accounts', () => {
+  const { respond: ask } = jest.requireActual('@byokit/accounts');
+  return {
+    codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })),
+    reportFailure: jest.fn(async () => null),
+    signOut: jest.fn(async () => {}),
+    accounts: {
+      respond: jest.fn((_member: string, request: { instructions: string; input: string; model?: string; onText?: (text: string) => void }) =>
+        ask({ ...request, access: 'fixture-access', accountId: 'fixture-account', model: request.model ?? 'fixture-model', fetch: (...args: Parameters<typeof fetch>) => (global.fetch as typeof fetch)(...args) })),
+    },
+    refresh: jest.fn(async () => {}),
+    signInState: jest.fn(() => null),
+    status: jest.fn(async () => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' })),
+  };
+});
 
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['phone one', 'phone two', 'phone three'] })) } }));
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 
 const native = Native as jest.Mocked<typeof Native>;
 const ready = status as jest.Mock;
+const respondMock = accounts.respond as unknown as jest.Mock;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 const offline = (async () => { throw new Error('no network'); }) as typeof fetch;
 
@@ -301,8 +309,9 @@ test('pending logout blocks a credentialed send even with ready status', async (
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   const sent = jest.fn();
+  const unsent = jest.fn();
   try {
-    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent });
+    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent, unsent });
     await started;
     const clear = jest.spyOn(store, 'set').mockImplementationOnce(() => { throw new Error('full'); });
     const leaving = session.signOut();
@@ -311,6 +320,8 @@ test('pending logout blocks a credentialed send even with ready status', async (
     expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(global.fetch).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
+    expect(unsent).not.toHaveBeenCalled();
+    expect(respondMock).not.toHaveBeenCalled();
     releaseLogout();
     await leaving;
   } finally { global.fetch = originalFetch; }
@@ -328,8 +339,9 @@ test('sign-out blocks an in-flight send even when clearing app choices fails', a
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   const sent = jest.fn();
+  const unsent = jest.fn();
   try {
-    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent });
+    const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent, unsent });
     await started;
     const clear = jest.spyOn(store, 'set').mockImplementationOnce(() => { throw new Error('full'); });
     try {
@@ -343,6 +355,8 @@ test('sign-out blocks an in-flight send even when clearing app choices fails', a
     expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
     expect(global.fetch).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
+    expect(unsent).not.toHaveBeenCalled();
+    expect(respondMock).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
@@ -412,8 +426,9 @@ test('offline on a phone that cannot write says to connect instead', async () =>
 });
 
 test('an offline sign-in refresh before the send falls back with the offline line', async () => {
+  const { ResponseError } = jest.requireActual('@byokit/accounts');
   const route = await gptRoute('com.twitter.android', offline);
-  (codexAuth as jest.Mock).mockRejectedValueOnce(new Error('fetch failed'));
+  respondMock.mockRejectedValueOnce(new ResponseError('ChatGPT could not refresh its sign-in. Try again when the network is back.', 'network'));
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   const sent = jest.fn(async () => {});
@@ -480,15 +495,12 @@ test.each([
 
 test('a limit gives the same tap byokits words over phone drafts', async () => {
   const route = await gptRoute('com.twitter.android', offline);
-  (reportFailure as jest.Mock).mockImplementation(async () => {
-    ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', words: 'ChatGPT is resting until 3:40pm.' });
-    return { kind: 'rate_limit', until: 1 };
-  });
+  ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', words: 'ChatGPT is resting until 3:40pm.' });
   const originalFetch = global.fetch;
   global.fetch = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'Too many requests', body: null } as Response));
   try {
     expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: 'ChatGPT is resting until 3:40pm.' });
-    expect(reportFailure).toHaveBeenCalledWith('429 Too many requests');
+    expect(reportFailure).not.toHaveBeenCalled();
     expect(global.fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
