@@ -31,3 +31,6 @@ export function setSource(source: Source): void { store.set(SOURCE_KEY, source);
 
 /** Apps that stay on this phone even when ChatGPT writes; starts as the old default-off list. */
 export function phoneOnly(): string[] { return store.get<string[]>(PHONE_ONLY_KEY) ?? [...CHATGPT_DEFAULT_OFF]; }
+
+/** Ownvoice's own app: the setup practice chat. Its drafts always go through, never gated by lists. */
+export const isOwnApp = (app: string): boolean => app.startsWith('dev.ownvoice.')
