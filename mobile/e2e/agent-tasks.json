@@ -1,0 +1,50 @@
+{
+  "version": 1,
+  "source": "ov-phone-agent-plan section 3, fixed six-task set",
+  "voice": { "never": ["circle back", "at the end of the day"], "noDashes": true },
+  "tasks": [
+    {
+      "id": 1,
+      "task": "Write my landlord a note that the heater's broken since Monday, then make it firmer, then give me something I can send.",
+      "names": [],
+      "mustKeep": ["Monday", "heater"],
+      "approve": true
+    },
+    {
+      "id": 2,
+      "task": "Turn this into a list for the team: standup moves to 12:00, demo Thursday 3pm, Priya owns the deck. Keep it casual.",
+      "names": ["Priya"],
+      "mustKeep": ["12:00", "3pm", "Priya", "Thursday"],
+      "approve": true
+    },
+    {
+      "id": 3,
+      "task": "Reply to Sam: can't make Saturday, offer Sunday after 2.",
+      "names": ["Sam"],
+      "mustKeep": ["Sam", "Saturday", "Sunday", "2"],
+      "approve": true
+    },
+    {
+      "id": 4,
+      "task": "Draft a thank-you to Alex for covering my shift, then make it warmer.",
+      "names": ["Alex"],
+      "mustKeep": ["Alex", "shift"],
+      "approve": true
+    },
+    {
+      "id": 5,
+      "task": "Email this to Sam and put it in my calendar: standup moves to 12:00, demo Thursday 3pm.",
+      "names": ["Sam"],
+      "mustKeep": ["Sam"],
+      "approve": true,
+      "limit": true
+    },
+    {
+      "id": 6,
+      "task": "Write my landlord a note that the heater's broken since Monday, then make it firmer, then give me something I can send.",
+      "names": [],
+      "mustKeep": ["Monday", "heater"],
+      "approve": false
+    }
+  ]
+}
