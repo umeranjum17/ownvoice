@@ -52,7 +52,7 @@ Already typed something? The same tap shows your text with the stock phrases mar
 
 ### Honest about every draft
 
-Each draft gets one plain sentence, such as "Sounds natural" or "A bit stock: 3 phrases you could say more simply". **Why?** shows each check in everyday words, with a tick or a gentle warning. There is no score to chase: the checks look at whether a draft sounds stock, says something real, fits the chat and makes nothing up, and they are kept apart rather than blended into one number.
+Drafts get one plain sentence about how they read, such as "Sounds natural" or "A bit stock: 3 phrases you could say more simply" (when every draft reads the same, the sentence is left off rather than repeated). **Why?** on any draft shows each check in everyday words, with a tick or a gentle warning. There is no score to chase: the checks look at whether a draft sounds stock, says something real, fits the chat and makes nothing up, and they are kept apart rather than blended into one number.
 
 <p align="center">
   <img src="docs/readme/why.webp" alt="Why this reply: the draft quoted, 'Sounds natural' with a tick, and 'These are quick checks to help you choose.'" width="300" />
@@ -85,7 +85,7 @@ Home shows at a glance whether Ownvoice is ready, and holds every setting: which
 **Also on your phone:**
 
 - **Your voice**: the phrases you never say, a short note on how you write, and two rules (no long dashes; end posts on a statement). Drafts follow them, and any phrase on your list is marked wherever it shows up. You can also import a list from a file.
-- **Where the bubble shows**: the bubble appears only in the apps you switch on. X, LinkedIn, Reddit, Slack, WhatsApp and Gmail start on; everything else starts off.
+- **Where the bubble shows**: the bubble appears only in the apps you switch on. X, LinkedIn, Reddit, Slack, WhatsApp (and WhatsApp Business) and Gmail start on; everything else starts off.
 - **Pause for now**: hides the bubble everywhere until you turn it back on.
 - **Your phone's look**: Ownvoice uses your phone's colours and font, and follows light and dark mode.
 
@@ -99,8 +99,8 @@ Home shows at a glance whether Ownvoice is ready, and holds every setting: which
 Ownvoice reads the screen only when you tap its bubble, never in the background, and only in apps you switched on. It never taps Send, posts or acts for you.
 
 - **On this phone**, nothing you read or write leaves the phone. Ownvoice has no server of its own.
-- **With your ChatGPT**, the chat on screen, what you typed and your writing rules go to ChatGPT, and only when you tap the bubble. Ownvoice keeps no copy.
-- **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once.
+- **With your ChatGPT**, the chat on screen, what you typed and your writing rules go to ChatGPT, only when you tap the bubble. Text you select and send to **Make it better** goes to ChatGPT too. Ownvoice keeps no copy.
+- **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once, along with Your voice.
 
 <p align="center">
   <img src="docs/readme/reads.webp" alt="What Ownvoice read: one entry, 'Suggested replies in Ownvoice (new), read the chat on screen, Today', and Wipe everything" width="300" />
