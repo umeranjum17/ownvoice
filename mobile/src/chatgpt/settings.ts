@@ -41,7 +41,7 @@ export function chatgptConsent(app: string | null): Required<Pick<WriterEvents, 
     const pending = rulesPending;
     const current = await Native.bubbleRules().catch(() => null);
     if (version === rulesVersion && !pending && !rulesPending) rulesNow = current;
-    if (!practice && (!current || current.paused || (app != null && (!showsBubble(app, current) || phoneOnly().includes(app))))) return false;
+    if (!practice && (!current || current.paused || (app != null && (!showsBubble(app, current) || phoneListed(app))))) return false;
     if (!mocked) {
       const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(words.switchUnavailable); });
       switchNow = choice;
@@ -55,7 +55,7 @@ export function chatgptConsent(app: string | null): Required<Pick<WriterEvents, 
   const beforeFetch = () => {
     const guard = signOutGuard();
     return !guard.active && guard.epoch === epoch && sessionNow().signedIn
-      && (practice || (!!rulesNow && !rulesNow.paused && (app == null || (showsBubble(app, rulesNow) && !phoneOnly().includes(app)))))
+      && (practice || (!!rulesNow && !rulesNow.paused && (app == null || (showsBubble(app, rulesNow) && !phoneListed(app)))))
       && switchNow?.chatgpt !== 'off';
   };
   return { beforeSend, beforeFetch };
