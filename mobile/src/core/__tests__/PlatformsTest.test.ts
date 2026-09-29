@@ -1,4 +1,4 @@
-import { DEFAULT_PLATFORM, platformForApp, platformLine } from '../platforms';
+import { DEFAULT_PLATFORM, platformForApp, platformLine, polishLine, slotsFor } from '../platforms';
 import { phoneReplyPrompt, phoneSlotPrompt, replyPrompt, REPLY_SLOTS } from '../drafts';
 import { lineRetryPrompt, rewritePrompt, scoreDraft, versionPrompt, versionsList } from '../judge';
 
@@ -53,16 +53,75 @@ test('the length check keeps the flat 280 rule for unknown apps', () => {
   expect(under.reach.at(-1)).toEqual({ name: 'Right length for a post', ok: true, reason: '' });
 });
 
-test('each platform checks against its own cap', () => {
+test('each platform names itself in the too-long check', () => {
   const x = platformForApp('com.twitter.android');
-  expect(scoreDraft(long(281), null, false, undefined, true, null, x).reach.at(-1)?.name).toBe('Long for a post');
-  expect(scoreDraft(long(280), null, false, undefined, true, null, x).reach.at(-1)?.name).toBe('Right length for a post');
+  expect(scoreDraft(long(281), null, false, undefined, true, null, x).reach.at(-1)).toEqual({ name: 'Too long for X', ok: false, reason: 'Shorten it or split it into a thread.' });
+  expect(scoreDraft(long(280), null, false, undefined, true, null, x).reach.at(-1)).toEqual({ name: 'Right length for a post', ok: true, reason: '' });
   const linkedin = platformForApp('com.linkedin.android');
   expect(scoreDraft(long(2900), null, false, undefined, true, null, linkedin).reach.at(-1)).toEqual({ name: 'Right length for a post', ok: true, reason: '' });
-  expect(scoreDraft(long(3001), null, false, undefined, true, null, linkedin).reach.at(-1)?.name).toBe('Long for a post');
+  expect(scoreDraft(long(3001), null, false, undefined, true, null, linkedin).reach.at(-1)).toEqual({ name: 'Too long for LinkedIn', ok: false, reason: 'Shorten it or split it into a thread.' });
+  const reddit = platformForApp('com.reddit.frontpage');
+  expect(scoreDraft(long(10001), null, false, undefined, true, null, reddit).reach.at(-1)?.name).toBe('Too long for Reddit');
   const whatsapp = platformForApp('com.whatsapp');
   expect(scoreDraft(long(1000), null, false, undefined, true, null, whatsapp).reach.at(-1)).toEqual({ name: 'Right length for a message', ok: true, reason: '' });
-  expect(scoreDraft(long(65537), null, false, undefined, true, null, whatsapp).reach.at(-1)).toEqual({ name: 'Long for a message', ok: false, reason: 'Shorter messages get read more.' });
+  expect(scoreDraft(long(65537), null, false, undefined, true, null, whatsapp).reach.at(-1)).toEqual({ name: 'Too long for WhatsApp', ok: false, reason: 'Shorten it to fit one message.' });
+});
+
+test('each platform has its own 3 reply slots; chat keeps todays three', () => {
+  expect(slotsFor(platformForApp('com.twitter.android'))).toEqual([
+    'Agree and add one concrete detail from the post.',
+    'Push back kindly, with one reason from the post.',
+    'Ask one sharp question about the post.',
+  ]);
+  expect(slotsFor(platformForApp('com.linkedin.android'))[0]).toContain('Agree and add one concrete example');
+  expect(slotsFor(platformForApp('com.reddit.frontpage'))[0]).toContain('Answer with specifics');
+  expect(slotsFor(platformForApp('com.Slack'))[0]).toContain('Confirm and name the next step');
+  expect(slotsFor(platformForApp('com.google.android.gm'))).toEqual([
+    'Accept clearly, with the key detail.',
+    'Decline kindly, with a reason.',
+    'Ask what is needed to decide.',
+  ]);
+  expect(slotsFor(platformForApp('com.whatsapp'))).toEqual(REPLY_SLOTS);
+  expect(slotsFor(DEFAULT_PLATFORM)).toEqual(REPLY_SLOTS);
+  expect(slotsFor()).toEqual(REPLY_SLOTS);
+});
+
+test('each platform has its polish rule; unknown apps need none', () => {
+  expect(polishLine(platformForApp('com.twitter.android'))).toContain('the first line must stand alone');
+  expect(polishLine(platformForApp('com.linkedin.android'))).toContain('keep paragraphs short');
+  expect(polishLine(platformForApp('com.reddit.frontpage'))).toContain('one line');
+  expect(polishLine(platformForApp('com.Slack'))).toContain('no greeting and no sign-off');
+  expect(polishLine(platformForApp('com.whatsapp'))).toContain('keep any emoji');
+  expect(polishLine(platformForApp('com.google.android.gm'))).toContain('Keep the greeting and the sign-off');
+  expect(polishLine(DEFAULT_PLATFORM)).toBe('');
+});
+
+test('reply prompts use the platforms slots', () => {
+  const input = { latest: 'Maya: shipped it', conversation: 'Maya: shipped it', dashes: 'remove' as const };
+  const prompt = replyPrompt({ ...input, platform: platformForApp('com.twitter.android') });
+  for (const slot of slotsFor(platformForApp('com.twitter.android'))) expect(prompt).toContain(slot);
+  expect(prompt).not.toContain(REPLY_SLOTS[0]);
+  const phone = { latest: 'Maya: shipped it', conversation: 'Maya: shipped it' };
+  const phonePrompt = phoneReplyPrompt({ ...phone, platform: platformForApp('com.reddit.frontpage') });
+  expect(phonePrompt).toContain('Answer with specifics from the thread.');
+  expect(phoneSlotPrompt(slotsFor(platformForApp('com.Slack'))[0], phone, [])).toContain('Confirm and name the next step.');
+});
+
+test('the phone reply prompt stays under 700 characters of instructions on every platform', () => {
+  for (const app of ['com.twitter.android', 'com.linkedin.android', 'com.reddit.frontpage', 'com.Slack', 'com.whatsapp', 'com.google.android.gm', 'com.example.other']) {
+    const prompt = phoneReplyPrompt({ latest: 'Sam: Saturday?', conversation: 'Sam: Saturday?', platform: platformForApp(app) });
+    expect(prompt.split('\n\nLatest message:')[0].length).toBeLessThanOrEqual(700);
+  }
+});
+
+test('polish prompts carry the platforms polish rule', () => {
+  const x = platformForApp('com.twitter.android');
+  expect(rewritePrompt('Shipped it today', 'Maya: else?', '', 'remove', x)).toContain('the first line must stand alone');
+  expect(versionPrompt('Shipped it today', 'Maya: else?', versionsList[0], '', 'remove', x)).toContain('the first line must stand alone');
+  expect(lineRetryPrompt('Shipped it today', 'Maya: else?', versionsList[0], '', 'remove', x)).toContain('the first line must stand alone');
+  const gmail = platformForApp('com.google.android.gm');
+  expect(rewritePrompt('Hi Dana, yes', 'Dana: still on?', '', 'remove', gmail)).toContain('Keep the greeting and the sign-off');
+  expect(rewritePrompt('See you soon', 'Sam: Saturday?')).not.toContain('first line must stand alone');
 });
 
 test('mail skips the length check and chats never check it', () => {
@@ -71,6 +130,7 @@ test('mail skips the length check and chats never check it', () => {
   expect(names).not.toContain('Long for a post');
   expect(names).not.toContain('Right length for a post');
   expect(names).not.toContain('Long for a message');
+  expect(names.some(name => name.startsWith('Too long'))).toBe(false);
   const chat = scoreDraft('See you soon', null, true, undefined, false, null, platformForApp('com.Slack'));
   expect(chat.reach).toEqual([]);
 });

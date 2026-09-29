@@ -1,6 +1,7 @@
 jest.mock('../accounts', () => ({ codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })), reportFailure: jest.fn(async () => ({ kind: 'rate_limit', until: 0 })) }));
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 import { chatgptWriter, streamResponses } from '../responses';
+import { platformForApp } from '../../core/platforms';
 import { codexAuth, reportFailure } from '../accounts';
 import { words } from '../../core/words';
 import { readDraftStream } from '../../core/responses-stream';
@@ -229,6 +230,31 @@ test('reply cleanup uses only control labels in the capture', async () => {
   try {
     expect((await chatgptWriter.write({ ...input, nodes: [{ text: 'Skip', left: 0, top: 30, bottom: 40, clickable: true }] })).drafts[0]).toBe('Yes.');
     expect((await chatgptWriter.write(input)).drafts[0]).toBe('Yes.\nSkip');
+  } finally { global.fetch = originalFetch; }
+});
+
+test('reply on X sends the X slots and cap; polish on LinkedIn sends the hook rule', async () => {
+  const originalFetch = global.fetch;
+  const bodies: string[] = [];
+  try {
+    global.fetch = jest.fn(async (_url, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body)) as { input: { content: { text: string }[] }[] };
+      bodies.push(payload.input[0].content[0].text);
+      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"drafts":["Nice, offline-first is the right call","SQLite on a phone? good luck with that","What made you skip accounts?"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    const x = platformForApp('com.twitter.android');
+    const reply = await chatgptWriter.write({ conversation: 'Maya: shipped our offline-first notes app', written: 'Maya: shipped our offline-first notes app', typed: '', platform: x });
+    expect(reply.drafts.length).toBe(3);
+    expect(bodies.at(-1)).toContain('On X: each draft fits one post (280).');
+    expect(bodies.at(-1)).toContain('Ask one sharp question about the post.');
+
+    global.fetch = jest.fn(async (_url, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body)) as { input: { content: { text: string }[] }[] };
+      bodies.push(payload.input[0].content[0].text);
+      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b","c"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
+    }) as unknown as typeof fetch;
+    await chatgptWriter.write({ conversation: 'screen', written: 'screen', typed: 'started my consultancy today', platform: platformForApp('com.linkedin.android') });
+    expect(bodies.at(-1)).toContain('keep paragraphs short');
   } finally { global.fetch = originalFetch; }
 });
 

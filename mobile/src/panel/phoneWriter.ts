@@ -2,7 +2,7 @@ import Native, { type ModelStatus } from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
-import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, REPLY_SLOTS, replyLabels, versionAcceptor } from '../core/drafts';
+import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, replyLabels, slotsFor, versionAcceptor } from '../core/drafts';
 import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
@@ -74,10 +74,11 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     take(answer, true);
   } finally { subscription.remove(); }
   const fillStarted = Date.now();
-  for (let slot = 0; slot < REPLY_SLOTS.length && Date.now() - fillStarted <= FILL_MS; slot++) {
+  const slots = slotsFor(request.platform);
+  for (let slot = 0; slot < slots.length && Date.now() - fillStarted <= FILL_MS; slot++) {
     if (made[slot]) continue;
     try {
-      const [draft] = acceptReplies([await ask(phoneSlotPrompt(REPLY_SLOTS[slot], input, exclude), 120)], exclude, 1, dashes, controls);
+      const [draft] = acceptReplies([await ask(phoneSlotPrompt(slots[slot], input, exclude), 120)], exclude, 1, dashes, controls);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }

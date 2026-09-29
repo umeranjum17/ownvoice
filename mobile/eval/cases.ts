@@ -5,7 +5,7 @@
 export type Case =
   | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; from?: string }
   | { id: string; kind: 'select'; typed: string; how: 'Shorter' | 'Simpler' | 'Fix spelling'; keep: string[]; exact?: string; layout?: boolean; why: string }
-  | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string };
+  | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string };
 
 const LOWER = 'How they write: all lowercase, short, no exclamation marks.';
 
@@ -67,4 +67,13 @@ export const cases: Case[] = [
     why: 'two questions; the time is only theirs to know' },
   { id: 'R08-ui-noise', kind: 'reply', screen: 'WhatsApp\nSam\nonline\nSam: Can you grab 2 bags of ice on the way? 6pm still good?\n10:42 PM\nType a message\nSend', points: [['ice'], ['6', 'six', 'still good', 'works', 'see you', 'there']], noise: ['online', 'Type a message', 'Send', '10:42'],
     why: 'screen with app labels: none may leak into a draft' },
+  // --- Package 2: one reply case per platform (report §3); `app` feeds the platform's slots and cap ---
+  { id: 'R09-x-post', kind: 'reply', app: 'com.twitter.android', screen: 'Maya @maya_dev · 2h\nShipped our offline-first notes app today. Local SQLite, no account needed.\n412 likes · 88 reposts', points: [['offline', 'local', 'sqlite', 'account', 'notes', 'app'], ['ship', 'launch', 'live', 'congrat', 'nice', 'cool', 'neat', 'love']], noise: ['likes', 'reposts', '@maya_dev'],
+    why: 'X post: agree with a detail, push back kindly, or ask a sharp question' },
+  { id: 'R10-linkedin-post', kind: 'reply', app: 'com.linkedin.android', screen: 'Priya Nair · 2nd · 3h\nAfter 6 years leading platform teams, I am starting my own consultancy. Lesson one: say no to work that drains you.\n214 reactions · 41 comments', points: [['consultancy', 'consulting', 'own', 'starting', 'new', 'venture', 'business'], ['team', 'platform', 'lesson', 'drain']], noise: ['reactions', 'comments'],
+    why: 'LinkedIn post: concrete example, respectful counterpoint, or a follow-up' },
+  { id: 'R11-reddit-thread', kind: 'reply', app: 'com.reddit.frontpage', screen: 'r/CampingGear · u/camp_dad · 5h\nSoft cooler or hard-sided for a weekend trip? I walk in, so weight matters.\n23 comments', points: [['cooler', 'soft', 'hard', 'sided', 'weight', 'walk'], ['weekend', 'trip', 'camp']], noise: ['comments'],
+    why: 'Reddit thread: specifics, a reasoned disagree, or one detail asked' },
+  { id: 'R12-slack-deploy', kind: 'reply', app: 'com.Slack', guide: LOWER, screen: 'Slack #team · Jake: the staging deploy failed again, logs point at the auth migration. can someone take a look before the 4pm demo?', points: [['deploy', 'staging', 'migration', 'auth', 'look', 'take'], ['4', 'demo', 'before', 'pm']],
+    why: 'Slack thread: next step, blocker, or what is unclear, lowercase voice' },
 ];
