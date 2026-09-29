@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+import { Image, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button } from '../src/ui/Button';
+import { Empty } from '../src/ui/Empty';
+import { Page } from '../src/ui/Page';
 import { Row } from '../src/ui/Row';
-import { space, type, useTheme } from '../src/ui/theme';
+import { Switch } from '../src/ui/Switch';
+import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
 import { PHONE_ONLY_KEY, getSource, phoneOnly, setSource } from '../src/core/source';
@@ -12,12 +14,12 @@ import { completeSetup } from '../src/core/setup-completion';
 import { store } from '../src/core/store';
 import Native from '../modules/ownvoice-native';
 
-type App = { app: string; label: string };
+type App = { app: string; label: string; icon?: string | null };
 
-/** Which apps stay on this phone even when ChatGPT writes. The list routing actually reads. */
+/** Which apps stay on this phone even when ChatGPT writes (the list routing actually reads):
+ *  the same icon-and-switch list as Where the bubble shows, staged until Done. */
 export default function GptApps() {
   const t = useTheme();
-  const inset = useSafeAreaInsets().top;
   const [apps, setApps] = useState<App[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [doneError, setDoneError] = useState<string | null>(null);
@@ -27,47 +29,53 @@ export default function GptApps() {
   const load = () => {
     setFailed(false);
     void Promise.all([Native.launcherApps(null), Native.bubbleRules(), getSource()])
-      .then(([shown, rules]) => {
+      .then(async ([shown, rules]) => {
         const visible = shown.filter(({ app }) => showsBubble(app, rules));
         const saved = phoneOnly(true);
         setChosen(Object.fromEntries(visible.map(({ app }) => [app, saved.includes(app)])));
-        setApps(visible);
+        // Launcher icons only come back for a named list; without them the rows still work.
+        const icons = await Native.launcherApps(visible.map(({ app }) => app)).catch(() => []);
+        const iconOf = new Map(icons.map(({ app, icon }) => [app, icon]));
+        setApps(visible.map(row => ({ ...row, icon: iconOf.get(row.app) ?? null })));
       })
       .catch(() => { setApps(null); setFailed(true); });
   };
   useEffect(load, []);
 
-  return <View style={{ flex: 1, padding: space.xl, paddingTop: inset + space.xl, gap: space.l, backgroundColor: t.sheet }}>
-    <Text style={[type.title, { color: t.text }]}>{words.phoneOnlyApps}</Text>
-    <Text style={[type.body, { color: t.muted }]}>{words.phoneOnlyNote}</Text>
-    <ScrollView keyboardShouldPersistTaps="always">
-      {(apps ?? []).map(({ app, label }) => {
-        const on = chosen[app] ?? false;
-        return <Row key={app} title={label} subtitle={on ? words.on : words.off} onPress={() => {
-          if (!savingNow.current) setChosen(current => ({ ...current, [app]: !on }));
-        }} />;
-      })}
-    </ScrollView>
-    {failed ? <Text style={[type.body, { color: t.muted }]}>{words.gptAppsUnavailable}</Text> : null}
-    {failed ? <Button kind="text" label={words.tryAgain} onPress={load} /> : null}
-    {doneError ? <Text style={[type.body, { color: t.muted }]}>{doneError}</Text> : null}
-    {!failed ? <Button kind="filled" label={words.done} disabled={!apps} onPress={() => {
-      if (!apps || savingNow.current) return;
-      savingNow.current = true;
-      setDoneError(null);
-      void (async () => {
-        const shown = new Set(apps.map(({ app }) => app));
-        const on = [...phoneOnly(true).filter(app => !shown.has(app)), ...apps.filter(({ app }) => chosen[app]).map(({ app }) => app)];
-        store.set(PHONE_ONLY_KEY, on);
-        setSource('chatgpt');
-        const fromSetup = !store.get('setup-done');
-        if (fromSetup) await completeSetup();
-        router.dismissAll();
-        if (fromSetup) router.replace('/');
-      })().catch(() => setDoneError(words.gptAppsSaveFailed)).finally(() => {
-        savingNow.current = false;
-      });
-    }} /> : null}
-    <Button kind="text" label={words.back} onPress={() => { if (!savingNow.current) router.back(); }} />
-  </View>;
+  const done = () => {
+    if (!apps || savingNow.current) return;
+    savingNow.current = true;
+    setDoneError(null);
+    void (async () => {
+      const shown = new Set(apps.map(({ app }) => app));
+      const on = [...phoneOnly(true).filter(app => !shown.has(app)), ...apps.filter(({ app }) => chosen[app]).map(({ app }) => app)];
+      store.set(PHONE_ONLY_KEY, on);
+      setSource('chatgpt');
+      const fromSetup = !store.get('setup-done');
+      if (fromSetup) await completeSetup();
+      router.dismissAll();
+      if (fromSetup) router.replace('/');
+    })().catch(() => setDoneError(words.gptAppsSaveFailed)).finally(() => {
+      savingNow.current = false;
+    });
+  };
+  const flip = (app: string, on: boolean) => { if (!savingNow.current) setChosen(current => ({ ...current, [app]: !on })); };
+
+  return <Page title={words.phoneOnlyApps} note={words.phoneOnlyNote} onBack={() => { if (!savingNow.current) router.back(); }}
+    footer={failed ? undefined : <>
+      {doneError ? <Text style={[type.body, { color: t.text, textAlign: 'center' }]}>{doneError}</Text> : null}
+      <Button kind="filled" large label={words.done} disabled={!apps} onPress={done} />
+    </>}>
+    {failed
+      ? <Empty mood="check" text={words.gptAppsUnavailable}><Button kind="filled" label={words.tryAgain} onPress={load} /></Empty>
+      : <View style={{ borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden', paddingVertical: space.xs }}>
+        {(apps ?? []).map(({ app, label, icon }) => {
+          const on = chosen[app] ?? false;
+          return <Row key={app} title={label} subtitle={on ? words.on : words.off}
+            lead={icon ? <Image source={{ uri: `data:image/png;base64,${icon}` }} style={{ width: 40, height: 40, borderRadius: 12 }} accessibilityIgnoresInvertColors /> : undefined}
+            end={<View pointerEvents="none"><Switch accessibilityLabel={label} value={on} onValueChange={() => {}} /></View>}
+            onPress={() => flip(app, on)} />;
+        })}
+      </View>}
+  </Page>;
 }

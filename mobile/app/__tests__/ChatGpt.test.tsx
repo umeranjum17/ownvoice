@@ -55,7 +55,7 @@ test('the code is shown big, can be copied, and can be given up on', async () =>
   await waitFor(() => expect(screen.queryByText('KQPT-MXVD')).toBeTruthy());
   expect(screen.getByText(waiting.note ?? '')).toBeTruthy();
   expect(screen.queryByText(words.back)).toBeNull();
-  await fireEvent.press(screen.getByText(words.copy));
+  await fireEvent.press(screen.getByText(words.copyAndOpen));
   expect(native.copy).toHaveBeenCalledWith('KQPT-MXVD');
   fake.cancel.mockImplementation(async () => (reports = { ...nothing, note: 'Sign-in stopped. Nothing was kept.' }));
   await fireEvent.press(screen.getByText(words.gptCancel));
