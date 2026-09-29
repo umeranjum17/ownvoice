@@ -418,14 +418,23 @@ test('a cancelled pick leaves the screen alone', async () => {
   expect(screen.queryByText(words.foundNothing)).toBeNull();
 });
 
-test('a newline stays editable before the next phrase is typed', async () => {
+test('phrases join as chips on Add or a new line, once each, and a chip tap removes it', async () => {
   const screen = await show(<Voice />);
+  expect(screen.getByText(words.neverSayNone)).toBeTruthy();
   const field = screen.getByLabelText(words.neverSay);
   await act(async () => { fireEvent.changeText(field, 'delve'); });
-  await act(async () => { fireEvent.changeText(field, 'delve\n'); });
-  expect(screen.getByLabelText(words.neverSay).props.value).toBe('delve\n');
-  await act(async () => { fireEvent.changeText(field, 'delve\ncircle back'); });
+  expect(loadVoice().never).toEqual([]);                                     // a half-typed phrase isn't saved
+  await act(async () => { fireEvent.press(screen.getByLabelText(words.addPhrase)); });
+  expect(loadVoice().never).toEqual(['delve']);
+  expect(screen.getByLabelText(words.neverSay).props.value).toBe('');
+  await act(async () => { fireEvent.changeText(field, 'Delve\ncircle back\nsyn'); });
   expect(loadVoice().never).toEqual(['delve', 'circle back']);
+  expect(screen.getByLabelText(words.neverSay).props.value).toBe('syn');
+  await act(async () => { fireEvent(field, 'submitEditing'); });
+  expect(loadVoice().never).toEqual(['delve', 'circle back', 'syn']);
+  await act(async () => { fireEvent.press(screen.getByLabelText(`${words.removePhrase} circle back`)); });
+  expect(loadVoice().never).toEqual(['delve', 'syn']);
+  expect(screen.queryByText('circle back')).toBeNull();
 });
 
 test('the rules, the note and the never-say list all save', async () => {
@@ -452,11 +461,12 @@ test('failed voice saves leave switches, notes and phrases unchanged', async () 
     set.mockImplementationOnce(() => { throw new Error('disk full'); });
     await act(async () => { fireEvent.changeText(screen.getByLabelText(words.howIWrite), 'short'); });
     expect(screen.getByLabelText(words.howIWrite).props.value).toBe('');
+    await act(async () => { fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve'); });
     set.mockImplementationOnce(() => { throw new Error('disk full'); });
-    await act(async () => { fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve'); });
-    expect(screen.getByLabelText(words.neverSay).props.value).toBe('');
+    await act(async () => { fireEvent.press(screen.getByLabelText(words.addPhrase)); });
+    expect(screen.getByLabelText(words.neverSay).props.value).toBe('delve');  // kept to try again
     expect(loadVoice().never).toEqual([]);
-    await act(async () => { fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve'); });
+    await act(async () => { fireEvent.press(screen.getByLabelText(words.addPhrase)); });
     expect(loadVoice().never).toEqual(['delve']);
     expect(screen.queryByText(words.failed)).toBeNull();
   } finally { set.mockRestore(); }

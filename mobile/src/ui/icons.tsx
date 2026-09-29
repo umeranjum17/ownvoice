@@ -70,3 +70,11 @@ export function EyeIcon({ size, color }: Props) {
 export function PauseIcon({ size, color }: Props) {
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M9,6 v12 M15,6 v12" stroke={color} {...line} strokeWidth={2.2} /></Svg>;
 }
+
+export function FileIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M6,3.5 h8 l4,4 V20.5 H6z M14,3.5 v4 h4 M9,13 h6 M9,16.5 h6" stroke={color} {...line} /></Svg>;
+}
+
+export function PlusIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12,5 v14 M5,12 h14" stroke={color} {...line} strokeWidth={2.2} /></Svg>;
+}
