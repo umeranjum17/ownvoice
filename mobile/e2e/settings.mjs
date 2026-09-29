@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 const serial = process.env.ANDROID_SERIAL;
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
 // Throwaway emulators only: a local emulator-NNNN, or a borrowed one over adb connect that says it is one.
-if (!serial || !serial.startsWith('emulator-') && adb('shell', 'getprop', 'ro.kernel.qemu').trim() !== '1') throw new Error('Use a throwaway emulator.');
+if (!serial || !serial.startsWith('emulator-') && !['ro.kernel.qemu', 'ro.boot.qemu'].some(prop => adb('shell', 'getprop', prop).trim() === '1')) throw new Error('Use a throwaway emulator.');
 const out = resolve(process.argv[2] ?? 'reports/ov-rn-07');
 mkdirSync(out, { recursive: true });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -18,9 +18,9 @@ const screenshot = () => {
   execFileSync('adb', ['-s', serial, 'pull', '/sdcard/ov-shot.png', local], { stdio: 'ignore' });
   return readFileSync(local);
 };
-const rows = () => execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: screenshot(), encoding: 'utf8' }).split('\n').slice(1)
+const rows = (image = screenshot()) => execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: image, encoding: 'utf8' }).split('\n').slice(1)
   .map(line => line.split('\t')).filter(cols => cols.length >= 12 && cols[11].trim());
-const visible = () => rows().map(cols => cols[11]).join(' ').toLowerCase();
+const visible = image => rows(image).map(cols => cols[11]).join(' ').toLowerCase();
 const expect = (label, text) => { if (!text.includes(label.toLowerCase())) throw new Error(`Missing ${label}: ${text}`); };
 const open = async route => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, 'dev.ownvoice.next'); await wait(1600); };
 const save = name => writeFileSync(resolve(out, `OWNVOICE-RN-07-${name}.png`), screenshot());
@@ -96,9 +96,9 @@ async function writes(kind) {
   const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
   const BANNED = /\bmodel|\btokens?\b|\bprompt|gemini|gemma|\bnano\b|aicore|ml ?kit|\bllm\b|\bjudge\b|\bslop\b|characters|on-device|gpt-\d|\bcodex\b|\bresponses\b|\/100|doesn't work on this phone|doesn.t work on this phone/;
   // One OCR line per Tesseract line, with its box; banded crops read the white-on-pill labels too.
-  const lines = image => {
+  const lines = (image, banded) => {
     const found = [];
-    for (const top of [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75)]) {
+    for (const top of banded ? Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75) : [0]) {
       const input = top ? execFileSync('magick', ['png:', '-crop', `${width}x150+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
       const byLine = new Map();
       for (const row of execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '6'] : []), 'tsv'], { input, encoding: 'utf8' }).split('\n').slice(1)) {
@@ -125,18 +125,21 @@ async function writes(kind) {
   const press = async label => {
     for (let i = 0; i < 8; i++) {
       // A line that is just the label wins over one that only contains it ("Apps that stay on this phone").
-      const found = lines(screenshot());
-      const hit = found.find(line => line.text.trim() === label) ?? found.find(line => line.text.includes(label));
+      const image = screenshot();
+      const pick = found => found.find(line => line.text.trim() === label) ?? found.find(line => line.text.includes(label));
+      const hit = pick(lines(image, false)) ?? pick(lines(image, true));
       if (hit) { adb('shell', 'input', 'tap', String(Math.round((hit.left + hit.right) / 2)), String(Math.round((hit.top + hit.bottom) / 2))); return; }
       await wait(1000);
     }
     throw new Error(`No visible "${label}" to tap.`);
   };
-  const plain = label => { const text = visible(); if (BANNED.test(text)) throw new Error(`${label}: technical or dead-end words on screen: ${text}`); };
+  // The picture first, then its words checked: the getting-ready bar lasts only seconds.
   const snap = (mode, name) => {
     if (!adb('shell', 'dumpsys', 'uimode').includes(`mComputedNightMode=${mode === 'dark'}`)) throw new Error(`Wrong colour mode for ${name}.`);
-    plain(name);
-    writeFileSync(resolve(out, `${name}-${mode}.png`), screenshot());
+    const image = screenshot();
+    writeFileSync(resolve(out, `${name}-${mode}.png`), image);
+    const text = visible(image);
+    if (BANNED.test(text)) throw new Error(`${name}: technical or dead-end words on screen: ${text}`);
   };
   const service = on => {
     const now = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
