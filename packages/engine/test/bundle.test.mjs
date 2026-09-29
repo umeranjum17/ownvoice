@@ -19,6 +19,7 @@ const PURE = new Set([
   'src/judge.ts',
   'src/words.ts',
   'src/threads.ts',
+  'src/protocol.ts',
 ].map(p => path.normalize(path.join(dir, '..', p))));
 
 test('engine bundle has no impure imports', async () => {

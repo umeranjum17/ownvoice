@@ -1,0 +1,43 @@
+#!/usr/bin/env node
+// ownvoice-engine: one JSON request on stdin -> one JSON response on stdout.
+// Runs on plain node with type stripping (no build step): `node --version`
+// needs strip-types support (unflagged since 22.18; this repo uses 26).
+//   ownvoice-engine hello   -> {protocol: 1, version}
+//   ownvoice-engine schema  -> the committed protocol/schema.json
+// Errors (bad JSON, bad request, unknown verb) print {"error":{code,message}}
+// on stdout; exit 1 on error, 0 on a good response.
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { handle, hello } from '../src/protocol.ts';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const out = (value, code = 0) => {
+  process.stdout.write(JSON.stringify(value) + '\n');
+  process.exit(code);
+};
+
+const arg = process.argv[2];
+if (arg === 'hello') out(hello());
+if (arg === 'schema') out(JSON.parse(readFileSync(join(root, 'protocol', 'schema.json'), 'utf8')));
+if (arg !== undefined) out({ error: { code: 'bad-request', message: 'usage: ownvoice-engine [hello|schema] < request.json' } }, 1);
+
+let input = '';
+process.stdin.setEncoding('utf8');
+process.stdin.on('data', chunk => { input += chunk; });
+process.stdin.on('end', () => {
+  let request;
+  try {
+    request = JSON.parse(input);
+  } catch {
+    out({ error: { code: 'bad-request', message: 'stdin is not JSON' } }, 1);
+    return;
+  }
+  try {
+    const response = handle(request);
+    const bad = response && typeof response === 'object' && 'error' in response;
+    out(response, bad ? 1 : 0);
+  } catch (error) {
+    out({ error: { code: 'internal', message: String(error instanceof Error ? error.message : error) } }, 1);
+  }
+});

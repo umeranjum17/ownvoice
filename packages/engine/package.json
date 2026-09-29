@@ -5,6 +5,9 @@
   "license": "Apache-2.0",
   "description": "Ownvoice pure writing core (model-free checks, prompts and parsers). No store, source, readLog, switch, writers, chatgpt or native code.",
   "type": "module",
+  "bin": {
+    "ownvoice-engine": "./bin/ownvoice-engine"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./src/*": "./src/*"
@@ -12,7 +15,7 @@
   "scripts": {
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --test test/bundle.test.mjs"
+    "test": "node --test \"test/*.mjs\""
   },
   "devDependencies": {
     "@typescript-eslint/parser": "^8.0.0",
