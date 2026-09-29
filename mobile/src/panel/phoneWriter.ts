@@ -1,4 +1,4 @@
-import Native from '../../modules/ownvoice-native';
+import Native, { type ModelStatus } from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
@@ -93,7 +93,7 @@ export const phoneWriter = {
       drafts.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts };
     }
-    let status;
+    let status: ModelStatus;
     try { status = await modelStatus(); } catch (error) { throw new Error(message(errorCode(error))); }
     if (status === 'unavailable') throw new Error(words.unsupported);
     // The one-time download needs the person's yes, which only Ownvoice itself asks for.
