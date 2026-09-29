@@ -227,5 +227,6 @@ export const words = {
   removeAsk:'Ownvoice won’t write on this phone until you get it ready again, which takes about 2 GB on Wi-Fi.',
   removeYes:'Remove',
   removeNo:'Keep it',
+  removeFailed:"That didn't work. Please try again.",
 
 } as const;

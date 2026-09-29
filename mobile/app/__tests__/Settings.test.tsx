@@ -197,6 +197,19 @@ test('Free up space removes the download after a second tap, and the phone asks 
   expect(await screen.findByText(words.readyTitle)).toBeTruthy();
 });
 
+test('a failed Free up space keeps the card and says so plainly', async () => {
+  kv.set(AGREED_KEY, 'true');
+  kv.set(SOURCE_KEY, '"phone"');
+  native.modelStatus.mockResolvedValue('available');
+  native.deleteModel.mockRejectedValueOnce(new Error('locked'));
+  const screen = await show(<Writing />);
+  await fireEvent.press(await screen.findByText(words.removeRow));
+  await fireEvent.press(screen.getByText(words.removeYes));
+  expect(await screen.findByText(words.removeFailed)).toBeTruthy();
+  expect(kv.get(AGREED_KEY)).toBe('true');
+  expect(screen.getByText(words.removeRow)).toBeTruthy();
+});
+
 test('a writer the phone came with has nothing to remove', async () => {
   native.modelStatus.mockResolvedValue('available');
   const screen = await show(<Writing />);

@@ -19,6 +19,7 @@ export function PhoneWriter() {
   const [phoneChosen, setPhoneChosen] = useState(false);
   const [fraction, setFraction] = useState(0);
   const [confirming, setConfirming] = useState(false);
+  const [removeFailed, setRemoveFailed] = useState(false);
   const [, setTick] = useState(0);
 
   const refresh = () => {
@@ -32,7 +33,7 @@ export function PhoneWriter() {
   }, []);
 
   const start = (mobileData = false) => { setFraction(0); void getReady(mobileData).catch(() => {}); refresh(); };
-  const remove = () => { setConfirming(false); void removeDownload().catch(() => {}).finally(refresh); };
+  const remove = () => { setConfirming(false); setRemoveFailed(false); void removeDownload().catch(() => setRemoveFailed(true)).finally(refresh); };
 
   const yes = agreed();
   const getting = model === 'downloading' || downloading();
@@ -74,6 +75,7 @@ export function PhoneWriter() {
         </View>
       </View>
       : <Row title={words.removeRow} subtitle={words.removeRowNote} onPress={() => setConfirming(true)} />}
+    {!confirming && removeFailed && <Text style={[type.note, styles.failed, { color: t.muted }]}>{words.removeFailed}</Text>}
   </View>;
 }
 
@@ -85,4 +87,5 @@ const styles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s, paddingHorizontal: space.l, paddingBottom: space.m },
   bar: { paddingHorizontal: space.l, paddingBottom: space.l },
   confirm: { gap: space.m, paddingHorizontal: space.l, paddingTop: space.s },
+  failed: { paddingHorizontal: space.l, paddingTop: space.xs },
 });
