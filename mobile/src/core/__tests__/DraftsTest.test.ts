@@ -3,7 +3,7 @@ import {
   layoutKept, norm, numbersAndTimesKept, phoneReplyPrompt, phoneSlotPrompt, preserveFragment,
   rebuildLines, replyPrompt, replySlotPrompt, stripControlLines, undash, versionAcceptor,
 } from '../drafts';
-import { versionsList } from '../judge';
+import { clean, versionsList } from '../judge';
 
 // ---- 5.5 cleanDrafts (unchanged; now living here) ----
 
@@ -62,6 +62,17 @@ test('cleanSelection drops trailing chatter lines past the original', () => {
   const list = 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon';
   expect(cleanSelection(list, list)).toBe(list);
   expect(cleanSelection('tommorow', 'tomorrow')).toBe('tomorrow');
+});
+
+test('a leading shorter-version preamble is stripped before the line window', () => {
+  expect(cleanSelection(
+    'Please bring the tent on Saturday.',
+    clean('Sure, here is your shorter version:\nBring the tent on Saturday.'),
+  )).toBe('Bring the tent on Saturday.');
+  expect(cleanSelection(
+    'Please bring the tent on Saturday.',
+    clean('Okay! Here is your shorter version:\nBring the tent on Saturday.'),
+  )).toBe('Bring the tent on Saturday.');
 });
 
 // ---- 5.3 Duplicates ----
