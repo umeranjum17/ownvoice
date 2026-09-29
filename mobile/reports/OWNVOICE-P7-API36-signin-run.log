@@ -1,0 +1,11 @@
+06:30:38 stand-in OpenAI on http://127.0.0.1:21455 (device at http://10.0.2.2:21455), dropPolls=0
+06:30:59 code issued: MOCK-10001
+06:31:01 code on screen: MOCK-10001
+06:31:14 browser wait 10s (focus: com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity)
+06:31:24 browser wait 20s (focus: com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity)
+06:31:34 browser wait 30s (focus: com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity)
+06:31:45 browser wait 40s (focus: com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity)
+06:31:55 browser wait 50s (focus: com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity)
+06:32:05 browser wait 60s (focus: com.android.chrome/org.chromium.chrome.browser.ChromeTabbedActivity)
+06:32:06 code approved on the page
+06:32:13 connected: the sign-in survived 60 s in the browser
