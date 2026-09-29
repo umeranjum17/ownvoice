@@ -33,14 +33,23 @@ class ModelBusyException : IllegalStateException("model download already running
  * Gemma 4 E2B-it on LiteRT-LM 0.17.1: the fallback on phones without AICore.
  * One-time download from Hugging Face litert-community (Apache-2.0, ungated),
  * pinned to an immutable revision URL and verified by SHA-256 before first use.
+ * Two files: the GPU build where the phone has OpenCL, the base build for CPU
+ * (the GPU build carries no CPU signatures, so one file cannot serve both).
  */
 internal object LocalGemma {
-  internal const val MODEL_FILE = "gemma-4-E2B-it-gpu.litertlm"
-  internal const val MODEL_URL =
-    "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1/gemma-4-E2B-it-gpu.litertlm"
-  // The file's git-LFS oid, which is the SHA-256 of its bytes (paths-info, 29 Sep 2026).
-  internal const val MODEL_SHA256 = "a53a59001894c58e6bdb5b9b227709f91a2e3e556baa7d85acf9c55402ba5cf5"
-  internal const val MODEL_SIZE = 2008432640L
+  internal data class Variant(val file: String, val url: String, val sha256: String, val size: Long)
+
+  private const val REVISION = "b3ca0d2f076785a8f4b2219ddbd2bdb99954eae1"
+  private const val REPO = "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/$REVISION"
+  // git-LFS oids, which are the SHA-256 of the files' bytes (paths-info, 29 Sep 2026).
+  internal val GPU = Variant(
+    "gemma-4-E2B-it-gpu.litertlm", "$REPO/gemma-4-E2B-it-gpu.litertlm",
+    "a53a59001894c58e6bdb5b9b227709f91a2e3e556baa7d85acf9c55402ba5cf5", 2008432640L,
+  )
+  internal val CPU = Variant(
+    "gemma-4-E2B-it.litertlm", "$REPO/gemma-4-E2B-it.litertlm",
+    "181938105e0eefd105961417e8da75903eacda102c4fce9ce90f50b97139a63c", 2588147712L,
+  )
   // ~8 GB RAM class and ~3 GB free: below that the phone is told it can't, per the captain.
   internal const val MIN_RAM_BYTES = 7_500_000_000L
   internal const val MIN_FREE_BYTES = 3_000_000_000L
@@ -52,7 +61,15 @@ internal object LocalGemma {
   @Volatile private var engine: Engine? = null
   private val initLock = Mutex()
 
-  fun modelFile(context: Context) = File(context.filesDir, MODEL_FILE)
+  /** The GPU build where the phone has OpenCL, else the base CPU build; one file lives on the phone. */
+  internal fun hasOpenCl(): Boolean =
+    File("/system/lib64/libOpenCL.so").exists() ||
+      File("/system/vendor/lib64/libOpenCL.so").exists() ||
+      File("/vendor/lib64/libOpenCL.so").exists()
+
+  internal fun variant(): Variant = if (hasOpenCl()) GPU else CPU
+
+  fun modelFile(context: Context) = File(context.filesDir, variant().file)
 
   /** Pure status table: verified file -> available; eligible phone -> downloadable; else unavailable. */
   internal fun selectStatus(fileOk: Boolean, totalMem: Long, freeBytes: Long, abis: Array<String>): String =
@@ -81,10 +98,14 @@ internal object LocalGemma {
 
   suspend fun status(context: Context): String {
     if (downloading.get()) return "downloading"
-    val file = modelFile(context)
+    val want = variant()
+    val file = File(context.filesDir, want.file)
     // Fast path: size match means a download this code verified (marker written after the hash check).
-    if (file.exists() && file.length() == MODEL_SIZE) return "available"
+    if (file.exists() && file.length() == want.size) return "available"
     if (file.exists()) file.delete()
+    // A stale other-variant file only wastes space.
+    val other = if (want == GPU) CPU else GPU
+    File(context.filesDir, other.file).delete()
     val info = ActivityManager.MemoryInfo()
     context.getSystemService(ActivityManager::class.java).getMemoryInfo(info)
     return selectStatus(false, info.totalMem, context.filesDir.usableSpace, Build.SUPPORTED_ABIS)
@@ -109,9 +130,11 @@ internal object LocalGemma {
   fun delete(context: Context) {
     release()
     val dir = context.filesDir
-    File(dir, MODEL_FILE).delete()
-    File(dir, "$MODEL_FILE.tmp").delete()
-    File(dir, "$MODEL_FILE.verified").delete()
+    for (variant in listOf(GPU, CPU)) {
+      File(dir, variant.file).delete()
+      File(dir, "${variant.file}.tmp").delete()
+      File(dir, "${variant.file}.verified").delete()
+    }
   }
 
   /** Release the GPU/CPU engine when the panel/rewrite screens close; it holds ~1.1-1.4 GB. */
@@ -176,63 +199,77 @@ internal object LocalGemma {
 
   private fun buildEngine(context: Context): Engine {
     val dir = context.filesDir
-    ensureVerified(dir, File(dir, MODEL_FILE))
     val cache = File(context.cacheDir, "litertlm").apply { mkdirs() }
-    val path = File(dir, MODEL_FILE).absolutePath
-    val gpuError = try {
-      return Engine(EngineConfig(
-        modelPath = path, backend = Backend.GPU(), maxNumTokens = 4096, cacheDir = cache.absolutePath,
-      )).also { it.initialize() }
-    } catch (error: Throwable) {
-      if (error is CancellationException) throw error
-      Log.w(OwnvoiceService.TAG, "GPU engine failed, falling back to CPU", error)
-      error
-    }
+    val cachePath = cache.absolutePath
+    val gpuFile = File(dir, GPU.file)
+    // GPU first where OpenCL exists and the GPU build is verified on disk; then CPU with the base build.
+    val gpuError = if (hasOpenCl() && isVerified(dir, gpuFile, GPU)) {
+      try {
+        return Engine(EngineConfig(
+          modelPath = gpuFile.absolutePath, backend = Backend.GPU(),
+          maxNumTokens = 4096, cacheDir = cachePath,
+        )).also { it.initialize() }
+      } catch (error: Throwable) {
+        if (error is CancellationException) throw error
+        Log.w(OwnvoiceService.TAG, "GPU engine failed, falling back to CPU", error)
+        error
+      }
+    } else null
+    val cpuFile = File(dir, CPU.file)
+    ensureVerified(dir, cpuFile, CPU)
     try {
       return Engine(EngineConfig(
-        modelPath = path, backend = Backend.CPU(6), maxNumTokens = 4096, cacheDir = cache.absolutePath,
+        modelPath = cpuFile.absolutePath, backend = Backend.CPU(6),
+        maxNumTokens = 4096, cacheDir = cachePath,
       )).also { it.initialize() }
     } catch (error: Throwable) {
       if (error is CancellationException) throw error
       throw UnsupportedOperationException("model failed to start", error).also {
-        it.addSuppressed(gpuError)
+        if (gpuError != null) it.addSuppressed(gpuError)
       }
     }
   }
 
+  private fun isVerified(dir: File, file: File, variant: Variant): Boolean {
+    if (!file.exists() || file.length() != variant.size) return false
+    if (File(dir, "${variant.file}.verified").exists()) return true
+    if (!variant.sha256.equals(fileSha256Hex(file), ignoreCase = true)) {
+      file.delete()
+      return false
+    }
+    File(dir, "${variant.file}.verified").writeText(variant.sha256)
+    return true
+  }
+
   /** The SHA-256 gate: a wrong-sized file is deleted outright; a right-sized one is hashed once. */
-  private fun ensureVerified(dir: File, file: File) {
+  private fun ensureVerified(dir: File, file: File, variant: Variant) {
     if (!file.exists()) throw UnsupportedOperationException("model file missing")
-    if (file.length() != MODEL_SIZE) {
+    if (file.length() != variant.size) {
       file.delete()
       throw UnsupportedOperationException("model file incomplete")
     }
-    if (File(dir, "$MODEL_FILE.verified").exists()) return
-    if (!MODEL_SHA256.equals(fileSha256Hex(file), ignoreCase = true)) {
-      file.delete()
-      throw UnsupportedOperationException("model file failed check")
-    }
-    File(dir, "$MODEL_FILE.verified").writeText(MODEL_SHA256)
+    if (!isVerified(dir, file, variant)) throw UnsupportedOperationException("model file failed check")
   }
 
   private fun downloadBlocking(context: Context, allowMobileData: Boolean, progress: (Float) -> Unit) {
+    val want = variant()
     val dir = context.filesDir
-    val file = File(dir, MODEL_FILE)
-    if (file.exists() && file.length() == MODEL_SIZE) {
+    val file = File(dir, want.file)
+    if (file.exists() && file.length() == want.size) {
       progress(1f)
       return
     }
     if (!allowMobileData) requireWifi(context)
-    val tmp = File(dir, "$MODEL_FILE.tmp")
+    val tmp = File(dir, "${want.file}.tmp")
     var done = if (tmp.exists()) tmp.length() else 0L
-    var connection = openConnection(done)
+    var connection = openConnection(want, done)
     activeConnection.set(connection)
     try {
       if (done > 0 && connection.responseCode != HttpURLConnection.HTTP_PARTIAL) {
         tmp.delete()
         done = 0L
         connection.disconnect()
-        connection = openConnection(0)
+        connection = openConnection(want, 0)
         activeConnection.set(connection)
       }
       val code = connection.responseCode
@@ -240,7 +277,7 @@ internal object LocalGemma {
         throw IOException("model download HTTP $code")
       }
       val remaining = connection.contentLengthLong
-      val total = if (remaining >= 0) done + remaining else MODEL_SIZE
+      val total = if (remaining >= 0) done + remaining else want.size
       if (dir.usableSpace < total - done) throw NoSpaceException()
       connection.inputStream.buffered().use { input ->
         RandomAccessFile(tmp, "rw").use { out ->
@@ -257,21 +294,21 @@ internal object LocalGemma {
           }
         }
       }
-      if (tmp.length() != MODEL_SIZE) throw IOException("model download short: ${tmp.length()}")
-      if (!MODEL_SHA256.equals(fileSha256Hex(tmp), ignoreCase = true)) {
+      if (tmp.length() != want.size) throw IOException("model download short: ${tmp.length()}")
+      if (!want.sha256.equals(fileSha256Hex(tmp), ignoreCase = true)) {
         tmp.delete()
         throw IOException("model file failed check")
       }
       tmp.renameTo(file)
-      File(dir, "$MODEL_FILE.verified").writeText(MODEL_SHA256)
+      File(dir, "${want.file}.verified").writeText(want.sha256)
       progress(1f)
     } finally {
       connection.disconnect()
     }
   }
 
-  private fun openConnection(from: Long): HttpURLConnection {
-    val connection = URL(MODEL_URL).openConnection() as HttpURLConnection
+  private fun openConnection(variant: Variant, from: Long): HttpURLConnection {
+    val connection = URL(variant.url).openConnection() as HttpURLConnection
     connection.connectTimeout = 15000
     connection.readTimeout = 30000
     connection.instanceFollowRedirects = true

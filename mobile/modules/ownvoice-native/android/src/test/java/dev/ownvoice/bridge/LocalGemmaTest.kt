@@ -36,7 +36,7 @@ class LocalGemmaTest {
     val file: File = tmp.newFile("model.bin")
     file.writeBytes("abc".toByteArray())
     assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", LocalGemma.fileSha256Hex(file))
-    assertFalse("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".equals(LocalGemma.MODEL_SHA256, ignoreCase = true))
+    assertFalse("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".equals(LocalGemma.GPU.sha256, ignoreCase = true))
   }
 
   @Test fun errorMapping() {
@@ -48,10 +48,21 @@ class LocalGemmaTest {
   }
 
   @Test fun pinnedDownloadIdentity() {
-    // The one-time file: name, immutable revision URL, byte size and content hash move together.
-    assertTrue(LocalGemma.MODEL_URL.startsWith("https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/"))
-    assertTrue(LocalGemma.MODEL_URL.endsWith("/" + LocalGemma.MODEL_FILE))
-    assertEquals(64, LocalGemma.MODEL_SHA256.length)
-    assertTrue(LocalGemma.MODEL_SIZE > 1_000_000_000L)
+    // The one-time files: name, immutable revision URL, byte size and content hash move together.
+    for (variant in listOf(LocalGemma.GPU, LocalGemma.CPU)) {
+      assertTrue(variant.url.startsWith("https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/"))
+      assertTrue(variant.url.endsWith("/" + variant.file))
+      assertEquals(64, variant.sha256.length)
+      assertTrue(variant.size > 1_000_000_000L)
+    }
+    // The GPU build carries no CPU signatures, so the CPU fallback needs the base build.
+    assertTrue(LocalGemma.GPU.file != LocalGemma.CPU.file)
+  }
+
+  @Test fun noOpenClMeansCpuBuild() {
+    // The unit-test host has no OpenCL library, like an emulator: the base build is selected.
+    assertFalse(File("/system/lib64/libOpenCL.so").exists())
+    assertFalse(LocalGemma.hasOpenCl())
+    assertEquals(LocalGemma.CPU, LocalGemma.variant())
   }
 }
