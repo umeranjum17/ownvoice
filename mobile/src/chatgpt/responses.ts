@@ -78,7 +78,7 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
 }
 
 /** Polish and compose through the C2 rewrite prompt, then the same acceptance rules as the phone. */
-async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]> {
+async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> {
   const dashes = request.dashes ?? 'remove' as const;
   const avoid = request.avoid ?? [];
   const note = avoidLine(avoid);
@@ -97,13 +97,13 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<string[]
     const fixed = acceptor.fix(again[0] ?? '', fail.slot, fail.label);
     if (fixed != null) landed(fixed, fail.slot, fail.label);
   }
-  return acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
+  return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: acceptor.unchanged };
 }
 
 export const chatgptWriter: Writer = {
   async write(request: DraftRequest, on: WriterEvents = {}): Promise<Choice> {
     try {
-      return { drafts: request.typed.trim() ? await polish(request, on) : await replies(request, on) };
+      return request.typed.trim() ? await polish(request, on) : { drafts: await replies(request, on) };
     } catch (error) {
       if (error instanceof SendVeto) throw error;
       const message = error instanceof Error ? error.message : String(error);

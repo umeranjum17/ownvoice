@@ -97,6 +97,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [reason, setReason] = useState<string | null>(null);
   const [who, setWho] = useState<string | null>(null);
   const [yours, setYours] = useState<Draft | null>(null);
+  const [unchanged, setUnchanged] = useState(false);
   const [cards, setCards] = useState<(Draft | null)[]>([null, null, null]);
   const [why, setWhy] = useState<number | null>(null);
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
@@ -118,6 +119,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setMode(nextMode);
     setCards([null, null, null]);
     setYours(null);
+    setUnchanged(false);
     setReason(null);
     setFraction(null);
     setWhy(null);
@@ -167,6 +169,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         });
         if (run.current !== id) return;
         setFraction(null);
+        setUnchanged(!!choice.unchanged && !choice.drafts.length);
         setReason(choice.reason ?? path.note);
         setNote(null);
         setPhase('ready');
@@ -228,6 +231,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const hasField = !!capture?.hasField;
   const mainNote = phase === 'failed' || phase === 'loading' ? note
+    : phase === 'ready' && unchanged ? words.looksGoodNote
     : phase === 'ready' && !shown.length ? (mode === 'reply' ? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
     : phase === 'ready' ? (mode === 'reply' ? (hasField ? words.readyReply : words.noField) : words.readyPolish)
     : fraction != null ? words.gettingReady
@@ -236,7 +240,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const mood = phase === 'failed' || mode === 'empty' || !capture ? 'check'
     : phase === 'ready' || yours || shown.length ? 'ready' : 'thinking';
 
-  const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !!mainNote;
+  const done = phase === 'ready' && unchanged;
+  const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
   const insertLabel = mode === 'reply' ? words.insert : words.useThis;
   const coverDraft = why != null ? shown.find(draft => draft.slot === why) : undefined;
   const check = coverDraft ? whys.get(coverDraft.text) : undefined;
@@ -253,9 +258,13 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     onCloseCover={() => setWhy(null)}>
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
     {yours ? <View style={{ marginBottom: space.m }}>
-      <Card variant="filled" label="Yours">
+      {/* Their text came back unchanged: it becomes the result, with Copy but no pointless Use this. */}
+      <Card variant={done ? 'outlined' : 'filled'} label={done ? words.looksGood : 'Yours'}>
         <Marked text={yours.text} hits={yours.scores.hits} />
         <VerdictLine verdict={Judge.verdict(yours.scores)} />
+        {done ? <View style={styles.actions}>
+          <Button kind="text" label={words.copy} onPress={() => { void Native.copy(yours.text).catch(() => {}); }} />
+        </View> : null}
       </Card>
     </View> : null}
     {cards.map((card, slot) => {

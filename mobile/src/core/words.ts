@@ -16,6 +16,8 @@ export const words = {
   noCapture:'Nothing to read on this screen. Close this and tap the bubble again.',
   noReplies:'Couldn\'t come up with replies this time. Try again.',
   noVersions:'Couldn\'t polish that this time. Try again.',
+  looksGood:'Looks good as it is',
+  looksGoodNote:'Nothing needs changing. You can send it as it is.',
   serviceOff:'Ownvoice is off. Use Copy instead.',
   fallback:'ChatGPT didn\'t answer. This phone wrote these instead.',
   phoneWrote:'This phone wrote these.',

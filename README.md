@@ -22,7 +22,7 @@ The same on-device model (Gemini Nano) writes and judges the drafts, and models 
 
 ## Compose boost
 
-Write your post, comment or message first, then tap the bubble. **Polish your message** shows your text with its sentence and its stock phrases highlighted. Below it are three versions of what you wrote: **Shorter**, **More like you**, and **Start with a detail**. Each version has a meaning check: "Same meaning", or "Check this: it leaves out “4”" when the version adds or drops a number, or when the model thinks it changes a claim. **Use this** replaces the text in the field with that version; **Copy** copies it.
+Write your post, comment or message first, then tap the bubble. **Polish your message** shows your text with its sentence and its stock phrases highlighted. Below it are three versions of what you wrote: **Shorter**, **More like you**, and **Start with a detail**. Each version has a meaning check: "Same meaning", or "Check this: it leaves out “4”" when the version adds or drops a number, or when the model thinks it changes a claim. **Use this** replaces the text in the field with that version; **Copy** copies it. When there's nothing to change (the writer hands your text back as it was, give or take spacing), the panel shows it under **Looks good as it is** with **Copy**, rather than saying it couldn't polish it.
 
 Ownvoice never writes a post for you from nothing. If the field is empty and there's nothing on screen to reply to, it asks you to write a line or two first. If the field is empty and a conversation is on screen, it drafts replies as before.
 

@@ -258,14 +258,21 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
   const shown: string[] = [];
   const results: AcceptedVersion[] = [];
   const layoutFails: { slot: number; label?: string }[] = [];
+  // Set when a version came back as their own text; with nothing else shown, that is "looks good as it is".
+  let unchanged = false;
+  const flat = (value: string) => value.replace(/\r\n/g, '\n').split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).join('\n').trim();
+  const same = (text: string) => { if (flat(text) === flat(original)) unchanged = true; };
   const clean = (text: string) => (dashes === 'remove' ? undash(text) : text).trim();
   const distinct = (text: string) => norm(text) !== norm(original) && fresh(text, [...shown, ...avoid]);
   const usable = (text: string) => distinct(text) && layoutKept(original, text);
   return {
     results,
     layoutFails,
+    /** True when nothing was shown and at least one version was their text unchanged. */
+    get unchanged() { return unchanged && !results.length; },
     /** Cheap checks while the version lands; returns the text to show, or null when dropped or queued for a layout fix. */
     accept(text: string, slot: number, label?: string): string | null {
+      same(text);
       const version = clean(text);
       if (!version) return null;
       if (!usable(version)) {
@@ -278,6 +285,7 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
     },
     /** The one layout retry for a failed slot; null means the version is dropped. */
     fix(text: string, slot: number, label?: string): string | null {
+      same(text);
       const version = clean(text);
       if (!version || !usable(version)) return null;
       shown.push(version);
