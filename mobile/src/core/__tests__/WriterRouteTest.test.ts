@@ -42,9 +42,10 @@ test('ChatGPT failing means the phone writes, and the panel is told why once', a
 
 test('an unchanged answer from ChatGPT is kept, not passed to the phone as a failure', async () => {
   const same: Writer = { write: async () => ({ drafts: [], unchanged: true }) };
-  expect(await withPhoneFallback(same, broken, request)).toEqual({ drafts: [], unchanged: true });
+  const failing: Writer = { write: async () => { throw new Error(words.chatgptFailed); } };
+  expect(await withPhoneFallback(same, failing, request)).toEqual({ drafts: [], unchanged: true });
   const none: Writer = { write: async () => ({ drafts: [] }) };
-  expect(await withPhoneFallback(none, phone, request)).toEqual({ drafts: three, reason: words.fallback });
+  expect(await withPhoneFallback(none, phone, request)).toEqual({ drafts: (await phone.write(request)).drafts, reason: words.fallback });
 });
 
 test('the read log says when a screen went to ChatGPT, and never says what it said', () => {
