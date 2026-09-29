@@ -124,7 +124,7 @@ const wordKey = (w: string) => {
   if (/^(dec(ember)?)$/.test(l)) return 'dec';
   return l;
 };
-/** Clock times in the rewrite that never appear in the original ("my flight is at 10 AM" with no time on screen). */
+/** Times, days and dates in the rewrite that never appear in the original ("my flight is at 10 AM" with no time on screen). */
 export function inventedTimes(original: string, rewrite: string): string[] {
   const have = new Map<string, Set<string>>();
   for (const m of original.matchAll(TIMES)) {
