@@ -177,7 +177,15 @@ export default function Home() {
       <Row lead={icon(PauseIcon)} title={words.rowPause} subtitle={words.rowPauseNote}
         end={<View pointerEvents="none"><Switch value={paused} disabled={!rules} onValueChange={v => changeRules(r => ({ ...r, paused: v }))} /></View>}
         onPress={() => { if (rules) changeRules(r => ({ ...r, paused: !r.paused })); }} />
-      <Row lead={icon(HandIcon)} title={words.rowRewrite} subtitle={words.rowRewriteNote} />
+    </View>
+
+    <View style={[styles.tip, { borderColor: t.line }]}>
+      {icon(HandIcon)}
+      <View style={{ flex: 1 }}>
+        <Text style={[type.label, { color: t.primary }]}>{words.tip}</Text>
+        <Text style={[type.body, { color: t.text, fontWeight: '500' }]}>{words.rowRewrite}</Text>
+        <Text style={[type.note, { color: t.muted }]}>{words.rowRewriteNote}</Text>
+      </View>
     </View>
   </ScrollView>;
 }
@@ -189,5 +197,6 @@ const styles = StyleSheet.create({
   dot: { marginLeft: -space.xs },
   // Dot rests, faded, while Ownvoice is off.
   resting: { opacity: 0.55 },
+  tip: { flexDirection: 'row', alignItems: 'flex-start', gap: space.l, borderRadius: shape.group, borderWidth: 1, borderStyle: 'dashed', padding: space.l },
   statusActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.l },
 });
