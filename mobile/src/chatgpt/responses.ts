@@ -9,6 +9,9 @@ import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvent
 
 // Temporary until byokit ships its streamed Responses call; delete this file then.
 
+/** The ChatGPT model both the panel writer and the lab agent brain send to. */
+export const CHATGPT_MODEL = 'gpt-6-sol';
+
 const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested three rewrite versions as JSON.';
 
@@ -21,7 +24,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
     if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
     const request = {
       method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
-      body: JSON.stringify({ model: 'gpt-6-sol', instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: key === 'text' ? { verbosity: 'low' } : { verbosity: 'low', format: { type: 'json_object' } } }),
+      body: JSON.stringify({ model: CHATGPT_MODEL, instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: key === 'text' ? { verbosity: 'low' } : { verbosity: 'low', format: { type: 'json_object' } } }),
     };
     await on?.sent?.();
     marked = true;
