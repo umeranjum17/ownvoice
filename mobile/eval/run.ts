@@ -8,10 +8,10 @@
 //      SEED (default 7), ONLY (comma prefixes, e.g. ONLY=R07 or ONLY=P01,P13,S05,R01,R07).
 import { writeFileSync } from 'node:fs';
 import { cases } from './cases.ts';
-import { platformForApp } from '../src/core/platforms.ts';
-import * as J from '../src/core/judge.ts';
-import * as D from '../src/core/drafts.ts';
-import * as T from '../src/core/threads.ts';
+import { platformForApp } from 'ownvoice-engine/src/platforms.ts';
+import * as J from 'ownvoice-engine/src/judge.ts';
+import * as D from 'ownvoice-engine/src/drafts.ts';
+import * as T from 'ownvoice-engine/src/threads.ts';
 
 const [label, base, outPath] = process.argv.slice(2);
 if (!label || !base || !outPath) {
