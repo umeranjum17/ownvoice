@@ -11,13 +11,18 @@ import kotlinx.coroutines.CancellationException
  * [LocalGemma] (a downloaded Gemma file) on phones without it.
  */
 internal object PhoneModel {
+  @Volatile private var aiCoreReady = false
+
   /** AICore state (a FeatureStatus int), or null when the phone has no AICore to ask. */
   private suspend fun aiCore(): Int? =
     try { AiCore.checkStatus() } catch (_: Throwable) { null }
 
   private suspend fun useAiCore(): Boolean {
+    if (aiCoreReady) return true
     val state = aiCore()
-    return state != null && state != FeatureStatus.UNAVAILABLE
+    val ready = state != null && state != FeatureStatus.UNAVAILABLE
+    if (ready) aiCoreReady = true
+    return ready
   }
 
   suspend fun status(context: Context): String {

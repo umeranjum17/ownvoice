@@ -100,11 +100,11 @@ internal object LocalGemma {
     val want = variant()
     val dir = context.filesDir
     val file = File(dir, want.file)
-    if (file.exists() && file.length() == want.size && File(dir, "${want.file}.verified").exists()) return "available"
+    if (withContext(Dispatchers.IO) { isVerified(dir, file, want) }) return "available"
     if (file.exists()) file.delete()
     // A stale other-variant file only wastes space.
     val other = if (want == GPU) CPU else GPU
-    File(dir, other.file).delete()
+    deleteVariantFiles(dir, other)
     val info = ActivityManager.MemoryInfo()
     context.getSystemService(ActivityManager::class.java).getMemoryInfo(info)
     return selectStatus(false, info.totalMem, context.filesDir.usableSpace, Build.SUPPORTED_ABIS)
@@ -129,11 +129,13 @@ internal object LocalGemma {
   fun delete(context: Context) {
     release()
     val dir = context.filesDir
-    for (variant in listOf(GPU, CPU)) {
-      File(dir, variant.file).delete()
-      File(dir, "${variant.file}.tmp").delete()
-      File(dir, "${variant.file}.verified").delete()
-    }
+    for (variant in listOf(GPU, CPU)) deleteVariantFiles(dir, variant)
+  }
+
+  private fun deleteVariantFiles(dir: File, variant: Variant) {
+    File(dir, variant.file).delete()
+    File(dir, "${variant.file}.tmp").delete()
+    File(dir, "${variant.file}.verified").delete()
   }
 
   /** Release the GPU/CPU engine when the panel/rewrite screens close; it holds ~1.1-1.4 GB. */
@@ -290,7 +292,10 @@ internal object LocalGemma {
         tmp.delete()
         throw IOException("model file failed check")
       }
-      tmp.renameTo(file)
+      if (!tmp.renameTo(file)) {
+        file.delete()
+        if (!tmp.renameTo(file)) throw IOException("model file not in place")
+      }
       File(dir, "${want.file}.verified").writeText(want.sha256)
       progress(1f)
     } finally {
