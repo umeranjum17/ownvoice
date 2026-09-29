@@ -189,6 +189,10 @@ export const words = {
   rowSourceGpt:'With your ChatGPT',
   rowSourceNone:'Not chosen yet',
   sourceNote:'Choose who writes your drafts. You can switch any time.',
+  // What each reply is for, in the order the writers fill them (REPLY_SLOTS in drafts.ts).
+  replyYes:'Say yes',
+  replyNo:'Say no, kindly',
+  replyAsk:'Ask first',
   writingSection:'What happens to your writing',
   headGpt:'Your chat goes to ChatGPT only when you tap',
   headPhone:'Nothing leaves this phone',

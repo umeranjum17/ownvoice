@@ -275,7 +275,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (!card) return phase === 'writing' ? <View key={slot} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
       const verdict = card.label ? null : distinctVerdict(card, shown);
       return <View key={slot} style={{ marginBottom: space.m }}>
-        <Card variant="outlined" label={card.label}>
+        <Card variant="outlined" label={card.label ?? (mode === 'reply' ? [words.replyYes, words.replyNo, words.replyAsk][card.slot] : undefined)}>
           <Marked text={card.text} hits={card.scores.hits} />
           {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           <View style={styles.actions}>
