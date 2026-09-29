@@ -32,7 +32,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
     try {
       text = await accounts.respond('owner', { instructions, input: prompt, model: CHATGPT_MODEL, onText });
     } catch (error) {
-      if (error instanceof ResponseError) await mark();
+      if (error instanceof ResponseError && error.kind !== 'network') await mark();
       throw error;
     }
     await mark();

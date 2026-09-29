@@ -435,7 +435,7 @@ test('an offline sign-in refresh before the send falls back with the offline lin
   try {
     expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.offlinePhone });
     expect(global.fetch).not.toHaveBeenCalled();
-    expect(sent).toHaveBeenCalledTimes(1);
+    expect(sent).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
