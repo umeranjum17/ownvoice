@@ -34,6 +34,7 @@ Stand-in request log (every request timestamped; the only evidence that matters)
 06:30:59 POST /api/accounts/deviceauth/token
 06:31:01 POST /api/accounts/deviceauth/token
 06:31:01 GET /codex/device
+06:31:02 GET /favicon.ico
 06:32:06 POST /codex/device
 06:32:09 POST /api/accounts/deviceauth/token
 06:32:09 POST /oauth/token authorization_code
