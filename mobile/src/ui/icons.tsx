@@ -78,3 +78,7 @@ export function FileIcon({ size, color }: Props) {
 export function PlusIcon({ size, color }: Props) {
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12,5 v14 M5,12 h14" stroke={color} {...line} strokeWidth={2.2} /></Svg>;
 }
+
+export function TrashIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4.5,6.5 h15 M9.5,6.5 V4.5 h5 v2 M6.5,6.5 l1,13.5 h9 l1,-13.5 M10.5,10.5 v6 M13.5,10.5 v6" stroke={color} {...line} /></Svg>;
+}
