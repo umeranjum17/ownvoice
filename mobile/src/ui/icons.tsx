@@ -39,6 +39,13 @@ export function ChatIcon({ size, color }: Props) {
     fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
 }
 
+// The "On this phone" writing option.
+export function PhoneIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path
+    d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
+    fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
+}
+
 // Home and settings: one small line icon per row, and the back arrow.
 const line = { fill: 'none', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' } as const;
 

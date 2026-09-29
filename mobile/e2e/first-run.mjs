@@ -2,10 +2,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// FirstRunTest for the setup slice: welcome -> permission (the test flips the switch) -> setup comes
-// back by itself -> practice insert in 4 taps -> only installed apps offered -> home. Every setup
-// screen's visible text is scanned for technical words, and the phone's settings are restored after.
-// Shell input and screencap only, never UiAutomator (which would unbind the service).
+// FirstRunTest for the setup slice: welcome -> how Ownvoice writes (an emulator has no phone writer, so
+// ChatGPT leads) -> the in-step sign-in code -> connected -> permission (the test flips the switch) ->
+// setup comes back by itself -> practice insert -> only installed apps offered -> home. Needs a release
+// APK built with EXPO_PUBLIC_E2E_GPT=1 (the offline sign-in stand-in) and EXPO_PUBLIC_E2E_STUB=1 (fixed
+// drafts). Every setup screen's visible text is scanned for technical words, and the phone's settings are
+// restored after. Shell input and screencap only, never UiAutomator (which would unbind the service).
 const serial = process.env.ANDROID_SERIAL;
 if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (owner phones are refused).');
 const apk = process.argv[2];
@@ -142,16 +144,38 @@ const run = async mode => {
   expectPlain('welcome');
   snap(tag('01-welcome'));
 
-  // 2. Permission: promises, the animated switch hint, Turn on.
+  // 2. How Ownvoice writes. No phone writer here, so ChatGPT is picked and the phone option is dimmed.
+  await tapText('Continue');
+  await waitForLine('needs your chatgpt');
+  await waitForLine('only some newer phones');
+  await wait(600);
+  expectPlain('choose');
+  snap(tag('02-choose'));
+
+  // 3. The sign-in stays inside the step: the code, then connected once the stand-in approves (about 9 s).
+  await tapText('Continue with');
+  await waitForLine(['your code', 'kqpt']);
+  await wait(600);
+  expectPlain('sign-in code');
+  snap(tag('03-code'));
+  await tapText('Copy code');
+  await waitForLine('chatgpt is connected', 30);
+  await waitForLine('nothing is sent at any other time');
+  await wait(600);
+  expectPlain('connected');
+  snap(tag('04-connected'));
+
+  // 4. Permission: the promise follows the choice, the animated switch hint, Turn on.
   await tapText('Continue');
   await waitForLine('let ownvoice see');
+  await waitForLine('goes only to your chatgpt');
   adb('shell', 'input', 'swipe', String(width / 2), String(height * .8), String(width / 2), String(height * .2), '400');
   await waitForLine('full control');
   await wait(1200); // The hint switch flips every 1.4 s; give the screenshot both states a chance.
   expectPlain('permission');
-  snap(tag('02-permission'));
+  snap(tag('05-permission'));
 
-  // 3. Turn on opens the phone's accessibility settings; the TEST flips the switch there. The dark
+  // 5. Turn on opens the phone's accessibility settings; the TEST flips the switch there. The dark
   // pass reinstalls over an enabled service, so this off/on is the documented rebind as well.
   await tapText('Turn on');
   let focus = '';
@@ -171,17 +195,17 @@ const run = async mode => {
   enableService();
   await wait(2500);
 
-  // 4. Setup comes back by itself once the service connects (B10), straight at the practice step.
+  // 6. Setup comes back by itself once the service connects (B10), straight at the practice step.
   await waitForLine('tap the round bubble');
   await wait(800);
   expectPlain('try');
-  snap(tag('03-try'));
+  snap(tag('06-try'));
   // The practice field is focused without the keyboard, so one tap on the bubble is enough.
   const ime = adb('shell', 'dumpsys', 'input_method');
   if (/mInputShown=true/.test(ime)) throw new Error('The practice field opened the keyboard.');
   if (!bubbleVisible()) throw new Error('The bubble is not visible on the practice chat (practice allowance missing).');
 
-  // 5. Four taps in all: Continue, Turn on, the bubble, Insert.
+  // 7. The bubble, then Insert.
   bubble();
   await waitForLine('pick one to put in your message'); // The drafts panel over the practice chat.
   await wait(2500); // The drafts land before Insert can take one.
@@ -192,26 +216,22 @@ const run = async mode => {
   // Full-screen OCR misses white-on-pill labels; the band-cropped tapText('Continue') below proves the button shows.
   if (doneText.includes('inserted. send it yourself')) throw new Error('The practice confirmation obscures Continue.');
   expectPlain('try done');
-  snap(tag('04-practice-done'));
+  snap(tag('07-practice-done'));
   const log = adb('logcat', '-d', '-s', 'OwnvoiceNative:I');
   if (!/insert result ok=true/.test(log)) throw new Error('The practice insert did not land.');
 
-  // 6. Continue leaves the practice step; "Where should I help?" only when an offered app is installed.
+  // 8. Continue leaves the practice step; "Where should I help?" only when an offered app is installed.
   await tapText('Continue');
   await waitForLine('the bubble shows only');
   await wait(1200);
   const text = screenText();
   const rows = OFFERED.filter(name => name === 'x' ? /\bx\b/.test(text) : text.includes(name));
   if (!rows.length) throw new Error('The apps step named none of the offered apps.');
-  snap(tag('05-apps'));
-  // Done is held at the bottom of the screen, above the gesture bar.
+  snap(tag('08-apps'));
+  // Done is held at the bottom of the screen, above the gesture bar; it finishes setup.
   tap(Math.round(width / 2), height - Math.round(160 * width / 1080));
-  await wait(1500);
-  await waitForLine('write with chatgpt'); // app choices lead to the optional offer, not straight home
-  snap(tag('06-offer'));
-  await tapText('Not'); // OCR reads the narrow Not now pill as “Not nhow” on this profile
   await waitForLine('where the bubble shows');
-  snap(tag('07-home'));
+  snap(tag('09-home'));
 };
 
 const priorMode = adb('shell', 'cmd', 'uimode', 'night').trim().match(/^Night mode: (yes|no|auto|custom_schedule|custom_bedtime)$/)?.[1];
@@ -227,7 +247,7 @@ try {
   adb('shell', 'cmd', 'uimode', 'night', 'yes');
   if (!/mComputedNightMode=true/.test(adb('shell', 'dumpsys', 'uimode'))) throw new Error('Could not switch the emulator to dark mode.');
   await run('dark');
-  console.log(`First-run proof saved to ${out}: setup walked in light and dark, texts plain, insert landed.`);
+  console.log(`First-run proof saved to ${out}: setup walked in light and dark, ChatGPT chosen and connected, texts plain, insert landed.`);
 } finally {
   let failure;
   for (const args of [

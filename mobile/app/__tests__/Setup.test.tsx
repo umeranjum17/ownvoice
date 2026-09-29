@@ -1,5 +1,5 @@
 import React from 'react';
-import { AccessibilityInfo, BackHandler, StyleSheet } from 'react-native';
+import { AccessibilityInfo, BackHandler, Linking, StyleSheet } from 'react-native';
 import { act, render, fireEvent, waitFor } from '@testing-library/react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -7,17 +7,25 @@ import Setup from '../setup';
 import Home from '../index';
 import Native from '../../modules/ownvoice-native';
 import { words, technicalWords } from '../../src/core/words';
+import { session, nothing, type GptState } from '../../src/chatgpt/session';
 
 jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: {
     modelStatus: jest.fn(), downloadModel: jest.fn(), serviceState: jest.fn(), launcherApps: jest.fn(),
     bubbleRules: jest.fn(), setBubbleRules: jest.fn(), setPractice: jest.fn(), clearSetupReturn: jest.fn(),
-    openAccessibilitySettings: jest.fn(), openAppInfo: jest.fn(), addListener: jest.fn(),
+    openAccessibilitySettings: jest.fn(), openAppInfo: jest.fn(), addListener: jest.fn(), copy: jest.fn(),
   },
+}));
+jest.mock('../../src/chatgpt/session', () => ({
+  ...jest.requireActual('../../src/chatgpt/session'),
+  session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
 }));
 
 const native = Native as jest.Mocked<typeof Native>;
+const gpt = session as jest.Mocked<typeof session>;
+const waitingCode: GptState = { ...nothing, waiting: true, code: 'KQPT-MXVD', url: 'https://chatgpt.com/code', note: 'Sign in on the ChatGPT page that just opened.' };
+const connected: GptState = { ...nothing, signedIn: true, note: 'ChatGPT is connected.' };
 const kv = (jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>);
 const events: Record<string, (event: { state?: string; ok?: boolean; newlinesLost?: boolean; practice?: boolean }) => void> = {};
 // Every root must be unmounted before the next test renders, or the next render comes up empty.
@@ -52,6 +60,11 @@ beforeEach(() => {
   native.clearSetupReturn.mockResolvedValue(undefined as never);
   native.openAccessibilitySettings.mockResolvedValue(undefined as never);
   native.openAppInfo.mockResolvedValue(undefined as never);
+  native.copy.mockResolvedValue(undefined as never);
+  gpt.current.mockResolvedValue(nothing);
+  gpt.start.mockResolvedValue(waitingCode);
+  gpt.cancel.mockResolvedValue({ ...nothing, note: 'Sign-in stopped. Nothing was kept.' });
+  jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   (native.addListener as unknown as jest.Mock).mockImplementation((event: string, cb: (event: never) => void) => {
     events[event] = cb as never;
     return { remove: () => {} };
@@ -63,15 +76,11 @@ beforeEach(() => {
 });
 
 const at = (step: string, inserted = false) => kv.set('setup', JSON.stringify({ step, inserted }));
-const skipChatGPT = async (screen: Awaited<ReturnType<typeof renderSetup>>) => {
-  await screen.findByText(words.gptTitle);
-  await fireEvent.press(screen.getByText(words.notNow));
-};
 
-test.each(['WELCOME', 'PERMISSION', 'TRY', 'APPS'])('%s uses plain visible wording', async step => {
+test.each(['WELCOME', 'CHOOSE', 'PERMISSION', 'TRY', 'APPS'])('%s uses plain visible wording', async step => {
   at(step, true);
   const screen = await renderSetup();
-  await screen.findByText(({ WELCOME: words.welcomeTitle, PERMISSION: words.permissionTitle, TRY: words.tryTitle, APPS: words.appsTitle } as Record<string, string>)[step]);
+  await screen.findByText(({ WELCOME: words.welcomeTitle, CHOOSE: words.tradeGpt3, PERMISSION: words.permissionTitle, TRY: words.tryTitle, APPS: words.appsTitle } as Record<string, string>)[step]);
   const visible: string[] = [];
   const collect = (node: unknown): void => {
     if (typeof node === 'string') visible.push(node);
@@ -102,7 +111,7 @@ test('homeSettingsDoesNotRequestASetupReturn', async () => {
   expect(router.push).toHaveBeenCalledWith('/apps');
 });
 
-test('welcomeStartsTheDownloadAndMovesToPermission', async () => {
+test('welcomeStartsTheDownloadAndMovesToTheChoice', async () => {
   native.modelStatus.mockResolvedValue('downloadable');
   const screen = await renderSetup();
   expect(await screen.findByText(words.welcomeTitle)).toBeTruthy();
@@ -110,18 +119,20 @@ test('welcomeStartsTheDownloadAndMovesToPermission', async () => {
   expect(StyleSheet.flatten(continueButton.parent?.props.style).alignItems).toBeUndefined();
   await waitFor(() => expect(native.downloadModel).toHaveBeenCalled());
   await fireEvent.press(screen.getByText(words.continueLabel));
-  expect(await screen.findByText(words.permissionTitle)).toBeTruthy();
-  expect(kv.get('setup')).toContain('PERMISSION');
+  expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
+  expect(kv.get('setup')).toContain('CHOOSE');
   await screen.unmount();
   // The step survives process death (S7), so a remount comes back to it.
   const again = await renderSetup();
-  expect(await again.findByText(words.permissionTitle)).toBeTruthy();
+  expect(await again.findByText(words.chooseTitle)).toBeTruthy();
 });
 
 test('alreadyOnSkipsThePermission', async () => {
   native.serviceState.mockResolvedValue('on');
   const screen = await renderSetup();
   expect(await screen.findByText(words.welcomeTitle)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.continueLabel));
+  await screen.findByText(words.tradePhone1);
   await fireEvent.press(screen.getByText(words.continueLabel));
   expect(await screen.findByText(words.tryTitle)).toBeTruthy();
 });
@@ -131,7 +142,9 @@ test('permissionExplainsAndOpensTheSwitch', async () => {
   const screen = await renderSetup();
   expect(await screen.findByText(words.permissionSubtitle)).toBeTruthy();
   expect(screen.getByText(words.promiseTap)).toBeTruthy();
-  expect(screen.getByText(words.promisePhone)).toBeTruthy();
+  expect(await screen.findByText(words.promiseStays)).toBeTruthy();
+  expect(screen.getByText(words.promiseStaysNote)).toBeTruthy();
+  expect(screen.queryByText(words.promiseGpt)).toBeNull();
   expect(screen.getByText(words.promiseSend)).toBeTruthy();
   expect(screen.getByText(words.switchRowAction, { includeHiddenElements: true })).toBeTruthy();
   expect(screen.getByText(words.fullControl)).toBeTruthy();
@@ -151,9 +164,15 @@ test('serviceOnAdvancesThePermissionByItself', async () => {
   expect(await screen.findByText(words.tryTitle)).toBeTruthy();
 });
 
+const throughTheChoice = async (screen: Awaited<ReturnType<typeof renderSetup>>) => {
+  await fireEvent.press(await screen.findByText(words.continueLabel));
+  await screen.findByText(words.tradePhone1);
+  await fireEvent.press(screen.getByText(words.continueLabel));
+};
+
 test('notNowSkipsPracticeWhenAppsRemain', async () => {
   const screen = await renderSetup();
-  await fireEvent.press(await screen.findByText(words.continueLabel));
+  await throughTheChoice(screen);
   await fireEvent.press(await screen.findByText(words.notNow));
   expect(await screen.findByText(words.appsTitle)).toBeTruthy();
   expect(native.launcherApps).toHaveBeenCalledWith(expect.arrayContaining(['com.whatsapp', 'com.google.android.gm']));
@@ -164,37 +183,31 @@ test('notNowSkipsPracticeWhenAppsRemain', async () => {
   expect(screen.queryByText('Chrome')).toBeNull();
 });
 
-test('no offered apps still leads to optional ChatGPT setup', async () => {
+test('no offered apps finishes setup after the permission', async () => {
   native.setBubbleRules.mockRejectedValue(new Error('unneeded write'));
   native.launcherApps.mockResolvedValue([{ app: 'com.android.chrome', label: 'Chrome', icon: null }]);
   const screen = await renderSetup();
-  await fireEvent.press(await screen.findByText(words.continueLabel));
+  await throughTheChoice(screen);
   await fireEvent.press(await screen.findByText(words.notNow));
-  expect(await screen.findByText(words.gptTitle)).toBeTruthy();
   expect(native.setBubbleRules).not.toHaveBeenCalled();
-  expect(kv.get('setup-done')).toBeUndefined();
-  await skipChatGPT(screen);
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
   expect(kv.get('setup-done')).toBe('true');
 });
 
-test('permission skip with no offered apps also leads to ChatGPT', async () => {
+test('permission skip with no offered apps finishes setup', async () => {
   at('PERMISSION');
   native.setBubbleRules.mockRejectedValue(new Error('unneeded write'));
   native.launcherApps.mockResolvedValue([]);
   const screen = await renderSetup();
   await fireEvent.press(await screen.findByText(words.notNow));
-  await skipChatGPT(screen);
   expect(native.setBubbleRules).not.toHaveBeenCalled();
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
-test('optional setup opens ChatGPT without marking setup done', async () => {
+test('a step saved by an older version resumes at the choice', async () => {
   at('CHATGPT');
   const screen = await renderSetup();
-  await fireEvent.press(await screen.findByText(words.gptButton));
-  expect(router.push).toHaveBeenCalledWith('/chatgpt');
-  expect(kv.get('setup-done')).toBeUndefined();
+  expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
 });
 
 test('appsSaveWhatTheyShowOnDone', async () => {
@@ -208,7 +221,6 @@ test('appsSaveWhatTheyShowOnDone', async () => {
   const saved = native.setBubbleRules.mock.calls[0][0];
   expect(saved.on).toContain('com.whatsapp');
   expect(saved.off).toContain('com.google.android.gm');
-  await skipChatGPT(screen);
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
   expect(native.clearSetupReturn).toHaveBeenCalledTimes(1);
   expect(kv.get('setup-done')).toBe('true');
@@ -229,7 +241,6 @@ test('choicesReplaceConflictingRulesAndWaitForTheWrite', async () => {
   await fireEvent.press(screen.getByText('Gmail'));
   expect(native.setBubbleRules.mock.calls[0][0].off).toContain('com.google.android.gm');
   complete();
-  await skipChatGPT(screen);
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
@@ -244,7 +255,6 @@ test('failedAppWriteLeavesSetupRecoverable', async () => {
   expect(kv.get('setup-done')).toBeUndefined();
   expect(router.replace).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText(words.done));
-  await skipChatGPT(screen);
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
 });
 
@@ -254,11 +264,10 @@ test('failedReturnCleanupLeavesSetupUnfinished', async () => {
   const screen = await renderSetup();
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
-  await skipChatGPT(screen);
   await waitFor(() => expect(native.clearSetupReturn).toHaveBeenCalledTimes(1));
   expect(kv.get('setup-done')).toBeUndefined();
   expect(router.replace).not.toHaveBeenCalled();
-  await fireEvent.press(screen.getByText(words.notNow));
+  await fireEvent.press(screen.getByText(words.done));
   await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
 });
 
@@ -273,7 +282,6 @@ test('appChoicesWaitForTheInstalledList', async () => {
   loaded([{ app: 'com.whatsapp', label: 'WhatsApp', icon: null }]);
   await screen.findByText('WhatsApp');
   await fireEvent.press(screen.getByText(words.done));
-  await skipChatGPT(screen);
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
@@ -309,7 +317,6 @@ test('launcherFailureDoesNotBecomeAnEmptyList', async () => {
   await fireEvent.press(screen.getByText(words.tryAgain));
   await screen.findByText('Gmail');
   await fireEvent.press(screen.getByText(words.done));
-  await skipChatGPT(screen);
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
 });
 
@@ -394,4 +401,136 @@ test('leavingByBackCountsAsDone', async () => {
   backHandlers.forEach(fire => fire());
   await waitFor(() => expect(kv.get('setup-done')).toBe('true'));
   expect(kv.has('setup')).toBe(false);
+});
+
+// How Ownvoice writes: the choice after Welcome, with the ChatGPT sign-in inside the same step.
+const radio = (screen: Awaited<ReturnType<typeof renderSetup>>, name: string) => screen.getByRole('radio', { name: new RegExp(`^${name}`) });
+const signInWithChatGpt = async (screen: Awaited<ReturnType<typeof renderSetup>>) => {
+  await fireEvent.press(await screen.findByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(words.continueLabel));
+};
+
+test('theChoiceDefaultsToThisPhoneWhereItCanWrite', async () => {
+  at('CHOOSE');
+  const screen = await renderSetup();
+  expect(await screen.findByText(words.chooseNote)).toBeTruthy();
+  expect(screen.getByTestId('setup-steps').props.accessibilityValue).toEqual({ min: 1, max: 4, now: 1 });
+  for (const line of [words.srcPhoneSub, words.tradePhone1, words.tradePhone2, words.tradePhone3, words.srcGptSub, words.tradeGpt1, words.tradeGpt2, words.tradeGpt3]) expect(screen.getByText(line)).toBeTruthy();
+  expect(radio(screen, words.srcPhone).props.accessibilityState).toEqual({ checked: true, disabled: false });
+  expect(radio(screen, words.srcGpt).props.accessibilityState).toEqual({ checked: false, disabled: false });
+  expect(screen.queryByText(words.notNow)).toBeNull();
+  await fireEvent.press(screen.getByText(words.continueLabel));
+  expect(await screen.findByText(words.permissionTitle)).toBeTruthy();
+  expect(kv.get('writer-source')).toBe('"phone"');
+  expect(await screen.findByText(words.promiseStays)).toBeTruthy();
+  expect(gpt.start).not.toHaveBeenCalled();
+});
+
+test('choosingChatGptSignsInInsideTheStepThenPromisesChatGpt', async () => {
+  at('CHOOSE');
+  const screen = await renderSetup();
+  await signInWithChatGpt(screen);
+  expect(await screen.findByText(words.signInTitle)).toBeTruthy();
+  expect(screen.getByTestId('sign-in-code').props.children).toBe('KQPT-MXVD');
+  expect(screen.getByText(words.waiting)).toBeTruthy();
+  expect(screen.getByText('Uses your ChatGPT plan. OpenAI may change this at any time.')).toBeTruthy();
+  expect(screen.getByTestId('setup-steps').props.accessibilityValue.now).toBe(1);
+  await fireEvent.press(screen.getByText(words.copyAndOpen));
+  expect(native.copy).toHaveBeenCalledWith('KQPT-MXVD');
+  expect(Linking.openURL).toHaveBeenCalledWith('https://chatgpt.com/code');
+  expect(kv.get('writer-source')).toBeUndefined();
+  // The person approves on the ChatGPT page; the step notices by itself.
+  gpt.current.mockResolvedValue(connected);
+  expect(await screen.findByText(words.connectedNote, {}, { timeout: 3000 })).toBeTruthy();
+  expect(screen.getByText('ChatGPT is connected')).toBeTruthy();
+  expect(screen.getByText(`${words.privacyGpt} ${words.sentOnlyOnTap}`)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.continueLabel));
+  expect(await screen.findByText(words.permissionTitle)).toBeTruthy();
+  expect(kv.get('writer-source')).toBe('"chatgpt"');
+  expect(await screen.findByText(words.promiseGpt)).toBeTruthy();
+  expect(screen.getByText(words.promiseGptNote)).toBeTruthy();
+  expect(screen.queryByText(words.promiseStays)).toBeNull();
+  await screen.unmount();
+  // Process death after the choice: the permission comes back, still promising ChatGPT.
+  const again = await renderSetup();
+  expect(await again.findByText(words.promiseGpt)).toBeTruthy();
+});
+
+test('alreadySignedInGoesStraightToConnected', async () => {
+  at('CHOOSE');
+  gpt.current.mockResolvedValue(connected);
+  const screen = await renderSetup();
+  await signInWithChatGpt(screen);
+  expect(await screen.findByText(words.connectedNote)).toBeTruthy();
+  expect(gpt.start).not.toHaveBeenCalled();
+});
+
+test.each([['Back', true], ['Cancel', false]])('%sFromSignInReturnsToTheChoiceAndKeepsNothing', async (_, hardware) => {
+  at('CHOOSE');
+  const screen = await renderSetup();
+  await signInWithChatGpt(screen);
+  await screen.findByTestId('sign-in-code');
+  if (hardware) await act(async () => { backHandlers.forEach(fire => fire()); });
+  else await fireEvent.press(screen.getByText(words.gptCancel));
+  expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
+  expect(gpt.cancel).toHaveBeenCalledTimes(1);
+  expect(kv.get('setup-done')).toBeUndefined();
+  expect(kv.get('writer-source')).toBeUndefined();
+  expect(kv.get('setup')).toContain('CHOOSE');
+  // A late answer from the dropped sign-in doesn't bring it back.
+  gpt.current.mockResolvedValue(connected);
+  await act(async () => { await new Promise(r => setTimeout(r, 1200)); });
+  expect(screen.queryByText(words.connectedNote)).toBeNull();
+});
+
+test('aFailedSignInSaysWhyAndOffersThePhone', async () => {
+  at('CHOOSE');
+  gpt.start.mockResolvedValue({ ...nothing, note: 'The code expired before it was used. Tap Sign in with ChatGPT for a new one.' });
+  const screen = await renderSetup();
+  await signInWithChatGpt(screen);
+  expect(await screen.findByText('The code expired before it was used. Tap Sign in with ChatGPT for a new one.')).toBeTruthy();
+  gpt.start.mockResolvedValue(waitingCode);
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  expect(await screen.findByTestId('sign-in-code')).toBeTruthy();
+  gpt.start.mockRejectedValue(new Error('offline'));
+  await act(async () => { backHandlers.forEach(fire => fire()); });
+  await signInWithChatGpt(screen);
+  expect(await screen.findByText(words.failed)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.usePhoneInstead));
+  expect(await screen.findByText(words.permissionTitle)).toBeTruthy();
+  expect(kv.get('writer-source')).toBe('"phone"');
+});
+
+test('whereThePhoneCantWriteChatGptLeadsAndNotNowEndsSetup', async () => {
+  at('CHOOSE');
+  native.modelStatus.mockResolvedValue('unavailable');
+  const screen = await renderSetup();
+  expect(await screen.findByText(words.chooseNoteCant)).toBeTruthy();
+  expect(screen.getByText(words.srcPhoneCant)).toBeTruthy();
+  expect(screen.queryByText(words.tradePhone1)).toBeNull();
+  expect(radio(screen, words.srcGpt).props.accessibilityState).toEqual({ checked: true, disabled: false });
+  expect(radio(screen, words.srcPhone).props.accessibilityState).toEqual({ checked: false, disabled: true });
+  expect(screen.queryByText(words.continueLabel)).toBeNull();
+  await fireEvent.press(screen.getByText(words.notNow));
+  await waitFor(() => expect(router.replace).toHaveBeenCalledWith('/'));
+  expect(kv.get('setup-done')).toBe('true');
+  expect(kv.get('writer-source')).toBeUndefined();
+  expect(native.setPractice).not.toHaveBeenCalledWith(true);
+});
+
+test('whereThePhoneCantWriteAFailedSignInOffersOnlyTryAgain', async () => {
+  at('CHOOSE');
+  native.modelStatus.mockResolvedValue('unavailable');
+  gpt.start.mockResolvedValue({ ...nothing, note: 'Couldn\'t reach ChatGPT. Check the internet connection, then tap Sign in again.' });
+  const screen = await renderSetup();
+  await fireEvent.press(await screen.findByText(words.gptButton));
+  expect(await screen.findByText(words.tryAgain)).toBeTruthy();
+  expect(screen.queryByText(words.usePhoneInstead)).toBeNull();
+});
+
+test('aSignInStillWaitingComesBackAfterTheScreenIsRebuilt', async () => {
+  at('CHOOSE');
+  gpt.current.mockResolvedValue(waitingCode);
+  const screen = await renderSetup();
+  expect(await screen.findByTestId('sign-in-code')).toBeTruthy();
 });
