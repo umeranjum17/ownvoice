@@ -1,5 +1,5 @@
 // Draft-quality logic (look spec section 5). Pure TypeScript; the writers call it.
-import { platformLine, type Platform } from './platforms';
+import { platformLine, slotsFor, CHAT_SLOTS, type Platform } from './platforms';
 import type { Rules } from './slop';
 import { addedNumbers, inventedTimes } from './slop';
 
@@ -169,11 +169,8 @@ export const dashesFor = (rules: Rules, ownText: string): 'keep' | 'remove' => d
 
 // ---- 5.1 Replies ----
 
-export const REPLY_SLOTS = [
-  'Say yes or agree, and answer each point.',
-  'Give a different answer: decline or suggest a change, kindly, still answering each point.',
-  'Not sure yet: a short honest reply that asks the one thing needed to decide.',
-];
+export const REPLY_SLOTS: [string, string, string] = CHAT_SLOTS;
+export { slotsFor };
 
 export type ScreenText = { text: string; left: number; top: number; bottom: number; clickable: boolean };
 
@@ -210,7 +207,7 @@ const slotList = (slots: string[]) => slots.map((slot, i) => `${i + 1}. ${slot}`
 
 /** The C2 reply prompt (quality eval Appendix A): no blanks, every point answered, the dash rule, fixed slots. */
 export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
-  const slots = input.slots ?? REPLY_SLOTS;
+  const slots = input.slots ?? slotsFor(input.platform);
   const single = slots.length === 1;
   return [
     'You write reply drafts for one person, from the text on their phone screen. The screen may include app labels, counts and buttons; ignore those.',
@@ -238,19 +235,19 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
 
 // The phone model gets the same rules condensed (≤ 700 characters of instructions), one call,
 // three replies, each labelled so cleanDrafts/parts() splits them.
-const PHONE_REPLY_INSTRUCTIONS = [
-  'Write reply drafts from the phone screen.',
+const phoneReplyInstructions = (slots: [string, string, string]) => [
+  'Write reply drafts from this screen.',
   'Every draft must respond to everything the latest message asks or offers.',
-  'Three replies as Draft 1:, Draft 2:, Draft 3:, each different:',
-  slotList(REPLY_SLOTS),
-  'If news, thanks or a feeling, stay warm: 1 short, 2 adds one detail, 3 asks a question.',
-  'Never invent facts, times or dates: use only what the screen shows. A suggested change reuses only screen times, else asks. Match their tone; short and plain. No flattery, hashtags, emoji or long dashes.',
+  'Draft 1:, Draft 2:, Draft 3:, each different:',
+  slotList(slots),
+  'If news, thanks or feelings, stay warm: 1 short, 2 adds a detail, 3 asks a question.',
+  'Never invent facts, times or dates: use only the screen. A change reuses only screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
 ].join('\n');
 
 /** The condensed phone prompt: instructions (≤ 700 characters) plus the input block. */
 export function phoneReplyPrompt(input: Omit<ReplyInput, 'dashes' | 'avoid'>): string {
   const line = platformLine(input.platform);
-  return `${PHONE_REPLY_INSTRUCTIONS}${line ? `\n${line}` : ''}\n\n${inputBlock(input)}`;
+  return `${phoneReplyInstructions(slotsFor(input.platform))}${line ? `\n${line}` : ''}\n\n${inputBlock(input)}`;
 }
 
 /** One extra call for one empty slot, with everything already shown as off-limits. */

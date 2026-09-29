@@ -189,7 +189,7 @@ export const words = {
   rowSourceGpt:'With your ChatGPT',
   rowSourceNone:'Not chosen yet',
   sourceNote:'Choose who writes your drafts. You can switch any time.',
-  // What each reply is for, in the order the writers fill them (REPLY_SLOTS in drafts.ts).
+  // What each reply is for, in the order the writers fill them (chat slots in platforms.ts).
   replyYes:'Say yes',
   replyNo:'Say no, kindly',
   replyAsk:'Ask first',

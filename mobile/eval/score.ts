@@ -8,7 +8,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cases } from './cases';
 import * as S from '../src/core/slop';
-import { layoutKept, REPLY_SLOTS } from '../src/core/drafts';
+import { layoutKept } from '../src/core/drafts';
+import { ALL_SLOTS } from '../src/core/platforms';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const byId = Object.fromEntries(cases.map(c => [c.id, c]));
@@ -19,7 +20,7 @@ const commentary = (t: string) => {
     || lines.some(l => /^(note|explanation|changes?( made)?)\s*:/i.test(l) || /^row \d+:/i.test(l) || /^-{3,}$/.test(l) || /```|^\{|"versions"/.test(l))
     || /(hope (this|that) helps|let me know if|i('ve| have)? (kept|changed|made|removed|fixed|cut)|the (text|message) (is|was) already)/i.test(lines.at(-1) ?? '');
 };
-const echoesPrompt = (t: string) => REPLY_SLOTS.some(s => low(t).includes(low(s).slice(0, 25))) || /\b(draft|slot|latest message|conversation:)\b/i.test(t) || /^not sure yet:/i.test(t);
+const echoesPrompt = (t: string) => ALL_SLOTS.some(s => low(t).includes(low(s).slice(0, 25))) || /\b(draft|slot|latest message|conversation:)\b/i.test(t) || /^not sure yet:/i.test(t);
 const emoji = (s: string) => [...s].filter(ch => /\p{Extended_Pictographic}/u.test(ch));
 const numbersChanged = (a: string, b: string) => [...S.addedNumbers(a, b), ...S.addedNumbers(b, a)];
 

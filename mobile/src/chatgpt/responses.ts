@@ -2,7 +2,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { classify } from '@byokit/accounts';
 import { codexAuth, reportFailure } from './accounts';
 import { readDraftStream, readTextStream } from '../core/responses-stream';
-import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, REPLY_SLOTS, versionAcceptor } from '../core/drafts';
+import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor, versionAcceptor } from '../core/drafts';
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
@@ -70,10 +70,11 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
   const made = acceptReplies(await ask(replyPrompt(input), REPLY_INSTRUCTIONS, 'drafts', 3, on), exclude, 3, dashes, controls);
   made.forEach((text, slot) => { if (text) { exclude.push(text); landed(text, slot); } });
-  for (let slot = 0; slot < REPLY_SLOTS.length; slot++) {
+  const slots = slotsFor(request.platform);
+  for (let slot = 0; slot < slots.length; slot++) {
     if (made[slot]) continue;
     try {
-      const [draft] = acceptReplies(await ask(replySlotPrompt(REPLY_SLOTS[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes, controls);
+      const [draft] = acceptReplies(await ask(replySlotPrompt(slots[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes, controls);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; }
   }
