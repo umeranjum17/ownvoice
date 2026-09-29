@@ -31,6 +31,14 @@ test('a mobile-data download picks up on mobile data after a restart', async () 
   expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: true }, expect.any(Function));
 });
 
+test('a restart with no explicit choice keeps mobile data allowed', async () => {
+  kv.set(AGREED_KEY, 'true');
+  kv.set(MOBILE_KEY, 'true');
+  await getReady();
+  expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: true }, expect.any(Function));
+  expect(kv.get(MOBILE_KEY)).toBe('true');
+});
+
 test('a Wi-Fi download resumes Wi-Fi-only', async () => {
   kv.set(AGREED_KEY, 'true');
   await resume();

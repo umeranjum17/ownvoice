@@ -33,9 +33,10 @@ export async function modelStatus(): Promise<ModelStatus> {
 }
 
 /** The person said yes: remember it and get the phone ready, joining a download that's already running. */
-export function getReady(allowMobileData = false): Promise<void> {
+export function getReady(allowMobileData?: boolean): Promise<void> {
+  const mobile = allowMobileData ?? !!store.get<boolean>(MOBILE_KEY);
   if (running) {
-    if (allowMobileData && !runningMobile) {
+    if (mobile && !runningMobile) {
       const prev = running;
       running = null;
       runningMobile = false;
@@ -44,10 +45,10 @@ export function getReady(allowMobileData = false): Promise<void> {
     } else return running;
   }
   store.set(AGREED_KEY, true);
-  store.set(MOBILE_KEY, allowMobileData ? true : null);
-  runningMobile = allowMobileData;
+  if (allowMobileData !== undefined) store.set(MOBILE_KEY, allowMobileData ? true : null);
+  runningMobile = mobile;
   tell(0);
-  const download = pretend() ? pretendDownload() : Native.downloadModel({ allowMobileData }, tell);
+  const download = pretend() ? pretendDownload() : Native.downloadModel({ allowMobileData: mobile }, tell);
   const current: Promise<void> = download.finally(() => {
     if (running === current) { running = null; runningMobile = false; tell(null); }
   });
