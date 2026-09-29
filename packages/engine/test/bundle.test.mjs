@@ -12,12 +12,12 @@ const esbuild = require('esbuild');
 
 const PURE = new Set([
   'src/index.ts',
-  '../../mobile/src/core/slop.ts',
-  '../../mobile/src/core/voice.ts',
-  '../../mobile/src/core/platforms.ts',
-  '../../mobile/src/core/drafts.ts',
-  '../../mobile/src/core/judge.ts',
-  '../../mobile/src/core/words.ts',
+  'src/slop.ts',
+  'src/voice.ts',
+  'src/platforms.ts',
+  'src/drafts.ts',
+  'src/judge.ts',
+  'src/words.ts',
 ].map(p => path.normalize(path.join(dir, '..', p))));
 
 test('engine bundle has no impure imports', async () => {
@@ -33,6 +33,7 @@ test('engine bundle has no impure imports', async () => {
   assert.ok(inputs.length > 0, 'expected bundle inputs');
   for (const input of inputs) {
     const abs = path.normalize(path.resolve(path.join(dir, '..'), input));
+    assert.ok(abs.startsWith(path.normalize(path.join(dir, '..')) + path.sep), `bundle escapes package dir: ${input}`);
     assert.ok(PURE.has(abs), `impure bundle input: ${input}`);
     assert.match(input, /^(?!.*(expo|react-native|@byokit|node_modules)).*$/, `banned input: ${input}`);
   }
