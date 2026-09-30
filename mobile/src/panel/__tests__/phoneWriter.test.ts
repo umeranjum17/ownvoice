@@ -95,6 +95,78 @@ test('first complete streamed card lands before the stand-in full response', asy
   expect(landedAt.length).toBeGreaterThanOrEqual(2);
 });
 
+test('bold numbered slots land individually after the next marker or stream end', async () => {
+  let partial: ((event: { id: string; text: string }) => void) | undefined;
+  const remove = jest.fn();
+  native.addListener.mockImplementation((_name, callback) => { partial = callback as typeof partial; return { remove } as never; });
+  const landed: [string, number][] = [];
+  const chunks = ['**Draft 1:** Saturday works.\nI can bring the stove.', '\n**Draft ', '2:', '** No, Sunday instead?', '\n**Draft 3:** What time?'];
+  native.draftStream.mockImplementation(async id => {
+    partial?.({ id: 'another-call', text: chunks.join('') });
+    partial?.({ id, text: chunks[0] });
+    partial?.({ id, text: chunks[1] });
+    expect(landed).toEqual([]);
+    partial?.({ id, text: chunks[2] });
+    expect(landed).toEqual([['Saturday works.\nI can bring the stove.', 0]]);
+    partial?.({ id, text: chunks[3] });
+    expect(landed).toHaveLength(1);
+    partial?.({ id, text: chunks[4] });
+    expect(landed).toEqual([['Saturday works.\nI can bring the stove.', 0], ['No, Sunday instead?', 1]]);
+    return chunks.join('');
+  });
+  const { drafts } = await phoneWriter.write(request(), { landed: (text, slot) => landed.push([text, slot]) });
+  expect(landed).toEqual(drafts.map((text, slot) => [text, slot]));
+  expect(drafts).toHaveLength(3);
+  expect(native.ask).not.toHaveBeenCalled();
+  expect(remove).toHaveBeenCalledTimes(1);
+});
+
+test('streamed empty slots stay hidden and each card keeps cleanup, dedupe and exclusions', async () => {
+  let partial: ((event: { id: string; text: string }) => void) | undefined;
+  native.addListener.mockImplementation((_name, callback) => { partial = callback as typeof partial; return { remove: jest.fn() } as never; });
+  native.ask.mockResolvedValue('');
+  const landed: [string, number][] = [];
+  native.draftStream.mockImplementation(async id => {
+    const chunks = ['**Draft 1:**\n**Draft 2:', '** Saturday works — I will bring the stove.\nSkip\n**Draft 3:', '** SATURDAY WORKS, I WILL BRING THE STOVE!'];
+    partial?.({ id, text: chunks[0] });
+    expect(landed).toEqual([]);
+    partial?.({ id, text: chunks[1] });
+    expect(landed).toEqual([['Saturday works, I will bring the stove.', 1]]);
+    partial?.({ id, text: chunks[2] });
+    expect(landed).toHaveLength(1);
+    return chunks.join('');
+  });
+  const nodes = [...request().nodes, { text: 'Skip', left: 0, top: 300, bottom: 330, clickable: true }];
+  const { drafts } = await phoneWriter.write(request({ nodes }), { landed: (text, slot) => landed.push([text, slot]) });
+  expect(drafts).toEqual(['Saturday works, I will bring the stove.']);
+  expect(landed).toHaveLength(1);
+  landed.length = 0;
+  native.draftStream.mockImplementation(async id => {
+    const answer = '**Draft 1:** Saturday works — I will bring the stove.\n**Draft 2:** SATURDAY WORKS, I WILL BRING THE STOVE!\n**Draft 3:';
+    partial?.({ id, text: answer });
+    expect(landed).toEqual([]);
+    return answer;
+  });
+  await phoneWriter.write(request({ nodes, avoid: drafts }), { landed: (text, slot) => landed.push([text, slot]) });
+  expect(landed).toEqual([]);
+});
+
+test('malformed and incomplete slot markers never paint during the stream', async () => {
+  let partial: ((event: { id: string; text: string }) => void) | undefined;
+  native.addListener.mockImplementation((_name, callback) => { partial = callback as typeof partial; return { remove: jest.fn() } as never; });
+  native.ask.mockResolvedValue('');
+  const landed = jest.fn();
+  native.draftStream.mockImplementation(async id => {
+    partial?.({ id, text: '**Draft X:**\n**Draft 1:' });
+    expect(landed).not.toHaveBeenCalled();
+    partial?.({ id, text: '**\n**Draft 2' });
+    expect(landed).not.toHaveBeenCalled();
+    return '';
+  });
+  await phoneWriter.write(request(), { landed });
+  expect(landed).not.toHaveBeenCalled();
+});
+
 test('exact duplicate replies are dropped and their slots refilled with the shown texts off-limits', async () => {
   native.drafts.mockResolvedValue([
     'Draft 1: Yep, still on for Saturday. 👍\nDraft 2: YEP still on for Saturday!\nDraft 3: Yep, still on for Saturday. 👍',

@@ -1,0 +1,9 @@
+--------- beginning of main
+09-30 11:08:40.893  5773  5773 D OwnvoiceNative: capture practice=false conversationLines=6 clickableNodes=4
+09-30 11:08:40.910  5773  5800 I ReactNativeJS: Running "panel"
+09-30 11:08:40.941  5773  5808 I OwnvoiceNative: model status available (local)
+09-30 11:08:40.948  5773  5808 I OwnvoiceNative: model status available (local)
+09-30 11:08:44.504  5773  5808 D OwnvoiceNative: draft first token ms=3555
+09-30 11:08:48.160  5773  5800 I ReactNativeJS: Ownvoice first draft ms=7212
+09-30 11:08:53.014  5773  5808 D OwnvoiceNative: draft complete ms=12064
+09-30 11:08:53.044  5773  5808 I OwnvoiceNative: model status available (local)
