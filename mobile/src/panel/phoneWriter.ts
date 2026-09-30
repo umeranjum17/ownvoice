@@ -2,7 +2,7 @@ import Native, { type ModelStatus } from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
-import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, replyLabels, slotsFor, versionAcceptor } from '../core/drafts';
+import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, slotsFor, versionAcceptor } from '../core/drafts';
 import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
@@ -57,14 +57,24 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   let partial = '';
   const id = `reply-${Date.now()}-${calls++}`;
   const take = (source: string, complete: boolean) => {
-    const markers = [...source.matchAll(replyLabels)];
-    const closed = complete ? source : source.slice(0, markers.at(-1)?.index ?? 0);
-    if (!closed.trim()) return;
-    acceptReplies([closed], exclude, 3, dashes, controls).forEach((text, slot) => {
-      if (!text || made[slot]) return;
-      made[slot] = text; exclude.push(text); landed(text, slot);
-      if (exclude.length === (request.avoid?.length ?? 0) + 1) console.log(`Ownvoice first draft ms=${Date.now() - started}`);
+    // Match the acceptor's Markdown cleanup before looking for slot boundaries.
+    source = source.replace(/\*\*/g, '');
+    const markers = [...source.matchAll(/(?:^|\s)(?:draft|option|version)\s*([1-3])[.):]/gi)]
+      .filter((marker, index, all) => index === 0 || marker[1] !== all[index - 1][1]);
+    // Keep repeated same-slot headings with their bodies for the acceptor's cleanup.
+    // The next distinct slot closes a streamed reply; the final answer closes the last.
+    const closed = markers.flatMap((marker, index) => {
+      const next = markers[index + 1];
+      return next || complete ? [source.slice(marker.index, next?.index ?? source.length)] : [];
     });
+    if (complete && !markers.length) closed.push(source);
+    for (const card of closed) {
+      acceptReplies([card], exclude, 3, dashes, controls).forEach((text, slot) => {
+        if (!text || made[slot]) return;
+        made[slot] = text; exclude.push(text); landed(text, slot);
+        if (exclude.length === (request.avoid?.length ?? 0) + 1) console.log(`Ownvoice first draft ms=${Date.now() - started}`);
+      });
+    }
   };
   const subscription = Native.addListener('onModelPartial', event => {
     if (event.id === id) { partial += event.text; take(partial, false); }
