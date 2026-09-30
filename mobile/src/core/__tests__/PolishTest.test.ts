@@ -8,8 +8,8 @@ test.each(['accept', 'fix'] as const)('polish %s corrects only remaining automat
   const typed = 'Its a plan. We shoud go by the the evening at 8.';
   const acceptor = await polishAcceptor(typed, 'keep', [], spell);
   expect(acceptor[method]("It's a plan. We shoud go by the the evening at 8.", 0)).toBe("It's a plan. We should go by the evening at 8.");
-  const advisory = await polishAcceptor('Its a plan.', 'keep', [], spell);
-  expect(advisory[method]('Its a plan.', 0)).toBeNull();
+  const advisory = await polishAcceptor('Its own engine', 'keep', [], spell);
+  expect(advisory[method]('Its own engine', 0)).toBeNull();
   expect(advisory.unchanged).toBe(true);
   const other = await polishAcceptor(typed, 'keep', [], spell);
   expect(other[method]('We shoud go by the evening at 8.', 1)).toBe('We shoud go by the evening at 8.');
@@ -31,4 +31,10 @@ test.each(['accept', 'fix'] as const)('polish %s preserves repeated names and ha
     expect(acceptor.results).toEqual([]);
     expect(acceptor.unchanged).toBe(true);
   }
+});
+
+test.each(['accept', 'fix'] as const)('polish %s cleans unchanged original text', async method => {
+  const typed = 'Its a good plan, Umer shoud be there by the the evening.';
+  const acceptor = await polishAcceptor(typed, 'keep', [], spell);
+  expect(acceptor[method](typed, 0)).toBe("It's a good plan, Umer should be there by the evening.");
 });

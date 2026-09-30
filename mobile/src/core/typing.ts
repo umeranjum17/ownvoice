@@ -137,6 +137,10 @@ const AUTO_SPELLING = new Map([['shoud', 'should'], ['teh', 'the'], ['recieve', 
 
 export function fixedSlips(text: string, spell: Speller | null): string {
   const corrections: Slip[] = [];
+  // Only this explicit article context is automatic; other grammar stays advisory.
+  for (const m of unprotected(text).matchAll(/(?<![\p{L}\p{M}\p{N}_'’])([Ii]ts)(?= (?:a|an|the)(?![\p{L}\p{M}\p{N}_'’]))/gu)) {
+    corrections.push({ start: m.index!, end: m.index! + m[1].length, reason: GRAMMAR, fix: keepCase(m[1], "it's") });
+  }
   if (spell) for (const slip of spelling(text, spell)) {
     const word = text.slice(slip.start, slip.end);
     if (APOSTROPHE[word] || spell.correct(word)) continue;
