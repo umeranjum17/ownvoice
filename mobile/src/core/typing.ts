@@ -133,6 +133,8 @@ export function fixed(text: string, slip: Slip): string {
   return text.slice(0, slip.start) + slip.fix + text.slice(slip.end);
 }
 
+const AUTO_SPELLING = new Map([['shoud', 'should'], ['teh', 'the'], ['recieve', 'receive']]);
+
 export function fixedSlips(text: string, spell: Speller | null): string {
   const deletions: Slip[] = [];
   for (const m of unprotected(text).matchAll(/(?<![\p{L}\p{M}\p{N}_'’])([a-z]+)(?=([ \t]+\1)(?![\p{L}\p{M}\p{N}_'’]))/giu)) {
@@ -142,9 +144,10 @@ export function fixedSlips(text: string, spell: Speller | null): string {
   if (spell) for (const slip of spelling(text, spell)) {
     const word = text.slice(slip.start, slip.end);
     if (APOSTROPHE[word] || spell.correct(word) || deletions.some(d => slip.start < d.end && slip.end > d.start)) continue;
-    const [best, next] = candidates(word, spell);
-    if (!best || /\p{Lu}/u.test(best.s) || next && best.d === next.d && COMMON.has(best.s.toLowerCase()) === COMMON.has(next.s.toLowerCase())) continue;
-    corrections.push({ ...slip, fix: best.s });
+    const suggestions = spell.suggest(word);
+    const fix = AUTO_SPELLING.get(word) ?? (suggestions.length === 1 ? suggestions[0] : undefined);
+    if (!fix || /\p{Lu}/u.test(fix)) continue;
+    corrections.push({ ...slip, fix });
   }
   let result = text;
   for (const slip of [...deletions, ...corrections].sort((a, b) => b.start - a.start)) result = fixed(result, slip);
