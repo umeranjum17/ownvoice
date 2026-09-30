@@ -29,15 +29,15 @@ with tempfile.TemporaryDirectory(dir=args.scratch) as scratch:
                '-annotate', '+0+10', label, output)
         tiles.append(output)
 
-    for app, folder in [('Expo dev.ownvoice.next', root / 'mobile/android/app/src/main/res'),
-                        ('Kotlin dev.ownvoice.app', root / 'app/src/main/res')]:
+    for app, folder, extension in [('Expo dev.ownvoice.next', root / 'mobile/android/app/src/main/res', 'webp'),
+                                   ('Kotlin dev.ownvoice.app', root / 'app/src/main/res', 'png')]:
         for kind in ['ic_launcher', 'ic_launcher_round', 'ic_launcher_foreground', 'ic_launcher_monochrome']:
             for density, size in densities:
-                path = folder / f'mipmap-{density}/{kind}.webp'
-                tile(path, f'{app}\nmipmap-{density}/{kind}.webp (native pixels)')
+                path = folder / f'mipmap-{density}/{kind}.{extension}'
+                tile(path, f'{app}\nmipmap-{density}/{kind}.{extension} (native pixels)')
         for shape in ['circle', 'squircle', 'themed']:
             for density, size in densities:
-                fg = folder / f'mipmap-{density}/ic_launcher_{"monochrome" if shape == "themed" else "foreground"}.webp'
+                fg = folder / f'mipmap-{density}/ic_launcher_{"monochrome" if shape == "themed" else "foreground"}.{extension}'
                 viewport = int(size * 1.5)
                 offset = int(size * .375)
                 cropped = scratch / 'cropped.png'

@@ -161,6 +161,9 @@ This repository holds two Android apps plus the shared writing core:
 - **[`app/`](app/README.md)**: the original Kotlin app (`dev.ownvoice.app`), which the Expo app succeeds but does not yet fully replace. Its README covers how drafts are scored, its privacy details, and its build and device tests.
 - **[`packages/engine/`](packages/engine/package.json)**: the model-free writing core (`ownvoice-engine`, private until its eval gate passes), published as a package instead of copied code. The app imports it; `mobile/src/core/` holds only re-export shims.
 
+For both apps' shared artwork, regeneration commands and icon previews, see the
+[Android icon guide](docs/icons/README.md).
+
 Checks for the Expo app:
 
 ```sh

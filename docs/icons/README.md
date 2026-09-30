@@ -5,10 +5,12 @@ Ownvoice ships two Android packages: Expo `dev.ownvoice.next` and legacy Kotlin
 PWA icon set is added.
 
 The three existing Dot masters in `mobile/assets/icon/` remain unchanged.
-`mobile/app.config.js` selects the main icon, adaptive foreground and monochrome
-layer, with `#FFF0EA` as the adaptive background. Expo prebuild generates launcher,
+[Expo config](../../mobile/app.config.js) selects the main icon, adaptive foreground,
+monochrome layer and background colour. Expo prebuild generates launcher,
 round, foreground and monochrome resources at mdpi through xxxhdpi. The legacy
 manifest now selects launcher and round resources generated from those same masters.
+The sync script preserves Expo's image bytes but uses `.png` filenames in the
+legacy app, matching their encoded format; Android resource names stay the same.
 Accessibility services inherit their application's icon (neither overrides it).
 
 To regenerate, with mobile dependencies installed and ImageMagick available:
@@ -17,7 +19,9 @@ To regenerate, with mobile dependencies installed and ImageMagick available:
 cd mobile
 npx expo prebuild --platform android --no-install
 sh scripts/sync-icons.sh
-python3 scripts/icon-contact-sheet.py --scratch /path/to/scratch
+mkdir -p ../.icon-scratch
+python3 scripts/icon-contact-sheet.py --scratch ../.icon-scratch
+rmdir ../.icon-scratch
 ```
 
 The contact-sheet script also needs Fontconfig (`fc-match`) for labels.
@@ -33,10 +37,11 @@ its own mask. It is shared by both packages.
 
 [Contact sheet](OWNVOICE-icons-contact-sheet.png) shows every exported density at
 its actual pixel dimensions, then circle, squircle and themed adaptive previews.
-Both apps use identical exports. The foreground's visible bounds at 1024 pixels
-are 362×473 at (331,296); the monochrome bounds are 340×451 at (342,307).
-Both fit inside the central 66% safe circle. The existing art is crisp and retains
-its complete face under the launcher masks.
+Both apps use identical image bytes. The foreground and monochrome artwork live
+in the [source assets](../../mobile/assets/icon/); use the generated contact sheet
+to review their size and fit under launcher masks.
+The checked-in sheet records the original export filenames: its legacy `.webp`
+labels correspond to the `.png` files now used by the Kotlin app.
 
 [Android launcher proof](OWNVOICE-icons-launcher.png) shows both release packages
 installed on the task-owned `ov-icons` Android 16 emulator. The legacy unsigned
@@ -45,7 +50,6 @@ The emulator was stopped after capture; no physical phone was modified.
 
 Validation: Expo prebuild and both `assembleRelease` builds passed, as did mobile
 lint, typecheck, 46 Jest suites (760 tests, 46 snapshots), and 50 legacy unit tests.
-All 22 legacy mipmap files match the generated Expo exports byte for byte. The
-Play asset is 512×512 and fully opaque. Notification display is untested because
-neither package produces notifications in this checkout; themed icons are shown
-as rendered resource previews, while the launcher capture shows full-colour icons.
+Legacy mipmap files retain the generated Expo exports byte for byte. Themed icons
+are shown as rendered resource previews, while the launcher capture shows
+full-colour icons; notification limitations are described above.
