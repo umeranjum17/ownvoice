@@ -121,6 +121,41 @@ test('bold numbered slots land individually after the next marker or stream end'
   expect(remove).toHaveBeenCalledTimes(1);
 });
 
+test('repeated slot headings stay with their bodies in streamed and final answers', async () => {
+  let partial: ((event: { id: string; text: string }) => void) | undefined;
+  native.addListener.mockImplementation((_name, callback) => { partial = callback as typeof partial; return { remove: jest.fn() } as never; });
+  const landed: [string, number][] = [];
+  const drafts = [
+    "That's awesome Alex! Congrats. Oct 14 is great. So happy for you.",
+    "Congrats Alex! That's fantastic news. Oct 14 works for you? Just checking if that's okay with the team.",
+    "Wow, congrats Alex! That's great news. What kind of role is it?",
+  ];
+  const chunks = [
+    '**Draft 1: Agree/Yes**\n\nDraft 1:',
+    ` ${drafts[0]}\n\n**Option 2: Decline/Suggest Change (Kindly)**\n\nOption 2:`,
+    ` ${drafts[1]}\n\n**Version 3: Not Sure Yet**\n\nVersion 3:`,
+    ` ${drafts[2]}`,
+  ];
+  native.draftStream.mockImplementation(async id => {
+    partial?.({ id, text: chunks[0] });
+    expect(landed).toEqual([]);
+    partial?.({ id, text: chunks[1] });
+    expect(landed).toEqual([[drafts[0], 0]]);
+    partial?.({ id, text: chunks[2] });
+    expect(landed).toEqual([[drafts[0], 0], [drafts[1], 1]]);
+    partial?.({ id, text: chunks[3] });
+    expect(landed).toHaveLength(2);
+    return chunks.join('');
+  });
+  await expect(phoneWriter.write(request(), { landed: (text, slot) => landed.push([text, slot]) })).resolves.toEqual({ drafts });
+  expect(landed).toEqual(drafts.map((text, slot) => [text, slot]));
+  landed.length = 0;
+  native.draftStream.mockResolvedValue(chunks.join(''));
+  await expect(phoneWriter.write(request(), { landed: (text, slot) => landed.push([text, slot]) })).resolves.toEqual({ drafts });
+  expect(landed).toEqual(drafts.map((text, slot) => [text, slot]));
+  expect(native.ask).not.toHaveBeenCalled();
+});
+
 test('streamed empty slots stay hidden and each card keeps cleanup, dedupe and exclusions', async () => {
   let partial: ((event: { id: string; text: string }) => void) | undefined;
   native.addListener.mockImplementation((_name, callback) => { partial = callback as typeof partial; return { remove: jest.fn() } as never; });

@@ -59,7 +59,8 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   const take = (source: string, complete: boolean) => {
     // Match the acceptor's Markdown cleanup before looking for slot boundaries.
     source = source.replace(/\*\*/g, '');
-    const markers = [...source.matchAll(/(?:^|\s)(?:draft|option|version)\s*([1-3])[.):]/gi)];
+    const markers = [...source.matchAll(/(?:^|\s)(?:draft|option|version)\s*([1-3])[.):]/gi)]
+      .filter((marker, index, all) => index === 0 || marker[1] !== all[index - 1][1]);
     // Only the next marker closes a streamed slot. The final answer closes the last.
     const closed = markers.flatMap((marker, index) => {
       const next = markers[index + 1];
