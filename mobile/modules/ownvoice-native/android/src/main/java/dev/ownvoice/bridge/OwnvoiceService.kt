@@ -15,7 +15,6 @@ import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
 import android.net.Uri
-import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -64,9 +63,8 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var instance: OwnvoiceService? = null
     @Volatile var onApps: Set<String> = emptySet()
     @Volatile var offApps: Set<String> = emptySet()
-    // The fallback when nothing is persisted yet; mobile/src/core/privacy.ts DEFAULT_ON is the one copy,
-    // and setBubbleRules persists it here so the bubble works before JavaScript runs again.
-    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b", "com.Slack", "com.reddit.frontpage")
+    // Generated from mobile/src/core/defaultApps.json, also used by the legacy app and JavaScript.
+    val DEFAULT_ON = BuildConfig.DEFAULT_ON.toSet()
     @Volatile var paused = false
     /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. Never saved. */
     @Volatile var practice = false
@@ -157,7 +155,7 @@ class OwnvoiceService : AccessibilityService() {
     on = (if (practice) onApps + packageName else onApps).toList(),
     off = (if (practice) offApps - packageName else offApps).toList(),
   )
-  private fun allowed(app: String?) = kitRules().shows(app) || (practice && app == packageName)
+  private fun allowed(app: String?) = !paused && (kitRules().shows(app) || (practice && app == packageName))
   private fun reducedMotion() = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
   override fun onServiceConnected() {
@@ -216,8 +214,7 @@ class OwnvoiceService : AccessibilityService() {
   private fun typed() {
     val app = typedApp ?: return
     if (!typingCheck || !allowed(app) || currentApp() != app) return
-    val field = focusedField()?.takeUnless { it.isPassword }
-    val text = accessibleText(field?.text, field?.isShowingHintText == true).orEmpty()
+    val text = FocusedFields.read(this)?.takeIf { it.app == app }?.text.orEmpty()
     if (!worthChecking(text)) { checkedText = null; checkedApp = null; return showSlips(app, 0, "") }
     if (text == checkedText && app == checkedApp) return
     checkedText = text; checkedApp = app
@@ -380,7 +377,7 @@ class OwnvoiceService : AccessibilityService() {
     val field = reading?.input ?: return finishInsert(text, false, false, done)
     // The kit sets the whole draft, retries while the panel is still on top (Chrome needs ~13 x 150 ms),
     // accepts a contenteditable that dropped only the newlines, else copies for the person to paste.
-    val node = ServiceField(field)
+    val node = FieldNode.of(field, this)
     thread {
       val result = FocusedFields.insert(node, text, "all",
         InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, ::copyDraft)
@@ -398,23 +395,6 @@ class OwnvoiceService : AccessibilityService() {
   private fun copyDraft(text: String): Boolean = runCatching {
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
   }.isSuccess
-  /** The captured field as the kit's node: its shown text (null when it went away), setting it, its selection. */
-  private class ServiceField(private val node: AccessibilityNodeInfo) : FieldNode {
-    override val editable: Boolean get() = node.isEditable
-    override val password: Boolean get() = node.isPassword
-    override fun shown(): String? = if (node.refresh()) node.text?.toString() else null
-    override fun set(text: String): Boolean = node.performAction(
-      AccessibilityNodeInfo.ACTION_SET_TEXT,
-      Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) },
-    )
-    override fun selection(): Pair<Int, Int>? {
-      val a = node.textSelectionStart.takeIf { it >= 0 } ?: return null
-      val b = node.textSelectionEnd.takeIf { it >= 0 } ?: a
-      return minOf(a, b) to maxOf(a, b)
-    }
-    override val childCount: Int get() = node.childCount
-    override fun child(i: Int): FieldNode? = node.getChild(i)?.let(::ServiceField)
-  }
   private fun finishInsert(text: String, ok: Boolean, newlinesLost: Boolean, done: (Boolean, Boolean) -> Unit) {
     Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost")
     if (ok && insertingPractice) restIdle() // Setup's own line carries the success message above Continue.

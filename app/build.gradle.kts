@@ -3,11 +3,15 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val defaultApps = groovy.json.JsonSlurper().parse(file("../mobile/src/core/defaultApps.json")) as List<*>
+
 android {
+    buildFeatures { buildConfig = true }
     namespace = "dev.ownvoice.app"
     compileSdk = 36
 
     defaultConfig {
+        buildConfigField("String[]", "DEFAULT_ON", "new String[]{" + defaultApps.joinToString(",") { "\"$it\"" } + "}")
         applicationId = "dev.ownvoice.app"
         minSdk = 26
         targetSdk = 36

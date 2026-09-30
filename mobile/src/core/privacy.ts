@@ -1,5 +1,6 @@
 import type { Mode } from './judge.ts';
-export const DEFAULT_ON=new Set(['com.twitter.android','com.linkedin.android','com.google.android.gm','com.whatsapp','com.whatsapp.w4b','com.Slack','com.reddit.frontpage']);
+import defaultApps from './defaultApps.json';
+export const DEFAULT_ON=new Set(defaultApps);
 // Private workplace chat never goes to ChatGPT unless the person switches it on (the link plan's call).
 export const CHATGPT_DEFAULT_OFF=new Set(['com.Slack']);
 export const KEEP_MS=30*24*60*60*1000;
