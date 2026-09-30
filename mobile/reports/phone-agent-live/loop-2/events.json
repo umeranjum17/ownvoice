@@ -1,0 +1,153 @@
+{
+  "mode": "loop",
+  "taskId": "2",
+  "seenShare": false,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790803707319
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790803707323
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790803721179,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_WVziFC2n3ewjZgjZhIbIycqX",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Quick team updates:\\n- Standup moves to 12:00.\\n- Demo is Thursday at 3pm.\\n- Priya owns the deck.\",\"original\":\"standup moves to 12:00, demo Thursday 3pm, Priya owns the deck.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790803721180,
+      "latest": "Quick team updates:\n- Standup moves to 12:00.\n- Demo is Thursday at 3pm.\n- Priya owns the deck."
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790803721186
+    },
+    {
+      "event": "first-text",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790803723133
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790803723874,
+      "turn": {
+        "text": "Quick team updates:\n\n- Standup moves to 12:00.\n- Demo is Thursday at 3pm.\n- Priya owns the deck.",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790803723874,
+      "latest": "Quick team updates:\n- Standup moves to 12:00.\n- Demo is Thursday at 3pm.\n- Priya owns the deck."
+    },
+    {
+      "event": "done",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790803723874,
+      "out": {
+        "text": "Quick team updates:\n\n- Standup moves to 12:00.\n- Demo is Thursday at 3pm.\n- Priya owns the deck.",
+        "steps": 2,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790803708347,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803709363,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803710387,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803711406,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803712424,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803713446,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803714474,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803715494,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803716513,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803717540,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803718558,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803719578,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803720599,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803721621,
+      "events": 5
+    },
+    {
+      "hostAt": 1790803722634,
+      "events": 5
+    },
+    {
+      "hostAt": 1790803723656,
+      "events": 6
+    },
+    {
+      "hostAt": 1790803724668,
+      "events": 9
+    }
+  ]
+}

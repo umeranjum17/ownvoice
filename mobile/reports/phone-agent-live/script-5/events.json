@@ -1,0 +1,145 @@
+{
+  "mode": "script",
+  "taskId": "5",
+  "seenShare": true,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804049875
+    },
+    {
+      "event": "request",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804049880
+    },
+    {
+      "event": "response",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804052836,
+      "turn": {
+        "text": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3:00 p.m.\n\nI can’t send the email or update your calendar, but I can share this note.",
+        "calls": []
+      }
+    },
+    {
+      "event": "first-text",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804052837
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804052837,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3:00 p.m.\n\nI can’t send the email or update your calendar, but I can share this note."
+    },
+    {
+      "event": "request",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804052839
+    },
+    {
+      "event": "response",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804055445,
+      "turn": {
+        "text": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3pm.\n\nI can’t send the email or update your calendar, but I can share this note.",
+        "calls": []
+      }
+    },
+    {
+      "event": "first-text",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804055445
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804055445,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3pm.\n\nI can’t send the email or update your calendar, but I can share this note."
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804055447,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3pm.\n\nI can’t send the email or update your calendar, but I can share this note."
+    },
+    {
+      "event": "approval",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804055447,
+      "call": {
+        "id": "c3",
+        "name": "share_note",
+        "args": "{\"title\":\"Hi Sam,\",\"body\":\"Hi Sam,\\n\\nStandup moves to 12:00, and the demo is Thursday at 3pm.\\n\\nI can’t send the email or update your calendar, but I can share this note.\"}"
+      }
+    },
+    {
+      "event": "reply",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804057349,
+      "yes": true
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804057385,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3pm.\n\nI can’t send the email or update your calendar, but I can share this note."
+    },
+    {
+      "event": "done",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790804057386,
+      "out": {
+        "text": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3pm.\n\nI can’t send the email or update your calendar, but I can share this note.",
+        "steps": 4,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790804051349,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804052368,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804053390,
+      "events": 6
+    },
+    {
+      "hostAt": 1790804054409,
+      "events": 6
+    },
+    {
+      "hostAt": 1790804055433,
+      "events": 6
+    },
+    {
+      "hostAt": 1790804056446,
+      "events": 11
+    },
+    {
+      "hostAt": 1790804060489,
+      "events": 14
+    }
+  ]
+}

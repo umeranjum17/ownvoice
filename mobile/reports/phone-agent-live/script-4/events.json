@@ -1,0 +1,108 @@
+{
+  "mode": "script",
+  "taskId": "4",
+  "seenShare": true,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804017233
+    },
+    {
+      "event": "request",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804017250
+    },
+    {
+      "event": "response",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804021197,
+      "turn": {
+        "text": "Hi Alex,\n\nThank you so much for covering my shift. I really appreciate you stepping in. It meant a lot to me, and I’m grateful I could count on you.\n\nThanks again!",
+        "calls": []
+      }
+    },
+    {
+      "event": "first-text",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804021198
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804021198,
+      "latest": "Hi Alex,\n\nThank you so much for covering my shift. I really appreciate you stepping in. It meant a lot to me, and I’m grateful I could count on you.\n\nThanks again!"
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804021201,
+      "latest": "Hi Alex,\n\nThank you so much for covering my shift. I really appreciate you stepping in. It meant a lot to me, and I’m grateful I could count on you.\n\nThanks again!"
+    },
+    {
+      "event": "approval",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804021203,
+      "call": {
+        "id": "c2",
+        "name": "share_note",
+        "args": "{\"title\":\"Hi Alex,\",\"body\":\"Hi Alex,\\n\\nThank you so much for covering my shift. I really appreciate you stepping in. It meant a lot to me, and I’m grateful I could count on you.\\n\\nThanks again!\"}"
+      }
+    },
+    {
+      "event": "reply",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804023682,
+      "yes": true
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804023726,
+      "latest": "Hi Alex,\n\nThank you so much for covering my shift. I really appreciate you stepping in. It meant a lot to me, and I’m grateful I could count on you.\n\nThanks again!"
+    },
+    {
+      "event": "done",
+      "mode": "script",
+      "taskId": 4,
+      "at": 1790804023728,
+      "out": {
+        "text": "Hi Alex,\n\nThank you so much for covering my shift. I really appreciate you stepping in. It meant a lot to me, and I’m grateful I could count on you.\n\nThanks again!",
+        "steps": 3,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790804018699,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804019724,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804020749,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804021771,
+      "events": 7
+    },
+    {
+      "hostAt": 1790804026983,
+      "events": 10
+    }
+  ]
+}

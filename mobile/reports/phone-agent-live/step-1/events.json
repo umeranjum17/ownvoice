@@ -1,0 +1,125 @@
+{
+  "mode": "loop",
+  "taskId": "0",
+  "seenShare": false,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "loop",
+      "taskId": 0,
+      "at": 1790803453947
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 0,
+      "at": 1790803453971
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 0,
+      "at": 1790803460421,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_p8LJGN4VESEQ2yHi63y0LIUT",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Hello Umer.\",\"original\":\"Hello Umer.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 0,
+      "at": 1790803460426,
+      "latest": "Hello Umer."
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 0,
+      "at": 1790803460428
+    },
+    {
+      "event": "first-text",
+      "mode": "loop",
+      "taskId": 0,
+      "at": 1790803462028
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 0,
+      "at": 1790803463879,
+      "turn": {
+        "text": "“Hello Umer.” passed the check. I didn’t share it.",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 0,
+      "at": 1790803463879,
+      "latest": "Hello Umer."
+    },
+    {
+      "event": "done",
+      "mode": "loop",
+      "taskId": 0,
+      "at": 1790803463879,
+      "out": {
+        "text": "“Hello Umer.” passed the check. I didn’t share it.",
+        "steps": 2,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790803454960,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803455986,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803457004,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803458036,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803459057,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803460083,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803461106,
+      "events": 5
+    },
+    {
+      "hostAt": 1790803462119,
+      "events": 6
+    },
+    {
+      "hostAt": 1790803463131,
+      "events": 6
+    },
+    {
+      "hostAt": 1790803464144,
+      "events": 9
+    }
+  ]
+}

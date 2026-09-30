@@ -1,0 +1,113 @@
+{
+  "mode": "loop",
+  "taskId": "3",
+  "seenShare": false,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790803744201
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790803744204
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790803748161,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_pAI2hq32NStXf9RsTuiNXKPX",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Hey Sam, I can't make Saturday. Are you free Sunday after 2?\",\"original\":\"Reply to Sam: can't make Saturday, offer Sunday after 2.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790803748161,
+      "latest": "Hey Sam, I can't make Saturday. Are you free Sunday after 2?"
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790803748163
+    },
+    {
+      "event": "first-text",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790803749752
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790803750842,
+      "turn": {
+        "text": "I can’t send the reply directly, but you can share this note with Sam: “Hey Sam, I can’t make Saturday. Are you free Sunday after 2?”",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790803750842,
+      "latest": "Hey Sam, I can't make Saturday. Are you free Sunday after 2?"
+    },
+    {
+      "event": "done",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790803750842,
+      "out": {
+        "text": "I can’t send the reply directly, but you can share this note with Sam: “Hey Sam, I can’t make Saturday. Are you free Sunday after 2?”",
+        "steps": 2,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790803745229,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803746246,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803747273,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803748306,
+      "events": 5
+    },
+    {
+      "hostAt": 1790803749318,
+      "events": 5
+    },
+    {
+      "hostAt": 1790803750331,
+      "events": 6
+    },
+    {
+      "hostAt": 1790803751344,
+      "events": 9
+    }
+  ]
+}

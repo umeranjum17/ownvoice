@@ -1,0 +1,25 @@
+import {execFileSync} from 'node:child_process';
+import {mkdirSync,writeFileSync} from 'node:fs';
+const root='/home/umer/lab-tmp/ov-agent-a5-live',serial='emulator-5684';
+const adb=(...a)=>execFileSync('adb',['-s',serial,...a],{encoding:'utf8',maxBuffer:12*1024*1024});
+if(!adb('emu','avd','name').startsWith('ownvoice-signed'))throw Error('Wrong AVD');
+const task=process.argv[2];
+const typed=task==='1'?'Hi, the heater has been broken since Monday. Please fix it soon.':'Hi Alex, thank you for covering my shift.';
+const note=task==='1'?'Please make the note firmer.':'Please make the note warmer.';
+const out=`${root}/captures/panel-${task}`;mkdirSync(out,{recursive:true});
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+const snap=name=>{adb('shell','screencap','-p',`/sdcard/a5-panel-${name}.png`);adb('pull',`/sdcard/a5-panel-${name}.png`,`${out}/${name}.png`);};
+let pid='';try{pid=adb('shell','pidof','dev.ownvoice.next').trim();}catch{}
+if(pid)adb('shell','su','0','kill','-9',...pid.split(' '));
+const voice=JSON.stringify({never:['circle back','at the end of the day'],noDashes:true,note,statementEndings:false});
+const sql=`DELETE FROM storage WHERE key='setup-done'; INSERT OR REPLACE INTO storage VALUES ('setup','{"step":"TRY","inserted":false}'); INSERT OR REPLACE INTO storage VALUES ('voice','${voice}');`;
+execFileSync('adb',['-s',serial,'shell','su 0 sqlite3 /data/data/dev.ownvoice.next/files/SQLite/ExpoSQLiteStorage'],{input:sql,encoding:'utf8'});
+adb('shell','settings','put','secure','enabled_accessibility_services',"' '");
+adb('shell','settings','put','secure','enabled_accessibility_services','dev.ownvoice.next/dev.ownvoice.bridge.OwnvoiceService');
+adb('shell','settings','put','secure','accessibility_enabled','1');
+adb('logcat','-c');adb('shell','am','start','-a','android.intent.action.VIEW','-d','ownvoice://setup');await sleep(4000);
+adb('shell','input','tap','400','1090');
+adb('shell','input','text',`'${typed.replaceAll(' ','%s')}'`);await sleep(700);snap('input');
+adb('shell','input','tap','1005','1260');await sleep(15000);snap('result');
+writeFileSync(`${out}/input.json`,JSON.stringify({task,typed,note},null,2));
+writeFileSync(`${out}/device.log`,adb('logcat','-d','-s','ReactNativeJS:I'));
