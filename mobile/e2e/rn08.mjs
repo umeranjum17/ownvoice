@@ -111,7 +111,7 @@ const tapTextOrNull = async (label, state = '') => { // exact-label clusters (ch
       return text.includes(lower) && text.includes(state.toLowerCase());
     }).sort((a, b) => Number(b.clickable) - Number(a.clickable));
     const node = accessible.find(n => n.label.toLowerCase() === lower || n.text.toLowerCase() === lower) ?? accessible[0];
-    if (node) { const at = center(node); if (node.clickable) nodes(node.label || node.text); else tap(...at); return at; }
+    if (node) { const at = center(node); tap(...at); return at; }
     const exact = [];
     const loose = [];
     for (const group of screenClusters()) {
@@ -260,9 +260,9 @@ XML`], { stdio: 'ignore' });
   shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
   await wait(4500);
   if (!(await waitForFocus(pkg))) throw new Error('freshSetup: the app did not return to the front');
-  if (!(await textPresent('Your writing helper', 3))) {
+  if (!(await textPresent('Where the bubble shows', 3))) {
     await back(); // service connection can surface the onboarding deep link after home opens
-    if (!(await textPresent('Your writing helper', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
+    if (!(await textPresent('Where the bubble shows', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
   }
 };
 
