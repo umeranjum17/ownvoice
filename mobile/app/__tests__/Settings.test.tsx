@@ -483,6 +483,34 @@ test('the list narrows as you type', async () => {
   expect(screen.getByText('Chrome')).toBeTruthy();
 });
 
+test('a switched row stays where it was, under its own group', async () => {
+  const screen = await show(<Apps />);
+  await screen.findByText('Gmail');
+  expect(screen.getByText(words.appsShown)).toBeTruthy();
+  fireEvent.press(screen.getByText('Gmail'));
+  await waitFor(() => expect(screen.getByLabelText('Gmail').props.value).toBe(true));
+  const text = JSON.stringify(screen.toJSON());
+  expect(text.indexOf('"Gmail"')).toBeGreaterThan(text.indexOf(`"${words.appsOther}"`));   // still with the other apps until next visit
+});
+
+test('a search with no match says so, and Clear brings the list back', async () => {
+  const screen = await show(<Apps />);
+  await screen.findByText('WhatsApp');
+  fireEvent.changeText(screen.getByLabelText(words.findAnApp), 'zzz');
+  expect(await screen.findByText(words.appsNoMatch)).toBeTruthy();
+  fireEvent.press(screen.getByLabelText(words.clearSearch));
+  expect(await screen.findByText('WhatsApp')).toBeTruthy();
+  expect(screen.queryByText(words.appsNoMatch)).toBeNull();
+});
+
+test('an app list that fails to load offers Try again', async () => {
+  native.launcherApps.mockRejectedValueOnce(new Error('no'));
+  const screen = await show(<Apps />);
+  expect(await screen.findByText(words.gptAppsUnavailable)).toBeTruthy();
+  fireEvent.press(screen.getByText(words.tryAgain));
+  expect(await screen.findByText('WhatsApp')).toBeTruthy();
+});
+
 // ---- H4: Your voice ----
 test('an import previews what it found before adding anything', async () => {
   picker.pickFileAsync.mockResolvedValue({ canceled: false, result: { text: async () => '# Never say\n- "delve"\n- "circle back"\n\nNo em dashes anywhere.\n' } });
