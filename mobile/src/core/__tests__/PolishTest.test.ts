@@ -24,7 +24,7 @@ test.each(['accept', 'fix'] as const)('polish %s ignores writer cleanup and show
 });
 
 test('local cleanup leaves advisory wording unchanged and preserves other writer slots', async () => {
-  for (const typed of ['Its own engine', 'Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?']) {
+  for (const typed of ['The constructor is ready.', 'toString works', 'What it is is unclear.', 'I know that that works.', 'Log in in the morning.', 'Move on on Monday.', 'give it to to make', 'get by by saving', 'Its own engine', 'Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?']) {
     const acceptor = await polishAcceptor(typed, 'keep', [], spell);
     expect(acceptor.local).toBeNull();
     expect(acceptor.results).toEqual([]);

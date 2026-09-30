@@ -100,6 +100,11 @@ test('automatic spelling requires a single clear suggestion', () => {
 test.each([
   ['What it is is unclear.', 'What it is is unclear.'],
   ['I know that that works.', 'I know that that works.'],
+  ['Log in in the morning.', 'Log in in the morning.'],
+  ['Move on on Monday.', 'Move on on Monday.'],
+  ['give it to to make', 'give it to to make'],
+  ['get by by saving', 'get by by saving'],
+  ['nobody to go with with you away.', 'nobody to go with with you away.'],
   ['We should visit Bora Bora.', 'We should visit Bora Bora.'],
   ["Give Ben Ben's keys.", "Give Ben Ben's keys."],
   ['Hey @will will you join us?', 'Hey @will will you join us?'],
@@ -124,11 +129,11 @@ test.each([
   ['by the The THE the evening', 'by the evening'],
   ['by The the evening', 'by The the evening'],
   ['by the the the evening', 'by the evening'],
-])('automatic doubles use complete unprotected function words: %s', (typed, expected) => {
+])('automatic doubles use complete unprotected articles: %s', (typed, expected) => {
   expect(fixedSlips(typed, null)).toBe(expected);
 });
 
-test.each('the a an to of in on at and for it be by was with'.split(' '))('automatic doubles include %s', word => {
+test.each('the a an'.split(' '))('automatic doubles include %s', word => {
   expect(fixedSlips(`${word} ${word}`, null)).toBe(word);
 });
 
@@ -155,4 +160,16 @@ test('automatic contractions fix clear forms and preserve ambiguous ones', () =>
   expect(fixedSlips(ambiguous, speller)).toBe(ambiguous);
   expect(fixedSlips('We cant go and I wont', speller)).toBe('We cant go and I wont');
   expect(fixedSlips('https://site.test/dont @im #thats', speller)).toBe('https://site.test/dont @im #thats');
+});
+
+test('correction tables do not inherit object keys', () => {
+  const noSuggestions = { correct: () => true, suggest: () => [] };
+  for (const word of ['constructor', 'toString', '__proto__']) {
+    expect(suggestion(word, noSuggestions)).toBeUndefined();
+    expect(slips(word, noSuggestions)).toEqual([]);
+    expect(fixedSlips(word, noSuggestions)).toBe(word);
+  }
+  expect(fixedSlips('The constructor is ready.', speller)).toBe('The constructor is ready.');
+  expect(fixedSlips('toString works', speller)).toBe('toString works');
+  expect(shown('The constructor is ready.')).toEqual([]);
 });

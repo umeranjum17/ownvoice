@@ -13,17 +13,17 @@ export const GRAMMAR = 'a common slip';
 // Chat shorthand people mean on purpose.
 const SHORTHAND = new Set(['ok', 'okay', 'lol', 'lmao', 'omg', 'btw', 'tbh', 'imo', 'imho', 'idk', 'lmk', 'brb', 'np', 'ty', 'thx', 'pls', 'plz', 'haha', 'hahaha', 'hehe', 'yeah', 'yep', 'nope', 'hmm', 'ugh', 'wow', 'yay', 'xoxo', 'fyi', 'asap', 'tmrw', 'gonna', 'wanna', 'gotta', 'kinda', 'sorta', 'ya', 'yo', 'bro', 'emoji', 'emojis']);
 // Contractions typed without the apostrophe: the dictionary only offers look-alike words for these.
-const APOSTROPHE: Record<string, string> = {
+const APOSTROPHE: Record<string, string> = Object.assign(Object.create(null), {
   dont: "don't", doesnt: "doesn't", didnt: "didn't", isnt: "isn't", arent: "aren't", wasnt: "wasn't", werent: "weren't",
   havent: "haven't", hasnt: "hasn't", hadnt: "hadn't", couldnt: "couldn't", wouldnt: "wouldn't", shouldnt: "shouldn't",
   im: "I'm", ive: "I've", youre: "you're", theyre: "they're", youve: "you've", theyve: "they've", thats: "that's", whats: "what's", theres: "there's", wouldve: "would've", couldve: "could've", shouldve: "should've",
-};
+});
 // Very common words win ties between equally close suggestions ("shoud" is "should", not "shod").
 const COMMON = new Set('the be to of and a in that have it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is was are been has had were said did should really thanks thank please sorry tomorrow today tonight meeting maybe probably friend friends weekend definitely receive believe different'.split(' '));
 
 const WORD = /[\p{L}][\p{L}'’]*/gu;
 const unprotected = (text: string) => text.replace(protectedTokens, m => '\0'.repeat(m.length));
-const DOUBLE_WORDS = new Set('the a an to of in on at and for it be by was with'.split(' '));
+const DOUBLE_WORDS = new Set('the a an'.split(' '));
 const letters = (w: string) => w.replace(/’/g, "'").replace(/'+$/, '');
 
 /** Damerau distance, capped: close typos only. */
