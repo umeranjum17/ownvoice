@@ -9,7 +9,7 @@ import { Card } from '../src/ui/Card';
 import { Row } from '../src/ui/Row';
 import { Page } from '../src/ui/Page';
 import { Switch } from '../src/ui/Switch';
-import { ChatIcon, CloseIcon, FileIcon, PenIcon, PlusIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, CloseIcon, FileIcon, PenIcon, PlusIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { merge, parse, type Found } from '../src/core/voice';
@@ -18,6 +18,18 @@ import type { Rules } from '../src/core/slop';
 
 const SKIP_ONE = 'Left out 1 note that reads as advice, not a phrase.';
 const SKIP_MANY = 'notes that read as advice, not phrases.';
+/** One-tap starts for an empty list and an empty note: a person never has to invent the first one. */
+const PHRASE_IDEAS = ['Cheers', 'Kind regards', 'No worries', 'Hope this helps'];
+const STYLE_IDEAS = ['Short sentences', 'Friendly', 'Straight to the point', 'Casual', 'No emojis'];
+const NOTE_MAX = 300;
+
+/** [note] with [style] added at the end, or taken out when it is already there (any capitals). */
+export function toggleStyle(note: string, style: string): string {
+  const parts = note.split(',').map(x => x.trim()).filter(Boolean);
+  const has = parts.some(x => x.toLowerCase() === style.toLowerCase());
+  if (has) return parts.filter(x => x.toLowerCase() !== style.toLowerCase()).join(', ');
+  return parts.length ? `${parts.join(', ')}, ${style.toLowerCase()}` : style;
+}
 
 /** What an import found, in the same words as the Kotlin preview. */
 export function foundLines(found: Found): string {
@@ -81,6 +93,14 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
     } catch { setPreview(words.cantOpen); setPending(null); }
   };
   const field = { color: t.text, backgroundColor: t.raised, borderRadius: shape.card, paddingHorizontal: space.l, paddingVertical: space.m };
+  // A suggestion pill: outlined with a plus to add, filled with a tick once it is in.
+  const idea = (label: string, on: boolean, onPress: () => void) => <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }}
+    accessibilityLabel={label} onPress={onPress} hitSlop={4} android_ripple={{ color: t.primary.slice(0, 7) + '1F', foreground: true }}
+    style={[styles.chip, on ? { backgroundColor: t.primaryContainer } : { borderWidth: 1, borderColor: t.outline }]}>
+    {on ? <CheckIcon size={16} color={t.onPrimaryContainer} /> : <PlusIcon size={16} color={t.primary} />}
+    <Text style={[type.label, { color: on ? t.onPrimaryContainer : t.text, flexShrink: 1 }]}>{label}</Text>
+  </Pressable>;
+  const styleOn = (style: string) => rules.note.split(',').some(x => x.trim().toLowerCase() === style.toLowerCase());
   const head = (Icon: typeof PenIcon, title: string) => <View style={styles.head}>
     <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>
     <Text accessibilityRole="header" style={[type.heading, { color: t.text, fontSize: 18, lineHeight: 24 }]}>{title}</Text>
@@ -104,7 +124,10 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
           android_ripple={{ color: t.text + '1F', foreground: true }} style={[styles.chip, { backgroundColor: t.primaryContainer }]}>
           <Text style={[type.label, { color: t.onPrimaryContainer, flexShrink: 1 }]}>{x}</Text>
           <CloseIcon size={16} color={t.onPrimaryContainer} />
-        </Pressable>) : <Text style={[type.body, { color: t.muted }]}>{words.neverSayNone}</Text>}
+        </Pressable>) : <>
+          <Text style={[type.note, { color: t.muted, width: '100%' }]}>{words.neverSayNone}</Text>
+          {PHRASE_IDEAS.map(x => idea(x, false, () => add(x)))}
+        </>}
       </View>
       <View style={styles.addRow}>
         <TextInput accessibilityLabel={words.neverSay} placeholder={words.neverSayHint} placeholderTextColor={t.muted} value={phrase}
@@ -117,8 +140,15 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
     </View>
     <View style={[styles.section, { backgroundColor: t.group }]}>
       {head(PenIcon, words.howIWrite)}
-      <TextInput accessibilityLabel={words.howIWrite} placeholder={words.howIWriteHint} placeholderTextColor={t.muted} multiline maxLength={300}
+      <TextInput accessibilityLabel={words.howIWrite} placeholder={words.howIWriteHint} placeholderTextColor={t.muted} multiline maxLength={NOTE_MAX}
         autoCapitalize="sentences" value={rules.note} onChangeText={note => change({ ...rules, note })} style={[type.body, field, { minHeight: 88, textAlignVertical: 'top' }]} />
+      <Text style={[type.note, { color: t.muted }]}>{words.howIWriteIdeas}</Text>
+      <View style={styles.chips}>
+        {STYLE_IDEAS.map(x => idea(x, styleOn(x), () => {
+          const note = toggleStyle(rules.note, x);
+          if (note.length <= NOTE_MAX) change({ ...rules, note });
+        }))}
+      </View>
     </View>
     <Text style={[type.label, { color: t.primary, marginTop: space.s }]}>{words.rulesTitle}</Text>
     <View style={[styles.group, { backgroundColor: t.group }]}>
