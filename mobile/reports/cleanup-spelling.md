@@ -1,6 +1,6 @@
 # Cleaned up applies safe local fixes
 
-The current cleanup contract is owned by [Cleaned up acceptance](../README.md#cleaned-up-acceptance); the exact-output fixtures are documented in the [eval threshold rule](../eval/README.md#threshold-rule). This report records validation evidence and the covering Jest tests for the PR body.
+The current cleanup contract is owned by [Cleaned up acceptance](../README.md#cleaned-up-acceptance); the exact-output fixtures are documented in the [eval threshold rule](../eval/README.md#threshold-rule). This report records validation evidence and the covering Jest tests for the PR body. All recorded behavioral verification below predates the subsequent name-token isolation, written-time fallback, spelling-created article context and protected-dash normalization fixes; it does not qualify those changes.
 
 Historical validation, before the spelling-safety, cleanup-order, article-context and protected-word changes, on recovered candidate `bd4e274`: lint and typecheck passed; Jest passed 49 suites, 840 tests and 46 snapshots. Tests exercise both writers, initial acceptance and retry, apostrophe/casing-only writer fixes, overlapping repeated misspellings, advisory grammar, capitalised words, ambiguous suggestions, protected tokens and the real eval scorer. The existing SettingsTest fetch mock lost an unnecessary cast to resolve its overload mismatch; behavior is unchanged.
 

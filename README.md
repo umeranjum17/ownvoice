@@ -45,7 +45,7 @@ Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen a
 
 ### Polish what you wrote
 
-Already typed something? The same tap shows your text with the stock phrases marked, then a few better versions of it. **Use this** swaps your text for one of them. **Cleaned up** fixes clear spelling slips, accidental repeats of common words, and “Its” before “a”, “an” or “the”. For example, “Its a good plan, I shoud be there by the the evening.” becomes “It's a good plan, I should be there by the evening.” If the writer changes a name, handle, link or number, this version falls back to your text with only those clear fixes. Other suspected slips appear under **Check these** when spelling checks are on; each has its own **Fix**. If your text is already as short and clear as it gets, Ownvoice says **Looks good as it is** instead of inventing changes.
+Already typed something? The same tap shows your text with the stock phrases marked, then a few better versions of it. **Use this** swaps your text for one of them. **Cleaned up** fixes clear spelling slips, accidental repeats of common words, and “Its” before “a”, “an” or “the”. For example, “Its a good plan, I shoud be there by the the evening.” becomes “It's a good plan, I should be there by the evening.” If the writer changes a name, handle, tag, link, email, number or time, this version falls back to your text with only those clear fixes. Other suspected slips appear under **Check these** when spelling checks are on; each has its own **Fix**. If your text is already as short and clear as it gets, Ownvoice says **Looks good as it is** instead of inventing changes.
 
 <p align="center">
   <img src="docs/readme/polish.webp" alt="Polish your message: the typed text with 'at the end of the day' marked, and three versions, one flagged 'A bit stock: 3 phrases you could say more simply'" width="300" />
@@ -85,7 +85,7 @@ Home shows at a glance whether Ownvoice is ready, and holds every setting: how O
 
 **Also on your phone:**
 
-- **Your voice**: the phrases you never say, a short note on how you write, and two rules (no long dashes; end posts on a statement). Drafts follow them, and any phrase on your list is marked wherever it shows up. You can also import a list from a file.
+- **Your voice**: the phrases you never say, a short note on how you write, and two rules (no long dashes; end posts on a statement). Drafts follow them, and any phrase on your list is marked wherever it shows up. Long dashes are removed unless your text uses one and the no-dashes rule is off; dashes inside links, email addresses, handles and tags stay intact. You can also import a list from a file.
 - **Where the bubble shows**: the bubble appears only in the apps you switch on. X, LinkedIn, Reddit, Slack, WhatsApp (and WhatsApp Business) and Gmail start on; everything else starts off.
 - **Pause for now**: hides the bubble everywhere until you turn it back on.
 - **Your phone's look**: Ownvoice uses your phone's colours and font, and follows light and dark mode.
