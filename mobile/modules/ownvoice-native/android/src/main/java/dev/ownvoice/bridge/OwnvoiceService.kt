@@ -122,7 +122,7 @@ class OwnvoiceService : AccessibilityService() {
 
   data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false)
   data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean)
-  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String)
+  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String)
   private val main = Handler(Looper.getMainLooper())
   private var capture: Capture? = null
   /** The kit's bubble, driven with no JavaScript running so it restores after a reboot or process death. */
@@ -310,10 +310,10 @@ class OwnvoiceService : AccessibilityService() {
     Log.d(TAG, "capture practice=$practiceField conversationLines=${lines.size} clickableNodes=${nodes.count { it.clickable }}")
     val fieldBounds = Rect()
     field?.getBoundsInScreen(fieldBounds)
-    val typed = capturedInputText(field?.text, field?.isShowingHintText == true)
+    val typed = FocusedFields.read(this)?.takeIf { it.app == app }?.text.orEmpty()
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val id = java.util.UUID.randomUUID().toString()
-    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id)
+    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id)
     val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), id)
     val saved = synchronized(facts) {
       restoreFacts(this@OwnvoiceService)
@@ -329,8 +329,10 @@ class OwnvoiceService : AccessibilityService() {
 
   private fun focusedField(): AccessibilityNodeInfo? {
     val focus = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
+    if (focus.isPassword) return null
     if (focus.isEditable) return focus
     fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+      if (node.isPassword) return null
       if (node.isFocused && node.isEditable) return node
       for (i in 0 until node.childCount) node.getChild(i)?.let(::find)?.let { return it }
       return null
@@ -374,10 +376,9 @@ class OwnvoiceService : AccessibilityService() {
     pendingInsert = { finishInsert(text, false, false, done) }
     val reading = captured()
     insertingPractice = reading?.app == packageName && reading?.input?.contentDescription?.toString() == "Practice message"
-    val field = reading?.input ?: return finishInsert(text, false, false, done)
+    val node = reading?.insertField ?: return finishInsert(text, false, false, done)
     // The kit sets the whole draft, retries while the panel is still on top (Chrome needs ~13 x 150 ms),
     // accepts a contenteditable that dropped only the newlines, else copies for the person to paste.
-    val node = FieldNode.of(field, this)
     thread {
       val result = FocusedFields.insert(node, text, "all",
         InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, ::copyDraft)

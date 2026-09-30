@@ -96,7 +96,9 @@ export const phoneWriter = {
       }
       // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).
-      const drafts = request.typed.includes('stock')
+      const drafts = request.typed.includes('multiline draft')
+        ? ["Saturday works.\nI'll bring the stove.", 'Sure, Saturday works. See you then.', 'What time should I arrive?']
+        : request.typed.includes('stock')
         ? ['Yes, still on.', 'Saturday works.', "Let's delve in; at the end of the day, moving forward."]
         : ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
       drafts.forEach((text, slot) => on.landed?.(text, slot));
