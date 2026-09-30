@@ -7,18 +7,15 @@ no E2E flags. Isolated env: `HOME`, npm cache, `GRADLE_USER_HOME` under
 `/home/umer/lab-tmp/ov-ds-p9`, `GIT_EDITOR=true`, Java 21.
 Owner ChatGPT sign-in already present (captain, 2026-09-29); only
 `adb install -r` + bubble taps were driven — no sign-out, no wipe,
-no credential copies. Captures: `live-proof-p9-01..06-*.png`
+no credential copies. Scope: PR #79 (@byokit/accounts 0.4.1
+accounts.respond) was reverted because this live proof found it broken
+(see regression section), so this report is the live proof of the
+current restored connection plus the recorded #79 failure; the fixed
+kit (@byokit/accounts 0.6.0) gets its own live A/B in a separate task
+before it merges. Captures: `live-proof-p9-01..06-*.png`
 (status bar cropped, Ownvoice's own screens only, no personal data).
 
-`~/.pi` hash before: `565bda1e285642b601fea1c55f8ea093b017869f8796daad4fda8a93583b3bcc`
-`~/.pi` hash after: `6ccb280dc486e83077ea34be0710799693fda8a846e06ba349bb03175cd2d67c`
-The whole-tree hash moved because this host runs several lanes at once:
-every changed file is harness session/memory state
-(`pi-hermes-memory/sessions.db`, `MEMORY.md` rotations,
-`projects-memory/{pockit,crewhouse,…}` from other lanes) — none of it
-Ownvoice. Ownvoice has no `~/.pi` reference anywhere in its sources,
-all builds ran with an isolated `HOME`, and no profile, token or
-credential file was read or copied at any point.
+`~/.pi` scoped hash (settings, packages, extensions only), taken 2026-09-30: `4b991cea9c9ce4bc3e093bc714e2ee3be5b0fed6cecd8a541e1b4528dc40e1d4`, over `~/.pi/agent/settings.json`, `~/.pi/agent/npm/package.json`, `~/.pi/agent/npm/package-lock.json`, and every file under `~/.pi/agent/extensions/` (sorted file list, sha256 of the per-file sha256 lines). This lane never read or wrote `~/.pi`; all builds ran with an isolated `HOME`, and Ownvoice has no `~/.pi` reference anywhere in its sources. The earlier whole-directory hashes moved only because other lanes on this host concurrently write harness session/memory state.
 
 ## Build and install
 
