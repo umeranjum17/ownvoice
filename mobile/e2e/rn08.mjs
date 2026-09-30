@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
+import { accessibilityProbe, center } from './accessibility.mjs';
 
 const serial = process.env.ANDROID_SERIAL;
 const avdName = process.env.OWNVOICE_AVD_NAME?.trim();
@@ -18,6 +19,8 @@ if (!apk) throw new Error('Pass the release APK path.');
 const out = process.argv[3] ?? 'reports/rn08';
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
+let probe;
+const nodes = () => (probe ??= accessibilityProbe(serial, out))();
 const rewrite = `${pkg}/dev.ownvoice.bridge.RewriteActivity`;
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
 const shell = (...args) => { const r = adb('shell', ...args); console.error(`[${new Date().toISOString().slice(11, 19)}] shell:`, args.join(' ').slice(0, 90)); return r; };
@@ -92,7 +95,10 @@ const clusters = words => {
 const textPresent = async (label, tries = 6) => {
   const lower = label.toLowerCase();
   for (let attempt = 0; attempt < tries; attempt++) {
-    if (screenClusters().some(g => g.text.includes(lower))) return true;
+    const accessible = nodes();
+    if (accessible.some(n => `${n.label} ${n.text}`.toLowerCase().includes(lower))) return true;
+    // RN and Chrome expose their text; OCR only when the app window exposes none.
+    if (!accessible.some(n => n.windowType === 1 && (n.label || n.text)) && screenClusters().some(g => g.text.includes(lower))) return true;
     if (attempt < tries - 1) await wait(600);
   }
   writeFileSync(`${out}/.debug-miss.png`, execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 }));
@@ -102,6 +108,12 @@ const textPresent = async (label, tries = 6) => {
 const tapTextOrNull = async (label, state = '') => { // exact-label clusters (chips, buttons) win over lines merely containing the word, so a note's leading word never steals a button's tap
   const lower = label.toLowerCase();
   for (let attempt = 0; attempt < 5; attempt++) {
+    const accessible = nodes().filter(n => {
+      const text = `${n.label} ${n.text}`.toLowerCase();
+      return text.includes(lower) && text.includes(state.toLowerCase());
+    }).sort((a, b) => Number(b.clickable) - Number(a.clickable));
+    const node = accessible.find(n => n.label.toLowerCase() === lower || n.text.toLowerCase() === lower) ?? accessible[0];
+    if (node) { const at = center(node); tap(...at); return at; }
     const exact = [];
     const loose = [];
     for (const group of screenClusters()) {
@@ -125,10 +137,7 @@ const tapText = async (label, state = '') => {
   if (!at) throw new Error(`Could not find visible ${label} ${state}`);
   return at;
 };
-const bubbleVisible = () => {
-  const window = adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
-  return window?.match(/mViewVisibility=(0x[0-9a-f]+)/)?.[1] === '0x0';
-};
+const bubbleVisible = () => nodes().some(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label));
 const scrollSheet = async () => { shell('input', 'swipe', '540', '2000', '540', '900', '400'); await wait(700); }; // the Copy row sits under the fold in the sheet's scroll view
 const parsePx = out => {
   const pat = /^\s*(\d+),(\d+):\s*\((\d+),(\d+),(\d+)/;
@@ -141,6 +150,7 @@ const parsePx = out => {
 const wordsPresent = async (label, tries = 1) => {
   const want = label.toLowerCase().split(/\s+/);
   for (let attempt = 0; attempt < tries; attempt++) {
+    if (nodes().some(n => { const words = `${n.label} ${n.text}`.toLowerCase().split(/\s+/); return want.every(w => words.includes(w)); })) return true;
     if (screenClusters().some(g => { const ws = g.text.split(/\s+/).map(w => w.replace(/[^\p{L}\p{N}]+/gu, '')); return want.every(w => ws.includes(w)); })) return true;
     if (attempt < tries - 1) await wait(600);
   }
@@ -150,6 +160,8 @@ const tapButtonRow = async (label, result) => {
   const lower = label.toLowerCase();
   const lastWord = result.trim().split(/\s+/).at(-1).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
   for (let attempt = 0; attempt < 5; attempt++) {
+    const button = nodes().find(n => n.clickable && (n.label.toLowerCase() === lower || n.text.toLowerCase() === lower));
+    if (button) { tap(...center(button)); return; }
     const groups = screenClusters();
     const chip = groups.find(g => g.text.includes('fix spelling'));
     const group = chip && groups.find(g => g.top > chip.bottom && g.words.some(w => w.text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '') === lastWord));
@@ -250,9 +262,9 @@ XML`], { stdio: 'ignore' });
   shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
   await wait(4500);
   if (!(await waitForFocus(pkg))) throw new Error('freshSetup: the app did not return to the front');
-  if (!(await textPresent('Your writing helper', 3))) {
+  if (!(await textPresent('Where the bubble shows', 3))) {
     await back(); // service connection can surface the onboarding deep link after home opens
-    if (!(await textPresent('Your writing helper', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
+    if (!(await textPresent('Where the bubble shows', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
   }
 };
 
@@ -286,10 +298,12 @@ const RECEIVER_ORIGINAL = 'Move Tuesday. Really.';
 const RECEIVER_SHORT = 'Move Tuesday.';
 
 const openEditableSelection = async () => {
-  await tapText('Your voice');
+  shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://voice');
+  await wait(1200);
   let field;
   for (let i = 0; i < 6 && !field; i++) {
-    field = screenClusters().find(g => g.text.includes('example') && g.top > 800);
+    const node = nodes().find(n => n.editable);
+    field = node ? { left: node.bounds[0], top: node.bounds[1], right: node.bounds[2], bottom: node.bounds[3] } : screenClusters().find(g => g.text.includes('example') && g.top > 800);
     if (!field) await wait(500);
   }
   if (!field) throw new Error('Your voice editable field did not appear');
@@ -316,7 +330,10 @@ const openEditableSelection = async () => {
   await wait(500);
   let menuAction;
   for (let i = 0; i < 5 && !menuAction; i++) {
-    menuAction = readWords().find(w => w.text.toLowerCase() === 'ownvoice' && w.left > width / 3 && w.top > 700 && w.top < 1300);
+    const node = nodes().find(n => n.windowType !== 4 && n.clickable && (n.label || n.text).startsWith('Ownvoice')
+      && n.bounds[0] > width / 3 && n.bounds[1] > 700 && n.bounds[1] < 1300);
+    menuAction = node ? { left: node.bounds[0], top: node.bounds[1], right: node.bounds[2], bottom: node.bounds[3] }
+      : readWords().find(w => w.text.toLowerCase().startsWith('ownvoice') && w.left > width / 3 && w.top > 700 && w.top < 1300);
     if (!menuAction) await wait(500);
   }
   if (!menuAction) throw new Error('Ownvoice selection action missing');
@@ -361,7 +378,8 @@ for (const mode of ['no', 'yes']) {
   clearLog();
   await tapButtonRow('Copy', RECEIVER_SHORT);
   await wait(900);
-  if (!(await waitForFocus('.MainActivity')) || !(await textPresent(RECEIVER_ORIGINAL)) || await textPresent(RECEIVER_SHORT))
+  const editors = nodes().filter(n => n.editable && !n.password);
+  if (!(await waitForFocus('.MainActivity')) || !editors.some(n => n.text === RECEIVER_ORIGINAL) || editors.some(n => n.text === RECEIVER_SHORT))
     throw new Error(`Copy changed the receiving editable selection (${scheme})`);
   if (!logcat().includes(`rewrite copied sha=${sha(RECEIVER_SHORT)}`)) throw new Error(`Copy did not copy the changed text (${scheme})`);
 

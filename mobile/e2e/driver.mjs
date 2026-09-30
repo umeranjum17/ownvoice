@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createServer } from 'node:http';
+import { accessibilityProbe, center } from './accessibility.mjs';
 
 const serial = process.env.ANDROID_SERIAL;
 if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (owner phones are refused).');
@@ -10,6 +11,7 @@ if (!apk) throw new Error('Pass the release APK path.');
 const out = resolve(process.argv[3] ?? 'e2e/artifacts');
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
+const nodes = accessibilityProbe(serial, out);
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
 const snap = name => {
   const path = resolve(out, `${name}.png`);
@@ -22,6 +24,9 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 execFileSync('adb', ['-s', serial, 'logcat', '-c']);
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'pm', 'clear', pkg);
+// OCR reads dark text on light; the emulator's twilight schedule would otherwise flip to dark overnight.
+adb('shell', 'cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');
+adb('shell', 'cmd', 'uimode', 'night', 'no');
 // Reinstall kills the process without rebinding this service; toggle only this emulator's service entry.
 const enabled = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const services = new Set(enabled === 'null' ? [] : enabled.split(':'));
@@ -40,12 +45,17 @@ await wait(4500);
 
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
 const density = Number(adb('shell', 'wm', 'density').match(/(\d+)/)?.[1]) / 160;
-const tap = (x, y) => adb('shell', 'input', 'tap', String(x), String(y));
+const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
 const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
 const bands = [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75).filter(top => top < height)];
 const crop = (image, top) => top ? execFileSync('magick', ['png:', '-crop', `${width}x${Math.min(150, height - top)}+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
 const visibleLine = (label, state = '') => {
   for (let attempt = 0; attempt < 8; attempt++) {
+    const accessible = nodes().sort((a, b) => Number(b.clickable) - Number(a.clickable)).find(node => {
+      const text = `${node.label} ${node.text}`.toLowerCase();
+      return text.includes(label.toLowerCase()) && text.includes(state.toLowerCase());
+    });
+    if (accessible) return center(accessible);
     const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
     // Tesseract misses white-on-blue buttons when it segments the whole screen.
     for (const top of bands) {
@@ -86,62 +96,27 @@ const visibleLine = (label, state = '') => {
   throw new Error(`Could not find visible ${label} ${state}.`);
 };
 const tapText = (label, state) => tap(...visibleLine(label, state));
-// The Insert pill defeats OCR; Why? on the same row reads, and Insert starts the row at the left.
+// Accessible buttons keep the first card's multiline fixture separate from its Copy and Share icons.
 const tapInsertButton = () => {
-  const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
-  const tops = [...bands].reverse();
-  for (const top of tops) {
-    const input = crop(image, top);
-    const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
-    const word = tsv.split('\n').slice(1).map(row => row.split('\t')).find(columns => columns.length >= 12 && columns[11].trim().toLowerCase().startsWith('why'));
-    if (word) { tap(Math.round(width * .18), Number(word[7]) + Number(word[9]) / 2 + top); return; }
-  }
-  throw new Error('Could not find the Why? on Insert\'s row.');
+  const button = nodes().find(node => node.clickable && ['Insert', 'Use this'].includes(node.text || node.label));
+  if (!button) throw new Error('Could not find the first accessible Insert/Use this button.');
+  nodes(button.label || button.text);
 };
-const bubbleWindow = () => adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
+const bubbleNode = () => nodes().find(node => node.windowType === 4 && /^Ownvoice(?:,|$)/.test(node.label));
 const bubble = () => {
-  const frame = bubbleWindow()?.match(/frame=\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
-  if (!frame) throw new Error('Could not locate the Ownvoice bubble.');
-  tap(Math.round((Number(frame[1]) + Number(frame[3])) / 2), Math.round((Number(frame[2]) + Number(frame[4])) / 2));
+  const node = bubbleNode();
+  if (!node) throw new Error('Could not locate the accessible Ownvoice bubble.');
+  tap(...center(node));
 };
-const bubbleVisible = () => {
-  const window = bubbleWindow();
-  const visibility = window?.match(/mViewVisibility=(0x[0-9a-f]+)/)?.[1];
-  if (!visibility) throw new Error('Could not inspect the Ownvoice overlay window.');
-  return visibility === '0x0';
-};
+const bubbleVisible = () => !!bubbleNode();
 const expectBubble = (visible, label) => {
   if (bubbleVisible() !== visible) throw new Error(`Bubble visibility did not match ${label}.`);
 };
 
-// Title and its On/Off subtitle land on separate OCR lines; pair them by position.
-const findRowWithState = (label, state) => {
-  const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
-  const lines = [];
-  for (const top of bands) {
-    const input = crop(image, top);
-    const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
-    const groups = new Map();
-    for (const row of tsv.split('\n').slice(1)) {
-      const columns = row.split('\t');
-      if (columns.length < 12 || !columns[11].trim()) continue;
-      const key = columns.slice(0, 5).join(':');
-      const line = groups.get(key) ?? { words: [], left: Infinity, top: Infinity, bottom: 0 };
-      line.words.push(columns[11]);
-      line.left = Math.min(line.left, Number(columns[6]));
-      line.top = Math.min(line.top, Number(columns[7]) + top);
-      line.bottom = Math.max(line.bottom, Number(columns[7]) + Number(columns[9]) + top);
-      groups.set(key, line);
-    }
-    for (const line of groups.values()) lines.push({ text: line.words.join(' ').toLowerCase(), left: line.left, top: line.top, bottom: line.bottom });
-  }
-  const wanted = label.toLowerCase();
-  return lines.find(line => line.text.includes(wanted)
-    && lines.some(other => other !== line && other.text.includes(state.toLowerCase())
-      && other.top >= line.top && other.top - line.top < 120 && other.left < 400));
-};
+const findRowWithState = (label, state) => nodes().find(node =>
+  node.checkable && node.label === label && node.checked === (state === 'On'));
 
-visibleLine('replies that sound');
+visibleLine('sound like you'); // the welcome title wraps two OCR lines on narrow screens
 adb('shell', 'input', 'keyevent', '4');
 visibleLine('Where the bubble shows');
 
@@ -159,8 +134,8 @@ adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 await wait(3000);
 
 const chooseApp = async (label, prior) => {
-  tapText('Where the bubble shows');
-  await wait(400);
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://apps');
+  await wait(1200);
   tapText('Find an app');
   type(label.split(' ')[0]);
   await wait(500);
@@ -172,11 +147,15 @@ const chooseApp = async (label, prior) => {
     if (!row) await wait(1000);
   }
   if (!row) throw new Error(`Could not find the ${label} row (${prior}).`);
-  tap(Math.min(Math.round(row.left + 200), Math.round(width / 2)), Math.round((row.top + row.bottom) / 2));
-  await wait(400);
-  if (!findRowWithState(label, prior === 'Off' ? 'On' : 'Off')) throw new Error(`The ${label} row did not switch.`);
-  tapText('Back');
-  await wait(700);
+  nodes(`${label}, ${prior}`);
+  let switched = false;
+  for (let attempt = 0; attempt < 8 && !switched; attempt++) {
+    await wait(400);
+    switched = !!findRowWithState(label, prior === 'Off' ? 'On' : 'Off');
+  }
+  if (!switched) throw new Error(`The ${label} row did not switch.`);
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice:///');
+  await wait(1200);
   visibleLine('Where the bubble shows');
 };
 
@@ -185,7 +164,7 @@ expectBubble(true, 'test app enabled');
 await chooseApp('Chrome', 'Off');
 
 // Use the editable writing note as the native React Native field.
-tapText('Your voice');
+adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://voice');
 await wait(500);
 tapText('For example: short sentences');
 await wait(500);
@@ -206,8 +185,8 @@ for (let back = 0; back < 3; back++) {
   if (!focus.includes(pkg) || !focus.includes('MainActivity')) throw new Error(`Expected Ownvoice in front: ${focus}`);
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
   const title = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '6'], { input: execFileSync('magick', ['png:', '-crop', `${width}x${Math.min(height, Math.round(140 * density))}+0+0`, '+repage', 'png:-'], { input: image }), encoding: 'utf8' }).toLowerCase().split('\n').map(line => line.trim());
-  if (title.includes('ownvoice')) break;
-  if (!title.includes('your voice')) throw new Error('Could not identify the Ownvoice screen before Back.');
+  if (title.some(line => line.includes('own'))) break; // the display header misreads under OCR ('Ovnvoice', 'Yolir voice'); fragments tell home from Your voice
+  if (!title.some(line => line.includes('voice'))) throw new Error('Could not identify the Ownvoice screen before Back.');
   adb('shell', 'input', 'keyevent', '4');
   await wait(500);
 }
@@ -248,7 +227,7 @@ const insertWebField = async (name, heading) => {
   await wait(1200);
   visibleLine('Polish your post');
   if (name === 'contenteditable') snap('chrome-panel');
-  tapText('Use this');
+  tapInsertButton();
   await wait(1800);
   if (name === 'contenteditable') snap('chrome-inserted');
 };
@@ -271,4 +250,4 @@ await wait(1500);
 const accessibility = adb('shell', 'dumpsys', 'accessibility');
 if (!accessibility.includes('label=Ownvoice') || accessibility.includes(`Crashed services:{{${component}}}`)) throw new Error('Accessibility service did not bind cleanly after reinstall.');
 expectBubble(true, 'service rebound');
-console.log(`Screenshots saved to ${out}. RN, Chrome, pause/off and service-rebind checks passed. This driver avoids UiAutomator so it cannot unbind the service.`);
+console.log(`Screenshots saved to ${out}. RN, Chrome, pause/off and service-rebind checks passed. Accessibility snapshots preserve the running service.`);

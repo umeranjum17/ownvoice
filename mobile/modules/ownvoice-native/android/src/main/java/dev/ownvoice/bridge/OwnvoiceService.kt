@@ -5,38 +5,41 @@ import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
-import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.ColorFilter
 import android.graphics.Paint
 import android.graphics.Rect
-import android.graphics.Color
 import android.graphics.Typeface
-import android.graphics.Outline
 import android.graphics.PixelFormat
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.Drawable
-import android.graphics.drawable.GradientDrawable
-import android.graphics.drawable.InsetDrawable
 import android.graphics.drawable.LayerDrawable
 import android.net.Uri
-import android.os.Bundle
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
-import android.view.Gravity
-import android.view.MotionEvent
-import android.view.View
-import android.view.ViewOutlineProvider
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
-import android.widget.TextView
 import android.widget.Toast
 import com.facebook.react.ReactApplication
+import io.github.umeranjum17.byokit.overlay.ByokitAccessibility
+import io.github.umeranjum17.byokit.overlay.FieldNode
+import io.github.umeranjum17.byokit.overlay.FocusedFields
+import io.github.umeranjum17.byokit.overlay.InsertCancellation
+import io.github.umeranjum17.byokit.overlay.InsertOpts
+import io.github.umeranjum17.byokit.overlay.OverlayEvent
+import io.github.umeranjum17.byokit.overlay.PrefsSpotStore
+import io.github.umeranjum17.byokit.overlay.Size
+import io.github.umeranjum17.byokit.overlay.SpotStore
+import io.github.umeranjum17.byokit.overlay.Rules
+import io.github.umeranjum17.byokit.overlay.ServiceBubble
+import kotlin.concurrent.thread
 import kotlin.math.roundToInt
 
 internal fun accessibleText(text: CharSequence?, isShowingHintText: Boolean): String? =
@@ -66,7 +69,8 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var instance: OwnvoiceService? = null
     @Volatile var onApps: Set<String> = emptySet()
     @Volatile var offApps: Set<String> = emptySet()
-    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b", "com.Slack", "com.reddit.frontpage")
+    // Generated from mobile/src/core/defaultApps.json, also used by the legacy app and JavaScript.
+    val DEFAULT_ON = BuildConfig.DEFAULT_ON.toSet()
     @Volatile var paused = false
     /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. Never saved. */
     @Volatile var practice = false
@@ -124,14 +128,12 @@ class OwnvoiceService : AccessibilityService() {
 
   data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false)
   data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean)
-  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String)
+  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String)
   private val main = Handler(Looper.getMainLooper())
-  private val notes = Handler(Looper.getMainLooper())
-  private val reposition = Runnable { updateBubble() }
-  private lateinit var wm: WindowManager
-  private lateinit var bubble: TextView
-  private lateinit var params: WindowManager.LayoutParams
   private var capture: Capture? = null
+  /** The kit's bubble, driven with no JavaScript running so it restores after a reboot or process death. */
+  private var bubbles: ServiceBubble? = null
+  private var unwatch: (() -> Unit)? = null
   private val typingPause = Runnable { typed() }
   private var typedApp: String? = null
   private var checkedText: String? = null
@@ -140,42 +142,26 @@ class OwnvoiceService : AccessibilityService() {
   private var slipApp: String? = null
   private var slipCount = 0
   private var slipLabel = ""
-  private var inserting = false
-  private var insertingPractice = false
+  private var insertCancellation: InsertCancellation? = null
   private var pendingInsert: (() -> Unit)? = null
-  private var resting = true
   private var lastPrune = 0L
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
-  private var spot = BubbleSpot(BubbleEdge.Right, 0)
-  private var dragging = false
-  private var downX = 0f
-  private var downY = 0f
-  private var leftAtDown = 0
-  private var topAtDown = 0
-  private val spots by lazy { BubbleSpots({ key -> prefs.getString("bubble:$key", null) }) { key, value -> prefs.edit().putString("bubble:$key", value).commit() } }
-  private val statusBarPx by lazy {
-    val id = resources.getIdentifier("status_bar_height", "dimen", "android")
-    if (id > 0) resources.getDimensionPixelSize(id) else px(24)
-  }
-  private val screenW get() = resources.displayMetrics.widthPixels
-  private val screenH get() = resources.displayMetrics.heightPixels
-  /** The overlay is laid out inside the area below the status bar, so the bubble's y is counted from there. */
-  private val areaH get() = screenH - statusBarPx
-  private val bubbleSize get(): Int {
-    if (params.height > 0) return params.height
-    bubble.measure(View.MeasureSpec.makeMeasureSpec(screenW, View.MeasureSpec.AT_MOST),
-      View.MeasureSpec.makeMeasureSpec(areaH, View.MeasureSpec.AT_MOST))
-    return bubble.measuredHeight
-  }
   var panelOpen: Boolean
     get() = panelIsOpen
     // When the panel opens, put idle back (the bubble is hidden then), so closing it never leaves the tap mood on the bubble.
-    set(value) { panelIsOpen = value; if (value) main.post(restoreBubble); updateBubble() }
+    set(value) { panelIsOpen = value; if (value) restIdle(); refreshBubble() }
 
   private fun px(dp: Int) = (dp * resources.displayMetrics.density).toInt()
-  private fun allowed(app: String?) = app != null && !paused && (app in onApps || (app !in offApps && app in DEFAULT_ON) || (practice && app == packageName))
-  private val night get() = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-  private fun colour(id: Int, fallback: Int) = if (android.os.Build.VERSION.SDK_INT >= 31) getColor(id) else fallback
+  private fun kitRules() = Rules(paused, onApps.toList(), offApps.toList(), DEFAULT_ON.toList())
+  /** The bubble shows unless the panel covers it; the setup's practice chat is allowed on top of the kit's
+    rules (on top of on/off, but never over pause, the way [allowed] reads it). */
+  private fun effectiveRules() = kitRules().copy(
+    paused = paused || panelIsOpen,
+    on = (if (practice) onApps + packageName else onApps).toList(),
+    off = (if (practice) offApps - packageName else offApps).toList(),
+  )
+  private fun allowed(app: String?) = !paused && (kitRules().shows(app) || (practice && app == packageName))
+  private fun reducedMotion() = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
   override fun onServiceConnected() {
     super.onServiceConnected()
@@ -186,26 +172,23 @@ class OwnvoiceService : AccessibilityService() {
     typingCheck = prefs.getBoolean("typingCheck", false)
     synchronized(facts) { restoreFacts(this) }
     lastPrune = System.currentTimeMillis()
-    wm = getSystemService(WindowManager::class.java)
-    bubble = TextView(this).apply {
-      gravity = Gravity.CENTER
-      textSize = 14f
-      maxWidth = px(260)
-      contentDescription = "Ownvoice"
-      setOnClickListener {
-        val shouldRead = resting || text.toString() == TIP
-        if (shouldRead) { showMood(R.drawable.ownvoice_mascot_listening); readScreen() } else restoreBubble.run()
-      }
-      setOnTouchListener { _, event -> onBubbleTouch(event) }
+    // The kit's window, foreground app, keyboard inset and focused field all ride this service.
+    ByokitAccessibility.attach(this)
+    if (bubbles == null) {
+      val spots = PrefsSpotStore(this)
+      migrateSpots(spots)
+      bubbles = ServiceBubble(::moodDrawable, spots, ::reducedMotion)
+      bubbles?.events?.add { e -> when (e) {
+        OverlayEvent.Tap -> onBubbleTap()
+        else -> {}
+      } }
     }
-    params = WindowManager.LayoutParams(px(52), px(52), WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
-      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE, PixelFormat.TRANSLUCENT).apply {
-      spot = BubbleSpot(BubbleEdge.Right, BubblePlacement.clampTop((areaH - px(52)) / 2, areaH, px(52)))
-      gravity = Gravity.TOP or Gravity.END; x = px(8); y = spot.top
-    }
-    wm.addView(bubble, params)
+    unwatch?.invoke()
+    unwatch = ByokitAccessibility.foreground?.onChange { updateBubble() }
+    bubbles?.start(ServiceBubble.Config(mood = "idle", label = "Ownvoice", rules = effectiveRules(), perAppSpots = true))
+    bubbles?.setLabel(if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice")
     instance = this
-    restoreBubble.run()
+    updateBubble()
     onServiceChange?.invoke("on")
     if (prefs.getBoolean("comeBack", false)) {
       prefs.edit().remove("comeBack").apply()
@@ -216,16 +199,31 @@ class OwnvoiceService : AccessibilityService() {
     }
   }
 
+  /** Ownvoice's saved pixel positions are app data; convert them once into the kit's spot contract. */
+  private fun migrateSpots(spots: SpotStore) {
+    val wm = getSystemService(WindowManager::class.java)
+    val metrics = if (Build.VERSION.SDK_INT >= 30) wm.currentWindowMetrics else null
+    val bars = if (Build.VERSION.SDK_INT >= 30) metrics?.windowInsets?.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars()) else null
+    val status = bars?.top ?: resources.getIdentifier("status_bar_height", "dimen", "android")
+      .takeIf { it != 0 }?.let(resources::getDimensionPixelSize) ?: px(24)
+    val screen = Size(metrics?.bounds?.width() ?: resources.displayMetrics.widthPixels,
+      (metrics?.bounds?.height() ?: resources.displayMetrics.heightPixels) - (bars?.bottom ?: 0))
+    val bubble = Size(px(56), px(56))
+    prefs.all.forEach { (key, value) ->
+      if (key.startsWith("bubble:") && value is String) {
+        val app = key.removePrefix("bubble:").takeIf { it.isNotBlank() } ?: return@forEach
+        val target = SpotStore.key(true, app)
+        if (spots.get(target) == null) legacySpot(value, screen, bubble, status)?.let { spots.put(target, it) }
+      }
+    }
+  }
+
   override fun onAccessibilityEvent(event: AccessibilityEvent) {
     if (System.currentTimeMillis() - lastPrune >= DAY_MS) {
       synchronized(facts) { restoreFacts(this) }
       lastPrune = System.currentTimeMillis()
     }
-    if (event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED || event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED || event.eventType == AccessibilityEvent.TYPE_VIEW_FOCUSED) {
-      updateBubble()
-      main.removeCallbacks(reposition)
-      main.postDelayed(reposition, 350) // IME bounds settle after the window/focus event.
-    }
+    // The bubble places itself from the kit's foreground/keyboard polling; typing is the only event Ownvoice acts on.
     if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) textChanged(event)
   }
 
@@ -242,8 +240,7 @@ class OwnvoiceService : AccessibilityService() {
   private fun typed() {
     val app = typedApp ?: return
     if (!typingCheck || !allowed(app) || currentApp() != app) return
-    val field = focusedField()?.takeUnless { it.isPassword }
-    val text = accessibleText(field?.text, field?.isShowingHintText == true).orEmpty()
+    val text = FocusedFields.read(this)?.takeIf { it.app == app }?.text.orEmpty()
     if (!worthChecking(text)) { checkedText = null; checkedApp = null; return showSlips(app, 0, "") }
     if (text == checkedText && app == checkedApp) return
     checkedText = text; checkedApp = app
@@ -262,7 +259,8 @@ class OwnvoiceService : AccessibilityService() {
     val shown = if (typingCheck && count > 0 && app == currentApp()) count else 0
     if (shown == slipCount && (shown == 0 || app == slipApp)) return
     slipApp = app.takeIf { shown > 0 }; slipCount = shown; slipLabel = label
-    if (::bubble.isInitialized && resting) restoreBubble.run()
+    bubbles?.setLabel(if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice")
+    bubbles?.setMood("idle")
   }
 
   /** The switch went off: drop anything waiting and the count. */
@@ -272,96 +270,48 @@ class OwnvoiceService : AccessibilityService() {
     showSlips("", 0, "")
   }
   override fun onInterrupt() {}
-  override fun onConfigurationChanged(newConfig: Configuration) { super.onConfigurationChanged(newConfig); if (::bubble.isInitialized && resting) restoreBubble.run() }
+  override fun onUnbind(intent: Intent?): Boolean {
+    forget()
+    stopBubble()
+    return super.onUnbind(intent)
+  }
   override fun onDestroy() {
-    pendingInsert?.invoke()
     forget()
     instance = null
     onServiceChange?.invoke("off")
     main.removeCallbacksAndMessages(null)
-    notes.removeCallbacksAndMessages(null)
-    if (::bubble.isInitialized) runCatching { wm.removeView(bubble) }
+    stopBubble()
     super.onDestroy()
+  }
+
+  private fun stopBubble() {
+    unwatch?.invoke()
+    unwatch = null
+    bubbles?.stop()
+    ByokitAccessibility.detach(this)
   }
 
   fun updateBubble() {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { updateBubble() }; return }
-    if (!::bubble.isInitialized || dragging) return
-    val app = currentApp()
-    val show = !panelIsOpen && allowed(app)
+    val app = ByokitAccessibility.foreground?.current ?: currentApp()
     // Another app in front drops the count; Ownvoice's own panel over it keeps it.
     if (slipCount > 0 && app != slipApp && !panelIsOpen) showSlips(app.orEmpty(), 0, "")
-    bubble.visibility = if (show) View.VISIBLE else View.GONE
-    if (!show) return
-    spot = spots.spotFor(app.orEmpty(), areaH, px(52)); place()
-    if (!prefs.getBoolean("tipShown", false)) {
+    refreshBubble()
+    if (app != null && !panelIsOpen && effectiveRules().shows(app) && !prefs.getBoolean("tipShown", false)) {
       prefs.edit().putBoolean("tipShown", true).apply()
       say(TIP, 6000)
     }
   }
 
-  /** Move the bubble, snapping it to an edge on release; a press without movement remains a tap. */
-  private fun onBubbleTouch(event: MotionEvent): Boolean {
-    when (event.actionMasked) {
-      MotionEvent.ACTION_DOWN -> {
-        downX = event.rawX; downY = event.rawY; topAtDown = params.y
-        leftAtDown = if (spot.edge == BubbleEdge.Left) params.x else screenW - bubble.width - params.x
-        dragging = false
-        return true
-      }
-      MotionEvent.ACTION_MOVE -> {
-        if (!dragging && BubblePlacement.isDrag(event.rawX - downX, event.rawY - downY, px(BubblePlacement.SLOP_DP))) dragging = true
-        if (dragging) moveTo(leftAtDown + (event.rawX - downX).roundToInt(), topAtDown + (event.rawY - downY).roundToInt())
-        return true
-      }
-      MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-        val wasDrag = dragging || BubblePlacement.isDrag(event.rawX - downX, event.rawY - downY, px(BubblePlacement.SLOP_DP))
-        dragging = false
-        if (event.actionMasked == MotionEvent.ACTION_CANCEL) { updateBubble(); return true }
-        if (wasDrag) {
-          moveTo(leftAtDown + (event.rawX - downX).roundToInt(), topAtDown + (event.rawY - downY).roundToInt())
-          spot = BubbleSpot(BubblePlacement.edge(params.x + bubble.width / 2, screenW), params.y)
-          currentApp()?.let { spots.remember(it, spot) }
-          updateBubble()
-        } else bubble.performClick()
-        return true
-      }
-    }
-    return false
+  /** The kit shows or hides the bubble from the persisted rules (paused while the panel covers it). */
+  private fun refreshBubble() {
+    if (Looper.myLooper() != Looper.getMainLooper()) { main.post { refreshBubble() }; return }
+    bubbles?.setRules(effectiveRules())
   }
 
-  /** The overlay's origin can lie inside the status bar (e.g. y=30 when the bar ends at 63). */
-  private fun topInset(): Int {
-    if (!bubble.isLaidOut) return statusBarPx
-    val location = IntArray(2)
-    bubble.getLocationOnScreen(location)
-    return (statusBarPx - (location[1] - params.y)).coerceAtLeast(0)
-  }
-
-  /** Follow the finger while dragging, kept wholly on the screen. */
-  private fun moveTo(left: Int, top: Int) {
-    val inset = topInset()
-    params.gravity = Gravity.TOP or Gravity.START
-    params.x = BubblePlacement.clampLeft(left, screenW, bubble.width)
-    params.y = BubblePlacement.clampTop(top, areaH, bubble.height, inset)
-    wm.updateViewLayout(bubble, params)
-  }
-
-  /** Put the bubble back at its spot, resting above the keyboard when one is up over a field. */
-  private fun place() {
-    if (!::bubble.isInitialized) return
-    val keyboard = keyboardTop()?.minus(statusBarPx)?.takeIf { it > 0 && focusedField() != null }
-    params.gravity = Gravity.TOP or (if (spot.edge == BubbleEdge.Left) Gravity.START else Gravity.END)
-    params.x = px(8)
-    params.y = BubblePlacement.clampTop(BubblePlacement.restTop(spot.top, areaH, bubbleSize, keyboard, px(8)), areaH, bubbleSize, topInset())
-    wm.updateViewLayout(bubble, params)
-  }
-
-  /** The top of the keyboard on screen, or null when none is up. */
-  private fun keyboardTop(): Int? {
-    val ime = windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_INPUT_METHOD } ?: return null
-    val bounds = Rect(); ime.getBoundsInScreen(bounds)
-    return bounds.top.takeIf { it > 0 && it < screenH }
+  private fun onBubbleTap() {
+    bubbles?.setMood("listening")
+    readScreen()
   }
 
   fun setRules(pausedNow: Boolean, on: Set<String>, off: Set<String>) {
@@ -376,7 +326,8 @@ class OwnvoiceService : AccessibilityService() {
     ?: windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }?.root
 
   fun readScreen() {
-    val app = currentApp()?.takeIf(::allowed) ?: run { restoreBubble.run(); return }
+    forget()
+    val app = currentApp()?.takeIf(::allowed) ?: run { restIdle(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     val nodes = mutableListOf<ScreenText>()
@@ -386,10 +337,10 @@ class OwnvoiceService : AccessibilityService() {
     Log.d(TAG, "capture practice=$practiceField conversationLines=${lines.size} clickableNodes=${nodes.count { it.clickable }}")
     val fieldBounds = Rect()
     field?.getBoundsInScreen(fieldBounds)
-    val typed = capturedInputText(field?.text, field?.isShowingHintText == true)
+    val typed = FocusedFields.read(this)?.takeIf { it.app == app }?.text.orEmpty()
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val id = java.util.UUID.randomUUID().toString()
-    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id)
+    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id)
     val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), id)
     val saved = synchronized(facts) {
       restoreFacts(this@OwnvoiceService)
@@ -397,7 +348,7 @@ class OwnvoiceService : AccessibilityService() {
       if (ok) facts += fact
       ok
     }
-    if (!saved) { Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show(); restoreBubble.run(); return }
+    if (!saved) { Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show(); restIdle(); return }
     if (lines.isEmpty() && field == null) return say("No text on this screen.")
     capture = reading
     startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
@@ -405,8 +356,10 @@ class OwnvoiceService : AccessibilityService() {
 
   private fun focusedField(): AccessibilityNodeInfo? {
     val focus = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
+    if (focus.isPassword) return null
     if (focus.isEditable) return focus
     fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
+      if (node.isPassword) return null
       if (node.isFocused && node.isEditable) return node
       for (i in 0 until node.childCount) node.getChild(i)?.let(::find)?.let { return it }
       return null
@@ -436,94 +389,88 @@ class OwnvoiceService : AccessibilityService() {
   }
 
   fun captured() = capture?.takeIf { allowed(it.app) }
-  fun forget() { capture = null }
+  fun forget() {
+    insertCancellation?.cancel()
+    capture = null
+    pendingInsert?.invoke()
+  }
   fun clearTapFacts() = clearSavedFacts(this)
 
   fun insert(text: String, done: (Boolean, Boolean) -> Unit) {
-    if (inserting) {
-      getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
+    if (pendingInsert != null) {
+      copyDraft(text)
       say("Couldn't insert. Copied, paste it.")
       onInserted?.invoke(false, false, false)
       return done(false, false)
     }
-    inserting = true
-    pendingInsert = { finishInsert(text, false, false, done) }
     val reading = captured()
-    insertingPractice = reading?.app == packageName && reading?.input?.contentDescription?.toString() == "Practice message"
-    val field = reading?.input ?: return finishInsert(text, false, false, done)
-    val args = Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) }
-    fun attempt(left: Int) {
-      if (captured() !== reading) return finishInsert(text, false, false, done)
-      field.refresh()
-      if (field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, args)) {
-        fun verify(left: Int) {
-          if (captured() !== reading) return finishInsert(text, false, false, done)
-          field.refresh()
-          val got = field.text?.toString()
-          val newlinesLost = '\n' in text && got == text.replace("\n", "")
-          if (got == text || newlinesLost || left == 0) finishInsert(text, got == text || newlinesLost, newlinesLost, done)
-          else main.postDelayed({ verify(left - 1) }, 150)
-        }
-        main.postDelayed({ verify(10) }, 150)
-      } else if (left > 0) main.postDelayed({ attempt(left - 1) }, 150)
-      else finishInsert(text, false, false, done)
+    val cancellation = InsertCancellation()
+    insertCancellation = cancellation
+    pendingInsert = { finishInsert(cancellation, reading, text, "cancelled", done) }
+    val node = reading?.insertField ?: return finishInsert(cancellation, reading, text, "failed", done)
+    thread {
+      val result = FocusedFields.insert(node, text, "all",
+        InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, ::copyDraft,
+        cancellation = cancellation, service = this)
+      main.post { finishInsert(cancellation, reading, text, result, done) }
     }
-    attempt(13)
   }
-  private fun finishInsert(text: String, ok: Boolean, newlinesLost: Boolean, done: (Boolean, Boolean) -> Unit) {
-    Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost")
-    if (ok && insertingPractice) restoreBubble.run() // Setup's own line carries the success message above Continue.
-    else if (ok) say(if (newlinesLost) "Inserted. Check it looks right before sending." else "Inserted. Send it yourself.")
-    else { getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text)); say("Couldn't insert. Copied, paste it.") }
-    forget()
-    inserting = false
+  /** The insert's fallback: the draft on the clipboard for the person to paste. True when it stuck. */
+  private fun copyDraft(text: String): Boolean = runCatching {
+    getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
+  }.isSuccess
+  /** A cancelled worker can report after the next capture; its token must never settle another insert or clear that capture. */
+  private fun finishInsert(cancellation: InsertCancellation, reading: Capture?, text: String, result: String, done: (Boolean, Boolean) -> Unit) {
+    if (insertCancellation !== cancellation) return
+    val cancelled = result == "cancelled" || capture !== reading
+    val ok = !cancelled && (result == "inserted" || result == "landedWithoutNewlines")
+    val newlinesLost = ok && result == "landedWithoutNewlines"
+    val practice = ok && reading?.app == packageName && reading?.input?.contentDescription?.toString() == "Practice message"
+    insertCancellation = null
     pendingInsert = null
-    onInserted?.invoke(ok, newlinesLost, ok && insertingPractice)
-    insertingPractice = false
+    if (capture === reading) capture = null
+    Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost")
+    if (!cancelled) {
+      if (practice) restIdle()
+      else if (ok) say(if (newlinesLost) "Inserted. Check it looks right before sending." else "Inserted. Send it yourself.")
+      else {
+        if (result != "copied") copyDraft(text)
+        say("Couldn't insert. Copied, paste it.")
+      }
+    }
+    onInserted?.invoke(ok, newlinesLost, practice)
     done(ok, newlinesLost)
   }
 
   fun say(message: String, forMs: Long = 4000) {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs) }; return }
-    if (!::bubble.isInitialized) return
-    notes.removeCallbacksAndMessages(null); resting = false
-    bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_POLITE
-    bubble.text = message; bubble.contentDescription = message
-    bubble.setTextColor(colour(if (night) android.R.color.system_neutral1_800 else android.R.color.system_neutral1_50, if (night) 0xff303030.toInt() else Color.WHITE))
-    bubble.background = GradientDrawable().apply { cornerRadius = px(24).toFloat(); setColor(colour(if (night) android.R.color.system_neutral1_100 else android.R.color.system_neutral1_800, if (night) 0xffe6e1e5.toInt() else 0xff313033.toInt())) }
-    bubble.outlineProvider = ViewOutlineProvider.BACKGROUND
-    bubble.elevation = px(3).toFloat()
-    bubble.setCompoundDrawablesRelative(moodDrawable(message), null, null, null)
-    bubble.compoundDrawablePadding = px(8)
-    bubble.setPadding(px(18), px(10), px(18), px(10)); params.width = WindowManager.LayoutParams.WRAP_CONTENT; params.height = WindowManager.LayoutParams.WRAP_CONTENT
-    updateBubble(); notes.postDelayed(restoreBubble, forMs)
+    // Announced, so TalkBack reads the pill the way the old live region did.
+    bubbles?.say(message, moodFor(message), forMs, announce = true)
   }
 
-  /** A 20 dp mood at the start of the pill: done for inserted and copied, check for look-before-sending. */
-  private fun moodDrawable(message: String) = when (message) {
-    "Inserted. Send it yourself.", "Copied." -> R.drawable.ownvoice_mascot_done
-    "Inserted. Check it looks right before sending.", "Couldn't insert. Copied, paste it.", "No text on this screen." -> R.drawable.ownvoice_mascot_check
+  /** Idle again after a tap mood, so closing the panel never leaves the tap mood on the bubble. */
+  private fun restIdle() {
+    if (Looper.myLooper() != Looper.getMainLooper()) { main.post { restIdle() }; return }
+    bubbles?.setMood("idle")
+  }
+
+  /** Done for inserted and copied, check for look-before-sending; anything else keeps the bubble's mood. */
+  private fun moodFor(message: String) = when (message) {
+    "Inserted. Send it yourself.", "Copied." -> "done"
+    "Inserted. Check it looks right before sending.", "Couldn't insert. Copied, paste it.", "No text on this screen." -> "check"
     else -> null
-  }?.let { getDrawable(it)!!.apply { setBounds(0, 0, px(20), px(20)) } }
-  private val restoreBubble = Runnable {
-    if (!::bubble.isInitialized) return@Runnable
-    notes.removeCallbacksAndMessages(null); resting = true
-    bubble.accessibilityLiveRegion = View.ACCESSIBILITY_LIVE_REGION_NONE; bubble.text = ""
-    bubble.contentDescription = if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice"
-    bubble.setCompoundDrawablesRelative(null, null, null, null)
-    showMood(if (Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f) R.drawable.ownvoice_mascot_idle_still else R.drawable.ownvoice_mascot_idle)
-    if (slipCount > 0) bubble.background = LayerDrawable(arrayOf(bubble.background, SlipBadge(slipCount)))
-    bubble.setPadding(0, 0, 0, 0); params.width = px(52); params.height = px(52); updateBubble()
   }
 
-  /** Dot on the bubble, centred in the 52 dp tap target, with a small oval shadow. */
-  private fun showMood(res: Int) {
-    if (!::bubble.isInitialized) return
-    val dot = getDrawable(res)!!
-    bubble.background = InsetDrawable(dot, px(2))
-    bubble.outlineProvider = dotOutline
-    bubble.elevation = px(3).toFloat()
+  /** Dot's moods for the kit, still under reduced motion; the typing check's count rides on idle. */
+  private fun moodDrawable(name: String): Drawable? {
+    val dot = getDrawable(when (name) {
+      "listening" -> R.drawable.ownvoice_mascot_listening
+      "done" -> R.drawable.ownvoice_mascot_done
+      "check" -> R.drawable.ownvoice_mascot_check
+      else -> if (reducedMotion()) R.drawable.ownvoice_mascot_idle_still else R.drawable.ownvoice_mascot_idle
+    }) ?: return null
     (dot as? AnimatedVectorDrawable)?.start()
+    return if (name == "idle" && slipCount > 0) LayerDrawable(arrayOf(dot, SlipBadge(slipCount))) else dot
   }
 
   /** The typing check's count at Dot's top right, drawn like the mark on Dot's own "check" mood: amber, with a dark ring. */
@@ -545,8 +492,4 @@ class OwnvoiceService : AccessibilityService() {
     @Deprecated("Deprecated in Java") override fun getOpacity() = PixelFormat.TRANSLUCENT
   }
 
-  /** The shadow follows Dot's body, not the 52 dp window. */
-  private val dotOutline = object : ViewOutlineProvider() {
-    override fun getOutline(view: View, outline: Outline) = outline.setOval(px(6), px(6), view.width - px(6), view.height - px(6))
-  }
 }

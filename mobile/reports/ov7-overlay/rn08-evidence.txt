@@ -1,0 +1,14 @@
+shot 08-01-empty-dark
+shot 08-02-chips-dark
+shot 08-03-result-editable-dark
+shot 08-04-copied-toast-dark
+shot 08-05-result-readonly-dark
+shot 08-06-number-warned-dark
+shot 08-07-bubble-hidden-while-sheet
+shot 08-08-panel-shared-note-hidden-light
+shot 08-09-why-cover-checked-line-light
+shot 08-10-panel-differing-verdicts-light
+shot 08-11-panel-shared-note-hidden-dark
+shot 08-12-why-cover-checked-line-dark
+shot 08-13-panel-differing-verdicts-dark
+Screenshots saved to /home/umer/lab-tmp/ov-eng-7/rn08-dark-final. Rewrite R1-R5, Copy fingerprints, the new-number warning, the hidden bubble and the panel verdict note all check out.
