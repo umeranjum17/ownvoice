@@ -74,6 +74,8 @@ test.each([
   ['We shoud shoud go.', 'We should should go.'],
   ['We shoud shoud shoud go.', 'We should should should go.'],
   ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
+  ['Meet by teh the evening.', 'Meet by the evening.'],
+  ['Meet by teh teh the evening.', 'Meet by the evening.'],
   ['Its a plan. yesterday i saw a elephant better then that.', 'Its a plan. yesterday i saw a elephant better then that.'],
   ['We met Shoud and Umer on friday.', 'We met Shoud and Umer on friday.'],
   ['the\nthe plan', 'the\nthe plan'],
@@ -114,6 +116,8 @@ test.each([
   ['See _the the plan', 'See _the the plan'],
   ['by the the evening', 'by the evening'],
   ['by the The evening', 'by the evening'],
+  ['by the The the evening', 'by the evening'],
+  ['by the The THE the evening', 'by the evening'],
   ['by The the evening', 'by The the evening'],
   ['by the the the evening', 'by the evening'],
 ])('automatic doubles use complete unprotected function words: %s', (typed, expected) => {
