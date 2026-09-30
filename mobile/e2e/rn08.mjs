@@ -111,7 +111,7 @@ const tapTextOrNull = async (label, state = '') => { // exact-label clusters (ch
       return text.includes(lower) && text.includes(state.toLowerCase());
     }).sort((a, b) => Number(b.clickable) - Number(a.clickable));
     const node = accessible.find(n => n.label.toLowerCase() === lower || n.text.toLowerCase() === lower) ?? accessible[0];
-    if (node) { const at = center(node); tap(...at); return at; }
+    if (node) { const at = center(node); if (node.clickable) nodes(node.label || node.text); else tap(...at); return at; }
     const exact = [];
     const loose = [];
     for (const group of screenClusters()) {
@@ -296,10 +296,12 @@ const RECEIVER_ORIGINAL = 'Move Tuesday. Really.';
 const RECEIVER_SHORT = 'Move Tuesday.';
 
 const openEditableSelection = async () => {
-  await tapText('Your voice');
+  shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://voice');
+  await wait(1200);
   let field;
   for (let i = 0; i < 6 && !field; i++) {
-    field = screenClusters().find(g => g.text.includes('example') && g.top > 800);
+    const node = nodes().find(n => n.editable);
+    field = node ? { left: node.bounds[0], top: node.bounds[1], right: node.bounds[2], bottom: node.bounds[3] } : screenClusters().find(g => g.text.includes('example') && g.top > 800);
     if (!field) await wait(500);
   }
   if (!field) throw new Error('Your voice editable field did not appear');

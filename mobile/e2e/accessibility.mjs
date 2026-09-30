@@ -32,7 +32,7 @@ export function accessibilityProbe(serial, scratch) {
   run(join(tools, 'apksigner'), ['sign', '--ks', fileURLToPath(new URL('../android/app/debug.keystore', import.meta.url)), '--ks-key-alias', 'androiddebugkey', '--ks-pass', 'pass:android', apk]);
   run('adb', ['-s', serial, 'install', '-r', apk]);
   return (click) => {
-    const output = execFileSync('adb', ['-s', serial, 'shell', 'am', 'instrument', '-w', ...(click ? ['-e', 'click', click] : []), 'dev.ownvoice.probe/dev.ownvoice.probe.Probe'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
+    const output = execFileSync('adb', ['-s', serial, 'shell', 'am', 'instrument', '-w', ...(click ? ['-e', 'click', "'" + click.replaceAll("'", "'\\'" + "'") + "'"] : []), 'dev.ownvoice.probe/dev.ownvoice.probe.Probe'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
     const json = output.match(/^INSTRUMENTATION_RESULT: nodes=(.+)$/m)?.[1];
     if (!json || !output.includes('INSTRUMENTATION_CODE: 0')) throw new Error(`Accessibility probe failed: ${output}`);
     if (click && !output.includes('INSTRUMENTATION_RESULT: clicked=true')) throw new Error(`Accessible click failed: ${click}`);
