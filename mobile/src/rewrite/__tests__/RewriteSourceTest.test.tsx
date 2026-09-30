@@ -18,7 +18,16 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
   modelStatus: jest.fn(async () => 'available'),
   bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: [] })),
 } }));
-jest.mock('../../chatgpt/accounts', () => ({ codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })), reportFailure: jest.fn(async () => ({})) }));
+jest.mock('../../chatgpt/accounts', () => {
+  const actual = jest.requireActual('../../chatgpt/accounts');
+  actual.accounts.runtime = jest.fn(async () => ({
+    getAuth: async () => ({ auth: { apiKey: 'fixture-access' } }),
+    readCredential: async () => ({ type: 'oauth', accountId: 'fixture-account' }),
+  }));
+  actual.accounts.failed = jest.fn(async (_member: string, _key: string, error: { kind: string; until: number }) => ({ kind: error.kind, until: error.until }));
+  actual.accounts.respond = jest.fn(actual.accounts.respond.bind(actual.accounts));
+  return { ...actual, codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })), reportFailure: jest.fn(async () => ({})) };
+});
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => (global.fetch as typeof fetch)(...args) }));
 jest.mock('../../chatgpt/session', () => ({
   signOutGuard: () => ({ active: false, epoch: 0 }),
