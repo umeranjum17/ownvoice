@@ -4,89 +4,42 @@ import { polishAcceptor } from '../polish';
 
 const spell = nspell(readFileSync(`${__dirname}/../../../assets/dictionary/en-affixes.aff`, 'utf8'), readFileSync(`${__dirname}/../../../assets/dictionary/en-words.dic`, 'utf8'));
 
-test.each(['accept', 'fix'] as const)('polish %s corrects only remaining automatic slips', async method => {
-  const typed = 'Its a plan. We shoud go by the the evening at 8.';
-  const acceptor = await polishAcceptor(typed, 'keep', [], spell);
-  expect(acceptor[method]("It's a plan. We shoud go by the the evening at 8.", 0)).toBe("It's a plan. We should go by the evening at 8.");
-  const advisory = await polishAcceptor('Its own engine', 'keep', [], spell);
-  expect(advisory[method]('Its own engine', 0)).toBeNull();
-  expect(advisory.unchanged).toBe(true);
-  const other = await polishAcceptor(typed, 'keep', [], spell);
-  expect(other[method]('We shoud go by the evening at 8.', 1)).toBe('We shoud go by the evening at 8.');
-  const ambiguous = await polishAcceptor('Bring woud for the fire.', 'keep', [], spell);
-  expect(ambiguous[method]('Bring woud for the fire.', 0)).toBeNull();
-  expect(ambiguous.unchanged).toBe(true);
-  const corrected = await polishAcceptor('Bring woud for the fire.', 'keep', [], spell);
-  expect(corrected[method]('Bring wood for the fire.', 0)).toBe('Bring wood for the fire.');
-  for (const typed of ['Meet by teh the evening.', 'Meet by the The the evening.']) {
-    const repeated = await polishAcceptor(typed, 'keep', [], spell);
-    expect(repeated[method](typed, 0)).toBe('Meet by the evening.');
-  }
-});
-
-test.each(['accept', 'fix'] as const)('polish %s preserves repeated names and handles', async method => {
-  for (const typed of ['We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?']) {
-    const acceptor = await polishAcceptor(typed, 'keep', [], spell);
-    expect(acceptor[method](typed, 0)).toBeNull();
-    expect(acceptor.results).toEqual([]);
-    expect(acceptor.unchanged).toBe(true);
-  }
-});
-
-test.each(['accept', 'fix'] as const)('polish %s cleans unchanged original text', async method => {
-  const typed = 'Its a good plan, Umer shoud be there by the the evening.';
-  const acceptor = await polishAcceptor(typed, 'keep', [], spell);
-  expect(acceptor[method](typed, 0)).toBe("It's a good plan, Umer should be there by the evening.");
-});
-
-test.each(['accept', 'fix'] as const)('polish %s falls back to local fixes when the writer changes protected wording', async method => {
-  const typed = "Its a plan. Umer shoud visit Bora Bora. Give Ben Ben's keys to @will at 8:30. See #trip https://example.com or mail ben@example.com.";
-  const expected = "It's a plan. Umer should visit Bora Bora. Give Ben Ben's keys to @will at 8:30. See #trip https://example.com or mail ben@example.com.";
-  for (const answer of [
-    typed.replace('@will', '@bill').replace('Bora Bora', 'Bora'),
-    typed.replace('@will', '@will,'),
-    typed.replace('Umer', 'Omar'),
-    typed.replace("Ben Ben's", "Ben's"),
-    typed.replace('#trip', '#travel'),
-    typed.replace('https://example.com', 'https://other.com'),
-    typed.replace('ben@example.com', 'sam@example.com'),
-    typed.replace('8:30', '9:30'),
-  ]) {
-    const acceptor = await polishAcceptor(typed, 'keep', [], spell);
-    expect(acceptor[method](answer, 0, 'Cleaned up')).toBe(expected);
-    expect(acceptor.results).toEqual([{ text: expected, slot: 0, label: 'Cleaned up' }]);
-  }
-});
-
-test.each(['accept', 'fix'] as const)('polish %s ignores protected tokens when checking names and preserves written times', async method => {
+test.each(['accept', 'fix'] as const)('polish %s ignores writer cleanup and shows only local fixes', async method => {
   for (const [typed, answer, expected] of [
-    ['Will shoud join @Will.', 'Bill should join @Will.', 'Will should join @Will.'],
-    ['Will shoud join #Will.', 'Bill should join #Will.', 'Will should join #Will.'],
-    ['Will shoud join https://example.com/Will.', 'Bill should join https://example.com/Will.', 'Will should join https://example.com/Will.'],
-    ['Will shoud join Will@example.com.', 'Bill should join Will@example.com.', 'Will should join Will@example.com.'],
-    ['I shoud leave at noon.', 'I should leave at midnight.', 'I should leave at noon.'],
-    ['I shoud leave.', 'I should leave at noon.', 'I should leave.'],
-    ['I shoud leave at noon.', 'I should leave.', 'I should leave at noon.'],
+    ['Its a good plan, I shoud be there by the the evening.', 'A different plan.', "It's a good plan, I should be there by the evening."],
+    ['I shoud call at noon and leave at midnight.', 'I should call at midnight and leave at noon.', 'I should call at noon and leave at midnight.'],
+    ['I shoud visit Bora Bora with @will.', 'I should visit Bora with @bill.', 'I should visit Bora Bora with @will.'],
+    ['Keep your right hand warm. I shoud leave.', "Keep you're right hand warm. I should leave.", 'Keep your right hand warm. I should leave.'],
+    ['Bring woud for the fire. I shoud leave.', 'Bring wood for the fire. I should leave.', 'Bring woud for the fire. I should leave.'],
+    ['Meet by teh the evening.', 'Meet by teh the evening.', 'Meet by the evening.'],
+    ['Meet by the The the evening.', 'Meet by the The the evening.', 'Meet by the evening.'],
     ['Its teh teh plan.', 'Its teh teh plan.', "It's the plan."],
   ]) {
     const acceptor = await polishAcceptor(typed, 'keep', [], spell);
-    expect(acceptor[method](answer, 0)).toBe(expected);
+    expect(acceptor.local).toBe(expected);
+    expect(acceptor[method](answer, 0, 'Cleaned up')).toBeNull();
+    expect(acceptor.results).toEqual([{ text: expected, slot: 0, label: 'Cleaned up' }]);
+    expect(acceptor.layoutFails).toEqual([]);
   }
-  const preserved = await polishAcceptor('Will shoud join @Will at noon.', 'keep', [], spell);
-  expect(preserved[method]('Will should happily join @Will at noon.', 0)).toBe('Will should happily join @Will at noon.');
 });
 
+test('local cleanup leaves advisory wording unchanged and preserves other writer slots', async () => {
+  for (const typed of ['Its own engine', 'Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?']) {
+    const acceptor = await polishAcceptor(typed, 'keep', [], spell);
+    expect(acceptor.local).toBeNull();
+    expect(acceptor.results).toEqual([]);
+    expect(acceptor.unchanged).toBe(true);
+  }
+  const acceptor = await polishAcceptor('Bring woud for the fire.', 'keep', [], spell);
+  expect(acceptor.accept('Bring wood for the fire.', 1)).toBe('Bring wood for the fire.');
+  expect(acceptor.fix('Bring wood.', 2)).toBe('Bring wood.');
+});
 
-test.each(['accept', 'fix'] as const)('polish %s keeps protected dashes with no-dashes enabled', async method => {
+test('local cleanup keeps protected dashes with no-dashes enabled', async () => {
   for (const token of ['https://example.com/a—b.', 'a—b@example.com', '@a—b', '#a—b']) {
-    const typed = `I shoud read ${token}`;
-    const expected = `I should read ${token}`;
-    for (const answer of [typed, typed.replace(token, '@changed')]) {
-      const acceptor = await polishAcceptor(typed, 'remove', [], spell);
-      expect(acceptor[method](answer, 0)).toBe(expected);
-      expect(acceptor.results).toEqual([{ text: expected, slot: 0, label: undefined }]);
-    }
+    const acceptor = await polishAcceptor(`I shoud read ${token}`, 'remove', [], spell);
+    expect(acceptor.local).toBe(`I should read ${token}`);
   }
   const ordinary = await polishAcceptor('I shoud read — later.', 'remove', [], spell);
-  expect(ordinary[method]('I shoud read — later.', 0)).toBe('I should read, later.');
+  expect(ordinary.local).toBe('I should read, later.');
 });

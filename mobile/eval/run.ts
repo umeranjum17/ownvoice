@@ -58,7 +58,8 @@ async function polish(c: any, calls: Call[]) {
   const dashes = D.dashDecision(false, c.typed);
   const engine = { ask: (p: string, n: number) => call(p, n, calls) };
   const acceptor = await polishAcceptor(c.typed, dashes, [], spell);
-  const raw: Record<string, string> = {};
+  const raw: Record<string, string> = { LIGHT: acceptor.local ?? c.typed };
+  if (c.slot === 0) return { raw, shown: acceptor.results, rescued: [] };
   await J.rewrite(engine, c.typed, c.screen, c.guide ?? '', (v: any, text: string) => {
     raw[v.name] = text;
     acceptor.accept(text, J.versionsList.findIndex((x: any) => x.name === v.name), v.label);

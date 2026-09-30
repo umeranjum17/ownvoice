@@ -3,7 +3,7 @@ import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
 import { polishAcceptor } from '../core/polish';
-import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, slotsFor, versionAcceptor } from '../core/drafts';
+import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
@@ -27,6 +27,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const engine = { ask: (prompt: string, maxTokens: number) => ask(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
   const landed = on.landed ?? (() => {});
   const acceptor = await polishAcceptor(request.typed, dashes, avoid);
+  if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   await rewrite(engine, request.typed, request.conversation, request.guide ?? '', (version, text) => {
     const slot = versionsList.findIndex(v => v.name === version.name);
     const clean = acceptor.accept(text, slot, version.label);
@@ -101,15 +102,26 @@ export const phoneWriter = {
     if (process.env.EXPO_PUBLIC_E2E_STUB === '1') {
       // A typed 'Quick update' comes back as it was, through the real acceptor: the already-minimal case.
       if (request.typed.startsWith('Quick update')) {
-        const acceptor = versionAcceptor(request.typed, 'remove', []);
-        versionsList.forEach((version, slot) => acceptor.accept(request.typed, slot, version.label));
-        return { drafts: [], unchanged: acceptor.unchanged };
+        const acceptor = await polishAcceptor(request.typed, request.dashes ?? 'remove', request.avoid ?? []);
+        versionsList.slice(1).forEach((version, index) => acceptor.accept(request.typed, index + 1, version.label));
+        if (acceptor.local != null) on.landed?.(acceptor.local, 0, versionsList[0].label);
+        return { drafts: acceptor.results.map(result => result.text), unchanged: acceptor.unchanged };
       }
       // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).
       const drafts = request.typed.includes('stock')
         ? ['Yes, still on.', 'Saturday works.', "Let's delve in; at the end of the day, moving forward."]
         : ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
+      if (request.typed.trim()) {
+        const acceptor = await polishAcceptor(request.typed, request.dashes ?? 'remove', request.avoid ?? []);
+        if (acceptor.local != null) on.landed?.(acceptor.local, 0, versionsList[0].label);
+        drafts.slice(1).forEach((text, index) => {
+          const slot = index + 1;
+          const accepted = acceptor.accept(text, slot, versionsList[slot].label);
+          if (accepted != null) on.landed?.(accepted, slot, versionsList[slot].label);
+        });
+        return { drafts: acceptor.results.map(result => result.text), unchanged: acceptor.unchanged };
+      }
       drafts.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts };
     }

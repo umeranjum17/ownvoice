@@ -104,7 +104,7 @@ test('streamed account refusal is reported and polish slots are not retried', as
 
 const retryCases: Array<[DraftRequest, object]> = [
   [{ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' }, { drafts: ['No thanks', 'No thanks', 'No thanks'] }],
-  [{ conversation: '', written: '', typed: 'line one\nline two\nline three' }, { versions: ['Changed', 'Better', 'Different'] }],
+  [{ conversation: '', written: '', typed: 'line one\nline two\nline three' }, { versions: ['Changed', 'Better'] }],
 ];
 test.each(retryCases)('account failure during a slot retry stops further requests', async (request, initial) => {
   const originalFetch = global.fetch;
@@ -273,7 +273,7 @@ test('reply on X sends the X slots and cap; polish on LinkedIn sends the hook ru
     global.fetch = jest.fn(async (_url, init?: RequestInit) => {
       const payload = JSON.parse(String(init?.body)) as { input: { content: { text: string }[] }[] };
       bodies.push(payload.input[0].content[0].text);
-      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b","c"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
+      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
     }) as unknown as typeof fetch;
     await chatgptWriter.write({ conversation: 'screen', written: 'screen', typed: 'started my consultancy today', platform: platformForApp('com.linkedin.android') });
     expect(bodies.at(-1)).toContain('keep paragraphs short');
@@ -300,11 +300,13 @@ test('reply mode sends the C2 reply prompt; polish sends the rewrite prompt', as
     global.fetch = jest.fn(async (_url, init?: RequestInit) => {
       const payload = JSON.parse(String(init?.body)) as { instructions: string; input: { content: { text: string }[] }[] };
       bodies.push(`${payload.instructions}\n---\n${payload.input[0].content[0].text}`);
-      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b","c"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
+      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
     }) as unknown as typeof fetch;
     const polish = await chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: 'i can bring the stove' });
-    expect(polish.drafts).toEqual(['a', 'b', 'c']);
-    expect(bodies.at(-1)).toContain('Return the requested three rewrite versions as JSON.');
+    expect(polish.drafts).toEqual(['a', 'b']);
+    expect(bodies.at(-1)).toContain('Return the requested rewrite versions as JSON.');
+    expect(bodies.at(-1)).toContain('Return 2 versions');
+    expect(bodies.at(-1)).not.toContain('Light touch:');
     expect(bodies.at(-1)).toContain('Their text:\ni can bring the stove');
     expect(bodies.at(-1)).toContain('Screen (context only):\nchat on screen');
     expect(bodies.at(-1)).not.toContain('Latest message:');
@@ -482,7 +484,6 @@ test('reply retries accept the requested one-slot JSON array', async () => {
 
 test.each([
   ['Its a good plan.', "It's a good plan.", "It's a good plan."],
-  ['a good plan.', 'A good plan.', 'A good plan.'],
   ['Its a plan. We shoud go.', "It's a plan. We should go.", "It's a plan. We shoud go."],
   ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
   ['We shoud shoud go.', 'We should should go.'],
@@ -490,13 +491,13 @@ test.each([
   ['Meet by the The the evening.', 'Meet by the evening.'],
   ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening."],
   ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening.", "It's a good plan, I shoud be there by the the evening."],
-  ['Bring woud for the fire.', 'Bring wood for the fire.', 'Bring wood for the fire.'],
   ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
+  ['I shoud call at noon and leave at midnight.', 'I should call at noon and leave at midnight.', 'I should call at midnight and leave at noon.'],
   ['I shoud visit Bora Bora with @will.', 'I should visit Bora Bora with @will.', 'I should visit Bora with @bill.'],
 ])('ChatGPT Cleaned up uses the local fixes: %s', async (typed, expected, answer = typed) => {
   const originalFetch = global.fetch;
   const landed = jest.fn();
-  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [answer, typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [answer, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
   try {
     const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
     expect(result.drafts).toContain(expected);
@@ -508,7 +509,7 @@ test.each([
 test.each(['Its own engine', 'Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?'])('ChatGPT cleanup preserves %s', async typed => {
   const originalFetch = global.fetch;
   const landed = jest.fn();
-  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [typed, typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
   try {
     const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
     expect(result).toEqual({ drafts: [], unchanged: true });
