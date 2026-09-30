@@ -25,20 +25,20 @@ const toggleTyping = async () => {
 };
 mkdirSync(out, { recursive: true });
 const results = [];
-const page = createServer((_req, res) => res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;padding:24px}textarea,input{display:block;width:90%;margin:24px 0;padding:12px;font:18px sans-serif}</style><h1>Typing proof</h1><textarea aria-label="Typing proof" rows="3"></textarea><input type="password" aria-label="Password proof">'));
+const page = createServer((_req, res) => { res.setHeader('Content-Type', 'text/html'); res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;padding:24px}textarea,input{display:block;width:90%;margin:24px 0;padding:12px;font:18px sans-serif}</style><h1>Typing proof</h1><textarea aria-label="Typing proof" rows="3"></textarea><input type="password" aria-label="Password proof">'); });
 await new Promise(r => page.listen(0, '127.0.0.1', r));
 const port = page.address().port;
 adb('reverse', `tcp:${port}`, `tcp:${port}`);
 const openChrome = async () => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${port}`); await wait(2500); };
 try {
-  if (typing()) throw new Error('Typing must start off for tap-only default proof');
+  if (typing()) await toggleTyping(); // reset a previous interrupted proof through the app's own control
   await openChrome();
   const initial = requireBubble();
   const [x, y] = center(initial).map(Math.round);
   adb('shell', 'input', 'swipe', String(x), String(y), String(x), '2200', '600');
   await wait(1000);
   const saved = requireBubble().bounds;
-  const field = nodes().find(n => n.editable && !n.password);
+  const field = nodes().find(n => n.editable && !n.password && n.bounds[1] > 300);
   if (!field) throw new Error('Typing field absent');
   tap(field); await wait(1800);
   const state = nodes(); const dot = bubble(state);
@@ -57,7 +57,7 @@ try {
   if (String(requireBubble().bounds) !== String(saved)) throw new Error('Saved Chrome spot did not return when keyboard closed');
   results.push('Chrome spot restored after keyboard closes');
   await toggleTyping(); if (!typing()) throw new Error('Typing opt-in did not persist');
-  await openChrome(); tap(nodes().find(n => n.editable && !n.password));
+  await openChrome(); tap(nodes().find(n => n.editable && !n.password && n.bounds[1] > 300));
   adb('shell', 'input', 'text', 'I%sthink%sthe%sthe%smeeting%smoved.'); await wait(2500);
   if (!requireBubble().label.includes('thing')) throw new Error('Opt-in typing pause produced no count');
   results.push(`Opt-in focused-field typing check: ${requireBubble().label}`);
@@ -82,5 +82,5 @@ try {
   console.log(results.join('\n'));
 } finally {
   writeFileSync(resolve(out, 'results.json'), JSON.stringify(results, null, 2));
-  page.close(); try { adb('reverse', '--remove', `tcp:${port}`); } catch {}
+  page.close(); if (adb('reverse', '--list').includes(`tcp:${port}`)) adb('reverse', '--remove', `tcp:${port}`);
 }
