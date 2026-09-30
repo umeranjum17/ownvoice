@@ -6,11 +6,11 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handle, hello, PROTOCOL, VERSION } from '../src/protocol.ts';
+import { handle, hello, PROTOCOL, VERSION } from '../dist/protocol.js';
 
 const dir = dirname(fileURLToPath(import.meta.url));
 const root = join(dir, '..');
-const bin = join(root, 'bin', 'ownvoice-engine');
+const bin = join(root, 'dist', 'cli.mjs');
 // The bin exits 1 on error envelopes, so read stdout either way.
 const run = (input, args = []) => {
   try {

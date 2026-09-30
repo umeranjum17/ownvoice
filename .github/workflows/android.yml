@@ -28,6 +28,8 @@ jobs:
         working-directory: packages/engine
       - run: npm run typecheck
         working-directory: packages/engine
+      - run: npm test
+        working-directory: packages/engine
 
   ownvoice-native:
     runs-on: ubuntu-latest

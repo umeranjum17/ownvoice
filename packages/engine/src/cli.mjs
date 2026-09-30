@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 // ownvoice-engine: one JSON request on stdin -> one JSON response on stdout.
-// Runs on plain node with type stripping (no build step): `node --version`
-// needs strip-types support (unflagged since 22.18; this repo uses 26).
+// Compiled alongside the writing core; consumers run plain Node.js.
 //   ownvoice-engine hello   -> {protocol: 1, version}
 //   ownvoice-engine schema  -> the committed protocol/schema.json
 // Errors (bad JSON, bad request, unknown verb) print {"error":{code,message}}
@@ -9,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { handle, hello } from '../src/protocol.ts';
+import { handle, hello } from './protocol.ts';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const out = (value, code = 0) => {
