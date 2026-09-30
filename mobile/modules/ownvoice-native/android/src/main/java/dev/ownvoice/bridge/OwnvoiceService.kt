@@ -380,16 +380,9 @@ class OwnvoiceService : AccessibilityService() {
     val field = reading?.input ?: return finishInsert(text, false, false, done)
     // The kit sets the whole draft, retries while the panel is still on top (Chrome needs ~13 x 150 ms),
     // accepts a contenteditable that dropped only the newlines, else copies for the person to paste.
+    val node = ServiceField(field)
     thread {
-      // The panel coming down can leave the captured node briefly unreadable; ride that out,
-      // else fall back to the live field the way the kit's own insert finds it, else copy.
-      var live: FieldNode = ServiceField(field)
-      var waits = 0
-      while (live.shown() == null && waits < 6) { Thread.sleep(150); waits++ }
-      if (live.shown() == null) focusedField()?.let { live = ServiceField(it) }
-      val result = if (live.shown() == null) {
-        if (copyDraft(text)) "copied" else "failed"
-      } else FocusedFields.insert(live, text, "all",
+      val result = FocusedFields.insert(node, text, "all",
         InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, ::copyDraft)
       main.post {
         if (captured() !== reading) return@post finishInsert(text, false, false, done)
@@ -409,11 +402,7 @@ class OwnvoiceService : AccessibilityService() {
   private class ServiceField(private val node: AccessibilityNodeInfo) : FieldNode {
     override val editable: Boolean get() = node.isEditable
     override val password: Boolean get() = node.isPassword
-    // An empty box shows "" (never null): only a node that went away reads null, like the kit's own nodes.
-    override fun shown(): String? {
-      if (!node.refresh()) return null
-      return if (node.isShowingHintText) "" else node.text?.toString() ?: ""
-    }
+    override fun shown(): String? = if (node.refresh()) node.text?.toString() else null
     override fun set(text: String): Boolean = node.performAction(
       AccessibilityNodeInfo.ACTION_SET_TEXT,
       Bundle().apply { putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, text) },
