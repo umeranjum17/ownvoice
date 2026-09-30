@@ -38,3 +38,22 @@ test.each(['accept', 'fix'] as const)('polish %s cleans unchanged original text'
   const acceptor = await polishAcceptor(typed, 'keep', [], spell);
   expect(acceptor[method](typed, 0)).toBe("It's a good plan, Umer should be there by the evening.");
 });
+
+test.each(['accept', 'fix'] as const)('polish %s falls back to local fixes when the writer changes protected wording', async method => {
+  const typed = "Its a plan. Umer shoud visit Bora Bora. Give Ben Ben's keys to @will at 8:30. See #trip https://example.com or mail ben@example.com.";
+  const expected = "It's a plan. Umer should visit Bora Bora. Give Ben Ben's keys to @will at 8:30. See #trip https://example.com or mail ben@example.com.";
+  for (const answer of [
+    typed.replace('@will', '@bill').replace('Bora Bora', 'Bora'),
+    typed.replace('@will', '@will,'),
+    typed.replace('Umer', 'Omar'),
+    typed.replace("Ben Ben's", "Ben's"),
+    typed.replace('#trip', '#travel'),
+    typed.replace('https://example.com', 'https://other.com'),
+    typed.replace('ben@example.com', 'sam@example.com'),
+    typed.replace('8:30', '9:30'),
+  ]) {
+    const acceptor = await polishAcceptor(typed, 'keep', [], spell);
+    expect(acceptor[method](answer, 0, 'Cleaned up')).toBe(expected);
+    expect(acceptor.results).toEqual([{ text: expected, slot: 0, label: 'Cleaned up' }]);
+  }
+});

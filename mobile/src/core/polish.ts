@@ -2,10 +2,32 @@ import { versionAcceptor } from './drafts.ts';
 import { fixedSlips, type Speller } from './typing.ts';
 import { speller } from './speller.ts';
 
+function protectedWording(text: string) {
+  const tokens: string[] = [];
+  const words = text.replace(/\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu, token => {
+    tokens.push(token);
+    return '\0'.repeat(token.length);
+  });
+  const names = [...words.matchAll(/[\p{L}][\p{L}\p{M}'’]*/gu)]
+    .map(match => match[0]).filter(word => /^\p{Lu}/u.test(word) && !/^I(?:ts|t['’]s|['’](?:m|ve|ll|d))?$/.test(word));
+  return { tokens, names };
+}
+
 export async function polishAcceptor(original: string, dashes: 'keep' | 'remove', avoid: string[], spell?: Speller | null) {
   const dictionary = spell === undefined ? await speller().catch(() => null) : spell;
   const acceptor = versionAcceptor(original, dashes, avoid);
-  const cleaned = (text: string, slot: number) => slot === 0 ? fixedSlips(text, dictionary) : text;
+  const local = fixedSlips(original, dictionary);
+  const protectedOriginal = protectedWording(local);
+  const cleaned = (text: string, slot: number) => {
+    if (slot !== 0) return text;
+    const version = fixedSlips(text, dictionary);
+    const protectedVersion = protectedWording(version);
+    // New sentence capitals are allowed; every original name occurrence must remain.
+    const names = [...version.matchAll(/[\p{L}][\p{L}\p{M}'’]*/gu)]
+      .map(match => match[0]).filter(word => protectedOriginal.names.includes(word));
+    return JSON.stringify(protectedOriginal.tokens) === JSON.stringify(protectedVersion.tokens)
+      && JSON.stringify(protectedOriginal.names) === JSON.stringify(names) ? version : local;
+  };
   return {
     results: acceptor.results,
     layoutFails: acceptor.layoutFails,
