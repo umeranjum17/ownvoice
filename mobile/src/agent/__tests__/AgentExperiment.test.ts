@@ -18,10 +18,20 @@ jest.mock('../../core/source', () => ({ getSource: jest.fn(async () => 'chatgpt'
 jest.mock('../../chatgpt/settings', () => ({
   agentChatgptConsent: () => ({ beforeSend: async () => true, beforeFetch: () => true }),
 }));
-jest.mock('../../chatgpt/accounts', () => ({
-  codexAuth: jest.fn(async () => ({ access: 'stand-in', accountId: 'stand-in' })),
-  reportFailure: jest.fn(async () => {}),
-}));
+jest.mock('../../chatgpt/accounts', () => {
+  const actual = jest.requireActual('../../chatgpt/accounts');
+  actual.accounts.runtime = jest.fn(async () => ({
+    getAuth: async () => ({ auth: { apiKey: 'fixture-access' } }),
+    readCredential: async () => ({ type: 'oauth', accountId: 'fixture-account' }),
+  }));
+  actual.accounts.failed = jest.fn(async () => null);
+  actual.accounts.respond = jest.fn(actual.accounts.respond.bind(actual.accounts));
+  return {
+    ...actual,
+    codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })),
+    reportFailure: jest.fn(async () => null),
+  };
+});
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => (global.fetch as typeof fetch)(...args) }));
 
 type Task = { id: number; task: string; names: string[]; mustKeep: string[]; approve: boolean; limit?: boolean };
