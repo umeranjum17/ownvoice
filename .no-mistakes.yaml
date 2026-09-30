@@ -1,0 +1,23 @@
+# Trusted no-mistakes gate configuration.
+#
+# commands.test mirrors the deterministic checks CI runs for mobile in
+# .github/workflows/android.yml (mobile lint, typecheck, Jest with --ci;
+# engine lint, typecheck, node tests; native module JVM unit tests) so the
+# Test step runs the project's own checks instead of driving an emulator.
+# Like CI, this relies on an ambient Java toolchain (CI: setup-java 17;
+# local shells: JAVA_HOME in ~/.bashrc) and the Android SDK for the Gradle
+# unit-test leg. Build/assemble steps from CI are intentionally excluded:
+# this is validation, not a build.
+commands:
+  prepare: cd mobile && npm ci && cd ../packages/engine && npm ci
+  test: cd mobile && npm run lint && npm run typecheck && npm test -- --ci && cd ../packages/engine && npm run lint && npm run typecheck && npm test && cd ../../mobile && npx expo prebuild -p android --no-install && cd android && ./gradlew :ownvoice-native:testDebugUnitTest
+
+test:
+  # The baseline above is the whole validation story. Do not boot, attach
+  # to, or install on any Android emulator or device: unit coverage lives in
+  # Jest, node --test, and the Gradle unit-test leg, all of which run
+  # headless. On-device checks stay manual per README.md.
+  instructions: |
+    Trust the commands.test baseline result as the primary evidence.
+    Do not start, connect to, install anything on, or change settings on any
+    Android emulator or physical device.
