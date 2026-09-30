@@ -13,6 +13,11 @@ test.each(['accept', 'fix'] as const)('polish %s corrects only remaining automat
   expect(advisory.unchanged).toBe(true);
   const other = await polishAcceptor(typed, 'keep', [], spell);
   expect(other[method]('We shoud go by the evening at 8.', 1)).toBe('We shoud go by the evening at 8.');
+  const ambiguous = await polishAcceptor('Bring woud for the fire.', 'keep', [], spell);
+  expect(ambiguous[method]('Bring woud for the fire.', 0)).toBeNull();
+  expect(ambiguous.unchanged).toBe(true);
+  const corrected = await polishAcceptor('Bring woud for the fire.', 'keep', [], spell);
+  expect(corrected[method]('Bring wood for the fire.', 0)).toBe('Bring wood for the fire.');
 });
 
 test.each(['accept', 'fix'] as const)('polish %s preserves repeated names and handles', async method => {

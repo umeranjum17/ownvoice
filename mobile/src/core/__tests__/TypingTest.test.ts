@@ -85,6 +85,10 @@ test.each([
 test('automatic spelling requires a single clear suggestion', () => {
   const ambiguous = { correct: () => false, suggest: () => ['cat', 'bat'] };
   expect(fixedSlips('We saw a dat.', ambiguous)).toBe('We saw a dat.');
+  expect(fixedSlips('dat', { correct: () => false, suggest: () => ['cat', 'elephant'] })).toBe('dat');
+  expect(fixedSlips('dat', { correct: () => false, suggest: () => ['cat'] })).toBe('cat');
+  expect(fixedSlips('Bring woud for the fire.', speller)).toBe('Bring woud for the fire.');
+  expect(fixedSlips('shoud teh recieve', speller)).toBe('should the receive');
   expect(shown('Keep your right hand warm.')).toContain("your→you're");
   expect(fixed('Its a plan.', withFixes('Its a plan.')[0])).toBe("It's a plan.");
 });

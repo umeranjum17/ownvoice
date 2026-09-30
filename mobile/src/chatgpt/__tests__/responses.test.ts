@@ -487,6 +487,8 @@ test.each([
   ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
   ['We shoud shoud go.', 'We should should go.'],
   ['Its a good plan, I shoud be there by the the evening.', "Its a good plan, I should be there by the evening."],
+  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening.", "It's a good plan, I shoud be there by the the evening."],
+  ['Bring woud for the fire.', 'Bring wood for the fire.', 'Bring wood for the fire.'],
   ['Its a good plan, Umer shoud be there by the the evening.', "Its a good plan, Umer should be there by the evening."],
 ])('ChatGPT Cleaned up uses the local fixes: %s', async (typed, expected, answer = typed) => {
   const originalFetch = global.fetch;
@@ -500,7 +502,7 @@ test.each([
   } finally { global.fetch = originalFetch; }
 });
 
-test.each(['We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?'])('ChatGPT cleanup preserves %s', async typed => {
+test.each(['Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?'])('ChatGPT cleanup preserves %s', async typed => {
   const originalFetch = global.fetch;
   const landed = jest.fn();
   global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [typed, typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
