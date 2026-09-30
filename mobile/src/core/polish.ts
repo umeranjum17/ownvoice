@@ -1,10 +1,10 @@
-import { numbersAndTimesKept, versionAcceptor } from './drafts.ts';
+import { numbersAndTimesKept, protectedTokens, versionAcceptor } from './drafts.ts';
 import { fixedSlips, type Speller } from './typing.ts';
 import { speller } from './speller.ts';
 
 function protectedWording(text: string) {
   const tokens: string[] = [];
-  const words = text.replace(/\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu, token => {
+  const words = text.replace(protectedTokens, token => {
     tokens.push(token);
     return '\0'.repeat(token.length);
   });

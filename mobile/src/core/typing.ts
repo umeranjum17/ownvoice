@@ -1,5 +1,6 @@
 import type NSpell from 'nspell';
 import * as Slop from './slop.ts';
+import { protectedTokens } from './drafts.ts';
 
 // The typing check (off unless the person switches it on): spelling from a dictionary on the phone,
 // a short list of common slips, and the stock-phrase rules. Nothing here is sent or kept.
@@ -21,7 +22,7 @@ const APOSTROPHE: Record<string, string> = {
 const COMMON = new Set('the be to of and a in that have it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is was are been has had were said did should really thanks thank please sorry tomorrow today tonight meeting maybe probably friend friends weekend definitely receive believe different'.split(' '));
 
 const WORD = /[\p{L}][\p{L}'’]*/gu;
-const unprotected = (text: string) => text.replace(/\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu, m => '\0'.repeat(m.length));
+const unprotected = (text: string) => text.replace(protectedTokens, m => '\0'.repeat(m.length));
 const DOUBLE_WORDS = new Set('the a an to of in on at and is for it be by that was with'.split(' '));
 const letters = (w: string) => w.replace(/’/g, "'").replace(/'+$/, '');
 

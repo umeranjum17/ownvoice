@@ -75,3 +75,18 @@ test.each(['accept', 'fix'] as const)('polish %s ignores protected tokens when c
   const preserved = await polishAcceptor('Will shoud join @Will at noon.', 'keep', [], spell);
   expect(preserved[method]('Will should happily join @Will at noon.', 0)).toBe('Will should happily join @Will at noon.');
 });
+
+
+test.each(['accept', 'fix'] as const)('polish %s keeps protected dashes with no-dashes enabled', async method => {
+  for (const token of ['https://example.com/a—b.', 'a—b@example.com', '@a—b', '#a—b']) {
+    const typed = `I shoud read ${token}`;
+    const expected = `I should read ${token}`;
+    for (const answer of [typed, typed.replace(token, '@changed')]) {
+      const acceptor = await polishAcceptor(typed, 'remove', [], spell);
+      expect(acceptor[method](answer, 0)).toBe(expected);
+      expect(acceptor.results).toEqual([{ text: expected, slot: 0, label: undefined }]);
+    }
+  }
+  const ordinary = await polishAcceptor('I shoud read — later.', 'remove', [], spell);
+  expect(ordinary[method]('I shoud read — later.', 0)).toBe('I should read, later.');
+});
