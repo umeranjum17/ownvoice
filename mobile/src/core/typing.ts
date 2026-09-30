@@ -37,13 +37,17 @@ function distance(a: string, b: string): number {
 
 const keepCase = (from: string, to: string) => (/^\p{Lu}/u.test(from) ? to[0].toUpperCase() + to.slice(1) : to);
 
-/** The one fix a spelling slip offers, or undefined when nothing is close enough to be sure of. Slow: only on a tap. */
+function candidates(word: string, speller: Speller) {
+  const plain = letters(word).toLowerCase();
+  return [...new Set(speller.suggest(letters(word)))].map((s, i) => ({ s, i, d: distance(plain, s.toLowerCase()) }))
+    .filter(c => c.d <= 2)
+    .sort((x, y) => x.d - y.d || Number(COMMON.has(y.s.toLowerCase())) - Number(COMMON.has(x.s.toLowerCase())) || x.i - y.i);
+}
+
 export function suggestion(word: string, speller: Speller): string | undefined {
   const plain = letters(word).toLowerCase();
   if (APOSTROPHE[plain]) return keepCase(word, APOSTROPHE[plain]);
-  const candidates = speller.suggest(letters(word)).map((s, i) => ({ s, i, d: distance(plain, s.toLowerCase()) })).filter(c => c.d <= 2);
-  candidates.sort((x, y) => x.d - y.d || Number(COMMON.has(y.s.toLowerCase())) - Number(COMMON.has(x.s.toLowerCase())) || x.i - y.i);
-  return candidates[0]?.s;
+  return candidates(word, speller)[0]?.s;
 }
 
 /** Words the dictionary doesn't know. Capitalised words are left alone: they are mostly names. */
@@ -127,14 +131,20 @@ export function fixed(text: string, slip: Slip): string {
   return text.slice(0, slip.start) + slip.fix + text.slice(slip.end);
 }
 
-/** Apply the same fixes offered on a tap, from right to left so their offsets stay valid. */
 export function fixedSlips(text: string, spell: Speller | null): string {
-  let result = text;
-  for (const slip of slips(text, spell).reverse()) {
-    if (spell && slip.fix === undefined && slip.reason === SPELLING) {
-      slip.fix = suggestion(text.slice(slip.start, slip.end), spell);
-    }
-    result = fixed(result, slip);
+  const deletions: Slip[] = [];
+  for (const m of text.matchAll(/\b(\p{L}+)(?=([ \t]+\1\b))/gu)) {
+    if (!SKIP_DOUBLE.test(m[1])) deletions.push({ start: m.index! + m[1].length, end: m.index! + m[1].length + m[2].length, reason: GRAMMAR, fix: '' });
   }
+  const corrections: Slip[] = [];
+  if (spell) for (const slip of spelling(text, spell)) {
+    const word = text.slice(slip.start, slip.end);
+    if (APOSTROPHE[word] || spell.correct(word) || deletions.some(d => slip.start < d.end && slip.end > d.start)) continue;
+    const [best, next] = candidates(word, spell);
+    if (!best || /\p{Lu}/u.test(best.s) || next && best.d === next.d && COMMON.has(best.s.toLowerCase()) === COMMON.has(next.s.toLowerCase())) continue;
+    corrections.push({ ...slip, fix: best.s });
+  }
+  let result = text;
+  for (const slip of [...deletions, ...corrections].sort((a, b) => b.start - a.start)) result = fixed(result, slip);
   return result;
 }

@@ -481,12 +481,17 @@ test('reply retries accept the requested one-slot JSON array', async () => {
 });
 
 test.each([
-  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening."],
-  ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
-])('ChatGPT Cleaned up uses the local fixes: %s', async (typed, expected) => {
+  ['Its a good plan.', "It's a good plan.", "It's a good plan."],
+  ['a good plan.', 'A good plan.', 'A good plan.'],
+  ['Its a plan. We shoud go.', "It's a plan. We should go.", "It's a plan. We shoud go."],
+  ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
+  ['We shoud shoud go.', 'We should go.'],
+  ['Its a good plan, I shoud be there by the the evening.', "Its a good plan, I should be there by the evening."],
+  ['Its a good plan, Umer shoud be there by the the evening.', "Its a good plan, Umer should be there by the evening."],
+])('ChatGPT Cleaned up uses the local fixes: %s', async (typed, expected, answer = typed) => {
   const originalFetch = global.fetch;
   const landed = jest.fn();
-  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [typed, typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [answer, typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
   try {
     const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
     expect(result.drafts).toContain(expected);
