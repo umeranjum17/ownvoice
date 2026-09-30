@@ -51,7 +51,7 @@ const bands = [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i 
 const crop = (image, top) => top ? execFileSync('magick', ['png:', '-crop', `${width}x${Math.min(150, height - top)}+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
 const visibleLine = (label, state = '') => {
   for (let attempt = 0; attempt < 8; attempt++) {
-    const accessible = nodes().find(node => {
+    const accessible = nodes().sort((a, b) => Number(b.clickable) - Number(a.clickable)).find(node => {
       const text = `${node.label} ${node.text}`.toLowerCase();
       return text.includes(label.toLowerCase()) && text.includes(state.toLowerCase());
     });
@@ -134,8 +134,16 @@ adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 await wait(3000);
 
 const chooseApp = async (label, prior) => {
-  tapText('Where the bubble shows');
-  await wait(400);
+  // Match the clickable Home row, not the preceding app-list screen's same-named title.
+  let home;
+  for (let attempt = 0; attempt < 8 && !home; attempt++) {
+    home = nodes().find(n => n.clickable && n.label.startsWith('Where the bubble shows,'));
+    if (!home) await wait(400);
+  }
+  if (!home) throw new Error('The clickable Home app-choices row did not appear.');
+  console.log(`Choose ${label}: Home row at ${center(home)}`);
+  tap(...center(home));
+  await wait(700);
   tapText('Find an app');
   type(label.split(' ')[0]);
   await wait(500);

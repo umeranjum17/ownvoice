@@ -35,7 +35,7 @@ export function accessibilityProbe(serial, scratch) {
     const output = execFileSync('adb', ['-s', serial, 'shell', 'am', 'instrument', '-w', 'dev.ownvoice.probe/dev.ownvoice.probe.Probe'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
     const json = output.match(/^INSTRUMENTATION_RESULT: nodes=(.+)$/m)?.[1];
     if (!json || !output.includes('INSTRUMENTATION_CODE: 0')) throw new Error(`Accessibility probe failed: ${output}`);
-    return JSON.parse(json).filter(node => node.visible);
+    return JSON.parse(json).filter(node => node.visible && node.bounds[2] > node.bounds[0] && node.bounds[3] > node.bounds[1]);
   };
 }
 
