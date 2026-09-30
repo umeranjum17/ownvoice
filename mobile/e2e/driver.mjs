@@ -45,7 +45,7 @@ await wait(4500);
 
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
 const density = Number(adb('shell', 'wm', 'density').match(/(\d+)/)?.[1]) / 160;
-const tap = (x, y) => adb('shell', 'input', 'tap', String(x), String(y));
+const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
 const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
 const bands = [0, ...Array.from({ length: Math.ceil(height / 75) }, (_, i) => i * 75).filter(top => top < height)];
 const crop = (image, top) => top ? execFileSync('magick', ['png:', '-crop', `${width}x${Math.min(150, height - top)}+0+${top}`, '+repage', 'png:-'], { input: image }) : image;
