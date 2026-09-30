@@ -126,6 +126,11 @@ export const words = {
   // Where the bubble shows (AppsActivity).
   appsScreenNote:"In apps that are off, the bubble doesn't show and nothing is read.",
   findAnApp:'Find an app',
+  clearSearch:'Clear',
+  appsShown:'Bubble shows in',
+  appsOther:'Other apps',
+  appsNoneShown:'None yet. Switch on an app below.',
+  appsNoMatch:'No app with that name.',
 
   // Your voice (VoiceActivity).
   voiceNote:'Phrases you never say and how you like to write. Ownvoice follows these when it writes, and points out when a draft breaks them. They stay on this phone.',

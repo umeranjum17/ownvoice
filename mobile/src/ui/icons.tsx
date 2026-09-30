@@ -95,3 +95,7 @@ export function OpenIcon({ size, color }: Props) {
 export function ShareIcon({ size, color }: Props) {
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12,15 V3.5 M7.5,8 L12,3.5 16.5,8 M8,11 H6.5 a2,2 0 0 0 -2,2 v6 a2,2 0 0 0 2,2 h11 a2,2 0 0 0 2,-2 v-6 a2,2 0 0 0 -2,-2 H16" stroke={color} {...line} /></Svg>;
 }
+
+export function SearchIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4.5,10.5 a6,6 0 1 0 12,0 a6,6 0 1 0 -12,0 M15,15 l4.5,4.5" stroke={color} {...line} strokeWidth={2} /></Svg>;
+}
