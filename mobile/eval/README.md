@@ -31,7 +31,8 @@ this directory. The pure core it imports (`judge`, `drafts`, `slop`,
 `platforms`, `voice`, `threads`, `words`) comes straight from the
 `ownvoice-engine` package (`packages/engine`), the same published seam
 Crewhouse consumes; it loads under plain node with type stripping and no
-loader, with no `../src/core` shim and no `.mjs` helper in between;
+loader and no `.mjs` helper in between; polish additionally imports the shared
+mobile `src/core/polish.ts` acceptor and loads the bundled Hunspell dictionary;
 prompts, pipeline and scorer are the app's own.
 
 ## Threshold rule
@@ -41,4 +42,4 @@ P13, S05, R01, and R07** (R07 added with the never-invent-times fix).
 `score.ts` enforces this as a gate: it exits 1 when any of the five fails.
 Record the run's numbers in the PR.
 
-P14-P19 require their exact Cleaned up sentences. P14-P15 require `It's` along with the spelling and repeated-word fixes. P17-P18 cover spelling before repetition and lowercase-first mixed-case runs; P19 combines protected wording with a supported spelling fix so the unchanged-card guard does not hide the safety check. Polish uses the same automatic dictionary spelling and whole-word function-word repetition cleanup as both app writers, before the existing acceptance guards. The explicit `Its`/`its` immediately before the whole word `a`, `an` or `the` rule applies automatically, preserving case and protected-token boundaries. Other grammar remains advisory; the writer's completed corrections are preserved.
+P14-P19 require their exact Cleaned up sentences. P14-P15 require `It's` along with the spelling and repeated-word fixes. P17-P18 cover spelling before repetition and lowercase-first mixed-case runs; P19 combines protected wording with a supported spelling fix so the unchanged-card guard does not hide the safety check. Polish uses the shared [Cleaned up acceptance](../README.md#cleaned-up-acceptance), including its protected-word fallback, before scoring.

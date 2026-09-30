@@ -45,7 +45,7 @@ Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen a
 
 ### Polish what you wrote
 
-Already typed something? The same tap shows your text with the stock phrases marked, then a few better versions of it. **Use this** swaps your text for one of them. If your text is already as short and clear as it gets, Ownvoice says **Looks good as it is** instead of inventing changes.
+Already typed something? The same tap shows your text with the stock phrases marked, then a few better versions of it. **Use this** swaps your text for one of them. **Cleaned up** fixes clear spelling slips, accidental repeats of common words, and “Its” before “a”, “an” or “the”. For example, “Its a good plan, I shoud be there by the the evening.” becomes “It's a good plan, I should be there by the evening.” If the writer changes a name, handle, link or number, this version falls back to your text with only those clear fixes. Other suspected slips appear under **Check these** when spelling checks are on; each has its own **Fix**. If your text is already as short and clear as it gets, Ownvoice says **Looks good as it is** instead of inventing changes.
 
 <p align="center">
   <img src="docs/readme/polish.webp" alt="Polish your message: the typed text with 'at the end of the day' marked, and three versions, one flagged 'A bit stock: 3 phrases you could say more simply'" width="300" />
