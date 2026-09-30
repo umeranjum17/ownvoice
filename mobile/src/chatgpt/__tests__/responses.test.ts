@@ -352,6 +352,63 @@ test('selection rewrite rejects an empty answered stream', async () => {
   } finally { global.fetch = originalFetch; }
 });
 
+test('incomplete selection text fails plainly and keeps the transmitted read marked', async () => {
+  const originalFetch = global.fetch;
+  global.fetch = fetcher(body(
+    event({ type: 'response.output_text.delta', delta: 'Meet Saturday' }) + '\n\n',
+    event({ type: 'response.incomplete', response: { incomplete_details: { reason: 'max_output_tokens' } } }),
+  ));
+  const sent = jest.fn();
+  const unsent = jest.fn();
+  try {
+    await expect(streamSelectionRewrite('Can we meet on Saturday afternoon?', 'Shorter', '', { sent, unsent })).rejects.toThrow(words.chatgptFailed);
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(unsent).not.toHaveBeenCalled();
+    expect(accounts.failed).not.toHaveBeenCalled();
+    expect(reported).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+test.each([
+  ['versions', { versions: ['A', 'B', 'C'] }],
+  ['replies', { drafts: ['Yes please', 'No thanks', 'What time?'] }],
+])('incomplete %s never land drafts even when the JSON is valid', async (mode, partial) => {
+  const originalFetch = global.fetch;
+  global.fetch = fetcher(body(
+    event({ type: 'response.output_text.delta', delta: JSON.stringify(partial) }) + '\n\n',
+    event({ type: 'response.incomplete', response: { incomplete_details: { reason: 'max_output_tokens' } } }),
+  ));
+  const landed = jest.fn();
+  try {
+    const request = { conversation: 'Sam: Saturday?', written: 'Sam: Saturday?', typed: mode === 'versions' ? 'hello' : '' };
+    await expect(chatgptWriter.write(request, { landed })).rejects.toThrow(words.chatgptFailed);
+    expect(landed).not.toHaveBeenCalled();
+    expect(accounts.failed).not.toHaveBeenCalled();
+    if (mode === 'versions') {
+      await expect(streamResponses('polish', undefined, fetcher(body(
+        event({ type: 'response.output_text.delta', delta: JSON.stringify(partial) }) + '\n\n' + event({ type: 'response.incomplete' }),
+      )))).rejects.toThrow(words.chatgptFailed);
+    }
+  } finally { global.fetch = originalFetch; }
+});
+
+test.each(retryCases)('incomplete slot retries never land partial output', async (request, initial) => {
+  const originalFetch = global.fetch;
+  const partial = request.typed ? 'Row 1: Changed\nRow 2: Better\nRow 3: Different' : '{"drafts":["Yes please"]}';
+  global.fetch = jest.fn().mockResolvedValueOnce({ ok: true, body: body(
+    event({ type: 'response.output_text.delta', delta: JSON.stringify(initial) }) + '\n\n' + event({ type: 'response.completed' }),
+  ) }).mockImplementation(async () => ({ ok: true, body: body(
+    event({ type: 'response.output_text.delta', delta: partial }) + '\n\n' + event({ type: 'response.incomplete' }),
+  ) }));
+  const landed = jest.fn();
+  try {
+    const result = await chatgptWriter.write(request, { landed });
+    expect(result.drafts).toEqual(request.typed ? [] : ['No thanks']);
+    expect(landed).toHaveBeenCalledTimes(request.typed ? 0 : 1);
+    expect(accounts.failed).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
 test('consent withdrawn during the kits credential wait prevents dispatch and send marking', async () => {
   const originalFetch = global.fetch;
   global.fetch = jest.fn();

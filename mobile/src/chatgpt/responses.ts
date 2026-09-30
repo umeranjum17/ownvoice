@@ -1,5 +1,5 @@
 import { fetch as expoFetch } from 'expo/fetch';
-import { classify, ResponseError } from '@byokit/accounts';
+import { classify, IncompleteError, ResponseError } from '@byokit/accounts';
 import { accounts, codexAuth, reportFailure } from './accounts';
 import { withResponseFetch } from './responseFetch';
 import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor, versionAcceptor } from '../core/drafts';
@@ -50,6 +50,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
   } catch (error) {
     if (!started && marked) await on?.unsent?.();
     if (error instanceof SendVeto) throw error;
+    if (error instanceof IncompleteError) throw new Error(words.chatgptFailed);
     const message = error instanceof Error ? error.message : String(error);
     if (!started && classify(message)?.kind !== 'network') throw new SendVeto(words.phoneWrote);
     if (!(error instanceof ResponseError && error.kind != null)) await reportFailure(message).catch(() => {});
