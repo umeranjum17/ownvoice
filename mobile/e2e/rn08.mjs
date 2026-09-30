@@ -89,6 +89,14 @@ const clusters = words => {
     return { text: ws.map(w => w.text).join(' ').toLowerCase(), words: ws, left: g.left, top: g.top, right: g.right, bottom: g.bottom };
   });
 };
+const exactPresent = async (label, tries = 6) => { // a cluster that IS the label: the short rewrite is a substring of the untouched original, so a substring check cannot tell them apart
+  const lower = label.toLowerCase();
+  for (let attempt = 0; attempt < tries; attempt++) {
+    if (screenClusters().some(g => g.text.trim() === lower)) return true;
+    if (attempt < tries - 1) await wait(600);
+  }
+  return false;
+};
 const textPresent = async (label, tries = 6) => {
   const lower = label.toLowerCase();
   for (let attempt = 0; attempt < tries; attempt++) {
@@ -101,14 +109,23 @@ const textPresent = async (label, tries = 6) => {
 };
 const tapTextOrNull = async (label, state = '') => { // exact-label clusters (chips, buttons) win over lines merely containing the word, so a note's leading word never steals a button's tap
   const lower = label.toLowerCase();
+  const want = lower.split(/\s+/);
+  const bare = w => w.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
   for (let attempt = 0; attempt < 5; attempt++) {
     const exact = [];
     const loose = [];
+    const wordy = [];
     for (const group of screenClusters()) {
-      if (!group.text.includes(lower) || !group.text.includes(state.toLowerCase())) continue;
-      (group.text.trim() === lower ? exact : loose).push(group);
+      if (!group.text.includes(state.toLowerCase())) continue;
+      if (group.text.includes(lower)) (group.text.trim() === lower ? exact : loose).push(group);
+      else if (want.length > 1 && want.every(w => group.words.some(m => bare(m.text) === w))) wordy.push(group);
     }
-    const all = (exact.length ? exact : loose).map(group => {
+    const pool = exact.length ? exact : loose.length ? loose : wordy;
+    const all = pool.map(group => {
+      if (pool === wordy) {
+        const first = group.words.find(m => bare(m.text) === want[0]) ?? group;
+        return { left: first.left, top: first.top, right: first.right, bottom: first.bottom };
+      }
       const single = group.words.find(w => w.text.toLowerCase() === lower);
       const box = exact.length ? group : single ?? group;
       return { left: box.left, top: box.top, right: box.right, bottom: box.bottom };
@@ -151,7 +168,8 @@ const tapButtonRow = async (label, result) => {
   const lastWord = result.trim().split(/\s+/).at(-1).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
   for (let attempt = 0; attempt < 5; attempt++) {
     const groups = screenClusters();
-    const chip = groups.find(g => g.text.includes('fix spelling'));
+    const frags = ['shorter', 'simpler', 'fix', 'spe', 'friendl', 'firmer'];
+    const chip = groups.find(g => frags.filter(f => g.text.includes(f)).length >= 2); // the chips row; the picked chip reads poorly white-on-dark and long labels truncate, so no single label is reliable
     const group = chip && groups.find(g => g.top > chip.bottom && g.words.some(w => w.text.toLowerCase().replace(/[^\p{L}\p{N}]/gu, '') === lastWord));
     if (group) {
       const exact = groups.find(g => g.top > group.bottom && g.text.trim() === lower);
@@ -184,7 +202,18 @@ const tapButtonRow = async (label, result) => {
               return;
             }
           }
-          tap((x0 + x1) / 2, (py0 + py1) / 2); // no variant read the label; the pill is the only filled button here
+          // No variant read the label; tap the fill, not the blob's middle: the Share pill's dark label
+          // merges into the blob, while the Copy fill is its wide run of full-height dark columns.
+          const colN = new Map();
+          for (const [x] of hit) colN.set(x, (colN.get(x) ?? 0) + 1);
+          const full = (py1 - py0 + 1) / 2;
+          let run = null, cur = null;
+          for (let x = x0; x <= x1; x++) {
+            if ((colN.get(x) ?? 0) >= full) { cur = cur ?? { a: x, b: x }; cur.b = x; }
+            else { if (cur && (!run || cur.b - cur.a > run.b - run.a)) run = cur; cur = null; }
+          }
+          if (cur && (!run || cur.b - cur.a > run.b - run.a)) run = cur;
+          tap(run ? (run.a + run.b) / 2 : (x0 + x1) / 2, (py0 + py1) / 2);
           return;
         }
       }
@@ -250,9 +279,9 @@ XML`], { stdio: 'ignore' });
   shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
   await wait(4500);
   if (!(await waitForFocus(pkg))) throw new Error('freshSetup: the app did not return to the front');
-  if (!(await textPresent('Your writing helper', 3))) {
+  if (!(await textPresent('Ready to help', 3))) {
     await back(); // service connection can surface the onboarding deep link after home opens
-    if (!(await textPresent('Your writing helper', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
+    if (!(await textPresent('Ready to help', 3))) throw new Error('freshSetup: home never showed (setup not seeded?)');
   }
 };
 
@@ -287,9 +316,12 @@ const RECEIVER_SHORT = 'Move Tuesday.';
 
 const openEditableSelection = async () => {
   await tapText('Your voice');
+  await wait(1500); // let the screen settle before the swipe, or the gesture is lost in the transition
+  shell('input', 'swipe', '540', '1800', '540', '800', '400'); // the How I write note sits below the fold
+  await wait(700);
   let field;
   for (let i = 0; i < 6 && !field; i++) {
-    field = screenClusters().find(g => g.text.includes('example') && g.top > 800);
+    field = screenClusters().find(g => g.text.includes('example') && g.top > 300);
     if (!field) await wait(500);
   }
   if (!field) throw new Error('Your voice editable field did not appear');
@@ -361,7 +393,7 @@ for (const mode of ['no', 'yes']) {
   clearLog();
   await tapButtonRow('Copy', RECEIVER_SHORT);
   await wait(900);
-  if (!(await waitForFocus('.MainActivity')) || !(await textPresent(RECEIVER_ORIGINAL)) || await textPresent(RECEIVER_SHORT))
+  if (!(await waitForFocus('.MainActivity')) || !(await textPresent(RECEIVER_ORIGINAL)) || await exactPresent(RECEIVER_SHORT))
     throw new Error(`Copy changed the receiving editable selection (${scheme})`);
   if (!logcat().includes(`rewrite copied sha=${sha(RECEIVER_SHORT)}`)) throw new Error(`Copy did not copy the changed text (${scheme})`);
 
