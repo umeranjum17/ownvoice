@@ -330,7 +330,10 @@ const openEditableSelection = async () => {
   await wait(500);
   let menuAction;
   for (let i = 0; i < 5 && !menuAction; i++) {
-    menuAction = readWords().find(w => w.text.toLowerCase() === 'ownvoice' && w.left > width / 3 && w.top > 700 && w.top < 1300);
+    const node = nodes().find(n => n.windowType !== 4 && n.clickable && (n.label || n.text).startsWith('Ownvoice')
+      && n.bounds[0] > width / 3 && n.bounds[1] > 700 && n.bounds[1] < 1300);
+    menuAction = node ? { left: node.bounds[0], top: node.bounds[1], right: node.bounds[2], bottom: node.bounds[3] }
+      : readWords().find(w => w.text.toLowerCase().startsWith('ownvoice') && w.left > width / 3 && w.top > 700 && w.top < 1300);
     if (!menuAction) await wait(500);
   }
   if (!menuAction) throw new Error('Ownvoice selection action missing');
@@ -338,7 +341,7 @@ const openEditableSelection = async () => {
   if (!(await waitForFocus('RewriteActivity'))) throw new Error('editable selection did not open Ownvoice');
 };
 
-for (const mode of ['no', 'yes']) {
+for (const mode of process.env.RN08_DARK_ONLY === '1' ? ['yes'] : ['no', 'yes']) {
   const scheme = mode === 'no' ? 'light' : 'dark';
 
   // R2: an empty selection only shows the plain hint.
