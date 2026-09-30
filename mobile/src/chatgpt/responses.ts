@@ -13,7 +13,7 @@ export const CHATGPT_MODEL = 'gpt-6-sol';
 const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested three rewrite versions as JSON.';
 
-/** One streamed Responses call; the last `count` array entries must all be non-empty strings (`text` returns one plain-text line instead). */
+/** One streamed Responses call; the requested array must have exactly `count` nonblank strings (`text` returns trimmed plain text instead). */
 async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> {
   let started = false;
   let marked = false;
