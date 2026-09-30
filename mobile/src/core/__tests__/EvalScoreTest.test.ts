@@ -23,8 +23,8 @@ test('eval scores the required apostrophe fix and rejects missed cleanup', () =>
     const files = variants.map(variant => {
       const file = join(temporary, `${variant.label}.json`);
       const results = cases.filter(c => c.id === 'P14-cleaned-slips' || c.id === 'P15-cleaned-name').map(c => {
-        if (c.kind !== 'polish' || !Array.isArray(c.exact)) throw new Error('Missing cleanup alternatives');
-        return { id: c.id, shown: [{ slot: 0, text: variant.change(c.exact[0]) }], calls: [], wallMs: 0 };
+        if (c.kind !== 'polish' || !c.exact) throw new Error('Missing cleanup expectation');
+        return { id: c.id, shown: [{ slot: 0, text: variant.change(c.exact) }], calls: [], wallMs: 0 };
       });
       writeFileSync(file, JSON.stringify({ label: variant.label, results }));
       return file;

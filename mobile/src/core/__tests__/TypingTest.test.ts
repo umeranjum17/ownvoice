@@ -75,6 +75,8 @@ test.each([
   ['We shoud shoud shoud go.', 'We should should should go.'],
   ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
   ['Meet by teh the evening.', 'Meet by the evening.'],
+  ['Its teh plan.', "It's the plan."],
+  ['Its teh teh plan.', "It's the plan."],
   ['Meet by teh teh the evening.', 'Meet by the evening.'],
   ['Its a plan. yesterday i saw a elephant better then that.', "It's a plan. yesterday i saw a elephant better then that."],
   ['We met Shoud and Umer on friday.', 'We met Shoud and Umer on friday.'],

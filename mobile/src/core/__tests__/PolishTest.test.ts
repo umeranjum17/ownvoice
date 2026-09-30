@@ -57,3 +57,21 @@ test.each(['accept', 'fix'] as const)('polish %s falls back to local fixes when 
     expect(acceptor.results).toEqual([{ text: expected, slot: 0, label: 'Cleaned up' }]);
   }
 });
+
+test.each(['accept', 'fix'] as const)('polish %s ignores protected tokens when checking names and preserves written times', async method => {
+  for (const [typed, answer, expected] of [
+    ['Will shoud join @Will.', 'Bill should join @Will.', 'Will should join @Will.'],
+    ['Will shoud join #Will.', 'Bill should join #Will.', 'Will should join #Will.'],
+    ['Will shoud join https://example.com/Will.', 'Bill should join https://example.com/Will.', 'Will should join https://example.com/Will.'],
+    ['Will shoud join Will@example.com.', 'Bill should join Will@example.com.', 'Will should join Will@example.com.'],
+    ['I shoud leave at noon.', 'I should leave at midnight.', 'I should leave at noon.'],
+    ['I shoud leave.', 'I should leave at noon.', 'I should leave.'],
+    ['I shoud leave at noon.', 'I should leave.', 'I should leave at noon.'],
+    ['Its teh teh plan.', 'Its teh teh plan.', "It's the plan."],
+  ]) {
+    const acceptor = await polishAcceptor(typed, 'keep', [], spell);
+    expect(acceptor[method](answer, 0)).toBe(expected);
+  }
+  const preserved = await polishAcceptor('Will shoud join @Will at noon.', 'keep', [], spell);
+  expect(preserved[method]('Will should happily join @Will at noon.', 0)).toBe('Will should happily join @Will at noon.');
+});
