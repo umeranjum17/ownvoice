@@ -557,10 +557,10 @@ test.each([
   ['We shoud shoud go.', 'We should should go.'],
   ['Meet by teh the evening.', 'Meet by the evening.'],
   ['Meet by the The the evening.', 'Meet by the evening.'],
-  ['Its a good plan, I shoud be there by the the evening.', "Its a good plan, I should be there by the evening."],
+  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening."],
   ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening.", "It's a good plan, I shoud be there by the the evening."],
   ['Bring woud for the fire.', 'Bring wood for the fire.', 'Bring wood for the fire.'],
-  ['Its a good plan, Umer shoud be there by the the evening.', "Its a good plan, Umer should be there by the evening."],
+  ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
 ])('Cleaned up fixes slips and keeps the rest: %s', async (typed, expected, answer = typed) => {
   native.ask.mockResolvedValue(JSON.stringify({ versions: [answer, typed, typed] }));
   const landed = jest.fn();
@@ -570,7 +570,7 @@ test.each([
   expect(result.unchanged).toBe(false);
 });
 
-test.each(['Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?'])('phone cleanup preserves %s', async typed => {
+test.each(['Its own engine', 'Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?'])('phone cleanup preserves %s', async typed => {
   native.ask.mockResolvedValue(JSON.stringify({ versions: [typed, typed, typed] }));
   const landed = jest.fn();
   const result = await phoneWriter.write(request({ typed }), { landed });

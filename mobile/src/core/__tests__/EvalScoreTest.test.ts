@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { join, resolve } from 'path';
 import { cases } from '../../../eval/cases';
 
-test('eval scores both permitted apostrophe forms and rejects missed cleanup', () => {
+test('eval scores the required apostrophe fix and rejects missed cleanup', () => {
   const evalPath = resolve(__dirname, '../../../eval');
   const temporary = mkdtempSync(join(__dirname, 'eval-score-'));
   const outputDir = join(evalPath, 'out');
@@ -11,7 +11,7 @@ test('eval scores both permitted apostrophe forms and rejects missed cleanup', (
   const hadDir = existsSync(outputDir);
   const previous = existsSync(output) ? readFileSync(output) : null;
   const variants = [
-    { label: 'advisory', change: (text: string) => text, pass: true, voice: true },
+    { label: 'missing-apostrophe', change: (text: string) => text.replace(/^It's/, 'Its'), pass: false, voice: false },
     { label: 'writer', change: (text: string) => text.replace(/^Its/, "It's"), pass: true, voice: true },
     { label: 'spelling', change: (text: string) => text.replace('should', 'shoud'), pass: false, voice: false },
     { label: 'double', change: (text: string) => text.replace('the evening', 'the the evening'), pass: false, voice: false },

@@ -65,8 +65,8 @@ test('a pause check is quick', () => {
 
 test('all local fixes keep names, links, slang, list markers and numbers', () => {
   const typed = 'Its a good plan, Umer shoud be there by the the evening.\n1. Meet at 8, lol: https://example.com/teh';
-  expect(fixedSlips(typed, speller)).toBe("Its a good plan, Umer should be there by the evening.\n1. Meet at 8, lol: https://example.com/teh");
-  expect(fixedSlips('Its a qwxzvbn plan.', speller)).toBe('Its a qwxzvbn plan.');
+  expect(fixedSlips(typed, speller)).toBe("It's a good plan, Umer should be there by the evening.\n1. Meet at 8, lol: https://example.com/teh");
+  expect(fixedSlips('Its a qwxzvbn plan.', speller)).toBe("It's a qwxzvbn plan.");
 });
 
 test.each([
@@ -76,7 +76,7 @@ test.each([
   ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
   ['Meet by teh the evening.', 'Meet by the evening.'],
   ['Meet by teh teh the evening.', 'Meet by the evening.'],
-  ['Its a plan. yesterday i saw a elephant better then that.', 'Its a plan. yesterday i saw a elephant better then that.'],
+  ['Its a plan. yesterday i saw a elephant better then that.', "It's a plan. yesterday i saw a elephant better then that."],
   ['We met Shoud and Umer on friday.', 'We met Shoud and Umer on friday.'],
   ['the\nthe plan', 'the\nthe plan'],
   ['The the plan', 'The the plan'],
@@ -126,4 +126,17 @@ test.each([
 
 test.each('the a an to of in on at and is for it be by that was with'.split(' '))('automatic doubles include %s', word => {
   expect(fixedSlips(`${word} ${word}`, null)).toBe(word);
+});
+
+test.each([
+  ['Its a good plan.', "It's a good plan."],
+  ['its an idea.', "it's an idea."],
+  ['Its the plan.', "It's the plan."],
+  ['Its own engine', 'Its own engine'],
+  ['Its another plan.', 'Its another plan.'],
+  ['ITS a plan.', 'ITS a plan.'],
+  ['@Its a plan. #its an idea. https://site.test/its the plan.', '@Its a plan. #its an idea. https://site.test/its the plan.'],
+  ['αIts a plan. _its a plan. itś a plan.', 'αIts a plan. _its a plan. itś a plan.'],
+])('automatic apostrophe cleanup is narrow: %s', (typed, expected) => {
+  expect(fixedSlips(typed, null)).toBe(expected);
 });
