@@ -1,10 +1,10 @@
 # OV-7: shared overlay migration and emulator proof
 
-Ownvoice pins npm `@byokit/overlay` exactly at 0.2.2. Its accessibility service drives the kit's Kotlin `ServiceBubble`, accessibility host, foreground app, keyboard inset and focused-field APIs. The kit owns gestures, placement, per-app spots and insertion retries/re-acquisition. The `FieldNode.of` identity is captured at tap time; insertion uses 13 attempts at 150 ms and accepts `landedWithoutNewlines`. No private insert or placement workaround remains.
+This report records the initial overlay 0.2.2 migration and its emulator evidence. The dependency was subsequently upgraded for accessible tap activation and insert cancellation; see [`package.json`](../package.json) for the current pin and [Android developer notes](../README.md#android-build-and-device-checks) for current integration ownership.
 
-Ownvoice keeps its screen heuristics, tap-fact schema, moods, models and panel. One JSON source supplies the seven default apps to JavaScript and both Android apps. Only the used text-change event is subscribed; opt-in typing still waits 700 ms and reads the focused non-password field through the kit. Sign-in, phone-only promises and app words are unchanged.
+The migration preserved sign-in, phone-only promises and app words. Current default apps are owned by [`defaultApps.json`](../src/core/defaultApps.json); event subscriptions and opt-in typing are defined by [`OwnvoiceService.kt`](../modules/ownvoice-native/android/src/main/java/dev/ownvoice/bridge/OwnvoiceService.kt) and its [service config](../modules/ownvoice-native/android/src/main/res/xml/ownvoice_service.xml).
 
-Old per-app spots (`ownvoice-native` / `bubble:<package>`) are decoded once and passed to public kit `Placement.snap` and `SpotStore`. Existing kit spots win; malformed old values keep the kit default. The kit owns subsequent persistence.
+Legacy per-app spot compatibility is implemented in [`migrateSpots`](../modules/ownvoice-native/android/src/main/java/dev/ownvoice/bridge/OwnvoiceService.kt) and [`legacySpot`](../modules/ownvoice-native/android/src/main/java/dev/ownvoice/bridge/LegacySpot.kt).
 
 ## Approved geometry
 
@@ -22,9 +22,11 @@ Before (existing RN-14 keyboard proof) and after (OV-7 focused textarea proof), 
 ![Before migration](ov7-overlay/before-keyboard.webp)
 ![After migration](ov7-overlay/after-keyboard.webp)
 
-The measured after bounds are bubble `[933,1370,1080,1517]`, keyboard `[0,1517,1080,2400]`, focused field `[84,532,908,771]`. The bubble is wholly above the keyboard and does not intersect the field. [Raw geometry](ov7-overlay/geometry.json).
+The captured bubble is wholly above the keyboard and does not intersect the focused field; see [raw geometry](ov7-overlay/geometry.json) for measured bounds.
 
 ## Validation
+
+These recorded runs cover the initial 0.2.2 migration, before the later accessible-tap and cancellation fixes. They do not establish live acceptance of the current dependency pin.
 
 - Final-main Expo prebuild and release assembly passed (752 tasks); module and kit JVM tests passed, including captured input, copy-only, placement equivalents and legacy-spot migration.
 - Legacy app debug assembly and JVM tests passed.

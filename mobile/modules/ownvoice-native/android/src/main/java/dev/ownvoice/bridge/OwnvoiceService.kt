@@ -203,7 +203,7 @@ class OwnvoiceService : AccessibilityService() {
   private fun migrateSpots(spots: SpotStore) {
     val wm = getSystemService(WindowManager::class.java)
     val metrics = if (Build.VERSION.SDK_INT >= 30) wm.currentWindowMetrics else null
-    val bars = metrics?.windowInsets?.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars())
+    val bars = if (Build.VERSION.SDK_INT >= 30) metrics?.windowInsets?.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars()) else null
     val status = bars?.top ?: resources.getIdentifier("status_bar_height", "dimen", "android")
       .takeIf { it != 0 }?.let(resources::getDimensionPixelSize) ?: px(24)
     val screen = Size(metrics?.bounds?.width() ?: resources.displayMetrics.widthPixels,
@@ -419,6 +419,7 @@ class OwnvoiceService : AccessibilityService() {
   private fun copyDraft(text: String): Boolean = runCatching {
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
   }.isSuccess
+  /** A cancelled worker can report after the next capture; its token must never settle another insert or clear that capture. */
   private fun finishInsert(cancellation: InsertCancellation, reading: Capture?, text: String, result: String, done: (Boolean, Boolean) -> Unit) {
     if (insertCancellation !== cancellation) return
     val cancelled = result == "cancelled" || capture !== reading
