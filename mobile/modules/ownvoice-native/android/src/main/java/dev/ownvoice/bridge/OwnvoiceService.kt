@@ -15,11 +15,14 @@ import android.graphics.drawable.AnimatedVectorDrawable
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
 import android.net.Uri
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
+import android.view.WindowInsets
+import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
@@ -31,6 +34,8 @@ import io.github.umeranjum17.byokit.overlay.FocusedFields
 import io.github.umeranjum17.byokit.overlay.InsertOpts
 import io.github.umeranjum17.byokit.overlay.OverlayEvent
 import io.github.umeranjum17.byokit.overlay.PrefsSpotStore
+import io.github.umeranjum17.byokit.overlay.Size
+import io.github.umeranjum17.byokit.overlay.SpotStore
 import io.github.umeranjum17.byokit.overlay.Rules
 import io.github.umeranjum17.byokit.overlay.ServiceBubble
 import kotlin.concurrent.thread
@@ -170,7 +175,9 @@ class OwnvoiceService : AccessibilityService() {
     // The kit's window, foreground app, keyboard inset and focused field all ride this service.
     ByokitAccessibility.attach(this)
     if (bubbles == null) {
-      bubbles = ServiceBubble(::moodDrawable, PrefsSpotStore(this), ::reducedMotion)
+      val spots = PrefsSpotStore(this)
+      migrateSpots(spots)
+      bubbles = ServiceBubble(::moodDrawable, spots, ::reducedMotion)
       bubbles?.events?.add { e -> when (e) {
         is OverlayEvent.Tap -> onBubbleTap()
         else -> {}
@@ -189,6 +196,25 @@ class OwnvoiceService : AccessibilityService() {
       // service started SetupActivity directly; a deep link reaches the setup screen through the router.
       startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("ownvoice://setup"))
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+    }
+  }
+
+  /** Ownvoice's saved pixel positions are app data; convert them once into the kit's spot contract. */
+  private fun migrateSpots(spots: SpotStore) {
+    val wm = getSystemService(WindowManager::class.java)
+    val metrics = if (Build.VERSION.SDK_INT >= 30) wm.currentWindowMetrics else null
+    val bars = metrics?.windowInsets?.getInsetsIgnoringVisibility(WindowInsets.Type.systemBars())
+    val status = bars?.top ?: resources.getIdentifier("status_bar_height", "dimen", "android")
+      .takeIf { it != 0 }?.let(resources::getDimensionPixelSize) ?: px(24)
+    val screen = Size(metrics?.bounds?.width() ?: resources.displayMetrics.widthPixels,
+      (metrics?.bounds?.height() ?: resources.displayMetrics.heightPixels) - (bars?.bottom ?: 0))
+    val bubble = Size(px(56), px(56))
+    prefs.all.forEach { (key, value) ->
+      if (key.startsWith("bubble:") && value is String) {
+        val app = key.removePrefix("bubble:").takeIf { it.isNotBlank() } ?: return@forEach
+        val target = SpotStore.key(true, app)
+        if (spots.get(target) == null) legacySpot(value, screen, bubble, status)?.let { spots.put(target, it) }
+      }
     }
   }
 

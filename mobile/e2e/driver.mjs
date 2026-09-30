@@ -92,7 +92,7 @@ const tapText = (label, state) => tap(...visibleLine(label, state));
 // The Insert pill defeats OCR; Why? on the same row reads, and Insert starts the row at the left.
 const tapInsertButton = () => {
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
-  const tops = [...bands].reverse();
+  const tops = bands; // first draft: the multiline fixture is deliberately in slot one
   for (const top of tops) {
     const input = crop(image, top);
     const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
@@ -124,7 +124,7 @@ const findRowWithState = (label, state) => {
   const lines = [];
   for (const top of bands) {
     const input = crop(image, top);
-    const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
+    const tsv = execFileSync('tesseract', ['stdin', 'stdout', '--psm', top ? '7' : '6', 'tsv'], { input, encoding: 'utf8' });
     const groups = new Map();
     for (const row of tsv.split('\n').slice(1)) {
       const columns = row.split('\t');
@@ -252,7 +252,7 @@ const insertWebField = async (name, heading) => {
   await wait(1200);
   visibleLine('Polish your post');
   if (name === 'contenteditable') snap('chrome-panel');
-  tapText('Use this');
+  tapInsertButton();
   await wait(1800);
   if (name === 'contenteditable') snap('chrome-inserted');
 };
