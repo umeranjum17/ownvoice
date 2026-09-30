@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@byokit/accounts": "0.7.1",
-    "@byokit/overlay": "0.2.2",
+    "@byokit/overlay": "0.2.3",
     "@byokit/seal": "0.1.0",
     "expo": "~57.0.0",
     "expo-asset": "~57.0.18",

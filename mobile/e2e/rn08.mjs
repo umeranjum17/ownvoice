@@ -341,7 +341,7 @@ const openEditableSelection = async () => {
   if (!(await waitForFocus('RewriteActivity'))) throw new Error('editable selection did not open Ownvoice');
 };
 
-for (const mode of process.env.RN08_DARK_ONLY === '1' ? ['yes'] : ['no', 'yes']) {
+for (const mode of ['no', 'yes']) {
   const scheme = mode === 'no' ? 'light' : 'dark';
 
   // R2: an empty selection only shows the plain hint.

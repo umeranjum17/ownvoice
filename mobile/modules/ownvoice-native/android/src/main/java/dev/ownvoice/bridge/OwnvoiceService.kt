@@ -31,6 +31,7 @@ import com.facebook.react.ReactApplication
 import io.github.umeranjum17.byokit.overlay.ByokitAccessibility
 import io.github.umeranjum17.byokit.overlay.FieldNode
 import io.github.umeranjum17.byokit.overlay.FocusedFields
+import io.github.umeranjum17.byokit.overlay.InsertCancellation
 import io.github.umeranjum17.byokit.overlay.InsertOpts
 import io.github.umeranjum17.byokit.overlay.OverlayEvent
 import io.github.umeranjum17.byokit.overlay.PrefsSpotStore
@@ -141,8 +142,7 @@ class OwnvoiceService : AccessibilityService() {
   private var slipApp: String? = null
   private var slipCount = 0
   private var slipLabel = ""
-  private var inserting = false
-  private var insertingPractice = false
+  private var insertCancellation: InsertCancellation? = null
   private var pendingInsert: (() -> Unit)? = null
   private var lastPrune = 0L
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
@@ -179,7 +179,7 @@ class OwnvoiceService : AccessibilityService() {
       migrateSpots(spots)
       bubbles = ServiceBubble(::moodDrawable, spots, ::reducedMotion)
       bubbles?.events?.add { e -> when (e) {
-        is OverlayEvent.Tap -> onBubbleTap()
+        OverlayEvent.Tap -> onBubbleTap()
         else -> {}
       } }
     }
@@ -271,11 +271,11 @@ class OwnvoiceService : AccessibilityService() {
   }
   override fun onInterrupt() {}
   override fun onUnbind(intent: Intent?): Boolean {
+    forget()
     stopBubble()
     return super.onUnbind(intent)
   }
   override fun onDestroy() {
-    pendingInsert?.invoke()
     forget()
     instance = null
     onServiceChange?.invoke("off")
@@ -326,6 +326,7 @@ class OwnvoiceService : AccessibilityService() {
     ?: windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }?.root
 
   fun readScreen() {
+    forget()
     val app = currentApp()?.takeIf(::allowed) ?: run { restIdle(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
@@ -388,50 +389,55 @@ class OwnvoiceService : AccessibilityService() {
   }
 
   fun captured() = capture?.takeIf { allowed(it.app) }
-  fun forget() { capture = null }
+  fun forget() {
+    insertCancellation?.cancel()
+    capture = null
+    pendingInsert?.invoke()
+  }
   fun clearTapFacts() = clearSavedFacts(this)
 
   fun insert(text: String, done: (Boolean, Boolean) -> Unit) {
-    if (inserting) {
-      getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
+    if (pendingInsert != null) {
+      copyDraft(text)
       say("Couldn't insert. Copied, paste it.")
       onInserted?.invoke(false, false, false)
       return done(false, false)
     }
-    inserting = true
-    pendingInsert = { finishInsert(text, false, false, done) }
     val reading = captured()
-    insertingPractice = reading?.app == packageName && reading?.input?.contentDescription?.toString() == "Practice message"
-    val node = reading?.insertField ?: return finishInsert(text, false, false, done)
-    // The kit sets the whole draft, retries while the panel is still on top (Chrome needs ~13 x 150 ms),
-    // accepts a contenteditable that dropped only the newlines, else copies for the person to paste.
+    val cancellation = InsertCancellation()
+    insertCancellation = cancellation
+    pendingInsert = { finishInsert(cancellation, reading, text, "cancelled", done) }
+    val node = reading?.insertField ?: return finishInsert(cancellation, reading, text, "failed", done)
     thread {
       val result = FocusedFields.insert(node, text, "all",
-        InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, ::copyDraft)
-      main.post {
-        if (captured() !== reading) return@post finishInsert(text, false, false, done)
-        when (result) {
-          "inserted" -> finishInsert(text, true, false, done)
-          "landedWithoutNewlines" -> finishInsert(text, true, true, done)
-          else -> finishInsert(text, false, false, done)
-        }
-      }
+        InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, ::copyDraft,
+        cancellation = cancellation, service = this)
+      main.post { finishInsert(cancellation, reading, text, result, done) }
     }
   }
   /** The insert's fallback: the draft on the clipboard for the person to paste. True when it stuck. */
   private fun copyDraft(text: String): Boolean = runCatching {
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
   }.isSuccess
-  private fun finishInsert(text: String, ok: Boolean, newlinesLost: Boolean, done: (Boolean, Boolean) -> Unit) {
-    Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost")
-    if (ok && insertingPractice) restIdle() // Setup's own line carries the success message above Continue.
-    else if (ok) say(if (newlinesLost) "Inserted. Check it looks right before sending." else "Inserted. Send it yourself.")
-    else { getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text)); say("Couldn't insert. Copied, paste it.") }
-    forget()
-    inserting = false
+  private fun finishInsert(cancellation: InsertCancellation, reading: Capture?, text: String, result: String, done: (Boolean, Boolean) -> Unit) {
+    if (insertCancellation !== cancellation) return
+    val cancelled = result == "cancelled" || capture !== reading
+    val ok = !cancelled && (result == "inserted" || result == "landedWithoutNewlines")
+    val newlinesLost = ok && result == "landedWithoutNewlines"
+    val practice = ok && reading?.app == packageName && reading?.input?.contentDescription?.toString() == "Practice message"
+    insertCancellation = null
     pendingInsert = null
-    onInserted?.invoke(ok, newlinesLost, ok && insertingPractice)
-    insertingPractice = false
+    if (capture === reading) capture = null
+    Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost")
+    if (!cancelled) {
+      if (practice) restIdle()
+      else if (ok) say(if (newlinesLost) "Inserted. Check it looks right before sending." else "Inserted. Send it yourself.")
+      else {
+        if (result != "copied") copyDraft(text)
+        say("Couldn't insert. Copied, paste it.")
+      }
+    }
+    onInserted?.invoke(ok, newlinesLost, practice)
     done(ok, newlinesLost)
   }
 
