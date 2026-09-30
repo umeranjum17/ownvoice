@@ -3,7 +3,7 @@ import { SafeAreaInsetsContext } from 'react-native-safe-area-context';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import Home from '../index';
 import Apps from '../apps';
-import Voice, { foundLines } from '../voice';
+import Voice, { foundLines, toggleStyle } from '../voice';
 import Reads from '../reads';
 import Source from '../source';
 import { router } from 'expo-router';
@@ -556,6 +556,26 @@ test('phrases join as chips on Add or a new line, once each, and a chip tap remo
   await act(async () => { fireEvent.press(screen.getByLabelText(`${words.removePhrase} circle back`)); });
   expect(loadVoice().never).toEqual(['delve', 'syn']);
   expect(screen.queryByText('circle back')).toBeNull();
+});
+
+test('an empty never-say list offers one-tap phrases, which join like typed ones', async () => {
+  const screen = await show(<Voice />);
+  await act(async () => { fireEvent.press(screen.getByLabelText('Kind regards')); });
+  expect(loadVoice().never).toEqual(['Kind regards']);
+  expect(screen.queryByText(words.neverSayNone)).toBeNull();
+  expect(screen.queryByLabelText('Cheers')).toBeNull();                      // the ideas only fill an empty list
+});
+
+test('style ideas add to and take out of the note, keeping what was typed', async () => {
+  const screen = await show(<Voice />);
+  await act(async () => { fireEvent.changeText(screen.getByLabelText(words.howIWrite), 'lowercase'); });
+  await act(async () => { fireEvent.press(screen.getByLabelText('Friendly')); });
+  expect(loadVoice().note).toBe('lowercase, friendly');
+  expect(screen.getByLabelText('Friendly').props.accessibilityState).toMatchObject({ selected: true });
+  await act(async () => { fireEvent.press(screen.getByLabelText('Friendly')); });
+  expect(loadVoice().note).toBe('lowercase');
+  expect(toggleStyle('', 'Short sentences')).toBe('Short sentences');
+  expect(toggleStyle('Short sentences, casual', 'Casual')).toBe('Short sentences');
 });
 
 test('the rules, the note and the never-say list all save', async () => {
