@@ -14,9 +14,11 @@ const LOWER = 'How they write: all lowercase, short, no exclamation marks.';
 
 export const cases: Case[] = [
   { id: 'P14-cleaned-slips', kind: 'polish', typed: 'Its a good plan, I shoud be there by the the evening.', screen: '', slot: 0,
-    exact: "It's a good plan, I should be there by the evening.", keep: ['good plan', 'evening'], why: 'Cleaned up must apply the slips the typing check already detects' },
+    exact: "Its a good plan, I should be there by the evening.", keep: ['good plan', 'evening'], why: 'Cleaned up must apply the slips the typing check already detects' },
   { id: 'P15-cleaned-name', kind: 'polish', typed: 'Its a good plan, Umer shoud be there by the the evening.', screen: '', slot: 0,
-    exact: "It's a good plan, Umer should be there by the evening.", keep: ['Umer', 'good plan', 'evening'], why: 'Local cleanup must leave the proper noun alone' },
+    exact: "Its a good plan, Umer should be there by the evening.", keep: ['Umer', 'good plan', 'evening'], why: 'Local cleanup must leave the proper noun alone' },
+  { id: 'P16-cleaned-advisory', kind: 'polish', typed: 'Keep your right hand warm. I shoud leave.', screen: '', slot: 0,
+    exact: 'Keep your right hand warm. I should leave.', keep: ['right hand', 'leave'], why: 'Automatic cleanup must preserve valid wording flagged by advisory grammar' },
   // --- Polish: the real regressions (lost noon, flattened list, marker-only rows, trailing commentary) ---
   { id: 'P01-noon-list', kind: 'polish', typed: 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', screen: '', keep: ['tent', 'stove', 'Saturday', 'noon'],
     why: 'QA 27 Sep: phone polish of this list lost "noon" / produced no card' },

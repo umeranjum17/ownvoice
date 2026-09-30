@@ -510,7 +510,7 @@ test('an already-minimal list that comes back as it was is unchanged; a flattene
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
   native.ask.mockResolvedValueOnce('{"versions":["Yours — dashed","Yours — dashed, kept."]}')
     .mockResolvedValue('Yours — dashed');
-  const { drafts } = await phoneWriter.write(request({ typed: 'yours — dashed', dashes: 'keep' }));
+  const { drafts } = await phoneWriter.write(request({ typed: 'Yours — dashed', dashes: 'keep' }));
   expect(drafts).toEqual(['Yours — dashed, kept.']);
 });
 
@@ -550,10 +550,15 @@ test('emulator stub hands an already-minimal text back unchanged', async () => {
 });
 
 test.each([
-  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening."],
-  ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
-])('Cleaned up fixes slips and keeps the rest: %s', async (typed, expected) => {
-  native.ask.mockResolvedValue(JSON.stringify({ versions: [typed, typed, typed] }));
+  ['Its a good plan.', "It's a good plan.", "It's a good plan."],
+  ['a good plan.', 'A good plan.', 'A good plan.'],
+  ['Its a plan. We shoud go.', "It's a plan. We should go.", "It's a plan. We shoud go."],
+  ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
+  ['We shoud shoud go.', 'We should go.'],
+  ['Its a good plan, I shoud be there by the the evening.', "Its a good plan, I should be there by the evening."],
+  ['Its a good plan, Umer shoud be there by the the evening.', "Its a good plan, Umer should be there by the evening."],
+])('Cleaned up fixes slips and keeps the rest: %s', async (typed, expected, answer = typed) => {
+  native.ask.mockResolvedValue(JSON.stringify({ versions: [answer, typed, typed] }));
   const landed = jest.fn();
   const result = await phoneWriter.write(request({ typed }), { landed });
   expect(result.drafts).toContain(expected);

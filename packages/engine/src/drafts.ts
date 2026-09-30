@@ -332,7 +332,7 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
   const flat = (value: string) => value.replace(/\r\n/g, '\n').split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).join('\n').trim();
   const same = (text: string) => { if (flat(text) === flat(original)) unchanged = true; };
   const clean = (text: string) => (dashes === 'remove' ? undash(text) : text).trim();
-  const distinct = (text: string) => norm(text) !== norm(original) && fresh(text, [...shown, ...avoid]);
+  const distinct = (text: string) => flat(text) !== flat(original) && fresh(text, [...shown, ...avoid]);
   const usable = (text: string) => distinct(text) && layoutKept(original, text) && numbersAndTimesKept(original, text);
   return {
     results,

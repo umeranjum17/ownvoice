@@ -65,6 +65,26 @@ test('a pause check is quick', () => {
 
 test('all local fixes keep names, links, slang, list markers and numbers', () => {
   const typed = 'Its a good plan, Umer shoud be there by the the evening.\n1. Meet at 8, lol: https://example.com/teh';
-  expect(fixedSlips(typed, speller)).toBe("It's a good plan, Umer should be there by the evening.\n1. Meet at 8, lol: https://example.com/teh");
-  expect(fixedSlips('Its a qwxzvbn plan.', speller)).toBe("It's a qwxzvbn plan.");
+  expect(fixedSlips(typed, speller)).toBe("Its a good plan, Umer should be there by the evening.\n1. Meet at 8, lol: https://example.com/teh");
+  expect(fixedSlips('Its a qwxzvbn plan.', speller)).toBe('Its a qwxzvbn plan.');
+});
+
+test.each([
+  ['I dont dont know.', 'I dont know.'],
+  ['We shoud shoud go.', 'We should go.'],
+  ['We shoud shoud shoud go.', 'We should go.'],
+  ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
+  ['Its a plan. yesterday i saw a elephant better then that.', 'Its a plan. yesterday i saw a elephant better then that.'],
+  ['We met Shoud and Umer on friday.', 'We met Shoud and Umer on friday.'],
+  ['the\nthe plan', 'the\nthe plan'],
+  ['The the plan', 'The the plan'],
+])('automatic cleanup preserves advisory wording: %s', (typed, expected) => {
+  expect(fixedSlips(typed, speller)).toBe(expected);
+});
+
+test('automatic spelling requires a single clear suggestion', () => {
+  const ambiguous = { correct: () => false, suggest: () => ['cat', 'bat'] };
+  expect(fixedSlips('We saw a dat.', ambiguous)).toBe('We saw a dat.');
+  expect(shown('Keep your right hand warm.')).toContain("your→you're");
+  expect(fixed('Its a plan.', withFixes('Its a plan.')[0])).toBe("It's a plan.");
 });

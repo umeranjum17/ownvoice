@@ -226,7 +226,7 @@ const list = 'I can bring the stove.\n1. I will bring the stove.\n2. You can bri
 
 test('versionAcceptor drops a version equal to the writer text and near-duplicates', () => {
   const acceptor = versionAcceptor('see you at 7', 'remove', []);
-  expect(acceptor.accept('See you at 7!', 0, versionsList[0].label)).toBeNull();
+  expect(acceptor.accept('see you at 7', 0, versionsList[0].label)).toBeNull();
   expect(acceptor.accept('see you at 7', 1, versionsList[1].label)).toBeNull();
   const first = acceptor.accept('I can be there at 7.', 0, versionsList[0].label);
   expect(first).toBe('I can be there at 7.');
@@ -373,4 +373,16 @@ test('versionAcceptor rejects first-pass versions that drop or invent times', ()
   const kept = versionAcceptor('Bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', 'remove', []);
   expect(kept.accept('Bring the tent\n1. Pack the stove\n2. Meet Saturday around noon', 1, versionsList[1].label))
     .toBe('Bring the tent\n1. Pack the stove\n2. Meet Saturday around noon');
+});
+
+test.each(['accept', 'fix'] as const)('version %s retains casing and apostrophes with all guards', method => {
+  expect(versionAcceptor('Its a good plan.', 'keep', [])[method]("It's a good plan.", 0)).toBe("It's a good plan.");
+  expect(versionAcceptor('a plan.', 'keep', [])[method]('A plan.', 0)).toBe('A plan.');
+  expect(versionAcceptor('Its a plan at 8.', 'keep', [])[method]("It's a plan at 9.", 0)).toBeNull();
+  expect(versionAcceptor('Its a plan at noon.', 'keep', [])[method]("It's a plan.", 0)).toBeNull();
+  expect(versionAcceptor('Its a plan.\n\n1. Go at 8.', 'keep', [])[method]("It's a plan. 1. Go at 8.", 0)).toBeNull();
+  expect(versionAcceptor('Its a plan.', 'keep', ["It's a plan."])[method]("It's a plan.", 0)).toBeNull();
+  const accepted = versionAcceptor('Its a plan.', 'keep', []);
+  expect(accepted[method]("It's a plan.", 0)).toBe("It's a plan.");
+  expect(accepted[method]("IT'S A PLAN!", 1)).toBeNull();
 });
