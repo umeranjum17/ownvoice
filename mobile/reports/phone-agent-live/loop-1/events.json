@@ -1,0 +1,121 @@
+{
+  "mode": "loop",
+  "taskId": "1",
+  "seenShare": false,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "loop",
+      "taskId": 1,
+      "at": 1790803678386
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 1,
+      "at": 1790803678389
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 1,
+      "at": 1790803683695,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_pktWYjiKQoQuIwgHzQhNP3tT",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Hi, the heater has been broken since Monday. Please arrange a repair as soon as possible and let me know when someone can come by. Thank you.\",\"original\":\"The heater has been broken since Monday. The user wants a note to their landlord, then a firmer version, then something they can send.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 1,
+      "at": 1790803683695,
+      "latest": "Hi, the heater has been broken since Monday. Please arrange a repair as soon as possible and let me know when someone can come by. Thank you."
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 1,
+      "at": 1790803683698
+    },
+    {
+      "event": "first-text",
+      "mode": "loop",
+      "taskId": 1,
+      "at": 1790803685088
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 1,
+      "at": 1790803686938,
+      "turn": {
+        "text": "**First draft**\n\nHi, the heater has been broken since Monday. Could you please arrange a repair and let me know when someone can come by? Thank you.\n\n**Firmer version to send**\n\nHi, the heater has been broken since Monday and needs to be repaired promptly. Please confirm when a repair person will come by. Thank you.\n\nI can’t send it to your landlord, but I can put the firmer version in a note for you to share.",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 1,
+      "at": 1790803686938,
+      "latest": "Hi, the heater has been broken since Monday. Please arrange a repair as soon as possible and let me know when someone can come by. Thank you."
+    },
+    {
+      "event": "done",
+      "mode": "loop",
+      "taskId": 1,
+      "at": 1790803686938,
+      "out": {
+        "text": "**First draft**\n\nHi, the heater has been broken since Monday. Could you please arrange a repair and let me know when someone can come by? Thank you.\n\n**Firmer version to send**\n\nHi, the heater has been broken since Monday and needs to be repaired promptly. Please confirm when a repair person will come by. Thank you.\n\nI can’t send it to your landlord, but I can put the firmer version in a note for you to share.",
+        "steps": 2,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790803679403,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803680426,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803681445,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803682473,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803683500,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803684522,
+      "events": 5
+    },
+    {
+      "hostAt": 1790803685542,
+      "events": 6
+    },
+    {
+      "hostAt": 1790803686575,
+      "events": 6
+    },
+    {
+      "hostAt": 1790803687588,
+      "events": 9
+    }
+  ]
+}

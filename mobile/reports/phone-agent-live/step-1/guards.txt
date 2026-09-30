@@ -1,0 +1,16 @@
+10-01 01:24:08.980  3563  3588 I ReactNativeJS: A5GUARD module {"mocked":false}
+10-01 01:24:09.072  3563  3588 I ReactNativeJS: A5GUARD lab-session {"mocked":false,"sameSession":true}
+10-01 01:24:13.971  3563  3588 I ReactNativeJS: A5GUARD agent-before {"before":{"active":false,"epoch":0},"mocked":false,"sameSession":true}
+10-01 01:24:14.026  3563  3588 I ReactNativeJS: A5GUARD agent-session {"signedIn":true,"waiting":false,"note":"ChatGPT is connected.","resting":null}
+10-01 01:24:16.299  3563  3588 I ReactNativeJS: A5GUARD switch {"choice":{"seq":1,"chatgpt":"on","fetchedAt":1790803454027}}
+10-01 01:24:16.299  3563  3588 I ReactNativeJS: A5GUARD guardOk {"before":{"active":false,"epoch":0},"after":{"active":false,"epoch":0},"signedIn":true,"result":true}
+10-01 01:24:16.299  3563  3588 I ReactNativeJS: A5DIAG beforeSend=true
+10-01 01:24:16.313  3563  3588 I ReactNativeJS: A5DIAG dispatch
+10-01 01:24:19.163  3563  3588 I ReactNativeJS: A5DIAG http=200
+10-01 01:24:20.430  3563  3588 I ReactNativeJS: A5GUARD agent-before {"before":{"active":false,"epoch":0},"mocked":false,"sameSession":true}
+10-01 01:24:20.451  3563  3588 I ReactNativeJS: A5GUARD agent-session {"signedIn":true,"waiting":false,"note":"ChatGPT is connected.","resting":null}
+10-01 01:24:20.452  3563  3588 I ReactNativeJS: A5GUARD switch {"choice":{"seq":1,"chatgpt":"on","fetchedAt":1790803454027}}
+10-01 01:24:20.452  3563  3588 I ReactNativeJS: A5GUARD guardOk {"before":{"active":false,"epoch":0},"after":{"active":false,"epoch":0},"signedIn":true,"result":true}
+10-01 01:24:20.452  3563  3588 I ReactNativeJS: A5DIAG beforeSend=true
+10-01 01:24:20.505  3563  3588 I ReactNativeJS: A5DIAG dispatch
+10-01 01:24:21.551  3563  3588 I ReactNativeJS: A5DIAG http=200

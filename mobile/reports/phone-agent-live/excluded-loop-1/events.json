@@ -1,0 +1,77 @@
+[
+  {
+    "event": "start",
+    "mode": "loop",
+    "taskId": 1,
+    "at": 1790803491051
+  },
+  {
+    "event": "request",
+    "mode": "loop",
+    "taskId": 1,
+    "at": 1790803491056
+  },
+  {
+    "event": "response",
+    "mode": "loop",
+    "taskId": 1,
+    "at": 1790803496675,
+    "turn": {
+      "text": "",
+      "calls": [
+        {
+          "id": "call_2pcc6nLN5L0LCNRIokqeEfGF",
+          "name": "check_voice",
+          "args": "{\"draft\":\"Hi [Landlord\u2019s Name],\\n\\nThe heater has been broken since Monday. Please arrange a repair as soon as possible and let me know when someone can come. I\u2019d appreciate an update today.\\n\\nThank you,\\n[Your Name]\",\"original\":\"The heater has been broken since Monday. The user wants a note to their landlord, then a firmer version, then something they can send.\"}"
+        }
+      ]
+    }
+  },
+  {
+    "event": "display",
+    "mode": "loop",
+    "taskId": 1,
+    "at": 1790803496676,
+    "latest": "Hi [Landlord\u2019s Name],\n\nThe heater has been broken since Monday. Please arrange a repair as soon as possible and let me know when someone can come. I\u2019d appreciate an update today.\n\nThank you,\n[Your Name]"
+  },
+  {
+    "event": "request",
+    "mode": "loop",
+    "taskId": 1,
+    "at": 1790803496677
+  },
+  {
+    "event": "response",
+    "mode": "loop",
+    "taskId": 1,
+    "at": 1790803499990,
+    "turn": {
+      "text": "",
+      "calls": [
+        {
+          "id": "call_PqPfJPWTaATLLMMeFcwH2AcO",
+          "name": "share_note",
+          "args": "{\"title\":\"Heater repair request\",\"body\":\"Hi [Landlord\u2019s Name],\\n\\nThe heater has been broken since Monday. Please arrange a repair as soon as possible and let me know when someone can come. I\u2019d appreciate an update today.\\n\\nThank you,\\n[Your Name]\"}"
+        }
+      ]
+    }
+  },
+  {
+    "event": "display",
+    "mode": "loop",
+    "taskId": 1,
+    "at": 1790803499990,
+    "latest": "Hi [Landlord\u2019s Name],\n\nThe heater has been broken since Monday. Please arrange a repair as soon as possible and let me know when someone can come. I\u2019d appreciate an update today.\n\nThank you,\n[Your Name]"
+  },
+  {
+    "event": "approval",
+    "mode": "loop",
+    "taskId": 1,
+    "at": 1790803499990,
+    "call": {
+      "id": "call_PqPfJPWTaATLLMMeFcwH2AcO",
+      "name": "share_note",
+      "args": "{\"title\":\"Heater repair request\",\"body\":\"Hi [Landlord\u2019s Name],\\n\\nThe heater has been broken since Monday. Please arrange a repair as soon as possible and let me know when someone can come. I\u2019d appreciate an update today.\\n\\nThank you,\\n[Your Name]\"}"
+    }
+  }
+]

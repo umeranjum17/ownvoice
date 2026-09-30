@@ -1,0 +1,113 @@
+{
+  "mode": "loop",
+  "taskId": "4",
+  "seenShare": false,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "loop",
+      "taskId": 4,
+      "at": 1790803769964
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 4,
+      "at": 1790803769968
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 4,
+      "at": 1790803773982,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_wawm70bS18vdGoHjEGmpPkvv",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Alex, thanks for covering my shift. I really appreciate you stepping in. It took a lot off my plate, and I’m grateful I could count on you.\",\"original\":\"Thank Alex for covering my shift. Make the thank-you warmer.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 4,
+      "at": 1790803773986,
+      "latest": "Alex, thanks for covering my shift. I really appreciate you stepping in. It took a lot off my plate, and I’m grateful I could count on you."
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 4,
+      "at": 1790803773989
+    },
+    {
+      "event": "first-text",
+      "mode": "loop",
+      "taskId": 4,
+      "at": 1790803776102
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 4,
+      "at": 1790803776840,
+      "turn": {
+        "text": "Alex, thank you so much for covering my shift. It meant a lot that you stepped in, and I really appreciate you.",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 4,
+      "at": 1790803776840,
+      "latest": "Alex, thanks for covering my shift. I really appreciate you stepping in. It took a lot off my plate, and I’m grateful I could count on you."
+    },
+    {
+      "event": "done",
+      "mode": "loop",
+      "taskId": 4,
+      "at": 1790803776840,
+      "out": {
+        "text": "Alex, thank you so much for covering my shift. It meant a lot that you stepped in, and I really appreciate you.",
+        "steps": 2,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790803770992,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803772023,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803773041,
+      "events": 2
+    },
+    {
+      "hostAt": 1790803774060,
+      "events": 5
+    },
+    {
+      "hostAt": 1790803775072,
+      "events": 5
+    },
+    {
+      "hostAt": 1790803776084,
+      "events": 5
+    },
+    {
+      "hostAt": 1790803777097,
+      "events": 9
+    }
+  ]
+}

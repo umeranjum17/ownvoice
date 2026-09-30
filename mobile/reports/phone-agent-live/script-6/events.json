@@ -1,0 +1,109 @@
+{
+  "mode": "script",
+  "taskId": "6",
+  "seenShare": true,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790804081982
+    },
+    {
+      "event": "request",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790804081985
+    },
+    {
+      "event": "response",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790804087294,
+      "turn": {
+        "text": "Hi [Landlord’s Name],\n\nI’m writing because the heater has been broken since Monday. Please let me know when it will be repaired. I’d appreciate a prompt update, as the lack of heat is affecting my ability to stay comfortable at home.\n\nThank you,\n[Your Name]",
+        "calls": []
+      }
+    },
+    {
+      "event": "first-text",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790804087294
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790804087294,
+      "latest": "Hi [Landlord’s Name],\n\nI’m writing because the heater has been broken since Monday. Please let me know when it will be repaired. I’d appreciate a prompt update, as the lack of heat is affecting my ability to stay comfortable at home.\n\nThank you,\n[Your Name]"
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790804087297,
+      "latest": "Hi [Landlord’s Name],\n\nI’m writing because the heater has been broken since Monday. Please let me know when it will be repaired. I’d appreciate a prompt update, as the lack of heat is affecting my ability to stay comfortable at home.\n\nThank you,\n[Your Name]"
+    },
+    {
+      "event": "approval",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790804087299,
+      "call": {
+        "id": "c2",
+        "name": "share_note",
+        "args": "{\"title\":\"Hi [Landlord’s Name],\",\"body\":\"Hi [Landlord’s Name],\\n\\nI’m writing because the heater has been broken since Monday. Please let me know when it will be repaired. I’d appreciate a prompt update, as the lack of heat is affecting my ability to stay comfortable at home.\\n\\nThank you,\\n[Your Name]\"}"
+      }
+    },
+    {
+      "event": "reply",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790804089430,
+      "yes": false
+    },
+    {
+      "event": "done",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790804089499,
+      "out": {
+        "text": "Hi [Landlord’s Name],\n\nI’m writing because the heater has been broken since Monday. Please let me know when it will be repaired. I’d appreciate a prompt update, as the lack of heat is affecting my ability to stay comfortable at home.\n\nThank you,\n[Your Name]",
+        "steps": 2,
+        "stop": "declined"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790804083440,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804084460,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804085481,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804086500,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804087517,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804088535,
+      "events": 7
+    },
+    {
+      "hostAt": 1790804091288,
+      "events": 9
+    }
+  ]
+}

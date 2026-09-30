@@ -1,0 +1,22 @@
+{
+  "excludedTrials": [
+    {
+      "mode": "loop",
+      "task": 1,
+      "reason": "OCR selected Share heading, not button; Back navigated away.",
+      "modelCalls": 2
+    },
+    {
+      "mode": "script",
+      "task": 4,
+      "reason": "Approval capture during fade had different button colour; driver stopped before reply. Firstmate authorized retry with stable frames.",
+      "modelCalls": 1
+    }
+  ],
+  "piConfigMetadataUnchanged": true,
+  "piConfigFiles": 376,
+  "metadataSha256": "246156ee1933ae5e2869af9d158754e87d98f462f84a4cd85010ec70756a1a9f",
+  "scope": "Names, sizes, mtimes of settings/packages/extensions; volatile paths and auth.json excluded; no content verification.",
+  "base": "2bc4e22",
+  "apkSha256": "5ceb856b0a73afe6e45ee782c75d509d5ae2779c60614828db2e993aed4c04ee"
+}

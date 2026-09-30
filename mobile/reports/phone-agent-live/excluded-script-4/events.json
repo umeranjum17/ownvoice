@@ -1,0 +1,55 @@
+[
+  {
+    "event": "start",
+    "mode": "script",
+    "taskId": 4,
+    "at": 1790803782669
+  },
+  {
+    "event": "request",
+    "mode": "script",
+    "taskId": 4,
+    "at": 1790803782673
+  },
+  {
+    "event": "response",
+    "mode": "script",
+    "taskId": 4,
+    "at": 1790803785607,
+    "turn": {
+      "text": "Hi Alex,\n\nThank you so much for covering my shift. I really appreciate you stepping in and helping me out. It meant a lot to me.\n\nThanks again!",
+      "calls": []
+    }
+  },
+  {
+    "event": "first-text",
+    "mode": "script",
+    "taskId": 4,
+    "at": 1790803785607
+  },
+  {
+    "event": "display",
+    "mode": "script",
+    "taskId": 4,
+    "at": 1790803785607,
+    "latest": "Hi Alex,\n\nThank you so much for covering my shift. I really appreciate you stepping in and helping me out. It meant a lot to me.\n\nThanks again!"
+  },
+  {
+    "event": "display",
+    "mode": "script",
+    "taskId": 4,
+    "at": 1790803785609,
+    "latest": "Hi Alex,\n\nThank you so much for covering my shift. I really appreciate you stepping in and helping me out. It meant a lot to me.\n\nThanks again!"
+  },
+  {
+    "event": "approval",
+    "mode": "script",
+    "taskId": 4,
+    "at": 1790803785609,
+    "call": {
+      "id": "c2",
+      "name": "share_note",
+      "args": "{\"title\":\"Hi Alex,\",\"body\":\"Hi Alex,\\n\\nThank you so much for covering my shift. I really appreciate you stepping in and helping me out. It meant a lot to me.\\n\\nThanks again!\"}"
+    }
+  }
+]

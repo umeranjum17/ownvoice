@@ -1,0 +1,162 @@
+{
+  "mode": "loop",
+  "taskId": "5",
+  "seenShare": false,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804032032
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804032035
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804037393,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_ki9T3APWWHuSJ1zEOeIKL4kf",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Hi Sam,\\n\\nStandup moves to 12:00, and the demo is Thursday at 3:00 p.m.\",\"original\":\"standup moves to 12:00, demo Thursday 3pm\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804037394,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3:00 p.m."
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804037396
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804040635,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_wAE5fzvkhAXuxNTsYCUJfIIA",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Hi Sam,\\n\\nStandup moves to 12:00. The demo is Thursday at 3pm.\",\"original\":\"standup moves to 12:00, demo Thursday 3pm\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804040635,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00. The demo is Thursday at 3pm."
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804040636
+    },
+    {
+      "event": "first-text",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804042233
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804043489,
+      "turn": {
+        "text": "I can’t email Sam or change your calendar, but I can share a note for you to send and use to update it:\n\nHi Sam,\n\nStandup moves to 12:00. The demo is Thursday at 3pm.",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804043489,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00. The demo is Thursday at 3pm."
+    },
+    {
+      "event": "done",
+      "mode": "loop",
+      "taskId": 5,
+      "at": 1790804043489,
+      "out": {
+        "text": "I can’t email Sam or change your calendar, but I can share a note for you to send and use to update it:\n\nHi Sam,\n\nStandup moves to 12:00. The demo is Thursday at 3pm.",
+        "steps": 3,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790804033498,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804034520,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804035538,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804036559,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804037581,
+      "events": 2
+    },
+    {
+      "hostAt": 1790804038596,
+      "events": 5
+    },
+    {
+      "hostAt": 1790804039608,
+      "events": 5
+    },
+    {
+      "hostAt": 1790804040621,
+      "events": 5
+    },
+    {
+      "hostAt": 1790804041635,
+      "events": 8
+    },
+    {
+      "hostAt": 1790804042655,
+      "events": 8
+    },
+    {
+      "hostAt": 1790804043669,
+      "events": 9
+    },
+    {
+      "hostAt": 1790804044682,
+      "events": 12
+    }
+  ]
+}
