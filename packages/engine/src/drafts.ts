@@ -173,9 +173,12 @@ export function rebuildLines(original: string, answer: string): string | null {
 
 // ---- 5.4 The dash rule: the writer's text and their own switch win ----
 
+export const protectedTokens = /\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu;
+
 /** ' — ', '—' and ' – ' become ', ' on any draft the table says must not carry a dash. */
 export function undash(text: string): string {
-  return text.replace(/ — |—| – /g, ', ');
+  return text.split(new RegExp(`(${protectedTokens.source})`, 'gu'))
+    .map((part, index) => index % 2 ? part : part.replace(/ — |—| – /g, ', ')).join('');
 }
 
 /** The table: the switch on removes dashes everywhere; switch off keeps them only when the writer's own text uses one. */

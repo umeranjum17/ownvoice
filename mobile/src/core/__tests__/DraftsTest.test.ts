@@ -386,3 +386,16 @@ test.each(['accept', 'fix'] as const)('version %s retains casing and apostrophes
   expect(accepted[method]("It's a plan.", 0)).toBe("It's a plan.");
   expect(accepted[method]("IT'S A PLAN!", 1)).toBeNull();
 });
+
+
+test('dash removal preserves protected tokens in replies and every polish slot', () => {
+  const tokens = 'https://example.com/a—b. a—b@example.com @a—b #a—b';
+  const answer = `Read ${tokens} — please.`;
+  const expected = `Read ${tokens}, please.`;
+  expect(undash(answer)).toBe(expected);
+  expect(acceptReplies([answer], [], 1, 'remove')).toEqual([expected]);
+  for (const method of ['accept', 'fix'] as const) for (const slot of [0, 1, 2]) {
+    const acceptor = versionAcceptor(`Read ${tokens}.`, 'remove', []);
+    expect(acceptor[method](answer, slot)).toBe(expected);
+  }
+});
