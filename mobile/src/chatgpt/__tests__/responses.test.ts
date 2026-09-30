@@ -492,6 +492,7 @@ test.each([
   ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening.", "It's a good plan, I shoud be there by the the evening."],
   ['Bring woud for the fire.', 'Bring wood for the fire.', 'Bring wood for the fire.'],
   ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
+  ['I shoud visit Bora Bora with @will.', 'I should visit Bora Bora with @will.', 'I should visit Bora with @bill.'],
 ])('ChatGPT Cleaned up uses the local fixes: %s', async (typed, expected, answer = typed) => {
   const originalFetch = global.fetch;
   const landed = jest.fn();

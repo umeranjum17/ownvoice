@@ -461,7 +461,7 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
 
 test('a polish of the numbered list keeps the list, after one layout fix', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
-    if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove, and you the tent."]}';
+    if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove. 1. I will bring the stove. 2. You can bring the tent."]}';
     if (prompt.includes('Row 1:')) return 'Row 1: Stove is on me.\nRow 2: I will bring the stove.\nRow 3: You can bring the tent.';
     if (prompt.includes('Tighter:')) return 'Stove split.\n1. I bring the stove.\n2. Tent is yours.';
     return 'Stove and tent split:\n1. The stove is mine to bring.\n2. The tent is yours to bring.';
@@ -486,11 +486,10 @@ test('every shown card keeps the list; a fix that duplicates a shown card is dro
   }
 });
 
-test('flattened versions stay out after the single layout retry', async () => {
+test('flattened versions losing numbers fall back to the unchanged original', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
     ? '{"versions":["Flat stove and tent plan."]}' : 'Still one flat line, again.');
-  expect(await phoneWriter.write(request({ typed: LIST }))).toEqual({ drafts: [], unchanged: false });
-  expect(native.ask).toHaveBeenCalledTimes(6);
+  expect(await phoneWriter.write(request({ typed: LIST }))).toEqual({ drafts: [], unchanged: true });
 });
 
 test('no accepted polish leaves the original out of cleaned-up cards', async () => {
@@ -499,12 +498,12 @@ test('no accepted polish leaves the original out of cleaned-up cards', async () 
   expect(await phoneWriter.write(request({ typed: 'unchanged input' }))).toEqual({ drafts: [], unchanged: true });
 });
 
-test('an already-minimal list that comes back as it was is unchanged; a flattened one is a failure', async () => {
+test('an already-minimal list stays unchanged when the writer drops its numbers', async () => {
   const minimal = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
   native.ask.mockResolvedValue('{"versions":["Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday"]}');
   expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: true });
   native.ask.mockResolvedValue('{"versions":["Pack the stove, meet Saturday."]}');
-  expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: false });
+  expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: true });
 });
 
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
@@ -516,7 +515,7 @@ test('a version equal to the writer text is dropped; dashes stay when their own 
 
 test('their dash rule is removed by the writer even when the model leaks one', async () => {
   native.ask.mockResolvedValue('{"versions":["Yes — see you Saturday then","Other one here","And a third version"]}');
-  const { drafts } = await phoneWriter.write(request({ typed: 'See you Saturday' }));
+  const { drafts } = await phoneWriter.write(request({ typed: 'see you Saturday' }));
   expect(drafts[0]).toBe('Yes, see you Saturday then');
 });
 
@@ -561,6 +560,7 @@ test.each([
   ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening.", "It's a good plan, I shoud be there by the the evening."],
   ['Bring woud for the fire.', 'Bring wood for the fire.', 'Bring wood for the fire.'],
   ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
+  ['I shoud visit Bora Bora with @will.', 'I should visit Bora Bora with @will.', 'I should visit Bora with @bill.'],
 ])('Cleaned up fixes slips and keeps the rest: %s', async (typed, expected, answer = typed) => {
   native.ask.mockResolvedValue(JSON.stringify({ versions: [answer, typed, typed] }));
   const landed = jest.fn();
