@@ -52,8 +52,8 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
   return answer;
 }
 
-// Same shape as phoneWriter.polish: C2 rewrite streamed into versionAcceptor,
-// then one layout retry per flattened slot with the same line-prefix instruction.
+// Local cleanup uses the shared polish acceptor; slot-0 fixtures need no writer call.
+// Other polish fixtures collect the two writer cards, then retry flattened layouts.
 async function polish(c: any, calls: Call[]) {
   const dashes = D.dashDecision(false, c.typed);
   const engine = { ask: (p: string, n: number) => call(p, n, calls) };

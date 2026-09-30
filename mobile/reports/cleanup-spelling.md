@@ -1,6 +1,6 @@
 # Cleaned up applies safe local fixes
 
-The current cleanup contract is owned by [Cleaned up acceptance](../README.md#cleaned-up-acceptance); the exact-output fixtures are documented in the [eval threshold rule](../eval/README.md#threshold-rule). This report records validation evidence and the covering Jest tests for the PR body. All recorded behavioral verification below predates the subsequent name-token isolation, written-time fallback, spelling-created article context and protected-dash normalization fixes; it does not qualify those changes.
+The current cleanup contract is owned by [Cleaned up acceptance](../README.md#cleaned-up-acceptance); the exact-output fixtures are documented in the [eval threshold rule](../eval/README.md#threshold-rule). This report records validation evidence and the covering Jest tests for the PR body. All recorded behavioral verification below predates the final local-only implementation, protected-dash normalization and polish fallback/status fixes; it does not qualify the current candidate.
 
 Historical validation, before the spelling-safety, cleanup-order, article-context and protected-word changes, on recovered candidate `bd4e274`: lint and typecheck passed; Jest passed 49 suites, 840 tests and 46 snapshots. Tests exercise both writers, initial acceptance and retry, apostrophe/casing-only writer fixes, overlapping repeated misspellings, advisory grammar, capitalised words, ambiguous suggestions, protected tokens and the real eval scorer. The existing SettingsTest fetch mock lost an unnecessary cast to resolve its overload mismatch; behavior is unchanged.
 
@@ -21,14 +21,16 @@ Historical focused verification after the spelling-safety change, before the cle
 
 Historical focused verification after the cleanup-order change: `npm test -- --runTestsByPath src/core/__tests__/TypingTest.test.ts src/core/__tests__/PolishTest.test.ts src/chatgpt/__tests__/responses.test.ts src/panel/__tests__/phoneWriter.test.ts --silent` passed **4 suites, 174 tests**. This verifies the bundled dictionary, acceptance/retry methods and both writers with supplied answers; earlier host eval evidence predates the cleanup-order change.
 
-## Article-context correction and focused test coverage
+## Current test coverage
 
-Covering Jest tests for the PR body:
+Covering Jest tests for the PR body (names checked against the current source; no new test run is claimed):
 
 - TypingTest: `all local fixes keep names, links, slang, list markers and numbers`, `automatic apostrophe cleanup is narrow`, `automatic spelling requires a single clear suggestion`, and `automatic doubles use complete unprotected function words`.
-- PolishTest: `polish accept/fix cleans unchanged original text`, `polish accept/fix corrects only remaining automatic slips`, and `polish accept/fix preserves repeated names and handles`.
+- PolishTest: `polish %s ignores writer cleanup and shows only local fixes` covers accept/fix, swapped noon/midnight, changed names/handles and the original message; `local cleanup leaves advisory wording unchanged and preserves other writer slots`, `local cleanup keeps protected dashes with no-dashes enabled`, and `unchanged requires writer evidence through %s` cover preservation and status.
 - phoneWriter: `Cleaned up fixes slips and keeps the rest`, `phone cleanup preserves`; responses: `ChatGPT Cleaned up uses the local fixes`, `ChatGPT cleanup preserves`. These execute both adapters with supplied writer answers.
-- DraftsTest verifies layout, number/time and duplicate guards; EvalScoreTest executes the real scorer and rejects missing apostrophes, spelling fixes and repetition removal.
+- DraftsTest verifies layout, number/time and duplicate guards; EvalScoreTest executes the real scorer and rejects missing apostrophes, spelling fixes and repetition removal. WriterRouteTest: `polish retains %i usable primary cards without phone fallback` and `empty or blank polish still falls back and partial replies stay incomplete`; responses: `two valid ChatGPT polish cards survive fallback routing: $typed`; phoneWriter: `flattened versions losing numbers leave no accepted cards` and `only writer evidence of unchanged text marks an already-minimal list unchanged`.
+
+## Historical article-context verification
 
 Reproduction: the updated TypingTest and PolishTest failed 7 assertions before the rule was added. Focused verification afterward passed **6 suites, 219 tests** (TypingTest, PolishTest, responses, phoneWriter, DraftsTest and EvalScoreTest). No lint, typecheck or full-suite run was performed in this assigned test phase.
 
@@ -36,12 +38,12 @@ Historical host eval after the article-context correction and before the protect
 
 P19 failed that historical live-writer qualification: its raw Cleaned up answer changed `woud` to `wood` and inserted a comma after `@will`, yielding `Bring wood for the fire. We should visit Bora Bora. Give Ben Ben's keys. Hey @will, will you join us? Its own engine runs. I should leave.`. Automatic cleanup did not cause these differences. The exact safety fixture remains strict. The task-owned server was stopped and transient model copies, HOME, logs and generated scoring outputs were removed. No live Android validation was requested or performed.
 
-## Protected-word fallback
+## Historical protected-word fallback
 
-The shared guard described in [Cleaned up acceptance](../README.md#cleaned-up-acceptance) addresses the historical P19 protected-word failure above.
+An earlier shared guard addressed the historical P19 failure above. That guard was subsequently removed; the current implementation is documented in [Cleaned up acceptance](../README.md#cleaned-up-acceptance).
 
-Reproduction: `PolishTest`'s `polish accept/fix falls back to local fixes when the writer changes protected wording` failed before the guard, displaying changed `@bill` and shortened `Bora`. It now covers names, repeated names, handles, punctuation beside handles, tags, URLs, emails and times on both acceptance methods. The existing `Cleaned up fixes slips and keeps the rest` and `ChatGPT Cleaned up uses the local fixes` tests now also feed changed `Bora Bora` and `@will` through both adapters and assert the local-only card lands. The scenario test names listed above remain the PR coverage map. List tests now expect local-original fallback when a writer drops protected numbers; the layout-retry test retains numbers while flattening lines so it still exercises the layout guard.
+Reproduction: `PolishTest`'s `polish accept/fix falls back to local fixes when the writer changes protected wording` failed before the guard, displaying changed `@bill` and shortened `Bora`. At that stage it covered names, repeated names, handles, punctuation beside handles, tags, URLs, emails and times on both acceptance methods. At that stage the `Cleaned up fixes slips and keeps the rest` and `ChatGPT Cleaned up uses the local fixes` tests also fed changed `Bora Bora` and `@will` through both adapters and asserted the local-only card landed. List tests then expected local-original fallback when a writer drops protected numbers; the layout-retry test retained numbers while flattening lines to exercise the layout guard.
 
-Recorded verification after the protected-word guard: TypingTest, PolishTest, responses, phoneWriter, DraftsTest and EvalScoreTest passed **6 suites, 223 tests**. No lint, typecheck, broad suite or live driving was run in this assigned phase. A fresh host rerun was not possible because the isolated store lacks `qwen3.8:27b-q4_K_M`; no model was provisioned, as instructed. Earlier host evidence precedes this guard. The protected-word failure in P19 is now enforced by the deterministic guard and its behavioral tests, rather than claimed as a fresh host pass.
+Recorded verification after the protected-word guard: TypingTest, PolishTest, responses, phoneWriter, DraftsTest and EvalScoreTest passed **6 suites, 223 tests**. No lint, typecheck, broad suite or live driving was run in this assigned phase. A fresh host rerun was not possible because the isolated store lacks `qwen3.8:27b-q4_K_M`; no model was provisioned, as instructed. Earlier host evidence precedes this guard. At that stage the deterministic guard and its behavioral tests covered P19; this was not a fresh host pass.
 
-Cleaned up is now local-only on phone, ChatGPT and eval: only the original text and approved local fixes can populate slot 0. Writers request the other two cards, and slot-0 writer acceptance and retry are disabled. The earlier host evidence predates this change; no fresh host rerun was performed during review.
+For the final implementation, see [Cleaned up acceptance](../README.md#cleaned-up-acceptance). The earlier host evidence predates that implementation; no fresh host rerun was performed during review. For the current scope of P19 evidence, see the [eval threshold rule](../eval/README.md#threshold-rule).
