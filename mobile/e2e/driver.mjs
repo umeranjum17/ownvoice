@@ -86,17 +86,17 @@ const visibleLine = (label, state = '') => {
   throw new Error(`Could not find visible ${label} ${state}.`);
 };
 const tapText = (label, state) => tap(...visibleLine(label, state));
-// The Insert pill defeats OCR; Copy beside it reads, and Insert sits a fixed step to its left.
+// The Insert pill defeats OCR; Why? on the same row reads, and Insert starts the row at the left.
 const tapInsertButton = () => {
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
   const tops = [...bands].reverse();
   for (const top of tops) {
     const input = crop(image, top);
     const tsv = execFileSync('tesseract', ['stdin', 'stdout', ...(top ? ['--psm', '7'] : []), 'tsv'], { input, encoding: 'utf8' });
-    const word = tsv.split('\n').slice(1).map(row => row.split('\t')).find(columns => columns.length >= 12 && columns[11].trim().toLowerCase() === 'copy');
-    if (word) { tap(Number(word[6]) - 215, Number(word[7]) + Number(word[9]) / 2 + top); return; }
+    const word = tsv.split('\n').slice(1).map(row => row.split('\t')).find(columns => columns.length >= 12 && columns[11].trim().toLowerCase().startsWith('why'));
+    if (word) { tap(Math.round(width * .18), Number(word[7]) + Number(word[9]) / 2 + top); return; }
   }
-  throw new Error('Could not find the Copy button beside Insert.');
+  throw new Error('Could not find the Why? on Insert\'s row.');
 };
 const bubbleWindow = () => adb('shell', 'dumpsys', 'window', 'windows').split(/(?=Window #\d+ Window)/).find(item => item.includes(`u0 ${pkg}`) && item.includes('ty=ACCESSIBILITY_OVERLAY'));
 const bubble = () => {

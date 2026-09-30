@@ -82,3 +82,16 @@ export function PlusIcon({ size, color }: Props) {
 export function TrashIcon({ size, color }: Props) {
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4.5,6.5 h15 M9.5,6.5 V4.5 h5 v2 M6.5,6.5 l1,13.5 h9 l1,-13.5 M10.5,10.5 v6 M13.5,10.5 v6" stroke={color} {...line} /></Svg>;
 }
+
+// A draft card's quiet actions: copy it, hand it to the app's own compose, or share it.
+export function CopyIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M10,8 h8 a2,2 0 0 1 2,2 v9 a2,2 0 0 1 -2,2 h-8 a2,2 0 0 1 -2,-2 v-9 a2,2 0 0 1 2,-2z M16,8 V5.5 a2,2 0 0 0 -2,-2 H6 a2,2 0 0 0 -2,2 v9 a2,2 0 0 0 2,2 h2" stroke={color} {...line} /></Svg>;
+}
+
+export function OpenIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M13.5,4.5 h6 v6 M19.5,4.5 l-8.5,8.5 M17.5,14 v4 a2,2 0 0 1 -2,2 h-10 a2,2 0 0 1 -2,-2 v-10 a2,2 0 0 1 2,-2 h4" stroke={color} {...line} /></Svg>;
+}
+
+export function ShareIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12,15 V3.5 M7.5,8 L12,3.5 16.5,8 M8,11 H6.5 a2,2 0 0 0 -2,2 v6 a2,2 0 0 0 2,2 h11 a2,2 0 0 0 2,-2 v-6 a2,2 0 0 0 -2,-2 H16" stroke={color} {...line} /></Svg>;
+}

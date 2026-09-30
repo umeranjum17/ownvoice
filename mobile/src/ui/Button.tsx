@@ -1,10 +1,10 @@
-import { useContext } from 'react';
+import type { ComponentType } from 'react';
 import { Pressable, StyleSheet, Text } from 'react-native';
 import { shape, type, useTheme } from './theme';
 import { useCardBusy } from './Card';
 
 type ButtonProps = {
-  kind: 'filled' | 'text';
+  kind: 'filled' | 'tonal' | 'text';
   label: string;
   disabled?: boolean;
   /** A screen's one main action (setup): taller, with a larger label. */
@@ -12,20 +12,37 @@ type ButtonProps = {
   onPress: () => void;
 };
 
-/** A Material pill button. Filled is the one main action on a card; text for the rest. */
+/** A Material pill button. Filled is the one main action on a card; tonal for a small in-line action (a slip's Fix); text for the rest. */
 export function Button({ kind, label, disabled = false, large = false, onPress }: ButtonProps) {
   const t = useTheme();
   const busy = useCardBusy();
   const off = disabled || busy;
   const filled = kind === 'filled';
+  const tonal = kind === 'tonal';
   return <Pressable
     accessibilityRole="button"
     disabled={off}
     onPress={onPress}
     hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
     android_ripple={{ color: (filled ? t.onPrimary : t.primary).slice(0, 7) + '1F', foreground: true }}
-    style={[styles.button, large && styles.large, filled && { backgroundColor: off ? t.text + '1F' : t.primary }]}>
-    <Text style={[type.label, large && styles.largeLabel, { color: filled ? (off ? t.text : t.onPrimary) : t.primary }, off && { opacity: 0.38 }]}>{label}</Text>
+    style={[styles.button, large && styles.large, tonal && styles.tonal, (filled || tonal) && { backgroundColor: off ? t.text + '1F' : filled ? t.primary : t.primaryContainer }]}>
+    <Text style={[type.label, large && styles.largeLabel, { color: filled ? (off ? t.text : t.onPrimary) : tonal ? (off ? t.text : t.onPrimaryContainer) : t.primary }, off && { opacity: 0.38 }]}>{label}</Text>
+  </Pressable>;
+}
+
+/** A round icon-only action beside a card's main button; [label] is what a screen reader says. */
+export function IconButton({ icon: Icon, label, onPress }: { icon: ComponentType<{ size: number; color: string }>; label: string; onPress: () => void }) {
+  const t = useTheme();
+  const busy = useCardBusy();
+  return <Pressable
+    accessibilityRole="button"
+    accessibilityLabel={label}
+    disabled={busy}
+    onPress={onPress}
+    hitSlop={4}
+    android_ripple={{ color: t.primary.slice(0, 7) + '1F', foreground: true, borderless: false }}
+    style={[styles.icon, { backgroundColor: t.primary.slice(0, 7) + '14' }, busy && { opacity: 0.38 }]}>
+    <Icon size={20} color={t.primary} />
   </Pressable>;
 }
 
@@ -39,5 +56,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   large: { height: 56 },
+  tonal: { paddingHorizontal: 16 },
+  icon: { width: 40, height: 40, borderRadius: shape.round, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   largeLabel: { fontSize: 16, lineHeight: 24 },
 });
