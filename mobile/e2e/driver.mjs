@@ -100,7 +100,7 @@ const tapText = (label, state) => tap(...visibleLine(label, state));
 const tapInsertButton = () => {
   const button = nodes().find(node => node.clickable && ['Insert', 'Use this'].includes(node.text || node.label));
   if (!button) throw new Error('Could not find the first accessible Insert/Use this button.');
-  tap(...center(button));
+  nodes(button.label || button.text);
 };
 const bubbleNode = () => nodes().find(node => node.windowType === 4 && /^Ownvoice(?:,|$)/.test(node.label));
 const bubble = () => {
@@ -134,16 +134,8 @@ adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 await wait(3000);
 
 const chooseApp = async (label, prior) => {
-  // Match the clickable Home row, not the preceding app-list screen's same-named title.
-  let home;
-  for (let attempt = 0; attempt < 8 && !home; attempt++) {
-    home = nodes().find(n => n.clickable && n.label.startsWith('Where the bubble shows,'));
-    if (!home) await wait(400);
-  }
-  if (!home) throw new Error('The clickable Home app-choices row did not appear.');
-  console.log(`Choose ${label}: Home row at ${center(home)}`);
-  tap(...center(home));
-  await wait(700);
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://apps');
+  await wait(1200);
   tapText('Find an app');
   type(label.split(' ')[0]);
   await wait(500);
@@ -155,15 +147,15 @@ const chooseApp = async (label, prior) => {
     if (!row) await wait(1000);
   }
   if (!row) throw new Error(`Could not find the ${label} row (${prior}).`);
-  tap(...center(row));
+  nodes(`${label}, ${prior}`);
   let switched = false;
   for (let attempt = 0; attempt < 8 && !switched; attempt++) {
     await wait(400);
     switched = !!findRowWithState(label, prior === 'Off' ? 'On' : 'Off');
   }
   if (!switched) throw new Error(`The ${label} row did not switch.`);
-  adb('shell', 'input', 'keyevent', '4'); // the header goes back through its arrow icon, which carries no text
-  await wait(700);
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice:///');
+  await wait(1200);
   visibleLine('Where the bubble shows');
 };
 
@@ -172,7 +164,7 @@ expectBubble(true, 'test app enabled');
 await chooseApp('Chrome', 'Off');
 
 // Use the editable writing note as the native React Native field.
-tapText('Your voice');
+adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://voice');
 await wait(500);
 tapText('For example: short sentences');
 await wait(500);

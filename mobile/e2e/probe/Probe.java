@@ -13,8 +13,10 @@ import org.json.JSONObject;
 /** Snapshot the real accessible UI without unbinding the app's accessibility service. */
 public class Probe extends Instrumentation {
   private final JSONArray nodes = new JSONArray();
+  private String click;
+  private AccessibilityNodeInfo target;
 
-  @Override public void onCreate(Bundle args) { super.onCreate(args); start(); }
+  @Override public void onCreate(Bundle args) { super.onCreate(args); click = args == null ? null : args.getString("click"); start(); }
 
   private JSONArray bounds(Rect r) {
     return new JSONArray().put(r.left).put(r.top).put(r.right).put(r.bottom);
@@ -22,6 +24,9 @@ public class Probe extends Instrumentation {
 
   private void walk(AccessibilityNodeInfo node, AccessibilityWindowInfo window) throws Exception {
     if (node == null) return;
+    if (click != null && target == null && node.isVisibleToUser() && node.isClickable()
+        && (click.contentEquals(node.getContentDescription() == null ? "" : node.getContentDescription())
+          || click.contentEquals(node.getText() == null ? "" : node.getText()))) target = node;
     Rect rect = new Rect(); node.getBoundsInScreen(rect);
     Rect frame = new Rect(); window.getBoundsInScreen(frame);
     nodes.put(new JSONObject()
@@ -44,6 +49,7 @@ public class Probe extends Instrumentation {
       info.flags |= AccessibilityServiceInfo.FLAG_RETRIEVE_INTERACTIVE_WINDOWS;
       ui.setServiceInfo(info);
       for (AccessibilityWindowInfo window : ui.getWindows()) walk(window.getRoot(), window);
+      if (click != null) result.putBoolean("clicked", target != null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK));
       result.putString("nodes", nodes.toString());
       finish(0, result);
     } catch (Throwable error) {
