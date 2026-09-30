@@ -6,12 +6,17 @@
 // Usage: node run.ts <label> <baseUrl> <out.json>
 // Env: MODEL (default llama-server's loaded model), TEMP (default 0),
 //      SEED (default 7), ONLY (comma prefixes, e.g. ONLY=R07 or ONLY=P01,P13,S05,R01,R07).
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { cases } from './cases.ts';
 import { platformForApp } from 'ownvoice-engine/src/platforms.ts';
 import * as J from 'ownvoice-engine/src/judge.ts';
 import * as D from 'ownvoice-engine/src/drafts.ts';
 import * as T from 'ownvoice-engine/src/threads.ts';
+
+import nspell from 'nspell';
+import { polishAcceptor } from '../src/core/polish.ts';
+
+const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
 
 const [label, base, outPath] = process.argv.slice(2);
 if (!label || !base || !outPath) {
@@ -52,7 +57,7 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
 async function polish(c: any, calls: Call[]) {
   const dashes = D.dashDecision(false, c.typed);
   const engine = { ask: (p: string, n: number) => call(p, n, calls) };
-  const acceptor = D.versionAcceptor(c.typed, dashes, []);
+  const acceptor = await polishAcceptor(c.typed, dashes, [], spell);
   const raw: Record<string, string> = {};
   await J.rewrite(engine, c.typed, c.screen, c.guide ?? '', (v: any, text: string) => {
     raw[v.name] = text;

@@ -1,6 +1,6 @@
 import { readFileSync } from 'fs';
 import nspell from 'nspell';
-import { count, fixed, slips, suggestion, GRAMMAR, SPELLING } from '../typing';
+import { count, fixed, fixedSlips, slips, suggestion, GRAMMAR, SPELLING } from '../typing';
 import { NO_RULES } from '../slop';
 
 const speller = nspell(readFileSync(`${__dirname}/../../../assets/dictionary/en-affixes.aff`, 'utf8'), readFileSync(`${__dirname}/../../../assets/dictionary/en-words.dic`, 'utf8'));
@@ -61,4 +61,10 @@ test('a pause check is quick', () => {
   const started = performance.now();
   for (let i = 0; i < 50; i++) count(text, speller, NO_RULES);
   expect((performance.now() - started) / 50).toBeLessThan(16);
+});
+
+test('all local fixes keep names, links, slang, list markers and numbers', () => {
+  const typed = 'Its a good plan, Umer shoud be there by the the evening.\n1. Meet at 8, lol: https://example.com/teh';
+  expect(fixedSlips(typed, speller)).toBe("It's a good plan, Umer should be there by the evening.\n1. Meet at 8, lol: https://example.com/teh");
+  expect(fixedSlips('Its a qwxzvbn plan.', speller)).toBe("It's a qwxzvbn plan.");
 });

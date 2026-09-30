@@ -126,3 +126,15 @@ export function fixed(text: string, slip: Slip): string {
   if (slip.fix === undefined) return text;
   return text.slice(0, slip.start) + slip.fix + text.slice(slip.end);
 }
+
+/** Apply the same fixes offered on a tap, from right to left so their offsets stay valid. */
+export function fixedSlips(text: string, spell: Speller | null): string {
+  let result = text;
+  for (const slip of slips(text, spell).reverse()) {
+    if (spell && slip.fix === undefined && slip.reason === SPELLING) {
+      slip.fix = suggestion(text.slice(slip.start, slip.end), spell);
+    }
+    result = fixed(result, slip);
+  }
+  return result;
+}
