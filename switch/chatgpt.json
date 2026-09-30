@@ -1,0 +1,9 @@
+{
+  "payload": {
+    "v": 1,
+    "app": "ownvoice",
+    "seq": 1,
+    "chatgpt": "on"
+  },
+  "sig": "ojcVHAAPPPWa4aLftC7RU7WsJ1QkBUCGusKkTcioj2xXlRYFK9Gb3Ogp1ewuTe7vZwuaHni2K9BmVXm8UtAQDw=="
+}
