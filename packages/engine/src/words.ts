@@ -29,6 +29,7 @@ export const words = {
   insert:'Insert',
   useThis:'Use this',
   copy:'Copy',
+  copied:'Copied',
   why:'Why?',
   whyReply:'Why this reply',
   whyVersion:'Why this version',

@@ -104,21 +104,21 @@ const tapText = async (label, state = '') => {
   throw new Error(`Could not find visible ${label} ${state}.`);
 };
 
-// The first Insert pill defeats OCR in both modes (white on a filled pill), but its Copy sits on the same row
-// in plain text. Read one 150 px band at a time from the panel's top down, cropped past the pill (a full-width
-// band with the pill in it reads as nothing), and tap Insert at the start of the first Copy's row.
+// The first Insert pill defeats OCR in both modes (white on a filled pill), but its Why? sits on the same row
+// in plain text at the right. Read one 150 px band at a time from the panel's top down, cropped to that right
+// side (a full-width band with the pill in it reads as nothing), and tap Insert at the start of the first Why?'s row.
 const tapInsert = async () => {
   for (let attempt = 0; attempt < 10; attempt++) {
     const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
     for (let top = Math.round(height * .3); top < height - 150; top += 75) {
-      const input = execFileSync('magick', ['png:', '-crop', `${Math.round(width * .37)}x150+${Math.round(width * .28)}+${top}`, '+repage', 'png:-'], { input: image });
+      const input = execFileSync('magick', ['png:', '-crop', `${Math.round(width * .3)}x150+${Math.round(width * .62)}+${top}`, '+repage', 'png:-'], { input: image });
       const tsv = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '7', 'tsv'], { input, encoding: 'utf8' });
-      const copy = tsv.split('\n').slice(1).map(row => row.split('\t')).find(c => c.length >= 12 && c[11].trim().toLowerCase() === 'copy');
-      if (copy) { tap(Math.round(width * .18), Math.round(top + Number(copy[7]) + Number(copy[9]) / 2)); return; }
+      const why = tsv.split('\n').slice(1).map(row => row.split('\t')).find(c => c.length >= 12 && c[11].trim().toLowerCase().startsWith('why'));
+      if (why) { tap(Math.round(width * .18), Math.round(top + Number(why[7]) + Number(why[9]) / 2)); return; }
     }
     await wait(1000);
   }
-  throw new Error('Could not find the first draft\'s Copy, so not its Insert either.');
+  throw new Error('Could not find the first draft\'s Why?, so not its Insert either.');
 };
 
 const bubbleVisible = () => {

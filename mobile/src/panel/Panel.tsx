@@ -14,9 +14,10 @@ import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
 import { retryLines, type Writer, type WriterRoute } from '../core/writers';
-import { Button } from '../ui/Button';
+import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
+import { CheckIcon, ChevIcon, CopyIcon, OpenIcon, ShareIcon } from '../ui/icons';
 import { MeaningLine } from '../ui/MeaningLine';
 import { Marked } from '../ui/Marked';
 import { Placeholder } from '../ui/Placeholder';
@@ -139,6 +140,17 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [tones, setTones] = useState<Map<string, string>>(new Map());
   const toneFor = useRef(0);
   const [slips, setSlips] = useState<Typing.Slip[]>([]);
+  // The text just copied: its card's copy button shows a tick for a moment.
+  const [copied, setCopied] = useState<string | null>(null);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
+  const copy = (text: string) => {
+    void Native.copy(text).then(() => {
+      setCopied(text);
+      if (copiedTimer.current) clearTimeout(copiedTimer.current);
+      copiedTimer.current = setTimeout(() => setCopied(null), 1600);
+    }).catch(() => {});
+  };
   const run = useRef(0);
   const startedTap = useRef<string | null>(null);
   const inserting = useRef(false);
@@ -334,7 +346,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const done = phase === 'ready' && unchanged;
   const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
   const insertLabel = mode === 'reply' ? words.insert : words.useThis;
-  const prefillLabel = prefillFor(platformForApp(capture?.app)).label;
+  const prefill = prefillFor(platformForApp(capture?.app));
   const coverDraft = why != null ? shown.find(draft => draft.slot === why) : undefined;
   const check = coverDraft ? whys.get(coverDraft.text) : undefined;
 
@@ -351,12 +363,16 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
     {yours && slips.length ? <View style={{ marginBottom: space.m }}>
       <Card variant="outlined" label={words.slipsTitle}>
-        {slips.map(slip => <View key={slip.start} style={styles.slip}>
-          <Text style={[type.body, { color: t.text, flex: 1 }]}>
-            <Text style={{ backgroundColor: t.mark, color: t.onMark }}>{yours.text.slice(slip.start, slip.end).trim()}</Text>
-            {`  ${slip.fix === undefined ? words.slipUnknown : slip.fix === '' ? words.slipRepeat : `→ ${slip.fix}`}`}
-          </Text>
-          {slip.fix !== undefined ? <Button kind="text" label={words.fix} disabled={!hasField || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip))} /> : null}
+        {slips.map((slip, i) => <View key={slip.start} style={[styles.slip, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: t.line }]}>
+          {/* What they typed, then what it becomes: the slip crossed out when there is a fix. */}
+          <View style={styles.slipText}>
+            <Text style={[type.body, styles.wrong, { backgroundColor: t.mark, color: t.onMark }, slip.fix !== undefined && styles.crossed]}>{yours.text.slice(slip.start, slip.end).trim()}</Text>
+            {slip.fix ? <>
+              <ChevIcon size={18} color={t.muted} />
+              <Text style={[type.body, { color: t.text, fontWeight: '600' }]}>{slip.fix}</Text>
+            </> : <Text style={[type.note, { color: t.muted }]}>{slip.fix === '' ? words.slipRepeat : words.slipUnknown}</Text>}
+          </View>
+          {slip.fix !== undefined ? <Button kind="tonal" label={words.fix} disabled={!hasField || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip))} /> : null}
         </View>)}
       </Card>
     </View> : null}
@@ -367,7 +383,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores)} />
         {done ? <View style={styles.actions}>
-          <Button kind="text" label={words.copy} onPress={() => { void Native.copy(yours.text).catch(() => {}); }} />
+          <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours.text)} />
         </View> : null}
       </Card>
     </View> : null}
@@ -381,8 +397,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
-            <Button kind="text" label={words.copy} onPress={() => { void Native.copy(card.text).catch(() => {}); }} />
-            <Button kind="text" label={prefillLabel} onPress={() => openPrefill(capture?.app, card.text)} />
+            {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
+            <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} onPress={() => copy(card.text)} />
+            <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} onPress={() => openPrefill(capture?.app, card.text)} />
             <View style={{ flex: 1 }} />
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>
@@ -406,8 +423,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
 const styles = StyleSheet.create({
   // Wraps Why? onto its own line on narrow phones rather than squeezing the buttons.
-  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.xs, marginTop: space.m, marginLeft: -space.xs },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s, marginTop: space.m, marginLeft: -space.xs },
   quote: { flexDirection: 'row', gap: space.m, borderRadius: shape.card, padding: space.l },
-  slip: { flexDirection: 'row', alignItems: 'center', gap: space.s, minHeight: 48 },
+  slip: { flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 56, paddingVertical: space.s },
+  slipText: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s },
+  wrong: { borderRadius: 6, paddingHorizontal: 6, overflow: 'hidden' },
+  crossed: { textDecorationLine: 'line-through' },
   quoteBar: { width: 3, borderRadius: 2 },
 });
