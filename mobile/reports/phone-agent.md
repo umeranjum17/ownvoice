@@ -115,10 +115,9 @@ the stand-in (harness rows run in 0-7 ms of Jest wall time).
 
 ## Owed live rows (follow-up on the one signed-in test emulator, which other live checks are using first)
 
-1. Step 1: one live ChatGPT tool-call turn through firstmate's isolated signed-in test home
-   (the plan section 6 "not measured" proof: function `tools` accepted on
-   `chatgpt.com/backend-api/codex/responses` with this sign-in). No credentials are copied;
-   the call goes through the isolated test home only.
+1. Step 1: one live ChatGPT tool-call turn through the app on the signed-in test emulator,
+   using its byokit sign-in (the plan section 6 "not measured" proof: function `tools`
+   accepted with this sign-in). No credentials are read or copied from another tool.
 2. Step 2 live pass: the six tasks in `mobile/e2e/agent-tasks.json`, once as the loop
    (`chatgptBrain`) and once as the fixed script (`scriptBrain` over the live writer),
    approve yes on 1-5 and Not now on 6, recording per task: final text, model call count,
