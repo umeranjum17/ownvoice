@@ -1,4 +1,4 @@
-import { versionAcceptor } from './drafts.ts';
+import { numbersAndTimesKept, versionAcceptor } from './drafts.ts';
 import { fixedSlips, type Speller } from './typing.ts';
 import { speller } from './speller.ts';
 
@@ -23,9 +23,9 @@ export async function polishAcceptor(original: string, dashes: 'keep' | 'remove'
     const version = fixedSlips(text, dictionary);
     const protectedVersion = protectedWording(version);
     // New sentence capitals are allowed; every original name occurrence must remain.
-    const names = [...version.matchAll(/[\p{L}][\p{L}\p{M}'’]*/gu)]
-      .map(match => match[0]).filter(word => protectedOriginal.names.includes(word));
-    return JSON.stringify(protectedOriginal.tokens) === JSON.stringify(protectedVersion.tokens)
+    const names = protectedVersion.names.filter(word => protectedOriginal.names.includes(word));
+    return numbersAndTimesKept(local, version)
+      && JSON.stringify(protectedOriginal.tokens) === JSON.stringify(protectedVersion.tokens)
       && JSON.stringify(protectedOriginal.names) === JSON.stringify(names) ? version : local;
   };
   return {
