@@ -1,13 +1,11 @@
 import { fetch as expoFetch } from 'expo/fetch';
-import { classify } from '@byokit/accounts';
-import { codexAuth, reportFailure } from './accounts';
-import { readDraftStream, readTextStream } from '../core/responses-stream';
+import { classify, ResponseError } from '@byokit/accounts';
+import { accounts, codexAuth, reportFailure } from './accounts';
+import { withResponseFetch } from './responseFetch';
 import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor, versionAcceptor } from '../core/drafts';
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
-
-// Temporary until byokit ships its streamed Responses call; delete this file then.
 
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
 export const CHATGPT_MODEL = 'gpt-6-sol';
@@ -20,33 +18,41 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
   let started = false;
   let marked = false;
   try {
-    const auth = await codexAuth();
+    await codexAuth();
     if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
-    const request = {
-      method: 'POST', headers: { Authorization: `Bearer ${auth.access}`, 'Content-Type': 'application/json', 'chatgpt-account-id': auth.accountId, originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' },
-      body: JSON.stringify({ model: CHATGPT_MODEL, instructions, input: [{ role: 'user', content: [{ type: 'input_text', text: prompt }] }], stream: true, store: false, reasoning: { effort: 'none' }, text: key === 'text' ? { verbosity: 'low' } : { verbosity: 'low', format: { type: 'json_object' } } }),
-    };
-    if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
-    if (on?.beforeFetch && !on.beforeFetch()) throw new SendVeto(words.phoneWrote);
-    started = true;
-    on?.started?.();
-    const response = await fetcher('https://chatgpt.com/backend-api/codex/responses', request);
-    // The mark lands only once the server answers: a throw above means the text never
-    // left (vetoed, offline before connect), so the read log claims no send for it.
-    // An answer, even an error, means the text did go out, so the mark stays for
-    // transmitted-then-failed.
-    await on?.sent?.();
-    marked = true;
-    if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
-    if (!response.body) throw new Error('ChatGPT did not answer.');
-    if (key === 'text') return [await readTextStream(response.body, onText)];
-    return await readDraftStream(response.body, key, onText, count);
+    // The kit resolves credentials before calling its configured fetch. Associate this
+    // request's signal with the app's consent and read-log hooks so the last checks
+    // still happen at dispatch, including after any credential wait.
+    const text = await withResponseFetch(async (url, init) => {
+      if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
+      if (on?.beforeFetch && !on.beforeFetch()) throw new SendVeto(words.phoneWrote);
+      started = true;
+      on?.started?.();
+      const response = await fetcher(url, init);
+      // An answer, even a refusal or an empty stream, means the text went out.
+      // An offline throw above leaves the read log unmarked.
+      await on?.sent?.();
+      marked = true;
+      return response;
+    }, signal => accounts.respond('owner', {
+      instructions, input: prompt, model: CHATGPT_MODEL, signal, onText,
+      text: key === 'text' ? { verbosity: 'low' } : { verbosity: 'low', format: { type: 'json_object' } },
+    }));
+    if (key === 'text') {
+      const line = text.trim();
+      if (!line) throw new Error('ChatGPT could not answer.');
+      return [line];
+    }
+    let drafts: unknown;
+    try { drafts = JSON.parse(text)[key]; } catch { throw new Error('ChatGPT could not answer.'); }
+    if (!Array.isArray(drafts) || drafts.length !== count || drafts.some(draft => typeof draft !== 'string' || !draft.trim())) throw new Error('ChatGPT could not answer.');
+    return drafts;
   } catch (error) {
     if (!started && marked) await on?.unsent?.();
     if (error instanceof SendVeto) throw error;
     const message = error instanceof Error ? error.message : String(error);
     if (!started && classify(message)?.kind !== 'network') throw new SendVeto(words.phoneWrote);
-    await reportFailure(message).catch(() => {});
+    if (!(error instanceof ResponseError && error.kind != null)) await reportFailure(message).catch(() => {});
     throw error;
   }
 }
@@ -61,7 +67,8 @@ export const streamSelectionRewrite = (text: string, how: Rewrite, guide: string
   ask(selectionRewritePrompt(text, how, guide), REWRITE_INSTRUCTIONS, 'text', 1, on).then(([line]) => line ?? '');
 
 const accountFailure = (error: unknown) => {
-  const kind = classify(error instanceof Error ? error.message : String(error))?.kind;
+  const message = error instanceof Error ? error.message : String(error);
+  const kind = error instanceof ResponseError ? error.kind ?? classify(message)?.kind : classify(message)?.kind;
   return kind != null && kind !== 'network';
 };
 

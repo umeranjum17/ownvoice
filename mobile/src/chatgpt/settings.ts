@@ -1,6 +1,6 @@
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
-import { getSource, isOwnApp, phoneListed } from '../core/source';
+import { getSource, isOwnApp, phoneListed, SOURCE_KEY, type Source } from '../core/source';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { modelStatus } from '../core/phoneDownload';
 import { CHATGPT_OFF, chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
@@ -134,6 +134,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
     phone,
     chatgpt: () => ({ write: async (request, on = {}) => {
       const beforeSend = async () => {
+        if ((await getSource()) !== 'chatgpt') return false;
         const before = signOutGuard();
         if (before.active) return false;
         const version = rulesVersion;
@@ -147,7 +148,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
         if (!(await beforeSend())) throw new SendVeto(words.phoneWrote);
         return require('../panel/stubWriter').stubWriter().write(request, on);
       }
-      const beforeFetch = () => fetchCore(epoch)
+      const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && fetchCore(epoch)
         && (practice || (!!rulesNow && !rulesNow.paused && showsBubble(app, rulesNow) && !phoneListed(app)));
       const epoch = signOutGuard().epoch;
       return require('./responses').chatgptWriter.write(request, { ...on, beforeSend, beforeFetch });

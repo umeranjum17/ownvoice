@@ -2,7 +2,7 @@ import { classify } from '@byokit/accounts';
 import { PHONE_ONLY_KEY, SOURCE_KEY, setSource } from '../../core/source';
 import { store } from '../../core/store';
 import { saveBubbleRules, gptRoute } from '../settings';
-import { status } from '../accounts';
+import { accounts, status } from '../accounts';
 import { CHATGPT_OFF } from '../../core/switch';
 import Native from '../../../modules/ownvoice-native';
 import { codexAuth, reportFailure, signOut } from '../accounts';
@@ -14,14 +14,18 @@ jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}), modelStatus: jest.fn(async () => 'available') },
 }));
-jest.mock('../accounts', () => ({
+jest.mock('../accounts', () => {
+  const actual = jest.requireActual('../accounts');
+  actual.accounts.runtime = jest.fn(async () => ({ getAuth: async () => ({ auth: { apiKey: 'fixture-access' } }), readCredential: async () => ({ type: 'oauth', accountId: 'fixture-account' }) }));
+  actual.accounts.failed = jest.fn(async (_member: string, _key: string, error: { kind: string; until: number }) => ({ kind: error.kind, until: error.until }));
+  return { ...actual,
   reportFailure: jest.fn(async () => null),
   signOut: jest.fn(async () => {}),
   codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })),
   refresh: jest.fn(async () => {}),
   signInState: jest.fn(() => null),
   status: jest.fn(async () => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' })),
-}));
+}; });
 
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['phone one', 'phone two', 'phone three'] })) } }));
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
@@ -480,7 +484,7 @@ test.each([
 
 test('a limit gives the same tap byokits words over phone drafts', async () => {
   const route = await gptRoute('com.twitter.android', offline);
-  (reportFailure as jest.Mock).mockImplementation(async () => {
+  (accounts.failed as jest.Mock).mockImplementationOnce(async () => {
     ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', words: 'ChatGPT is resting until 3:40pm.' });
     return { kind: 'rate_limit', until: 1 };
   });
@@ -488,7 +492,8 @@ test('a limit gives the same tap byokits words over phone drafts', async () => {
   global.fetch = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'Too many requests', body: null } as Response));
   try {
     expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: 'ChatGPT is resting until 3:40pm.' });
-    expect(reportFailure).toHaveBeenCalledWith('429 Too many requests');
+    expect(accounts.failed).toHaveBeenCalledTimes(1);
+    expect(reportFailure).not.toHaveBeenCalled();
     expect(global.fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
@@ -498,4 +503,18 @@ test('nobody signed in means no switch check and no ChatGPT', async () => {
   const fetcher = jest.fn(offline);
   expect((await gptRoute('com.twitter.android', fetcher)).note).toBeNull();
   expect(fetcher).not.toHaveBeenCalled();
+});
+
+
+test('switching the source to the phone after routing prevents any ChatGPT fetch', async () => {
+  const route = await gptRoute('com.twitter.android', offline);
+  store.set(SOURCE_KEY, 'phone');
+  const originalFetch = global.fetch;
+  global.fetch = jest.fn();
+  const sent = jest.fn();
+  try {
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(global.fetch).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
 });
