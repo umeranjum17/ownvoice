@@ -64,7 +64,6 @@ function spelling(text: string, speller: Speller): Slip[] {
 const VERBISH = "a|an|the|not|been|going|gonna|so|ok|okay|fine|just|really|very|too|time|all|about|like|getting|still|also|always|never|only|hard|easy|great|good|late|over|true|done|my|your|our|their|what|how";
 const LETS = 'go|do|get|see|meet|talk|try|make|have|be|grab|catch|start|keep|call|chat|say|play|eat|move|plan|find|hope|wait|leave|head|check|think|not|just';
 const THAN = 'more|less|better|worse|rather|other|fewer|bigger|smaller|faster|slower|higher|lower|older|younger|easier|harder|longer|shorter|greater|larger|cheaper|nicer|sooner|further|farther|cooler|stronger|weaker';
-const YOURE = "welcome|right|wrong|going|not|so|too|very|being|doing|getting|coming|gonna|kidding|joking|sure|late|done|ready|able|always|never|still|just|a|an|probably|really|absolutely|amazing|the best|awesome";
 const A_AN_SOUND = /^(?:uni|use|usu|uti|ure|uro|eu|ewe|one|once|ufo)/i;
 const AN_SILENT_H = /^(?:hour|honest|hono(?:u)?r|heir)/i;
 const SKIP_DOUBLE = /^(?:that|had|is|do|bye|no|so|very|ha|haha|really|yeah|yes|well|tsk)$/i;
@@ -80,7 +79,6 @@ const RULES: Rule[] = [
   { re: /\b([Aa])(?= ([aeiou]\p{Ll}*)\b)/gu, fix: (w, next) => (A_AN_SOUND.test(next) ? null : keepCase(w, 'an')) },
   { re: /\b([Aa]n)(?= ([b-df-hj-np-tv-z]\p{Ll}*)\b)/gu, fix: (w, next) => (AN_SILENT_H.test(next) ? null : keepCase(w, 'a')) },
   { re: new RegExp(`\\b(?:${THAN}) (then)\\b`, 'gi'), fix: w => keepCase(w, 'than') },
-  { re: new RegExp(`\\b(your)(?= (${YOURE})\\b)`, 'gi'), fix: w => keepCase(w, "you're") },
 ];
 // A full stop that ends an abbreviation, an initial, a number or "...", not a sentence.
 const NOT_AN_END = /(?:\b(?:e\.g|i\.e|etc|vs|mr|mrs|ms|dr|st|approx)|\b\p{L}|\d|\.\.)[.]\s+$/iu;
