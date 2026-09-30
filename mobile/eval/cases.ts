@@ -3,7 +3,7 @@
 // polish = compose boost (the phone writer's rewrite + layout retry), select = selection-menu rewrite,
 // reply = reply drafts from the screen.
 export type Case =
-  | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; from?: string }
+  | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; exact?: string; from?: string }
   | { id: string; kind: 'select'; typed: string; how: 'Shorter' | 'Simpler' | 'Fix spelling' | 'Friendlier' | 'Firmer'; keep: string[]; exact?: string; layout?: boolean; why: string }
   | { id: string; kind: 'tone'; typed: string; why: string }
   | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string }
@@ -13,6 +13,18 @@ export type Case =
 const LOWER = 'How they write: all lowercase, short, no exclamation marks.';
 
 export const cases: Case[] = [
+  { id: 'P14-cleaned-slips', kind: 'polish', typed: 'Its a good plan, I shoud be there by the the evening.', screen: '', slot: 0,
+    exact: "It's a good plan, I should be there by the evening.", keep: ['good plan', 'evening'], why: 'Cleaned up must apply the slips the typing check already detects' },
+  { id: 'P15-cleaned-name', kind: 'polish', typed: 'Its a good plan, Umer shoud be there by the the evening.', screen: '', slot: 0,
+    exact: "It's a good plan, Umer should be there by the evening.", keep: ['Umer', 'good plan', 'evening'], why: 'Local cleanup must leave the proper noun alone' },
+  { id: 'P16-cleaned-advisory', kind: 'polish', typed: 'Keep your right hand warm. I shoud leave.', screen: '', slot: 0,
+    exact: 'Keep your right hand warm. I should leave.', keep: ['right hand', 'leave'], why: 'Automatic cleanup must preserve valid wording flagged by advisory grammar' },
+  { id: 'P17-cleaned-order', kind: 'polish', typed: 'Meet by teh the evening.', screen: '', slot: 0,
+    exact: 'Meet by the evening.', keep: ['Meet', 'evening'], why: 'Spelling cleanup precedes doubled-word removal' },
+  { id: 'P18-cleaned-run', kind: 'polish', typed: 'Meet by the The the evening.', screen: '', slot: 0,
+    exact: 'Meet by the evening.', keep: ['Meet', 'evening'], why: 'Supported lowercase-first mixed-case runs collapse' },
+  { id: 'P19-cleaned-protected', kind: 'polish', typed: "Bring woud for the fire. We should visit Bora Bora. Give Ben Ben's keys. Hey @will will you join us? Its own engine runs. I shoud leave.", screen: '', slot: 0,
+    exact: "Bring woud for the fire. We should visit Bora Bora. Give Ben Ben's keys. Hey @will will you join us? Its own engine runs. I should leave.", keep: ['woud', 'Bora Bora', "Ben Ben's", '@will will', 'Its own engine', 'leave'], why: 'Automatic spelling leaves ambiguous words, names, protected tokens and other Its uses alone' },
   // --- Polish: the real regressions (lost noon, flattened list, marker-only rows, trailing commentary) ---
   { id: 'P01-noon-list', kind: 'polish', typed: 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', screen: '', keep: ['tent', 'stove', 'Saturday', 'noon'],
     why: 'QA 27 Sep: phone polish of this list lost "noon" / produced no card' },

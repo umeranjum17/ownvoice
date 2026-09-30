@@ -1,3 +1,11 @@
+jest.mock('../../core/speller', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const nspell = require('nspell');
+  const dictionary = path.resolve(__dirname, '../../../assets/dictionary');
+  const spell = nspell(fs.readFileSync(`${dictionary}/en-affixes.aff`, 'utf8'), fs.readFileSync(`${dictionary}/en-words.dic`, 'utf8'));
+  return { speller: async () => spell };
+});
 import Native from '../../../modules/ownvoice-native';
 import { words } from '../../core/words';
 import { phoneWriter } from '../phoneWriter';
@@ -438,13 +446,14 @@ test('a phone still getting ready is waited for without recording a yes', async 
 // ---- Polish and compose ----
 
 test('polish runs the C2 rewrite through the phone model and lands labelled versions', async () => {
-  native.ask.mockResolvedValue('{"versions":["I can bring the stove.","I will bring the stove. You are on the tent.","Stove: mine. Tent: yours. All agreed."]}');
+  native.ask.mockResolvedValue('{"versions":["I will bring the stove. You are on the tent.","Stove: mine. Tent: yours. All agreed."]}');
   const landed: [string, number, string?][] = [];
-  const { drafts } = await phoneWriter.write(request({ typed: 'i can bring the stove, super excited' }), { landed: (text, slot, label) => landed.push([text, slot, label]) });
+  const { drafts } = await phoneWriter.write(request({ typed: 'i shoud bring the stove, super excited' }), { landed: (text, slot, label) => landed.push([text, slot, label]) });
   expect(drafts).toHaveLength(3);
   const [, prompt, options] = native.ask.mock.calls[0];
-  expect(prompt).toContain('{"versions"');
-  expect(prompt).toContain('Their text:\ni can bring the stove, super excited');
+  expect(prompt).toContain('{"versions":["...","..."]}');
+  expect(prompt).not.toContain('Light touch:');
+  expect(prompt).toContain('Their text:\ni shoud bring the stove, super excited');
   expect(prompt).toContain("Don't add long dashes (—).");
   expect(prompt).toContain('their dashes: remove');
   expect(options).toEqual({ maxTokens: 256 });
@@ -453,36 +462,35 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
 
 test('a polish of the numbered list keeps the list, after one layout fix', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
-    if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove, and you the tent."]}';
+    if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove. 1. I will bring the stove. 2. You can bring the tent."]}';
     if (prompt.includes('Row 1:')) return 'Row 1: Stove is on me.\nRow 2: I will bring the stove.\nRow 3: You can bring the tent.';
     if (prompt.includes('Tighter:')) return 'Stove split.\n1. I bring the stove.\n2. Tent is yours.';
     return 'Stove and tent split:\n1. The stove is mine to bring.\n2. The tent is yours to bring.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toHaveLength(3);
+  expect(drafts).toHaveLength(2);
   expect(drafts[0]).toBe('Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.');
   for (const draft of drafts) { expect(draft).toMatch(/1\. /); expect(draft).toMatch(/2\. /); }
-  expect(native.ask).toHaveBeenCalledTimes(4); // one rewrite call, two slot fallbacks, one layout fix
+  expect(native.ask).toHaveBeenCalledTimes(3);
 });
 
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => {
-    if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Stove plan:\\n1. I bring the stove.\\n2. You bring the tent, please.","Stove plan:\\n1. Stove: mine.\\n2. Tent: yours."]}';
+    if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Stove plan:\\n1. Stove: mine.\\n2. Tent: yours."]}';
     return 'Stove plan:\n1. Stove: mine.\n2. Tent: yours.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
-  expect(drafts).toHaveLength(2);
+  expect(drafts).toHaveLength(1);
   for (const draft of drafts) {
     expect(draft).toMatch(/1\. /);
     expect(draft).toMatch(/2\. /);
   }
 });
 
-test('flattened versions stay out after the single layout retry', async () => {
+test('flattened versions losing numbers leave no accepted cards', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
     ? '{"versions":["Flat stove and tent plan."]}' : 'Still one flat line, again.');
   expect(await phoneWriter.write(request({ typed: LIST }))).toEqual({ drafts: [], unchanged: false });
-  expect(native.ask).toHaveBeenCalledTimes(6);
 });
 
 test('no accepted polish leaves the original out of cleaned-up cards', async () => {
@@ -491,7 +499,7 @@ test('no accepted polish leaves the original out of cleaned-up cards', async () 
   expect(await phoneWriter.write(request({ typed: 'unchanged input' }))).toEqual({ drafts: [], unchanged: true });
 });
 
-test('an already-minimal list that comes back as it was is unchanged; a flattened one is a failure', async () => {
+test('only writer evidence of unchanged text marks an already-minimal list unchanged', async () => {
   const minimal = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
   native.ask.mockResolvedValue('{"versions":["Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday"]}');
   expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: true });
@@ -502,19 +510,19 @@ test('an already-minimal list that comes back as it was is unchanged; a flattene
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
   native.ask.mockResolvedValueOnce('{"versions":["Yours — dashed","Yours — dashed, kept."]}')
     .mockResolvedValue('Yours — dashed');
-  const { drafts } = await phoneWriter.write(request({ typed: 'yours — dashed', dashes: 'keep' }));
+  const { drafts } = await phoneWriter.write(request({ typed: 'Yours — dashed', dashes: 'keep' }));
   expect(drafts).toEqual(['Yours — dashed, kept.']);
 });
 
 test('their dash rule is removed by the writer even when the model leaks one', async () => {
   native.ask.mockResolvedValue('{"versions":["Yes — see you Saturday then","Other one here","And a third version"]}');
-  const { drafts } = await phoneWriter.write(request({ typed: 'see you saturday' }));
+  const { drafts } = await phoneWriter.write(request({ typed: 'see you Saturday' }));
   expect(drafts[0]).toBe('Yes, see you Saturday then');
 });
 
 test('polish prompts carry the avoid list', async () => {
   native.ask.mockResolvedValue('{"versions":["Totally new words appear here.","Another fresh angle entirely.","And one more rewrite too."]}');
-  await expect(phoneWriter.write(request({ typed: 'i can bring the stove, super excited', avoid: ['I can bring the stove.', 'Something different entirely.'] }))).resolves.toBeTruthy();
+  await expect(phoneWriter.write(request({ typed: 'i shoud bring the stove, super excited', avoid: ['I can bring the stove.', 'Something different entirely.'] }))).resolves.toBeTruthy();
   expect(native.ask.mock.calls[0][1]).toContain("Don't repeat these: I can bring the stove.; Something different entirely.");
 });
 
@@ -539,4 +547,33 @@ test('emulator stub hands an already-minimal text back unchanged', async () => {
   try {
     expect(await phoneWriter.write(request({ typed: 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday' }))).toEqual({ drafts: [], unchanged: true });
   } finally { delete process.env.EXPO_PUBLIC_E2E_STUB; }
+});
+
+test.each([
+  ['Its a good plan.', "It's a good plan.", "It's a good plan."],
+  ['Its a plan. We shoud go.', "It's a plan. We should go.", "It's a plan. We shoud go."],
+  ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
+  ['We shoud shoud go.', 'We should should go.'],
+  ['Meet by teh the evening.', 'Meet by the evening.'],
+  ['Meet by the The the evening.', 'Meet by the evening.'],
+  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening."],
+  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening.", "It's a good plan, I shoud be there by the the evening."],
+  ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
+  ['I shoud call at noon and leave at midnight.', 'I should call at noon and leave at midnight.', 'I should call at midnight and leave at noon.'],
+  ['I shoud visit Bora Bora with @will.', 'I should visit Bora Bora with @will.', 'I should visit Bora with @bill.'],
+])('Cleaned up fixes slips and keeps the rest: %s', async (typed, expected, answer = typed) => {
+  native.ask.mockResolvedValue(JSON.stringify({ versions: [answer, typed] }));
+  const landed = jest.fn();
+  const result = await phoneWriter.write(request({ typed }), { landed });
+  expect(result.drafts).toContain(expected);
+  expect(landed).toHaveBeenCalledWith(expected, 0, 'Cleaned up');
+  expect(result.unchanged).toBe(false);
+});
+
+test.each(['Its own engine', 'Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?'])('phone cleanup preserves %s', async typed => {
+  native.ask.mockResolvedValue(JSON.stringify({ versions: [typed, typed] }));
+  const landed = jest.fn();
+  const result = await phoneWriter.write(request({ typed }), { landed });
+  expect(result).toEqual({ drafts: [], unchanged: true });
+  expect(landed).not.toHaveBeenCalled();
 });

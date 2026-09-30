@@ -1,3 +1,12 @@
+import { withPhoneFallback } from '../../core/writers';
+jest.mock('../../core/speller', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const nspell = require('nspell');
+  const dictionary = path.resolve(__dirname, '../../../assets/dictionary');
+  const spell = nspell(fs.readFileSync(`${dictionary}/en-affixes.aff`, 'utf8'), fs.readFileSync(`${dictionary}/en-words.dic`, 'utf8'));
+  return { speller: async () => spell };
+});
 jest.mock('../accounts', () => {
   const actual = jest.requireActual('../accounts');
   actual.accounts.runtime = jest.fn(async () => ({
@@ -96,7 +105,7 @@ test('streamed account refusal is reported and polish slots are not retried', as
 
 const retryCases: Array<[DraftRequest, object]> = [
   [{ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' }, { drafts: ['No thanks', 'No thanks', 'No thanks'] }],
-  [{ conversation: '', written: '', typed: 'line one\nline two\nline three' }, { versions: ['Changed', 'Better', 'Different'] }],
+  [{ conversation: '', written: '', typed: 'line one\nline two\nline three' }, { versions: ['Changed', 'Better'] }],
 ];
 test.each(retryCases)('account failure during a slot retry stops further requests', async (request, initial) => {
   const originalFetch = global.fetch;
@@ -265,7 +274,7 @@ test('reply on X sends the X slots and cap; polish on LinkedIn sends the hook ru
     global.fetch = jest.fn(async (_url, init?: RequestInit) => {
       const payload = JSON.parse(String(init?.body)) as { input: { content: { text: string }[] }[] };
       bodies.push(payload.input[0].content[0].text);
-      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b","c"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
+      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
     }) as unknown as typeof fetch;
     await chatgptWriter.write({ conversation: 'screen', written: 'screen', typed: 'started my consultancy today', platform: platformForApp('com.linkedin.android') });
     expect(bodies.at(-1)).toContain('keep paragraphs short');
@@ -292,11 +301,13 @@ test('reply mode sends the C2 reply prompt; polish sends the rewrite prompt', as
     global.fetch = jest.fn(async (_url, init?: RequestInit) => {
       const payload = JSON.parse(String(init?.body)) as { instructions: string; input: { content: { text: string }[] }[] };
       bodies.push(`${payload.instructions}\n---\n${payload.input[0].content[0].text}`);
-      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b","c"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
+      return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
     }) as unknown as typeof fetch;
     const polish = await chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: 'i can bring the stove' });
-    expect(polish.drafts).toEqual(['a', 'b', 'c']);
-    expect(bodies.at(-1)).toContain('Return the requested three rewrite versions as JSON.');
+    expect(polish.drafts).toEqual(['a', 'b']);
+    expect(bodies.at(-1)).toContain('Return the requested rewrite versions as JSON.');
+    expect(bodies.at(-1)).toContain('Return 2 versions');
+    expect(bodies.at(-1)).not.toContain('Light touch:');
     expect(bodies.at(-1)).toContain('Their text:\ni can bring the stove');
     expect(bodies.at(-1)).toContain('Screen (context only):\nchat on screen');
     expect(bodies.at(-1)).not.toContain('Latest message:');
@@ -469,5 +480,59 @@ test('reply retries accept the requested one-slot JSON array', async () => {
   try {
     await expect(chatgptWriter.write({ conversation: 'Sam: Saturday?', written: 'Sam: Saturday?', typed: '' })).resolves.toEqual({ drafts: ['No thanks', 'Yes please', 'What time?'] });
     expect(global.fetch).toHaveBeenCalledTimes(3);
+  } finally { global.fetch = originalFetch; }
+});
+
+test.each([
+  ['Its a good plan.', "It's a good plan.", "It's a good plan."],
+  ['Its a plan. We shoud go.', "It's a plan. We should go.", "It's a plan. We shoud go."],
+  ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
+  ['We shoud shoud go.', 'We should should go.'],
+  ['Meet by teh the evening.', 'Meet by the evening.'],
+  ['Meet by the The the evening.', 'Meet by the evening.'],
+  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening."],
+  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening.", "It's a good plan, I shoud be there by the the evening."],
+  ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
+  ['I shoud call at noon and leave at midnight.', 'I should call at noon and leave at midnight.', 'I should call at midnight and leave at noon.'],
+  ['I shoud visit Bora Bora with @will.', 'I should visit Bora Bora with @will.', 'I should visit Bora with @bill.'],
+])('ChatGPT Cleaned up uses the local fixes: %s', async (typed, expected, answer = typed) => {
+  const originalFetch = global.fetch;
+  const landed = jest.fn();
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [answer, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
+  try {
+    const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
+    expect(result.drafts).toContain(expected);
+    expect(landed).toHaveBeenCalledWith(expected, 0, 'Cleaned up');
+    expect(result.unchanged).toBe(false);
+  } finally { global.fetch = originalFetch; }
+});
+
+test.each(['Its own engine', 'Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?'])('ChatGPT cleanup preserves %s', async typed => {
+  const originalFetch = global.fetch;
+  const landed = jest.fn();
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
+  try {
+    const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
+    expect(result).toEqual({ drafts: [], unchanged: true });
+    expect(landed).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+
+test.each([
+  { typed: 'Please bring the stove.', avoid: [] },
+  { typed: 'Please shoud bring the stove.', avoid: ['Please should bring the stove.'] },
+])('two valid ChatGPT polish cards survive fallback routing: $typed', async request => {
+  const originalFetch = global.fetch;
+  const drafts = ['Bring the stove, please.', 'The stove, please bring it.'];
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: drafts }) })}\n\n${event({ type: 'response.completed' })}`));
+  const phone = { write: jest.fn(async () => ({ drafts: ['phone'] })) };
+  const reset = jest.fn();
+  const landed = jest.fn();
+  try {
+    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, { reset, landed }, undefined, 'cant')).toEqual({ drafts });
+    expect(landed.mock.calls.map(([, slot]) => slot)).toEqual([1, 2]);
+    expect(reset).not.toHaveBeenCalled();
+    expect(phone.write).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });

@@ -2,16 +2,17 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { classify, IncompleteError, ResponseError } from '@byokit/accounts';
 import { accounts, codexAuth, reportFailure } from './accounts';
 import { withResponseFetch } from './responseFetch';
-import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor, versionAcceptor } from '../core/drafts';
-import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, type Rewrite } from '../core/judge';
+import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor } from '../core/drafts';
+import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, writerVersions, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
+import { polishAcceptor } from '../core/polish';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
 export const CHATGPT_MODEL = 'gpt-6-sol';
 
 const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
-const VERSION_INSTRUCTIONS = 'Return the requested three rewrite versions as JSON.';
+const VERSION_INSTRUCTIONS = 'Return the requested rewrite versions as JSON.';
 
 /** One streamed Responses call; the requested array must have exactly `count` nonblank strings (`text` returns trimmed plain text instead). */
 async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> {
@@ -99,9 +100,11 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const avoid = request.avoid ?? [];
   const note = avoidLine(avoid);
   const landed = on.landed ?? (() => {});
-  const acceptor = versionAcceptor(request.typed, dashes, avoid);
-  const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', 3, on);
-  raw.slice(0, versionsList.length).forEach((text, slot) => {
+  const acceptor = await polishAcceptor(request.typed, dashes, avoid);
+  if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
+  const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', writerVersions.length, on);
+  raw.forEach((text, index) => {
+    const slot = index + 1;
     const clean = acceptor.accept(text, slot, versionsList[slot].label);
     if (clean != null) landed(clean, slot, versionsList[slot].label);
   });

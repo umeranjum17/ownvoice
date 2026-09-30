@@ -87,6 +87,6 @@ test('engine bundle has no impure imports or fetch calls', async () => {
     { ask: async () => JSON.stringify({ versions: ['Hello.', 'Hi.', 'Hey.'] }) },
     'Hello.', '', '', () => {},
   );
-  assert.equal(rewritten.length, 3);
+  assert.equal(rewritten.length, 2);
   assert.deepEqual(fetchCalls, [], 'engine called fetch');
 });

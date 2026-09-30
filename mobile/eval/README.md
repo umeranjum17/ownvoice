@@ -1,6 +1,6 @@
 # Writer eval (dev-only)
 
-The fixed 36-case set from the offline-model study, including four per-platform reply cases (R09-R12: X, LinkedIn, Reddit, Slack), two tone-polish selection cases (S06-S07: Friendlier, Firmer), one trailing-chatter selection case (S08: Shorter drops appended dash lines) and three tone-line cases (T01-T03), run through the app's
+The fixed case set in [`cases.ts`](cases.ts), extended from the offline-model study, including four per-platform reply cases (R09-R12: X, LinkedIn, Reddit, Slack), two tone-polish selection cases (S06-S07: Friendlier, Firmer), one trailing-chatter selection case (S08: Shorter drops appended dash lines) and three tone-line cases (T01-T03), and six local cleanup cases (P14-P19: spelling, a proper noun, advisory grammar, cleanup ordering, mixed-case repetition and protected wording), run through the app's
 **live** phone-writer pipeline (`src/panel/phoneWriter.ts` polish + replies,
 `src/rewrite/Rewrite.tsx` selection) against an OpenAI-compatible endpoint.
 Nothing here ships: no app file imports `mobile/eval/`, and Metro only
@@ -31,7 +31,8 @@ this directory. The pure core it imports (`judge`, `drafts`, `slop`,
 `platforms`, `voice`, `threads`, `words`) comes straight from the
 `ownvoice-engine` package (`packages/engine`), the same published seam
 Crewhouse consumes; it loads under plain node with type stripping and no
-loader, with no `../src/core` shim and no `.mjs` helper in between;
+loader and no `.mjs` helper in between; polish additionally imports the shared
+mobile `src/core/polish.ts` acceptor and loads the bundled Hunspell dictionary;
 prompts, pipeline and scorer are the app's own.
 
 ## Threshold rule
@@ -40,3 +41,5 @@ A model or prompt change must not drop below the study's numbers on **P01,
 P13, S05, R01, and R07** (R07 added with the never-invent-times fix).
 `score.ts` enforces this as a gate: it exits 1 when any of the five fails.
 Record the run's numbers in the PR.
+
+P14-P19 require their exact Cleaned up sentences. P14-P15 require `It's` along with the spelling and repeated-word fixes. P17-P18 cover spelling before repetition and lowercase-first mixed-case runs; P19 combines protected wording with a supported spelling fix so the unchanged-card guard does not hide the safety check. P14-P19 exercise the shared [Cleaned up acceptance](../README.md#cleaned-up-acceptance) without endpoint calls; their results qualify local cleanup, not live writer quality. Other polish cases request the writer cards and score the combined results.

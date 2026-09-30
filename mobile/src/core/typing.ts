@@ -1,5 +1,6 @@
 import type NSpell from 'nspell';
 import * as Slop from './slop.ts';
+import { protectedTokens } from './drafts.ts';
 
 // The typing check (off unless the person switches it on): spelling from a dictionary on the phone,
 // a short list of common slips, and the stock-phrase rules. Nothing here is sent or kept.
@@ -12,15 +13,17 @@ export const GRAMMAR = 'a common slip';
 // Chat shorthand people mean on purpose.
 const SHORTHAND = new Set(['ok', 'okay', 'lol', 'lmao', 'omg', 'btw', 'tbh', 'imo', 'imho', 'idk', 'lmk', 'brb', 'np', 'ty', 'thx', 'pls', 'plz', 'haha', 'hahaha', 'hehe', 'yeah', 'yep', 'nope', 'hmm', 'ugh', 'wow', 'yay', 'xoxo', 'fyi', 'asap', 'tmrw', 'gonna', 'wanna', 'gotta', 'kinda', 'sorta', 'ya', 'yo', 'bro', 'emoji', 'emojis']);
 // Contractions typed without the apostrophe: the dictionary only offers look-alike words for these.
-const APOSTROPHE: Record<string, string> = {
+const APOSTROPHE: Record<string, string> = Object.assign(Object.create(null), {
   dont: "don't", doesnt: "doesn't", didnt: "didn't", isnt: "isn't", arent: "aren't", wasnt: "wasn't", werent: "weren't",
   havent: "haven't", hasnt: "hasn't", hadnt: "hadn't", couldnt: "couldn't", wouldnt: "wouldn't", shouldnt: "shouldn't",
-  im: "I'm", ive: "I've", youre: "you're", theyre: "they're", youve: "you've", theyve: "they've", thats: "that's", whats: "what's", wouldve: "would've", couldve: "could've", shouldve: "should've",
-};
+  im: "I'm", ive: "I've", youre: "you're", theyre: "they're", youve: "you've", theyve: "they've", thats: "that's", whats: "what's", theres: "there's", wouldve: "would've", couldve: "could've", shouldve: "should've",
+});
 // Very common words win ties between equally close suggestions ("shoud" is "should", not "shod").
 const COMMON = new Set('the be to of and a in that have it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is was are been has had were said did should really thanks thank please sorry tomorrow today tonight meeting maybe probably friend friends weekend definitely receive believe different'.split(' '));
 
 const WORD = /[\p{L}][\p{L}'’]*/gu;
+const unprotected = (text: string) => text.replace(protectedTokens, m => '\0'.repeat(m.length));
+const DOUBLE_WORDS = new Set('the a an'.split(' '));
 const letters = (w: string) => w.replace(/’/g, "'").replace(/'+$/, '');
 
 /** Damerau distance, capped: close typos only. */
@@ -37,20 +40,24 @@ function distance(a: string, b: string): number {
 
 const keepCase = (from: string, to: string) => (/^\p{Lu}/u.test(from) ? to[0].toUpperCase() + to.slice(1) : to);
 
-/** The one fix a spelling slip offers, or undefined when nothing is close enough to be sure of. Slow: only on a tap. */
+function candidates(word: string, speller: Speller) {
+  const plain = letters(word).toLowerCase();
+  return [...new Set(speller.suggest(letters(word)))].map((s, i) => ({ s, i, d: distance(plain, s.toLowerCase()) }))
+    .filter(c => c.d <= 2)
+    .sort((x, y) => x.d - y.d || Number(COMMON.has(y.s.toLowerCase())) - Number(COMMON.has(x.s.toLowerCase())) || x.i - y.i);
+}
+
 export function suggestion(word: string, speller: Speller): string | undefined {
   const plain = letters(word).toLowerCase();
   if (APOSTROPHE[plain]) return keepCase(word, APOSTROPHE[plain]);
-  const candidates = speller.suggest(letters(word)).map((s, i) => ({ s, i, d: distance(plain, s.toLowerCase()) })).filter(c => c.d <= 2);
-  candidates.sort((x, y) => x.d - y.d || Number(COMMON.has(y.s.toLowerCase())) - Number(COMMON.has(x.s.toLowerCase())) || x.i - y.i);
-  return candidates[0]?.s;
+  return candidates(word, speller)[0]?.s;
 }
 
 /** Words the dictionary doesn't know. Capitalised words are left alone: they are mostly names. */
 function spelling(text: string, speller: Speller): Slip[] {
   const out: Slip[] = [];
   // Links, addresses, handles and tags are blanked out first, keeping every other word where it is.
-  const words = text.replace(/\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu, m => ' '.repeat(m.length));
+  const words = unprotected(text);
   for (const m of words.matchAll(WORD)) {
     const word = letters(m[0]);
     // ponytail: capitalised words are skipped, so "Recieve" at a sentence start goes unmarked; a name list would fix that.
@@ -125,4 +132,34 @@ export function count(text: string, speller: Speller | null, voice: Slop.Rules):
 export function fixed(text: string, slip: Slip): string {
   if (slip.fix === undefined) return text;
   return text.slice(0, slip.start) + slip.fix + text.slice(slip.end);
+}
+
+const AMBIGUOUS_APOSTROPHE = new Set('cant wont lets were well hell shed wed ill id its'.split(' '));
+const AUTO_SPELLING = new Map([['shoud', 'should'], ['teh', 'the'], ['recieve', 'receive']]);
+
+export function fixedSlips(text: string, spell: Speller | null): string {
+  const corrections: Slip[] = [];
+  if (spell) for (const slip of spelling(text, spell)) {
+    const word = text.slice(slip.start, slip.end);
+    if (AMBIGUOUS_APOSTROPHE.has(word)) continue;
+    if (APOSTROPHE[word]) {
+      corrections.push({ ...slip, fix: APOSTROPHE[word] });
+      continue;
+    }
+    if (spell.correct(word)) continue;
+    const suggestions = spell.suggest(word);
+    const fix = AUTO_SPELLING.get(word) ?? (suggestions.length === 1 ? suggestions[0] : undefined);
+    if (!fix || /\p{Lu}/u.test(fix)) continue;
+    corrections.push({ ...slip, fix });
+  }
+  let result = text;
+  for (const slip of corrections.sort((a, b) => b.start - a.start)) result = fixed(result, slip);
+  const deletions: Slip[] = [];
+  for (const m of unprotected(result).matchAll(/(?<![\p{L}\p{M}\p{N}_'’])([a-z]+)(?:[ \t]+\1(?![\p{L}\p{M}\p{N}_'’]))+/giu)) {
+    if (DOUBLE_WORDS.has(m[1])) deletions.push({ start: m.index! + m[1].length, end: m.index! + m[0].length, reason: GRAMMAR, fix: '' });
+  }
+  for (const slip of deletions.reverse()) result = fixed(result, slip);
+  const articles = [...unprotected(result).matchAll(/(?<![\p{L}\p{M}\p{N}_'’])([Ii]ts)(?= (?:a|an|the)(?![\p{L}\p{M}\p{N}_'’]))/gu)];
+  for (const m of articles.reverse()) result = fixed(result, { start: m.index!, end: m.index! + m[1].length, reason: GRAMMAR, fix: keepCase(m[1], "it's") });
+  return result;
 }

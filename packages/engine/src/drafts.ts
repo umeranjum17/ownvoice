@@ -173,12 +173,15 @@ export function rebuildLines(original: string, answer: string): string | null {
 
 // ---- 5.4 The dash rule: the writer's text and their own switch win ----
 
-/** ' — ', '—' and ' – ' become ', ' on any draft the table says must not carry a dash. */
+export const protectedTokens = /\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu;
+
+/** Replace sentence dashes outside protected tokens; rewriting a token could break its address or identity. */
 export function undash(text: string): string {
-  return text.replace(/ — |—| – /g, ', ');
+  return text.split(new RegExp(`(${protectedTokens.source})`, 'gu'))
+    .map((part, index) => index % 2 ? part : part.replace(/ — |—| – /g, ', ')).join('');
 }
 
-/** The table: the switch on removes dashes everywhere; switch off keeps them only when the writer's own text uses one. */
+/** Request undash when the switch is on or the writer's own text has no em dash; undash preserves protected tokens. */
 export function dashDecision(noDashes: boolean, ownText: string): 'keep' | 'remove' {
   return !noDashes && ownText.includes('—') ? 'keep' : 'remove';
 }
@@ -332,7 +335,7 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
   const flat = (value: string) => value.replace(/\r\n/g, '\n').split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).join('\n').trim();
   const same = (text: string) => { if (flat(text) === flat(original)) unchanged = true; };
   const clean = (text: string) => (dashes === 'remove' ? undash(text) : text).trim();
-  const distinct = (text: string) => norm(text) !== norm(original) && fresh(text, [...shown, ...avoid]);
+  const distinct = (text: string) => flat(text) !== flat(original) && fresh(text, [...shown, ...avoid]);
   const usable = (text: string) => distinct(text) && layoutKept(original, text) && numbersAndTimesKept(original, text);
   return {
     results,

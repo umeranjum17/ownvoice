@@ -35,7 +35,7 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
   try {
     const { drafts, unchanged } = await primary.write(request, on);
     if (unchanged && !drafts.length) return { drafts, unchanged };
-    if (drafts.length !== 3 || drafts.some(draft => !draft.trim())) throw new Error('empty');
+    if (!drafts.length || (!request.typed.trim() && drafts.length !== 3) || drafts.some(draft => !draft.trim())) throw new Error('empty');
     return { drafts };
   } catch (error) {
     on?.reset?.();
