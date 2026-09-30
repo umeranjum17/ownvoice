@@ -2411,7 +2411,6 @@ exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
         "backgroundColor": "#2B2930",
         "borderColor": "#D0BCFF",
       },
-      false,
     ]
   }
 >
@@ -2463,81 +2462,88 @@ exports[`ui components (dark) source-selected: dark/source-selected 1`] = `
       }
     >
       <View
-        style={
-          {
-            "alignItems": "center",
-            "backgroundColor": "#4F378B",
-            "borderRadius": 20,
-            "height": 40,
-            "justifyContent": "center",
-            "width": 40,
-          }
-        }
+        style={false}
       >
-        <RNSVGSvgView
-          align="xMidYMid"
-          bbHeight={22}
-          bbWidth={22}
-          focusable={false}
-          height={22}
-          meetOrSlice={0}
-          minX={0}
-          minY={0}
+        <View
           style={
-            [
-              {
-                "backgroundColor": "transparent",
-                "borderWidth": 0,
-              },
-              {
-                "flex": 0,
-                "height": 22,
-                "width": 22,
-              },
-            ]
-          }
-          vbHeight={24}
-          vbWidth={24}
-          width={22}
-        >
-          <RNSVGGroup
-            fill={
-              {
-                "payload": 4278190080,
-                "type": 0,
-              }
+            {
+              "alignItems": "center",
+              "backgroundColor": "#4F378B",
+              "borderRadius": 20,
+              "height": 40,
+              "justifyContent": "center",
+              "width": 40,
             }
+          }
+        >
+          <RNSVGSvgView
+            align="xMidYMid"
+            bbHeight={22}
+            bbWidth={22}
+            focusable={false}
+            height={22}
+            meetOrSlice={0}
+            minX={0}
+            minY={0}
+            style={
+              [
+                {
+                  "backgroundColor": "transparent",
+                  "borderWidth": 0,
+                },
+                {
+                  "flex": 0,
+                  "height": 22,
+                  "width": 22,
+                },
+              ]
+            }
+            vbHeight={24}
+            vbWidth={24}
+            width={22}
           >
-            <RNSVGPath
-              d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
-              fill={null}
-              propList={
-                [
-                  "fill",
-                  "stroke",
-                  "strokeWidth",
-                  "strokeLinecap",
-                  "strokeLinejoin",
-                ]
-              }
-              stroke={
+            <RNSVGGroup
+              fill={
                 {
                   "payload": 4278190080,
                   "type": 0,
                 }
               }
-              strokeLinecap={1}
-              strokeLinejoin={1}
-              strokeWidth={1.8}
-            />
-          </RNSVGGroup>
-        </RNSVGSvgView>
+            >
+              <RNSVGPath
+                d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
+                fill={null}
+                propList={
+                  [
+                    "fill",
+                    "stroke",
+                    "strokeWidth",
+                    "strokeLinecap",
+                    "strokeLinejoin",
+                  ]
+                }
+                stroke={
+                  {
+                    "payload": 4278190080,
+                    "type": 0,
+                  }
+                }
+                strokeLinecap={1}
+                strokeLinejoin={1}
+                strokeWidth={1.8}
+              />
+            </RNSVGGroup>
+          </RNSVGSvgView>
+        </View>
       </View>
       <View
         style={
-          {
-            "flex": 1,
-          }
+          [
+            {
+              "flex": 1,
+            },
+            false,
+          ]
         }
       >
         <Text
@@ -2789,9 +2795,6 @@ exports[`ui components (dark) source-unavailable: dark/source-unavailable 1`] = 
         "backgroundColor": "#2B2930",
         "borderColor": "transparent",
       },
-      {
-        "opacity": 0.7,
-      },
     ]
   }
 >
@@ -2845,79 +2848,92 @@ exports[`ui components (dark) source-unavailable: dark/source-unavailable 1`] = 
       <View
         style={
           {
-            "alignItems": "center",
-            "backgroundColor": "#4F378B",
-            "borderRadius": 20,
-            "height": 40,
-            "justifyContent": "center",
-            "width": 40,
+            "opacity": 0.7,
           }
         }
       >
-        <RNSVGSvgView
-          align="xMidYMid"
-          bbHeight={22}
-          bbWidth={22}
-          focusable={false}
-          height={22}
-          meetOrSlice={0}
-          minX={0}
-          minY={0}
+        <View
           style={
-            [
-              {
-                "backgroundColor": "transparent",
-                "borderWidth": 0,
-              },
-              {
-                "flex": 0,
-                "height": 22,
-                "width": 22,
-              },
-            ]
-          }
-          vbHeight={24}
-          vbWidth={24}
-          width={22}
-        >
-          <RNSVGGroup
-            fill={
-              {
-                "payload": 4278190080,
-                "type": 0,
-              }
+            {
+              "alignItems": "center",
+              "backgroundColor": "#4F378B",
+              "borderRadius": 20,
+              "height": 40,
+              "justifyContent": "center",
+              "width": 40,
             }
+          }
+        >
+          <RNSVGSvgView
+            align="xMidYMid"
+            bbHeight={22}
+            bbWidth={22}
+            focusable={false}
+            height={22}
+            meetOrSlice={0}
+            minX={0}
+            minY={0}
+            style={
+              [
+                {
+                  "backgroundColor": "transparent",
+                  "borderWidth": 0,
+                },
+                {
+                  "flex": 0,
+                  "height": 22,
+                  "width": 22,
+                },
+              ]
+            }
+            vbHeight={24}
+            vbWidth={24}
+            width={22}
           >
-            <RNSVGPath
-              d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
-              fill={null}
-              propList={
-                [
-                  "fill",
-                  "stroke",
-                  "strokeWidth",
-                  "strokeLinecap",
-                  "strokeLinejoin",
-                ]
-              }
-              stroke={
+            <RNSVGGroup
+              fill={
                 {
                   "payload": 4278190080,
                   "type": 0,
                 }
               }
-              strokeLinecap={1}
-              strokeLinejoin={1}
-              strokeWidth={1.8}
-            />
-          </RNSVGGroup>
-        </RNSVGSvgView>
+            >
+              <RNSVGPath
+                d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
+                fill={null}
+                propList={
+                  [
+                    "fill",
+                    "stroke",
+                    "strokeWidth",
+                    "strokeLinecap",
+                    "strokeLinejoin",
+                  ]
+                }
+                stroke={
+                  {
+                    "payload": 4278190080,
+                    "type": 0,
+                  }
+                }
+                strokeLinecap={1}
+                strokeLinejoin={1}
+                strokeWidth={1.8}
+              />
+            </RNSVGGroup>
+          </RNSVGSvgView>
+        </View>
       </View>
       <View
         style={
-          {
-            "flex": 1,
-          }
+          [
+            {
+              "flex": 1,
+            },
+            {
+              "opacity": 0.7,
+            },
+          ]
         }
       >
         <Text
@@ -5558,7 +5574,6 @@ exports[`ui components (light) source-selected: light/source-selected 1`] = `
         "backgroundColor": "#FFFFFF",
         "borderColor": "#6750A4",
       },
-      false,
     ]
   }
 >
@@ -5610,81 +5625,88 @@ exports[`ui components (light) source-selected: light/source-selected 1`] = `
       }
     >
       <View
-        style={
-          {
-            "alignItems": "center",
-            "backgroundColor": "#EADDFF",
-            "borderRadius": 20,
-            "height": 40,
-            "justifyContent": "center",
-            "width": 40,
-          }
-        }
+        style={false}
       >
-        <RNSVGSvgView
-          align="xMidYMid"
-          bbHeight={22}
-          bbWidth={22}
-          focusable={false}
-          height={22}
-          meetOrSlice={0}
-          minX={0}
-          minY={0}
+        <View
           style={
-            [
-              {
-                "backgroundColor": "transparent",
-                "borderWidth": 0,
-              },
-              {
-                "flex": 0,
-                "height": 22,
-                "width": 22,
-              },
-            ]
-          }
-          vbHeight={24}
-          vbWidth={24}
-          width={22}
-        >
-          <RNSVGGroup
-            fill={
-              {
-                "payload": 4278190080,
-                "type": 0,
-              }
+            {
+              "alignItems": "center",
+              "backgroundColor": "#EADDFF",
+              "borderRadius": 20,
+              "height": 40,
+              "justifyContent": "center",
+              "width": 40,
             }
+          }
+        >
+          <RNSVGSvgView
+            align="xMidYMid"
+            bbHeight={22}
+            bbWidth={22}
+            focusable={false}
+            height={22}
+            meetOrSlice={0}
+            minX={0}
+            minY={0}
+            style={
+              [
+                {
+                  "backgroundColor": "transparent",
+                  "borderWidth": 0,
+                },
+                {
+                  "flex": 0,
+                  "height": 22,
+                  "width": 22,
+                },
+              ]
+            }
+            vbHeight={24}
+            vbWidth={24}
+            width={22}
           >
-            <RNSVGPath
-              d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
-              fill={null}
-              propList={
-                [
-                  "fill",
-                  "stroke",
-                  "strokeWidth",
-                  "strokeLinecap",
-                  "strokeLinejoin",
-                ]
-              }
-              stroke={
+            <RNSVGGroup
+              fill={
                 {
                   "payload": 4278190080,
                   "type": 0,
                 }
               }
-              strokeLinecap={1}
-              strokeLinejoin={1}
-              strokeWidth={1.8}
-            />
-          </RNSVGGroup>
-        </RNSVGSvgView>
+            >
+              <RNSVGPath
+                d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
+                fill={null}
+                propList={
+                  [
+                    "fill",
+                    "stroke",
+                    "strokeWidth",
+                    "strokeLinecap",
+                    "strokeLinejoin",
+                  ]
+                }
+                stroke={
+                  {
+                    "payload": 4278190080,
+                    "type": 0,
+                  }
+                }
+                strokeLinecap={1}
+                strokeLinejoin={1}
+                strokeWidth={1.8}
+              />
+            </RNSVGGroup>
+          </RNSVGSvgView>
+        </View>
       </View>
       <View
         style={
-          {
-            "flex": 1,
-          }
+          [
+            {
+              "flex": 1,
+            },
+            false,
+          ]
         }
       >
         <Text
@@ -5936,9 +5958,6 @@ exports[`ui components (light) source-unavailable: light/source-unavailable 1`] 
         "backgroundColor": "#FFFFFF",
         "borderColor": "transparent",
       },
-      {
-        "opacity": 0.7,
-      },
     ]
   }
 >
@@ -5992,79 +6011,92 @@ exports[`ui components (light) source-unavailable: light/source-unavailable 1`] 
       <View
         style={
           {
-            "alignItems": "center",
-            "backgroundColor": "#EADDFF",
-            "borderRadius": 20,
-            "height": 40,
-            "justifyContent": "center",
-            "width": 40,
+            "opacity": 0.7,
           }
         }
       >
-        <RNSVGSvgView
-          align="xMidYMid"
-          bbHeight={22}
-          bbWidth={22}
-          focusable={false}
-          height={22}
-          meetOrSlice={0}
-          minX={0}
-          minY={0}
+        <View
           style={
-            [
-              {
-                "backgroundColor": "transparent",
-                "borderWidth": 0,
-              },
-              {
-                "flex": 0,
-                "height": 22,
-                "width": 22,
-              },
-            ]
-          }
-          vbHeight={24}
-          vbWidth={24}
-          width={22}
-        >
-          <RNSVGGroup
-            fill={
-              {
-                "payload": 4278190080,
-                "type": 0,
-              }
+            {
+              "alignItems": "center",
+              "backgroundColor": "#EADDFF",
+              "borderRadius": 20,
+              "height": 40,
+              "justifyContent": "center",
+              "width": 40,
             }
+          }
+        >
+          <RNSVGSvgView
+            align="xMidYMid"
+            bbHeight={22}
+            bbWidth={22}
+            focusable={false}
+            height={22}
+            meetOrSlice={0}
+            minX={0}
+            minY={0}
+            style={
+              [
+                {
+                  "backgroundColor": "transparent",
+                  "borderWidth": 0,
+                },
+                {
+                  "flex": 0,
+                  "height": 22,
+                  "width": 22,
+                },
+              ]
+            }
+            vbHeight={24}
+            vbWidth={24}
+            width={22}
           >
-            <RNSVGPath
-              d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
-              fill={null}
-              propList={
-                [
-                  "fill",
-                  "stroke",
-                  "strokeWidth",
-                  "strokeLinecap",
-                  "strokeLinejoin",
-                ]
-              }
-              stroke={
+            <RNSVGGroup
+              fill={
                 {
                   "payload": 4278190080,
                   "type": 0,
                 }
               }
-              strokeLinecap={1}
-              strokeLinejoin={1}
-              strokeWidth={1.8}
-            />
-          </RNSVGGroup>
-        </RNSVGSvgView>
+            >
+              <RNSVGPath
+                d="M8.5,3 h7 a2,2 0 0 1 2,2 v14 a2,2 0 0 1 -2,2 h-7 a2,2 0 0 1 -2,-2 v-14 a2,2 0 0 1 2,-2z M10.5,18 h3"
+                fill={null}
+                propList={
+                  [
+                    "fill",
+                    "stroke",
+                    "strokeWidth",
+                    "strokeLinecap",
+                    "strokeLinejoin",
+                  ]
+                }
+                stroke={
+                  {
+                    "payload": 4278190080,
+                    "type": 0,
+                  }
+                }
+                strokeLinecap={1}
+                strokeLinejoin={1}
+                strokeWidth={1.8}
+              />
+            </RNSVGGroup>
+          </RNSVGSvgView>
+        </View>
       </View>
       <View
         style={
-          {
-            "flex": 1,
-          }
+          [
+            {
+              "flex": 1,
+            },
+            {
+              "opacity": 0.7,
+            },
+          ]
         }
       >
         <Text

@@ -205,6 +205,10 @@ test('a phone that stopped writing reads as not chosen, with no promise about wh
   expect(screen.getByText(words.srcPhoneCant)).toBeTruthy();
   expect(screen.queryByText(words.privacyPhone)).toBeNull();
   expect(screen.getByText(words.readsNote)).toBeTruthy();
+  expect(screen.getByText(words.whyNot)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.srcPhone));
+  expect(screen.getByText(words.phoneCantWhy)).toBeTruthy();
+  expect(chosen()).toBe('phone');
   await fireEvent.press(screen.getByText(words.srcGpt));
   expect(screen.getByText(words.cancel)).toBeTruthy();
   expect(screen.queryByText(words.switchNo)).toBeNull();

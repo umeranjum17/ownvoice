@@ -171,6 +171,8 @@ export const words = {
   srcPhone:'On this phone',
   srcPhoneSub:'Private and free',
   srcPhoneCant:'This phone can\'t write on its own. Only some newer phones can.',
+  whyNot:'Why not?',
+  phoneCantWhy:'Writing right on the phone needs a newer phone with its own built-in writer. This phone doesn’t have one, so Ownvoice writes with your ChatGPT instead. You still pick each draft and press Send yourself.',
   srcGpt:'With your ChatGPT',
   srcGptSub:'The plan you already pay for',
   tradePhone1:'Nothing you read or write leaves this phone',

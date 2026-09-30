@@ -287,7 +287,8 @@ export default function Setup() {
       <Head title={words.chooseTitle} note={phone === 'cant' ? words.chooseNoteCant : words.chooseNote} />
       {phone && <View style={styles.options} accessibilityRole="radiogroup">
         {phone === 'cant'
-          ? <>{gptOption}<SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable /></>
+          ? <>{gptOption}<SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable
+            reason={<Text style={[type.note, { color: t.text, paddingLeft: 56 }]}>{words.phoneCantWhy}</Text>} /></>
           : <><SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneSub} selected={pick === 'phone'} onPress={() => setPicked('phone')}
             lines={[{ text: words.tradePhone1, good: true }, { text: words.tradePhone2, good: true }, { text: words.tradePhone3, good: false }]} />{gptOption}</>}
       </View>}

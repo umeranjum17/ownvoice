@@ -194,7 +194,11 @@ export default function SourceScreen() {
     <Page title={words.rowSource} note={words.sourceNote} onBack={() => router.back()}>
       {source !== undefined && phone !== null && <View style={styles.options} accessibilityRole="radiogroup">
         {phone === 'cant'
-          ? <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable />
+          ? <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable
+            reason={<>
+              <Text style={[type.note, styles.indent, { color: t.text }]}>{words.phoneCantWhy}</Text>
+              {chosen !== 'chatgpt' && !signIn && <View style={styles.indent}><Button kind="filled" label={words.gptButton} onPress={pickChatGpt} /></View>}
+            </>} />
           : <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneSub} selected={source === 'phone' && !signIn} onPress={pickPhone}>
             {source === 'phone' && !signIn ? <PhoneWriter /> : null}
           </SourceOption>}
