@@ -1,3 +1,4 @@
+import { withPhoneFallback } from '../../core/writers';
 jest.mock('../../core/speller', () => {
   const fs = require('fs');
   const path = require('path');
@@ -514,5 +515,24 @@ test.each(['Its own engine', 'Bring woud for the fire.', 'We should visit Bora B
     const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
     expect(result).toEqual({ drafts: [], unchanged: true });
     expect(landed).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+
+test.each([
+  { typed: 'Please bring the stove.', avoid: [] },
+  { typed: 'Please shoud bring the stove.', avoid: ['Please should bring the stove.'] },
+])('two valid ChatGPT polish cards survive fallback routing: $typed', async request => {
+  const originalFetch = global.fetch;
+  const drafts = ['Bring the stove, please.', 'The stove, please bring it.'];
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: drafts }) })}\n\n${event({ type: 'response.completed' })}`));
+  const phone = { write: jest.fn(async () => ({ drafts: ['phone'] })) };
+  const reset = jest.fn();
+  const landed = jest.fn();
+  try {
+    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, { reset, landed }, undefined, 'cant')).toEqual({ drafts });
+    expect(landed.mock.calls.map(([, slot]) => slot)).toEqual([1, 2]);
+    expect(reset).not.toHaveBeenCalled();
+    expect(phone.write).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });

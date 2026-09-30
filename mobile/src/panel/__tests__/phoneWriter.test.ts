@@ -487,10 +487,10 @@ test('every shown card keeps the list; a fix that duplicates a shown card is dro
   }
 });
 
-test('flattened versions losing numbers fall back to the unchanged original', async () => {
+test('flattened versions losing numbers leave no accepted cards', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.includes('{"versions"')
     ? '{"versions":["Flat stove and tent plan."]}' : 'Still one flat line, again.');
-  expect(await phoneWriter.write(request({ typed: LIST }))).toEqual({ drafts: [], unchanged: true });
+  expect(await phoneWriter.write(request({ typed: LIST }))).toEqual({ drafts: [], unchanged: false });
 });
 
 test('no accepted polish leaves the original out of cleaned-up cards', async () => {
@@ -499,12 +499,12 @@ test('no accepted polish leaves the original out of cleaned-up cards', async () 
   expect(await phoneWriter.write(request({ typed: 'unchanged input' }))).toEqual({ drafts: [], unchanged: true });
 });
 
-test('an already-minimal list stays unchanged when the writer drops its numbers', async () => {
+test('only writer evidence of unchanged text marks an already-minimal list unchanged', async () => {
   const minimal = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
   native.ask.mockResolvedValue('{"versions":["Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday"]}');
   expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: true });
   native.ask.mockResolvedValue('{"versions":["Pack the stove, meet Saturday."]}');
-  expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: true });
+  expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: false });
 });
 
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {

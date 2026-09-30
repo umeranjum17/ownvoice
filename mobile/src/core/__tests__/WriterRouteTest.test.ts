@@ -112,3 +112,26 @@ test('the read log says when a screen went to ChatGPT, and never says what it sa
   expect(summary('COMPOSE', '', 'my post', false)).toBe('Polished your message. Read your message.');
   for (const sent of [true, false]) expect(summary('REPLY', chat, 'mine', sent)).not.toContain('Sam');
 });
+
+
+test.each([1, 2, 3])('polish retains %i usable primary cards without phone fallback', async count => {
+  const drafts = gptDrafts.slice(0, count);
+  const primary: Writer = { write: async () => ({ drafts }) };
+  const phone = { write: jest.fn(async () => ({ drafts: phoneDrafts })) };
+  const reset = jest.fn();
+  for (const status of ['ready', 'cant'] as const) {
+    expect(await withPhoneFallback(primary, phone, { ...request, typed: 'Please bring the stove.' }, { reset }, undefined, status)).toEqual({ drafts });
+  }
+  expect(phone.write).not.toHaveBeenCalled();
+  expect(reset).not.toHaveBeenCalled();
+});
+
+test('empty or blank polish still falls back and partial replies stay incomplete', async () => {
+  const primary = (drafts: string[]): Writer => ({ write: async () => ({ drafts }) });
+  for (const drafts of [[], ['good', ' ']]) {
+    expect((await withPhoneFallback(primary(drafts), phone, { ...request, typed: 'Please bring the stove.' })).reason).toBe(words.fallback);
+  }
+  for (const typed of ['', '  ']) {
+    expect((await withPhoneFallback(primary(['one', 'two']), phone, { ...request, typed })).reason).toBe(words.fallback);
+  }
+});

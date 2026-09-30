@@ -28,7 +28,7 @@ test('local cleanup leaves advisory wording unchanged and preserves other writer
     const acceptor = await polishAcceptor(typed, 'keep', [], spell);
     expect(acceptor.local).toBeNull();
     expect(acceptor.results).toEqual([]);
-    expect(acceptor.unchanged).toBe(true);
+    expect(acceptor.unchanged).toBe(false);
   }
   const acceptor = await polishAcceptor('Bring woud for the fire.', 'keep', [], spell);
   expect(acceptor.accept('Bring wood for the fire.', 1)).toBe('Bring wood for the fire.');
@@ -42,4 +42,23 @@ test('local cleanup keeps protected dashes with no-dashes enabled', async () => 
   }
   const ordinary = await polishAcceptor('I shoud read — later.', 'remove', [], spell);
   expect(ordinary.local).toBe('I should read, later.');
+  const dashOnly = await polishAcceptor('I should read — later.', 'remove', [], spell);
+  expect(dashOnly.local).toBe('I should read, later.');
+  expect(dashOnly.unchanged).toBe(false);
+});
+
+
+test.each(['accept', 'fix'] as const)('unchanged requires writer evidence through %s', async method => {
+  const typed = 'Please bring the stove.';
+  const acceptor = await polishAcceptor(typed, 'keep', [], spell);
+  expect(acceptor.unchanged).toBe(false);
+  expect(acceptor[method](typed, 0)).toBeNull();
+  expect(acceptor.unchanged).toBe(false);
+  expect(acceptor[method](typed, 1)).toBeNull();
+  expect(acceptor.unchanged).toBe(true);
+  expect(acceptor[method]('Bring the stove.', 2)).toBe('Bring the stove.');
+  expect(acceptor.unchanged).toBe(false);
+  const excluded = await polishAcceptor('We shoud leave.', 'keep', ['We should leave.'], spell);
+  expect(excluded.local).toBeNull();
+  expect(excluded.unchanged).toBe(false);
 });
