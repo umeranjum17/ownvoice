@@ -110,7 +110,7 @@ test('automatic spelling requires a single clear suggestion', () => {
   expect(fixedSlips('dat', { correct: () => false, suggest: () => ['cat'] })).toBe('cat');
   expect(fixedSlips('Bring woud for the fire.', speller)).toBe('Bring woud for the fire.');
   expect(fixedSlips('shoud teh recieve', speller)).toBe('should the receive');
-  expect(shown('Keep your right hand warm.')).toContain("your→you're");
+  expect(shown('Keep your right hand warm.')).toEqual([]);
   expect(fixed('Its a plan.', withFixes('Its a plan.')[0])).toBe("It's a plan.");
 });
 
