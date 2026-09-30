@@ -1,16 +1,30 @@
 --- a/mobile/src/agent/Screen.tsx
 +++ b/mobile/src/agent/Screen.tsx
-@@ -3 +3 @@
+@@ -1,6 +1,6 @@
+ import { useCallback, useEffect, useRef, useState } from 'react';
+ import { Share, StyleSheet, Text, TextInput, View } from 'react-native';
 -import { router, useFocusEffect } from 'expo-router';
 +import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-@@ -21,0 +22,6 @@
+ import { Button } from '../ui/Button';
+ import { Card } from '../ui/Card';
+ import { Dot } from '../ui/Dot';
+@@ -19,6 +19,12 @@
+ import { checkVoice, shareNote } from './tools';
+ import { labBrain } from './labBrain';
+ import { phoneBrain } from './phoneBrain';
 +import { chatgptBrain } from './chatgptBrain';
 +import { scriptBrain } from './script';
 +import fixture from '../../e2e/agent-tasks.json';
 +import { classifyFailure } from '@byokit/accounts';
 +import { session, mocked } from '../chatgpt/session';
 +console.log('A5GUARD lab-session ' + JSON.stringify({mocked,sameSession:(globalThis as unknown as {a5Session:unknown}).a5Session===session}));
-@@ -59 +65,17 @@
+ 
+ /** One brain per writing choice; the ChatGPT and phone brains plug in here without screen changes. */
+ export type Brains = { phone?: Brain; chatgpt?: Brain };
+@@ -56,7 +62,23 @@
+  *  It shows the draft as it's written and one plain line per step, never what runs underneath. */
+ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
+   const t = useTheme();
 -  const [task, setTask] = useState('');
 +  const params = useLocalSearchParams<{ taskId?: string; mode?: string }>();
 +  const mode = params.mode ?? 'loop';
@@ -29,64 +43,155 @@
 +  }
 +  brains = {chatgpt: liveBrain.current};
 +  const experimentVoice = () => ({...loadVoice(), ...fixture.voice});
-@@ -78,0 +101 @@
+   // undefined while checking, null when no writer can write right now.
+   const [brain, setBrain] = useState<Brain | null | undefined>(undefined);
+   const [phase, setPhase] = useState<Phase>('idle');
+@@ -76,6 +98,7 @@
+   useEffect(() => () => { run.current++; answer.current?.(false); }, []);
+ 
+   const start = async () => {
 +    console.log('A5LIVE ' + JSON.stringify({event:'start',mode,taskId,at:Date.now()}));
-@@ -93 +116,2 @@
+     const id = ++run.current;
+     const live = () => id === run.current;
+     const chosen = await pickBrain(brains);
+@@ -90,7 +113,8 @@
+         if (!live()) throw new Error('left');
+         setLine(checked ? words.agentChecking : words.writing);
+         let said = '';
 -        const turn = await chosen.step(rules, items, tools, piece => { if (live()) { said += piece; setDraft(said); } });
 +        let firstPiece = true;
 +        const turn = await chosen.step(rules, items, tools, piece => { if (live()) { said += piece; setDraft(said); if (firstPiece && piece.trim()) { firstPiece=false; console.log('A5LIVE ' + JSON.stringify({event:'first-text',mode,taskId,at:Date.now()})); } } });
-@@ -100,0 +125 @@
+         if (!live()) throw new Error('left');
+         // A step's draft is the one it checks or offers; anything else it says is a plain line to show.
+         const carried = turn.calls.map(draftOf).filter(Boolean).pop();
+@@ -98,17 +122,19 @@
+         else if (!latest || turn.calls.length) latest = turn.text || latest;
+         if (turn.text && turn.text !== latest) setNote(turn.text);
+         setDraft(latest);
 +        console.log('A5LIVE ' + JSON.stringify({event:'display',mode,taskId,at:Date.now(),latest}));
-@@ -106,2 +131,2 @@
+         return turn;
+       },
+     };
+     try {
+       const out = await runAgent({
 -        instructions: instructions(loadVoice()), task, brain,
 -        tools: [checkVoice(loadVoice), shareNote(async (_title, body) => (await Share.share({ message: body })).action !== Share.dismissedAction)],
 +        instructions: instructions(experimentVoice()), task, brain,
 +        tools: [checkVoice(experimentVoice), shareNote(async (_title, body) => (await Share.share({ message: body })).action !== Share.dismissedAction)],
-@@ -111,0 +137 @@
+         onStep: call => { checked = call.name === 'check_voice'; },
+         // The share card shows exactly the text that leaves the app; nothing goes until Share.
+         approve: call => new Promise<boolean>(yes => {
+           if (!live()) { yes(false); return; }
 +          console.log('A5LIVE ' + JSON.stringify({event:'approval',mode,taskId,at:Date.now(),call}));
-@@ -118,0 +145 @@
+           answer.current = yes;
+           setAsk(draftOf(call));
+           setPhase('asking');
+@@ -116,9 +142,11 @@
+       });
+       if (!live()) return;
+       setLine(out.stop === 'cap' ? words.agentStopped : null);
 +      console.log('A5LIVE ' + JSON.stringify({event:'done',mode,taskId,at:Date.now(),out}));
-@@ -121,0 +149 @@
+       setPhase('done');
+     } catch (error) {
+       if (!live()) return;
 +      console.log('A5LIVE ' + JSON.stringify({event:'failure',mode,taskId,at:Date.now(),message:String(error)}));
-@@ -130,0 +159 @@
+       const failed = failLine(error);
+       if (failed === words.needWriterPanel) { setBrain(null); setPhase('idle'); return; }
+       setLine(failed);
+@@ -128,6 +156,7 @@
+     }
+   };
+   const reply = (yes: boolean) => {
 +    console.log('A5LIVE ' + JSON.stringify({event:'reply',mode,taskId,at:Date.now(),yes}));
+     const give = answer.current;
+     answer.current = null;
+     setAsk(null);
 --- a/mobile/src/agent/chatgptBrain.ts
 +++ b/mobile/src/agent/chatgptBrain.ts
-@@ -4 +4 @@
+@@ -1,7 +1,7 @@
+ // Lab phone-agent brain behind the ChatGPT source (package A2): Responses with function
+ // tools through BYOKit, guarded before every step exactly like the panel route.
+ import { fetch as expoFetch } from 'expo/fetch';
 -import { classify, IncompleteError, isFunctionCall, ResponseError } from '@byokit/accounts';
 +import { classify, classifyFailure, IncompleteError, isFunctionCall, ResponseError } from '@byokit/accounts';
-@@ -37 +37 @@
+ import { accounts, codexAuth, reportFailure } from '../chatgpt/accounts';
+ import { withResponseFetch } from '../chatgpt/responseFetch';
+ import { CHATGPT_MODEL } from '../chatgpt/responses';
+@@ -34,24 +34,25 @@
+       if ((await getSource()) !== 'chatgpt') throw new Error(words.needWriterPanel);
+       const consent = agentChatgptConsent();
+       try {
 -        if (!(await consent.beforeSend())) throw new Error(words.chatgptFailed);
 +        const allowed = await consent.beforeSend(); console.log('A5DIAG beforeSend=' + allowed); if (!allowed) throw new Error(words.chatgptFailed);
-@@ -38,0 +39 @@
+       } catch (error) {
 +        console.log('A5DIAG beforeSend-error ' + JSON.stringify({name:(error as Error)?.name,message:(error as Error)?.message,code:(error as {code?:unknown})?.code,status:(error as {status?:unknown})?.status,classified:classifyFailure(String(error))}));
-@@ -42 +43 @@
+         if (error instanceof SendVeto) throw new Error(error.message === CHATGPT_OFF ? words.gptOffNoPhone : error.message);
+         throw error;
+       }
 -      await auth().catch(() => { throw new Error(words.chatgptFailed); });
 +      await auth().catch(() => { console.log('A5DIAG auth-failed'); throw new Error(words.chatgptFailed); });
-@@ -49 +50 @@
+       if (!consent.beforeFetch()) throw new Error(words.chatgptFailed);
+       try {
+         const result = await withResponseFetch((url, init) => {
+           // The kit resolves credentials again; withdrawal must still prevent dispatch
+           // if it starts during that wait, just as on the panel route.
+           if (!consent.beforeFetch()) throw new Error(words.chatgptFailed);
 -          return doFetch(url, init);
 +          console.log('A5DIAG dispatch'); return doFetch(url, init).then(r => { console.log('A5DIAG http=' + r.status); return r; });
-@@ -54 +55 @@
+         }, signal => accounts.respond('owner', {
+           model, instructions, input: items, tools, tool_choice: 'auto',
+           parallelToolCalls: false, signal, onText,
+           reasoning: { effort: 'none' }, text: { verbosity: 'low' },
 -        }));
 +        }).catch(error => { console.log('A5DIAG respond-error ' + JSON.stringify({name:error?.name,message:error?.message,code:error?.code,status:error?.status,classified:classifyFailure(String(error))})); throw error; }));
-@@ -61,0 +63 @@
+         return {
+           text: result.text,
+           calls: result.output.filter(isFunctionCall)
+@@ -59,6 +60,7 @@
+             .map(call => ({ id: call.call_id!, name: call.name, args: call.arguments })),
+         };
+       } catch (error) {
 +        console.log('A5DIAG ' + JSON.stringify({name: error instanceof Error ? error.name : '', kind: (error as {kind?: unknown})?.kind, message: (error instanceof Error ? error.message : String(error)).slice(0,250)}));
+         if (error instanceof IncompleteError) throw new Error(words.chatgptFailed);
+         const message = error instanceof Error ? error.message : String(error);
+         if (!(error instanceof ResponseError && error.kind != null)) await reportFailure(message).catch(() => {});
 --- a/mobile/src/chatgpt/settings.ts
 +++ b/mobile/src/chatgpt/settings.ts
-@@ -11,0 +12,2 @@
+@@ -9,6 +9,8 @@
+ import { phoneWriter } from '../panel/phoneWriter';
+ import { words } from '../core/words';
+ import { mocked, session, sessionNow, signOutGuard } from './session';
 +(globalThis as unknown as {a5Session: unknown}).a5Session = session;
 +console.log('A5GUARD module ' + JSON.stringify({mocked, stubbedEnv:process.env.EXPO_PUBLIC_E2E_STUB, gptEnv:process.env.EXPO_PUBLIC_E2E_GPT}));
-@@ -41 +43,3 @@
+ const stubbed = process.env.EXPO_PUBLIC_E2E_STUB === '1';
+ type BubbleRules = Awaited<ReturnType<typeof Native.bubbleRules>>;
+ let rulesNow: BubbleRules | null = null;
+@@ -38,7 +40,9 @@
+ /** Still signed in under the same sign-out epoch the send started with. */
+ function guardOk(before: Guard, signedIn: boolean): boolean {
+   const after = signOutGuard();
 -  return signedIn && !after.active && after.epoch === before.epoch;
 +  const result = signedIn && !after.active && after.epoch === before.epoch;
 +  console.log('A5GUARD guardOk ' + JSON.stringify({before,after,signedIn,result}));
 +  return result;
-@@ -53 +57,3 @@
+ }
+ 
+ /** The remote-switch plus sign-in tail every ChatGPT send ends with: an unknown switch
+@@ -50,7 +54,9 @@
+     switchNow = choice;
+     if (choice?.chatgpt === 'off') throw new SendVeto(CHATGPT_OFF);
+   }
 -  return guardOk(before, (await session.current()).signedIn);
 +  const state = await session.current();
 +  console.log('A5GUARD practice-session ' + JSON.stringify({before,mocked,signedIn:state.signedIn,sameSession:(globalThis as unknown as {a5Session:unknown}).a5Session===session}));
 +  return guardOk(before, state.signedIn);
-@@ -68,3 +74,6 @@
+ }
+ 
+ /** The fetch-time recheck: no sign-out since the send, still signed in, switch not off. */
+@@ -65,13 +71,17 @@
+ export function agentChatgptConsent(): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
+   const beforeSend = async () => {
+     const before = signOutGuard();
 -    if (before.active) return false;
 -    const signedIn = (await session.current()).signedIn;
 -    if (!signedIn) return false;
@@ -96,5 +201,11 @@
 +    const signedIn = state.signedIn;
 +    console.log('A5GUARD agent-session ' + JSON.stringify({signedIn,waiting:state.waiting,note:state.note,resting:state.resting}));
 +    if (!signedIn) {console.log('A5GUARD branch=signedIn-false');return false;}
-@@ -74,0 +84 @@
+     if (!mocked) {
+       await chatgptEnabled(switchStore).catch(() => false);
+       const choice = await currentSwitch(switchStore).catch(() => null);
+       switchNow = choice;
 +      console.log('A5GUARD switch ' + JSON.stringify({choice}));
+       if (!choice) throw new SendVeto(words.switchUnavailable);
+       if (choice.chatgpt === 'off') throw new SendVeto(CHATGPT_OFF);
+     }

@@ -44,6 +44,12 @@ better answer. These are lab results, not a production rollout recommendation.
   text (also the approved share body when a card exists), not the model's closing
   commentary. This distinction matters on loop tasks 1 and 4: their closing revision
   differs from the checked draft retained in the card.
+- Replay the formal P1/P2 checks from the checked-in traces with
+  `node --experimental-strip-types mobile/reports/phone-agent-live/evaluate.mjs`.
+  Pass a capture-root directory as the first argument to replay another copy; by
+  default it reads the adjacent `loop-1` through `script-6` evidence and only prints
+  results. `modelRequestCount` counts live writer requests; `modelToolNames` lists
+  tools returned by those model turns, while `scriptSteps` includes local script work.
 - Counts are **actual writer requests**, not `runAgent` steps: script steps include
   local checks/share and therefore cost fewer model calls. Script local tool sequences
   are reconstructed from the fixed script, its number of writes/steps and approval
