@@ -33,7 +33,7 @@ jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => g
 const native = Native as jest.Mocked<typeof Native>;
 const ready = status as jest.Mock;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
-const offline = (async () => { throw new Error('no network'); }) as typeof fetch;
+const offline = async () => { throw new Error('no network'); };
 
 beforeEach(() => {
   kv.clear();

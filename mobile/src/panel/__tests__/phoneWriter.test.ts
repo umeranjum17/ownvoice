@@ -1,3 +1,11 @@
+jest.mock('../../core/speller', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const nspell = require('nspell');
+  const dictionary = path.resolve(__dirname, '../../../assets/dictionary');
+  const spell = nspell(fs.readFileSync(`${dictionary}/en-affixes.aff`, 'utf8'), fs.readFileSync(`${dictionary}/en-words.dic`, 'utf8'));
+  return { speller: async () => spell };
+});
 import Native from '../../../modules/ownvoice-native';
 import { words } from '../../core/words';
 import { phoneWriter } from '../phoneWriter';
@@ -401,7 +409,7 @@ test('a version equal to the writer text is dropped; dashes stay when their own 
 
 test('their dash rule is removed by the writer even when the model leaks one', async () => {
   native.ask.mockResolvedValue('{"versions":["Yes — see you Saturday then","Other one here","And a third version"]}');
-  const { drafts } = await phoneWriter.write(request({ typed: 'see you saturday' }));
+  const { drafts } = await phoneWriter.write(request({ typed: 'See you Saturday' }));
   expect(drafts[0]).toBe('Yes, see you Saturday then');
 });
 
@@ -432,4 +440,16 @@ test('emulator stub hands an already-minimal text back unchanged', async () => {
   try {
     expect(await phoneWriter.write(request({ typed: 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday' }))).toEqual({ drafts: [], unchanged: true });
   } finally { delete process.env.EXPO_PUBLIC_E2E_STUB; }
+});
+
+test.each([
+  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening."],
+  ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
+])('Cleaned up fixes slips and keeps the rest: %s', async (typed, expected) => {
+  native.ask.mockResolvedValue(JSON.stringify({ versions: [typed, typed, typed] }));
+  const landed = jest.fn();
+  const result = await phoneWriter.write(request({ typed }), { landed });
+  expect(result.drafts).toContain(expected);
+  expect(landed).toHaveBeenCalledWith(expected, 0, 'Cleaned up');
+  expect(result.unchanged).toBe(false);
 });

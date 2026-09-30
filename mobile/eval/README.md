@@ -1,6 +1,6 @@
 # Writer eval (dev-only)
 
-The fixed 36-case set from the offline-model study, including four per-platform reply cases (R09-R12: X, LinkedIn, Reddit, Slack), two tone-polish selection cases (S06-S07: Friendlier, Firmer), one trailing-chatter selection case (S08: Shorter drops appended dash lines) and three tone-line cases (T01-T03), run through the app's
+The fixed 38-case set from the offline-model study, including four per-platform reply cases (R09-R12: X, LinkedIn, Reddit, Slack), two tone-polish selection cases (S06-S07: Friendlier, Firmer), one trailing-chatter selection case (S08: Shorter drops appended dash lines) and three tone-line cases (T01-T03), and two local cleanup cases (P14-P15: detected slips and an unfamiliar proper noun), run through the app's
 **live** phone-writer pipeline (`src/panel/phoneWriter.ts` polish + replies,
 `src/rewrite/Rewrite.tsx` selection) against an OpenAI-compatible endpoint.
 Nothing here ships: no app file imports `mobile/eval/`, and Metro only
@@ -40,3 +40,5 @@ A model or prompt change must not drop below the study's numbers on **P01,
 P13, S05, R01, and R07** (R07 added with the never-invent-times fix).
 `score.ts` enforces this as a gate: it exits 1 when any of the five fails.
 Record the run's numbers in the PR.
+
+P14-P15 require the Cleaned up slot to match the exact locally fixed sentence. Polish uses the same local typing rules and bundled dictionary as both app writers, before the existing acceptance guards.

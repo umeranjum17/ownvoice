@@ -1,3 +1,11 @@
+jest.mock('../../core/speller', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const nspell = require('nspell');
+  const dictionary = path.resolve(__dirname, '../../../assets/dictionary');
+  const spell = nspell(fs.readFileSync(`${dictionary}/en-affixes.aff`, 'utf8'), fs.readFileSync(`${dictionary}/en-words.dic`, 'utf8'));
+  return { speller: async () => spell };
+});
 jest.mock('../accounts', () => {
   const actual = jest.requireActual('../accounts');
   actual.accounts.runtime = jest.fn(async () => ({
@@ -469,5 +477,20 @@ test('reply retries accept the requested one-slot JSON array', async () => {
   try {
     await expect(chatgptWriter.write({ conversation: 'Sam: Saturday?', written: 'Sam: Saturday?', typed: '' })).resolves.toEqual({ drafts: ['No thanks', 'Yes please', 'What time?'] });
     expect(global.fetch).toHaveBeenCalledTimes(3);
+  } finally { global.fetch = originalFetch; }
+});
+
+test.each([
+  ['Its a good plan, I shoud be there by the the evening.', "It's a good plan, I should be there by the evening."],
+  ['Its a good plan, Umer shoud be there by the the evening.', "It's a good plan, Umer should be there by the evening."],
+])('ChatGPT Cleaned up uses the local fixes: %s', async (typed, expected) => {
+  const originalFetch = global.fetch;
+  const landed = jest.fn();
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [typed, typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
+  try {
+    const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
+    expect(result.drafts).toContain(expected);
+    expect(landed).toHaveBeenCalledWith(expected, 0, 'Cleaned up');
+    expect(result.unchanged).toBe(false);
   } finally { global.fetch = originalFetch; }
 });

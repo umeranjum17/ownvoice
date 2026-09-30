@@ -3,7 +3,7 @@
 // polish = compose boost (the phone writer's rewrite + layout retry), select = selection-menu rewrite,
 // reply = reply drafts from the screen.
 export type Case =
-  | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; from?: string }
+  | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; exact?: string; from?: string }
   | { id: string; kind: 'select'; typed: string; how: 'Shorter' | 'Simpler' | 'Fix spelling' | 'Friendlier' | 'Firmer'; keep: string[]; exact?: string; layout?: boolean; why: string }
   | { id: string; kind: 'tone'; typed: string; why: string }
   | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string }
@@ -13,6 +13,10 @@ export type Case =
 const LOWER = 'How they write: all lowercase, short, no exclamation marks.';
 
 export const cases: Case[] = [
+  { id: 'P14-cleaned-slips', kind: 'polish', typed: 'Its a good plan, I shoud be there by the the evening.', screen: '', slot: 0,
+    exact: "It's a good plan, I should be there by the evening.", keep: ['good plan', 'evening'], why: 'Cleaned up must apply the slips the typing check already detects' },
+  { id: 'P15-cleaned-name', kind: 'polish', typed: 'Its a good plan, Umer shoud be there by the the evening.', screen: '', slot: 0,
+    exact: "It's a good plan, Umer should be there by the evening.", keep: ['Umer', 'good plan', 'evening'], why: 'Local cleanup must leave the proper noun alone' },
   // --- Polish: the real regressions (lost noon, flattened list, marker-only rows, trailing commentary) ---
   { id: 'P01-noon-list', kind: 'polish', typed: 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', screen: '', keep: ['tent', 'stove', 'Saturday', 'noon'],
     why: 'QA 27 Sep: phone polish of this list lost "noon" / produced no card' },

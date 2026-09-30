@@ -2,9 +2,10 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { classify, IncompleteError, ResponseError } from '@byokit/accounts';
 import { accounts, codexAuth, reportFailure } from './accounts';
 import { withResponseFetch } from './responseFetch';
-import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor, versionAcceptor } from '../core/drafts';
+import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
+import { polishAcceptor } from '../core/polish';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
@@ -99,7 +100,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const avoid = request.avoid ?? [];
   const note = avoidLine(avoid);
   const landed = on.landed ?? (() => {});
-  const acceptor = versionAcceptor(request.typed, dashes, avoid);
+  const acceptor = await polishAcceptor(request.typed, dashes, avoid);
   const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', 3, on);
   raw.slice(0, versionsList.length).forEach((text, slot) => {
     const clean = acceptor.accept(text, slot, versionsList[slot].label);

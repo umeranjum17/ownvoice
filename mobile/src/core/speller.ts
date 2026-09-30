@@ -4,10 +4,10 @@ let loading: Promise<Speller> | null = null;
 
 // The dictionary is dictionary-en 4.0.0 (Hunspell's en_US, MIT AND BSD; LICENSE beside it). Android keeps
 // app files by name without the extension, so the two files need different names.
-/** The English dictionary, read once from the app's own files the first time a check needs it (about half a megabyte). */
+/** The English dictionary, read once from the app's own files for typing checks or polish (about half a megabyte). */
 export function speller(): Promise<Speller> {
   loading ??= (async () => {
-    // Required here, not at the top: people who leave the typing check off never load it.
+    // Required here, not at the top: replies and typing with the check off never load it.
     const { Asset } = require('expo-asset') as typeof import('expo-asset');
     const { File } = require('expo-file-system') as typeof import('expo-file-system');
     const nspell = require('nspell') as typeof import('nspell');
