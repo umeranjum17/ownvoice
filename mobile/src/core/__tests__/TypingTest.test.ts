@@ -70,9 +70,9 @@ test('all local fixes keep names, links, slang, list markers and numbers', () =>
 });
 
 test.each([
-  ['I dont dont know.', 'I dont know.'],
-  ['We shoud shoud go.', 'We should go.'],
-  ['We shoud shoud shoud go.', 'We should go.'],
+  ['I dont dont know.', 'I dont dont know.'],
+  ['We shoud shoud go.', 'We should should go.'],
+  ['We shoud shoud shoud go.', 'We should should should go.'],
   ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
   ['Its a plan. yesterday i saw a elephant better then that.', 'Its a plan. yesterday i saw a elephant better then that.'],
   ['We met Shoud and Umer on friday.', 'We met Shoud and Umer on friday.'],
@@ -87,4 +87,35 @@ test('automatic spelling requires a single clear suggestion', () => {
   expect(fixedSlips('We saw a dat.', ambiguous)).toBe('We saw a dat.');
   expect(shown('Keep your right hand warm.')).toContain("your→you're");
   expect(fixed('Its a plan.', withFixes('Its a plan.')[0])).toBe("It's a plan.");
+});
+
+test.each([
+  ['We should visit Bora Bora.', 'We should visit Bora Bora.'],
+  ["Give Ben Ben's keys.", "Give Ben Ben's keys."],
+  ['Hey @will will you join us?', 'Hey @will will you join us?'],
+  ['Hey @the the plan', 'Hey @the the plan'],
+  ['Hey #the the plan', 'Hey #the the plan'],
+  ['See https://site.test/the the plan', 'See https://site.test/the the plan'],
+  ['Email the@site.test the plan', 'Email the@site.test the plan'],
+  ["Keep it it's yours.", "Keep it it's yours."],
+  ['Keep it it’s yours.', 'Keep it it’s yours.'],
+  ['the @tag the plan', 'the @tag the plan'],
+  ['the #tag the plan', 'the #tag the plan'],
+  ['the https://site.test the plan', 'the https://site.test the plan'],
+  ['the email@site.test the plan', 'the email@site.test the plan'],
+  ['Keep it itemized.', 'Keep it itemized.'],
+  ['the the\u0301 plan', 'the the\u0301 plan'],
+  ['See αthe the plan', 'See αthe the plan'],
+  ['See the theα plan', 'See the theα plan'],
+  ['See _the the plan', 'See _the the plan'],
+  ['by the the evening', 'by the evening'],
+  ['by the The evening', 'by the evening'],
+  ['by The the evening', 'by The the evening'],
+  ['by the the the evening', 'by the evening'],
+])('automatic doubles use complete unprotected function words: %s', (typed, expected) => {
+  expect(fixedSlips(typed, null)).toBe(expected);
+});
+
+test.each('the a an to of in on at and is for it be by that was with'.split(' '))('automatic doubles include %s', word => {
+  expect(fixedSlips(`${word} ${word}`, null)).toBe(word);
 });

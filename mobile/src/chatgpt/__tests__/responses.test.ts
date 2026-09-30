@@ -485,7 +485,7 @@ test.each([
   ['a good plan.', 'A good plan.', 'A good plan.'],
   ['Its a plan. We shoud go.', "It's a plan. We should go.", "It's a plan. We shoud go."],
   ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
-  ['We shoud shoud go.', 'We should go.'],
+  ['We shoud shoud go.', 'We should should go.'],
   ['Its a good plan, I shoud be there by the the evening.', "Its a good plan, I should be there by the evening."],
   ['Its a good plan, Umer shoud be there by the the evening.', "Its a good plan, Umer should be there by the evening."],
 ])('ChatGPT Cleaned up uses the local fixes: %s', async (typed, expected, answer = typed) => {
@@ -497,5 +497,16 @@ test.each([
     expect(result.drafts).toContain(expected);
     expect(landed).toHaveBeenCalledWith(expected, 0, 'Cleaned up');
     expect(result.unchanged).toBe(false);
+  } finally { global.fetch = originalFetch; }
+});
+
+test.each(['We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?'])('ChatGPT cleanup preserves %s', async typed => {
+  const originalFetch = global.fetch;
+  const landed = jest.fn();
+  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [typed, typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
+  try {
+    const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
+    expect(result).toEqual({ drafts: [], unchanged: true });
+    expect(landed).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });

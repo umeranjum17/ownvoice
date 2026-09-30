@@ -42,7 +42,8 @@ function scoreRewrite(c: any, text: string, needLayout: boolean) {
     if (lines(text) > lines(c.typed)) issues.push('extra lines');
   }
   if (needLayout && !layoutKept(c.typed, text)) issues.push('layout');
-  if (c.exact && low(text) !== low(c.exact)) issues.push(`not exact (${JSON.stringify(text)})`);
+  const exact: string[] = c.exact ? (Array.isArray(c.exact) ? c.exact : [c.exact]) : [];
+  if (exact.length && !exact.some(expected => low(text) === low(expected))) issues.push(`not exact (${JSON.stringify(text)})`);
   if (c.screen && c.screen.split('\n').some((l: string) => { const m = l.replace(/^[^:]{1,20}:\s*/, ''); return m.length > 15 && text.includes(m) && !c.typed.includes(m); })) issues.push('copied screen text');
   const voice: string[] = [];
   if (c.guide?.includes('lowercase') && /[A-Z]/.test(text[0] ?? '')) voice.push('capitalised');
@@ -50,7 +51,7 @@ function scoreRewrite(c: any, text: string, needLayout: boolean) {
   if (emoji(c.typed).length && emoji(text).length < emoji(c.typed).length) voice.push('lost emoji');
   if (!c.typed.includes('—') && /—/.test(text)) voice.push('added long dash');
   if (text.length > c.typed.length * 1.6 + 20) voice.push('much longer');
-  if (c.exact && text !== c.exact) voice.push('changed casing');
+  if (exact.length && !exact.includes(text)) voice.push('changed casing');
   if (c.how === 'Fix spelling' && c.id === 'S03-spelling' && !/gonna/i.test(text)) voice.push('dropped slang');
   if (c.how === 'Shorter' && text.length >= c.typed.length) voice.push('not shorter');
   return { meaningOk: !issues.length, issues, voiceOk: !voice.length, voice };

@@ -41,4 +41,4 @@ P13, S05, R01, and R07** (R07 added with the never-invent-times fix).
 `score.ts` enforces this as a gate: it exits 1 when any of the five fails.
 Record the run's numbers in the PR.
 
-P14-P16 require the Cleaned up slot to match the exact locally fixed sentence. Polish uses the same automatic dictionary spelling and exact doubled-word cleanup as both app writers, before the existing acceptance guards. Heuristic grammar remains advisory; the writer's completed corrections are preserved.
+P14-P15 require the Cleaned up slot to match one of two explicit sentences: the spelling and repeated-word fixes are required, while the writer may retain `Its` or correct it to `It's`. P16 still requires its exact sentence. Polish uses the same automatic dictionary spelling and whole-word function-word repetition cleanup as both app writers, before the existing acceptance guards. Heuristic grammar remains advisory; the writer's completed corrections are preserved.
