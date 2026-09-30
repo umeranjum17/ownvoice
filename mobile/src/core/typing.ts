@@ -16,14 +16,14 @@ const SHORTHAND = new Set(['ok', 'okay', 'lol', 'lmao', 'omg', 'btw', 'tbh', 'im
 const APOSTROPHE: Record<string, string> = {
   dont: "don't", doesnt: "doesn't", didnt: "didn't", isnt: "isn't", arent: "aren't", wasnt: "wasn't", werent: "weren't",
   havent: "haven't", hasnt: "hasn't", hadnt: "hadn't", couldnt: "couldn't", wouldnt: "wouldn't", shouldnt: "shouldn't",
-  im: "I'm", ive: "I've", youre: "you're", theyre: "they're", youve: "you've", theyve: "they've", thats: "that's", whats: "what's", wouldve: "would've", couldve: "could've", shouldve: "should've",
+  im: "I'm", ive: "I've", youre: "you're", theyre: "they're", youve: "you've", theyve: "they've", thats: "that's", whats: "what's", theres: "there's", wouldve: "would've", couldve: "could've", shouldve: "should've",
 };
 // Very common words win ties between equally close suggestions ("shoud" is "should", not "shod").
 const COMMON = new Set('the be to of and a in that have it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is was are been has had were said did should really thanks thank please sorry tomorrow today tonight meeting maybe probably friend friends weekend definitely receive believe different'.split(' '));
 
 const WORD = /[\p{L}][\p{L}'’]*/gu;
 const unprotected = (text: string) => text.replace(protectedTokens, m => '\0'.repeat(m.length));
-const DOUBLE_WORDS = new Set('the a an to of in on at and is for it be by that was with'.split(' '));
+const DOUBLE_WORDS = new Set('the a an to of in on at and for it be by was with'.split(' '));
 const letters = (w: string) => w.replace(/’/g, "'").replace(/'+$/, '');
 
 /** Damerau distance, capped: close typos only. */
@@ -134,13 +134,19 @@ export function fixed(text: string, slip: Slip): string {
   return text.slice(0, slip.start) + slip.fix + text.slice(slip.end);
 }
 
+const AMBIGUOUS_APOSTROPHE = new Set('cant wont lets were well hell shed wed ill id its'.split(' '));
 const AUTO_SPELLING = new Map([['shoud', 'should'], ['teh', 'the'], ['recieve', 'receive']]);
 
 export function fixedSlips(text: string, spell: Speller | null): string {
   const corrections: Slip[] = [];
   if (spell) for (const slip of spelling(text, spell)) {
     const word = text.slice(slip.start, slip.end);
-    if (APOSTROPHE[word] || spell.correct(word)) continue;
+    if (AMBIGUOUS_APOSTROPHE.has(word)) continue;
+    if (APOSTROPHE[word]) {
+      corrections.push({ ...slip, fix: APOSTROPHE[word] });
+      continue;
+    }
+    if (spell.correct(word)) continue;
     const suggestions = spell.suggest(word);
     const fix = AUTO_SPELLING.get(word) ?? (suggestions.length === 1 ? suggestions[0] : undefined);
     if (!fix || /\p{Lu}/u.test(fix)) continue;

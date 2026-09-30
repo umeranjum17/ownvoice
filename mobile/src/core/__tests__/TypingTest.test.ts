@@ -70,7 +70,7 @@ test('all local fixes keep names, links, slang, list markers and numbers', () =>
 });
 
 test.each([
-  ['I dont dont know.', 'I dont dont know.'],
+  ['I dont dont know.', "I don't don't know."],
   ['We shoud shoud go.', 'We should should go.'],
   ['We shoud shoud shoud go.', 'We should should should go.'],
   ['Keep your right hand warm. I shoud leave.', 'Keep your right hand warm. I should leave.'],
@@ -98,6 +98,8 @@ test('automatic spelling requires a single clear suggestion', () => {
 });
 
 test.each([
+  ['What it is is unclear.', 'What it is is unclear.'],
+  ['I know that that works.', 'I know that that works.'],
   ['We should visit Bora Bora.', 'We should visit Bora Bora.'],
   ["Give Ben Ben's keys.", "Give Ben Ben's keys."],
   ['Hey @will will you join us?', 'Hey @will will you join us?'],
@@ -126,7 +128,7 @@ test.each([
   expect(fixedSlips(typed, null)).toBe(expected);
 });
 
-test.each('the a an to of in on at and is for it be by that was with'.split(' '))('automatic doubles include %s', word => {
+test.each('the a an to of in on at and for it be by was with'.split(' '))('automatic doubles include %s', word => {
   expect(fixedSlips(`${word} ${word}`, null)).toBe(word);
 });
 
@@ -141,4 +143,16 @@ test.each([
   ['αIts a plan. _its a plan. itś a plan.', 'αIts a plan. _its a plan. itś a plan.'],
 ])('automatic apostrophe cleanup is narrow: %s', (typed, expected) => {
   expect(fixedSlips(typed, null)).toBe(expected);
+});
+
+test('automatic contractions fix clear forms and preserve ambiguous ones', () => {
+  expect(fixedSlips('I dont know. I shoud go.', speller)).toBe("I don't know. I should go.");
+  expect(fixedSlips(
+    'dont doesnt didnt isnt wasnt arent werent couldnt shouldnt wouldnt havent hasnt hadnt im ive youre theyre thats whats theres',
+    speller,
+  )).toBe("don't doesn't didn't isn't wasn't aren't weren't couldn't shouldn't wouldn't haven't hasn't hadn't I'm I've you're they're that's what's there's");
+  const ambiguous = 'cant wont lets were well hell shed wed ill id its';
+  expect(fixedSlips(ambiguous, speller)).toBe(ambiguous);
+  expect(fixedSlips('We cant go and I wont', speller)).toBe('We cant go and I wont');
+  expect(fixedSlips('https://site.test/dont @im #thats', speller)).toBe('https://site.test/dont @im #thats');
 });
