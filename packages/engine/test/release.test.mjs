@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
+const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
 function release(mode, args = []) {
   const dir = mkdtempSync(join(root, 'node_modules', '.release-test-'));
   const trace = join(dir, 'trace');
@@ -22,7 +23,7 @@ if ('${name}' === 'git') {
   if (args[0] === 'status') console.log(mode === 'dirty' ? ' M changed' : '');
   if (args[0] === 'rev-parse') console.log(mode === 'unmerged' && args[1] === 'HEAD' ? 'feature' : 'main');
 } else if (args[0] === 'view') {
-  if (mode === 'published') console.log(JSON.stringify('0.1.0'));
+  if (mode === 'published') console.log(JSON.stringify(${JSON.stringify(version)}));
   else { console.log(JSON.stringify({error:{code:mode === 'registry-error' ? 'E401' : 'E404'}})); process.exitCode = 1; }
 }
 `);

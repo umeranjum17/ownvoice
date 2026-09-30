@@ -10,7 +10,7 @@ const scratch = mkdtempSync(join(root, 'node_modules', '.pack-smoke-'));
 const run = (command, args, cwd = scratch) => execFileSync(command, args, { cwd, encoding: 'utf8' });
 try {
   const report = JSON.parse(run('npm', ['pack', '--json', '--pack-destination', scratch], root));
-  const packed = Array.isArray(report) ? report[0] : report['ownvoice-engine'];
+  const packed = report[0];
   for (const file of ['dist/index.js', 'dist/index.d.ts', 'dist/cli.mjs', 'protocol/schema.json', 'LICENSE', 'README.md']) {
     assert.ok(packed.files.some(entry => entry.path === file), `tarball missing ${file}`);
   }
