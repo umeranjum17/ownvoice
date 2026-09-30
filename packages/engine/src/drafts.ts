@@ -175,13 +175,13 @@ export function rebuildLines(original: string, answer: string): string | null {
 
 export const protectedTokens = /\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu;
 
-/** ' — ', '—' and ' – ' become ', ' on any draft the table says must not carry a dash. */
+/** Replace sentence dashes outside protected tokens; rewriting a token could break its address or identity. */
 export function undash(text: string): string {
   return text.split(new RegExp(`(${protectedTokens.source})`, 'gu'))
     .map((part, index) => index % 2 ? part : part.replace(/ — |—| – /g, ', ')).join('');
 }
 
-/** The table: the switch on removes dashes everywhere; switch off keeps them only when the writer's own text uses one. */
+/** Request undash when the switch is on or the writer's own text has no em dash; undash preserves protected tokens. */
 export function dashDecision(noDashes: boolean, ownText: string): 'keep' | 'remove' {
   return !noDashes && ownText.includes('—') ? 'keep' : 'remove';
 }
