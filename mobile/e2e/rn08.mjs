@@ -95,8 +95,10 @@ const clusters = words => {
 const textPresent = async (label, tries = 6) => {
   const lower = label.toLowerCase();
   for (let attempt = 0; attempt < tries; attempt++) {
-    if (nodes().some(n => `${n.label} ${n.text}`.toLowerCase().includes(lower))) return true;
-    if (screenClusters().some(g => g.text.includes(lower))) return true;
+    const accessible = nodes();
+    if (accessible.some(n => `${n.label} ${n.text}`.toLowerCase().includes(lower))) return true;
+    // RN and Chrome expose their text; OCR only when the app window exposes none.
+    if (!accessible.some(n => n.windowType === 1 && (n.label || n.text)) && screenClusters().some(g => g.text.includes(lower))) return true;
     if (attempt < tries - 1) await wait(600);
   }
   writeFileSync(`${out}/.debug-miss.png`, execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 }));
@@ -373,7 +375,8 @@ for (const mode of ['no', 'yes']) {
   clearLog();
   await tapButtonRow('Copy', RECEIVER_SHORT);
   await wait(900);
-  if (!(await waitForFocus('.MainActivity')) || !(await textPresent(RECEIVER_ORIGINAL)) || await textPresent(RECEIVER_SHORT))
+  const editors = nodes().filter(n => n.editable && !n.password);
+  if (!(await waitForFocus('.MainActivity')) || !editors.some(n => n.text === RECEIVER_ORIGINAL) || editors.some(n => n.text === RECEIVER_SHORT))
     throw new Error(`Copy changed the receiving editable selection (${scheme})`);
   if (!logcat().includes(`rewrite copied sha=${sha(RECEIVER_SHORT)}`)) throw new Error(`Copy did not copy the changed text (${scheme})`);
 
