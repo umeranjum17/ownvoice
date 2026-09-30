@@ -21,6 +21,8 @@ const APOSTROPHE: Record<string, string> = {
 const COMMON = new Set('the be to of and a in that have it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us is was are been has had were said did should really thanks thank please sorry tomorrow today tonight meeting maybe probably friend friends weekend definitely receive believe different'.split(' '));
 
 const WORD = /[\p{L}][\p{L}'’]*/gu;
+const unprotected = (text: string) => text.replace(/\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu, m => '\0'.repeat(m.length));
+const DOUBLE_WORDS = new Set('the a an to of in on at and is for it be by that was with'.split(' '));
 const letters = (w: string) => w.replace(/’/g, "'").replace(/'+$/, '');
 
 /** Damerau distance, capped: close typos only. */
@@ -54,7 +56,7 @@ export function suggestion(word: string, speller: Speller): string | undefined {
 function spelling(text: string, speller: Speller): Slip[] {
   const out: Slip[] = [];
   // Links, addresses, handles and tags are blanked out first, keeping every other word where it is.
-  const words = text.replace(/\S*(?:[/@#\d]|\.\p{L}{2,})\S*/gu, m => ' '.repeat(m.length));
+  const words = unprotected(text);
   for (const m of words.matchAll(WORD)) {
     const word = letters(m[0]);
     // ponytail: capitalised words are skipped, so "Recieve" at a sentence start goes unmarked; a name list would fix that.
@@ -133,8 +135,8 @@ export function fixed(text: string, slip: Slip): string {
 
 export function fixedSlips(text: string, spell: Speller | null): string {
   const deletions: Slip[] = [];
-  for (const m of text.matchAll(/\b(\p{L}+)(?=([ \t]+\1\b))/gu)) {
-    if (!SKIP_DOUBLE.test(m[1])) deletions.push({ start: m.index! + m[1].length, end: m.index! + m[1].length + m[2].length, reason: GRAMMAR, fix: '' });
+  for (const m of unprotected(text).matchAll(/(?<![\p{L}\p{M}\p{N}_'’])([a-z]+)(?=([ \t]+\1)(?![\p{L}\p{M}\p{N}_'’]))/giu)) {
+    if (DOUBLE_WORDS.has(m[1])) deletions.push({ start: m.index! + m[1].length, end: m.index! + m[1].length + m[2].length, reason: GRAMMAR, fix: '' });
   }
   const corrections: Slip[] = [];
   if (spell) for (const slip of spelling(text, spell)) {

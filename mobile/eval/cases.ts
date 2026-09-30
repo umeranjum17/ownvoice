@@ -3,7 +3,7 @@
 // polish = compose boost (the phone writer's rewrite + layout retry), select = selection-menu rewrite,
 // reply = reply drafts from the screen.
 export type Case =
-  | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; exact?: string; from?: string }
+  | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; exact?: string | string[]; from?: string }
   | { id: string; kind: 'select'; typed: string; how: 'Shorter' | 'Simpler' | 'Fix spelling' | 'Friendlier' | 'Firmer'; keep: string[]; exact?: string; layout?: boolean; why: string }
   | { id: string; kind: 'tone'; typed: string; why: string }
   | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string }
@@ -14,9 +14,9 @@ const LOWER = 'How they write: all lowercase, short, no exclamation marks.';
 
 export const cases: Case[] = [
   { id: 'P14-cleaned-slips', kind: 'polish', typed: 'Its a good plan, I shoud be there by the the evening.', screen: '', slot: 0,
-    exact: "Its a good plan, I should be there by the evening.", keep: ['good plan', 'evening'], why: 'Cleaned up must apply the slips the typing check already detects' },
+    exact: ["Its a good plan, I should be there by the evening.", "It's a good plan, I should be there by the evening."], keep: ['good plan', 'evening'], why: 'Cleaned up must apply the slips the typing check already detects' },
   { id: 'P15-cleaned-name', kind: 'polish', typed: 'Its a good plan, Umer shoud be there by the the evening.', screen: '', slot: 0,
-    exact: "Its a good plan, Umer should be there by the evening.", keep: ['Umer', 'good plan', 'evening'], why: 'Local cleanup must leave the proper noun alone' },
+    exact: ["Its a good plan, Umer should be there by the evening.", "It's a good plan, Umer should be there by the evening."], keep: ['Umer', 'good plan', 'evening'], why: 'Local cleanup must leave the proper noun alone' },
   { id: 'P16-cleaned-advisory', kind: 'polish', typed: 'Keep your right hand warm. I shoud leave.', screen: '', slot: 0,
     exact: 'Keep your right hand warm. I should leave.', keep: ['right hand', 'leave'], why: 'Automatic cleanup must preserve valid wording flagged by advisory grammar' },
   // --- Polish: the real regressions (lost noon, flattened list, marker-only rows, trailing commentary) ---
