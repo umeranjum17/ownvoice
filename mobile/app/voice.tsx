@@ -96,7 +96,7 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
   // A suggestion pill: outlined with a plus to add, filled with a tick once it is in.
   const idea = (label: string, on: boolean, onPress: () => void) => <Pressable key={label} accessibilityRole="button" accessibilityState={{ selected: on }}
     accessibilityLabel={label} onPress={onPress} hitSlop={4} android_ripple={{ color: t.primary.slice(0, 7) + '1F', foreground: true }}
-    style={[styles.chip, on ? { backgroundColor: t.primaryContainer } : { borderWidth: 1, borderColor: t.outline }]}>
+    style={[styles.chip, { borderWidth: 1 }, on ? { backgroundColor: t.primaryContainer, borderColor: t.primaryContainer } : { borderColor: t.outline }]}>
     {on ? <CheckIcon size={16} color={t.onPrimaryContainer} /> : <PlusIcon size={16} color={t.primary} />}
     <Text style={[type.label, { color: on ? t.onPrimaryContainer : t.text, flexShrink: 1 }]}>{label}</Text>
   </Pressable>;
