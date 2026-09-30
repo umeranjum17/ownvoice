@@ -159,7 +159,7 @@ This repository holds two Android apps plus the shared writing core:
 
 - **[`mobile/`](mobile/README.md)**: the Expo app shown in this README. Its README covers the checks, emulator tests, build flags and how Ownvoice writes. The writer's quality gate is in [`mobile/eval/`](mobile/eval/README.md).
 - **[`app/`](app/README.md)**: the original Kotlin app (`dev.ownvoice.app`), which the Expo app succeeds but does not yet fully replace. Its README covers how drafts are scored, its privacy details, and its build and device tests.
-- **[`packages/engine/`](packages/engine/package.json)**: the model-free writing core (`ownvoice-engine`, protocol 1), published as a package instead of copied code. The app imports it; `mobile/src/core/` holds only re-export shims.
+- **[`packages/engine/`](packages/engine/README.md)**: the model-free writing core. Its README covers package usage, protocol, checks and releases. The app imports it; `mobile/src/core/` holds only re-export shims.
 
 For both apps' shared artwork, regeneration commands and icon previews, see the
 [Android icon guide](docs/icons/README.md).
@@ -174,15 +174,7 @@ npm run typecheck
 npm test -- --ci
 ```
 
-Checks for the shared engine:
-
-```sh
-cd packages/engine
-npm ci
-npm run lint
-npm run typecheck
-npm test
-```
+For shared engine checks, see [Development and release](packages/engine/README.md#development-and-release).
 
 Build and unit-test the Kotlin app from the repository root:
 

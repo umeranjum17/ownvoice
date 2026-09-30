@@ -23,13 +23,15 @@ The `ownvoice-engine` executable reads one request on stdin and prints one
 response on stdout. Errors print an error envelope and exit with status 1.
 
 ```sh
-ownvoice-engine hello
-ownvoice-engine schema
-printf '%s' '{"verb":"voice.parse","markdown":"Keep it short."}' | ownvoice-engine
+npm exec -- ownvoice-engine hello
+npm exec -- ownvoice-engine schema
+printf '%s' '{"verb":"voice.parse","markdown":"Keep it short."}' | npm exec -- ownvoice-engine
 ```
 
 ## Development and release
 
+Use the development Node.js and npm versions configured in
+[`release.yml`](https://github.com/umeranjum17/ownvoice/blob/main/.github/workflows/release.yml).
 From `packages/engine`: `npm ci`, `npm run lint`, `npm run typecheck`, `npm test`,
 and `npm run smoke:pack`. Tests build `dist` first; packing rebuilds it too.
 The app continues to import `ownvoice-engine/src/*` so Metro uses source directly.
@@ -44,8 +46,9 @@ clean checkout at `origin/main`; GitHub Actions uses OIDC and provenance, with
 no stored npm token. Local preview: `npm run release -- --dry-run`.
 
 For the first release only, after merging, use a clean checkout of merged main:
-run the checks above, verify `npm whoami`, then `npm publish --access public`
-from this directory using the owner's existing login. Stop if npm requires an
+run `npm ci`, verify `npm whoami`, then `npm run release`
+from this directory using the owner's existing login. This runs the same gates
+and checkout safeguards as later releases. Stop if npm requires an
 OTP or interactive approval. Once the package exists, configure later releases:
 
 ```sh
