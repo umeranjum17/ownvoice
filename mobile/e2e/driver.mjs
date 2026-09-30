@@ -22,6 +22,9 @@ const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 execFileSync('adb', ['-s', serial, 'logcat', '-c']);
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'pm', 'clear', pkg);
+// OCR reads dark text on light; the emulator's twilight schedule would otherwise flip to dark overnight.
+adb('shell', 'cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');
+adb('shell', 'cmd', 'uimode', 'night', 'no');
 // Reinstall kills the process without rebinding this service; toggle only this emulator's service entry.
 const enabled = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const services = new Set(enabled === 'null' ? [] : enabled.split(':'));
@@ -106,7 +109,8 @@ const bubble = () => {
 };
 const bubbleVisible = () => {
   const window = bubbleWindow();
-  const visibility = window?.match(/mViewVisibility=(0x[0-9a-f]+)/)?.[1];
+  if (!window) return false; // the kit removes the view while hidden instead of parking it gone
+  const visibility = window.match(/mViewVisibility=(0x[0-9a-f]+)/)?.[1];
   if (!visibility) throw new Error('Could not inspect the Ownvoice overlay window.');
   return visibility === '0x0';
 };
@@ -141,7 +145,7 @@ const findRowWithState = (label, state) => {
       && other.top >= line.top && other.top - line.top < 120 && other.left < 400));
 };
 
-visibleLine('replies that sound');
+visibleLine('sound like you'); // the welcome title wraps two OCR lines on narrow screens
 adb('shell', 'input', 'keyevent', '4');
 visibleLine('Where the bubble shows');
 
@@ -175,7 +179,7 @@ const chooseApp = async (label, prior) => {
   tap(Math.min(Math.round(row.left + 200), Math.round(width / 2)), Math.round((row.top + row.bottom) / 2));
   await wait(400);
   if (!findRowWithState(label, prior === 'Off' ? 'On' : 'Off')) throw new Error(`The ${label} row did not switch.`);
-  tapText('Back');
+  adb('shell', 'input', 'keyevent', '4'); // the header goes back through its arrow icon, which carries no text
   await wait(700);
   visibleLine('Where the bubble shows');
 };
@@ -206,8 +210,8 @@ for (let back = 0; back < 3; back++) {
   if (!focus.includes(pkg) || !focus.includes('MainActivity')) throw new Error(`Expected Ownvoice in front: ${focus}`);
   const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
   const title = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '6'], { input: execFileSync('magick', ['png:', '-crop', `${width}x${Math.min(height, Math.round(140 * density))}+0+0`, '+repage', 'png:-'], { input: image }), encoding: 'utf8' }).toLowerCase().split('\n').map(line => line.trim());
-  if (title.includes('ownvoice')) break;
-  if (!title.includes('your voice')) throw new Error('Could not identify the Ownvoice screen before Back.');
+  if (title.some(line => line.includes('own'))) break; // the display header misreads under OCR ('Ovnvoice', 'Yolir voice'); fragments tell home from Your voice
+  if (!title.some(line => line.includes('voice'))) throw new Error('Could not identify the Ownvoice screen before Back.');
   adb('shell', 'input', 'keyevent', '4');
   await wait(500);
 }

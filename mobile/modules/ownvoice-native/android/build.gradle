@@ -6,9 +6,13 @@ plugins {
 group = 'dev.ownvoice.bridge'
 version = '0.1.0'
 
+def defaultApps = new groovy.json.JsonSlurper().parse(file("../../../src/core/defaultApps.json"))
+
 android {
+  buildFeatures { buildConfig true }
   namespace "dev.ownvoice.bridge"
   defaultConfig {
+    buildConfigField "String[]", "DEFAULT_ON", "new String[]{" + defaultApps.collect { '"' + it + '"' }.join(",") + "}"
     versionCode 1
     versionName "0.1.0"
     testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"

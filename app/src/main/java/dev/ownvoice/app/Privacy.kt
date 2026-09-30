@@ -7,8 +7,8 @@ import android.content.Context
  * switches, and the log of what each bubble tap read (a summary, not the text), kept for 30 days.
  */
 object Privacy {
-    /** Apps where the bubble works until the user says otherwise: X, LinkedIn, Gmail, WhatsApp, Slack and Reddit. Every other app starts off. Kept the same as the module and mobile/src/core/privacy.ts. */
-    val DEFAULT_ON = setOf("com.twitter.android", "com.linkedin.android", "com.google.android.gm", "com.whatsapp", "com.whatsapp.w4b", "com.Slack", "com.reddit.frontpage")
+    /** Generated from mobile/src/core/defaultApps.json; all apps use the same defaults. */
+    val DEFAULT_ON = BuildConfig.DEFAULT_ON.toSet()
     const val KEEP_MS = 30L * 24 * 60 * 60 * 1000
 
     /** One bubble tap: when, in which app, and how much it read. */
