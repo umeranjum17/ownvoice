@@ -61,7 +61,8 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     source = source.replace(/\*\*/g, '');
     const markers = [...source.matchAll(/(?:^|\s)(?:draft|option|version)\s*([1-3])[.):]/gi)]
       .filter((marker, index, all) => index === 0 || marker[1] !== all[index - 1][1]);
-    // Only the next marker closes a streamed slot. The final answer closes the last.
+    // Keep repeated same-slot headings with their bodies for the acceptor's cleanup.
+    // The next distinct slot closes a streamed reply; the final answer closes the last.
     const closed = markers.flatMap((marker, index) => {
       const next = markers[index + 1];
       return next || complete ? [source.slice(marker.index, next?.index ?? source.length)] : [];

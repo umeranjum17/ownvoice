@@ -2,13 +2,11 @@
 
 2026-09-30. Candidate: `fm/ov-first-card-stream`, based on `30475ea`.
 
-Completed labelled slots now pass through the existing reply checks individually
-when the next marker arrives; the final answer closes the last slot. The partial
-parser removes Markdown bold delimiters before finding markers, matching the
-acceptor's cleanup. Marker matching leaves trailing whitespace untouched so an
-empty slot cannot swallow the next slot's boundary. Preambles and incomplete
-markers never become a streamed card. No prompts, models, retries, ChatGPT paths,
-or user-facing strings changed.
+Completed labelled slots now pass through the existing reply checks individually.
+For slot boundaries and cleanup rules, see the `take` implementation in
+[`phoneWriter.ts`](../src/panel/phoneWriter.ts) and its
+[stream regression checks](../src/panel/__tests__/phoneWriter.test.ts).
+No prompts, models, retries, ChatGPT paths, or user-facing strings changed.
 
 The existing plain-label stream test already passed before this change. New bold
 label tests failed before the fix and passed after it. The phone timing report
