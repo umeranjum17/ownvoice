@@ -193,7 +193,7 @@ export const dashesFor = (rules: Rules, ownText: string): 'keep' | 'remove' => d
 export const REPLY_SLOTS: [string, string, string] = CHAT_SLOTS;
 export { slotsFor };
 
-export type ScreenText = { text: string; left: number; top: number; bottom: number; clickable: boolean };
+export type ScreenText = { text: string; left: number; top: number; bottom: number; clickable: boolean; viewId?: string | null; description?: string | null };
 
 export function latestMessage(nodes?: ScreenText[], fieldTop?: number): string {
   if (fieldTop == null) return '';

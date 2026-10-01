@@ -1,6 +1,7 @@
 // Platform awareness (parity packages 1+2): which app the bubble floats over, so
 // replies, polish and the length check respect that place's cap and style. Plain data
 // only: no platform API, nothing leaves the phone, the person still sends.
+import type { ScreenText } from './drafts.ts';
 export type PlatformKind = 'chat' | 'feed' | 'mail';
 export type Platform = { id: string; label: string; kind: PlatformKind; limit: number | null; slots: [string, string, string]; polish: string };
 
@@ -39,6 +40,11 @@ const REDDIT: Platform = { id: 'reddit', label: 'Reddit', kind: 'feed', limit: 1
 // Comments hold 10,000, bodies 40,000, titles 300; drafts here are replies and
 // comments, so the check keeps the comment bound (the title writer is package 2).
 // https://www.reddit.com/r/NewToReddit/comments/15qvg7c/post_limits/
+// Official Android listings verify these package ids:
+// https://play.google.com/store/apps/details?id=com.instagram.barcelona
+// https://play.google.com/store/apps/details?id=xyz.blueskyweb.app
+const THREADS: Platform = { ...X, id: 'threads', label: 'Threads', limit: 500 };
+const BLUESKY: Platform = { ...X, id: 'bluesky', label: 'Bluesky', limit: 300 };
 const SLACK: Platform = { id: 'slack', label: 'Slack', kind: 'chat', limit: 40000,
   slots: [
     'Confirm and name the next step.',
@@ -63,12 +69,35 @@ const GMAIL: Platform = { id: 'gmail', label: 'Gmail', kind: 'mail', limit: null
 /** Unknown apps keep today's behaviour: the flat 280 post rule and the 3 chat slots. */
 export const DEFAULT_PLATFORM: Platform = { id: 'default', label: '', kind: 'feed', limit: 280, slots: CHAT_SLOTS, polish: '' };
 
-/** Package names match OwnvoiceService DEFAULT_ON. */
-export function platformForApp(app?: string | null): Platform {
+/** Chrome's browser-owned URL bar only; page text never identifies a site.
+ * Chromium chrome/android/java/res/layout/url_bar.xml declares @+id/url_bar. */
+export const CHROME_URL_BAR = 'com.android.chrome:id/url_bar';
+
+function chromePlatform(nodes: ScreenText[]): Platform {
+  const bars = nodes.filter(node => node.viewId === CHROME_URL_BAR);
+  if (bars.length !== 1) return DEFAULT_PLATFORM;
+  const text = bars[0].text.trim();
+  // Chrome can hide the scheme. Reject search terms and credentials, and match
+  // whole hosts rather than substrings (x.com.evil.example is never X).
+  if (!text || /\s/.test(text)) return DEFAULT_PLATFORM;
+  // Keep this portable to React Native without relying on a URL polyfill.
+  const match = text.match(/^(?:https?:\/\/)?([a-z0-9.-]+)(?::(\d{1,5}))?(?:[/?#][^\\]*)?$/i);
+  if (!match || (match[2] && Number(match[2]) > 65535)) return DEFAULT_PLATFORM;
+  const host = match[1].toLowerCase();
+  if (['x.com', 'www.x.com', 'mobile.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com'].includes(host)) return X;
+  if (['reddit.com', 'www.reddit.com', 'old.reddit.com', 'new.reddit.com', 'm.reddit.com'].includes(host)) return REDDIT;
+  return DEFAULT_PLATFORM;
+}
+
+/** Existing package mapping, plus optional captured nodes for Chrome. */
+export function platformForApp(app?: string | null, nodes: ScreenText[] = []): Platform {
   switch (app) {
     case 'com.twitter.android': return X;
     case 'com.linkedin.android': return LINKEDIN;
     case 'com.reddit.frontpage': return REDDIT;
+    case 'com.instagram.barcelona': return THREADS;
+    case 'xyz.blueskyweb.app': return BLUESKY;
+    case 'com.android.chrome': return chromePlatform(nodes);
     case 'com.Slack': return SLACK;
     case 'com.whatsapp':
     case 'com.whatsapp.w4b': return WHATSAPP;
