@@ -14,8 +14,8 @@ export function parse(markdown: string): Found {
   for (const line of markdown.split(/\r?\n/)) {
     const h = line.match(heading);
     if (h) {
-      const name = (h[1] || h[2]).toLowerCase().replace(/-/g, ' ').trim();
-      section = name === 'how i reply' ? 'samples' : name.includes('never say') ? 'never' : '';
+      const name = (h[1] || h[2]).toLowerCase().trim();
+      section = name === 'how i reply' ? 'samples' : name.replace(/-/g, ' ').includes('never say') ? 'never' : '';
       if (section !== 'samples') ruleLines.push(line);
       continue;
     }
