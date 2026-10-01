@@ -22,7 +22,7 @@ export function flags(text: string, platform: Platform, voice: Slop.Rules): stri
   const rules = { ...voice, noDashes: true };
   const out = Voice.broken(Slop.hits(text, rules, false), text, rules).map(x => 'Breaks your rules: ' + x);
   if (platform.limit != null && text.length > platform.limit) out.push(`Too long for ${platform.label}`);
-  if (/https?:\/\/|www\./i.test(text) || /(?:^|[^\p{L}\p{N}_.@-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}]|\()(?::\d+)?(?:[/?#][^\s]*)?/iu.test(text)) out.push('Links can mean fewer views');
+  if (/(?:^|[^\p{L}\p{N}_.@-])(?:https?:\/\/|(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?![\p{L}\p{N}_@-]|\.[\p{L}\p{N}]|\()(?::\d+)?(?:[/?#][^\s]*)?)/iu.test(text)) out.push('Links can mean fewer views');
   return out;
 }
 

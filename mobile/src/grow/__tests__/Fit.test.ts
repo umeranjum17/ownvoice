@@ -84,8 +84,10 @@ test('dotted API calls and email hostnames reach judging on X and Reddit while l
     'Try offline files, e.g. PDFs. Version 3.14 works. Email me@sample.org.',
     'Email me@sub.sample.org.',
     'Email me@deep.sub.sample.org.',
+    'Email first.last@sample.org.',
+    'Email me@www.sample.org.',
   ];
-  const links = ['https://example.com', 'www.example.com', 'example.com', 'sub.example.co.uk/path', '[site](example.com)', 'example.com (more details)', 'Visit example.com.'];
+  const links = ['https://example.com', 'www.example.com', 'example.com', 'sub.example.co.uk/path', '[site](example.com)', 'example.com (more details)', 'Visit example.com.', 'HTTP://example.com', '[site](www.example.com)', 'www.sub.example.com/path', 'Email first.last@sample.org; see example.com.'];
   const candidates = [...eligible, ...links];
   for (const platform of [X, REDDIT]) {
     const ask = jest.fn(async (_prompt: string) => JSON.stringify(Object.fromEntries(eligible.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }]))));
