@@ -523,7 +523,8 @@ test('an import previews what it found before adding anything', async () => {
   fireEvent.press(screen.getByText(words.addThese));
   await waitFor(() => expect(loadVoice().never).toEqual(['delve', 'circle back']));
   expect(screen.getByText(words.added)).toBeTruthy();
-  expect(loadVoice()).not.toHaveProperty('samples');
+  expect(loadVoice().samples).toEqual([]);
+  expect(JSON.parse(kv.get('voice')!)).toEqual({ never: ['delve', 'circle back'], noDashes: true, statementEndings: false, note: '', samples: [] });
 });
 
 test('a markdown share previews and adds through Your voice without a picker', async () => {
@@ -534,7 +535,8 @@ test('a markdown share previews and adds through Your voice without a picker', a
   expect(picker.pickFileAsync).not.toHaveBeenCalled();
   fireEvent.press(screen.getByText(words.addThese));
   await waitFor(() => expect(loadVoice()).toEqual(expect.objectContaining({ never: ['circle back'], noDashes: true })));
-  expect(loadVoice()).not.toHaveProperty('samples');
+  expect(loadVoice().samples).toEqual([]);
+  expect(JSON.parse(kv.get('voice')!)).toEqual({ never: ['circle back'], noDashes: true, statementEndings: false, note: '', samples: [] });
   fireEvent.press(screen.getByLabelText(words.back));
   expect(native.finishRewrite).toHaveBeenCalledWith(null, false);
 });
