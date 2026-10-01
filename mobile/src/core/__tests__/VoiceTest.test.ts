@@ -3,6 +3,8 @@ import {join} from 'node:path';
 import * as Voice from '../voice';
 import * as Slop from '../slop';
 import * as Judge from '../judge';
+import * as Drafts from '../drafts';
+import * as Platforms from '../platforms';
 const fixture=readFileSync(join(__dirname,'voice-fixture.md'),'utf8');
 const voice:Slop.Rules={never:['circle the wagons','low-hanging fruit',"don't worry",'AI'],noDashes:true,statementEndings:true,note:''};
 const marked=(text:string,post=false)=>Slop.hits(text,voice,post).filter(h=>h.reason===Slop.NEVER_SAY||h.reason===Slop.ENDS_ON_QUESTION).map(h=>text.slice(h.start,h.end));
@@ -16,3 +18,25 @@ test('reasonSaysNeverSayList',()=>{expect(Slop.hits('low-hanging fruit',voice)[0
 test('endingQuestionOnlyInPosts',()=>{expect(marked('Shipped it. Who else ships on Fridays?',true)).toEqual(['Who else ships on Fridays?']);expect(marked('Shipped it. Who else ships on Fridays?')).toEqual([]);expect(marked('Shipped it on a Friday.',true)).toEqual([]);});
 test('rulesDecideSoundsLikeYou',()=>{const answer='GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass - fine\nFITS: pass\nCLAIMS: pass';const s=Judge.scoreDraft("Let's circle the wagons — who's in?",answer,false,voice,true);const check=s.quality.find(x=>x.name==="Doesn't sound like you")!;expect(check.ok).toBe(false);expect(check.reason).toBe('Breaks your rules: says “circle the wagons” from your never-say list; has a long dash (—); ends on a question.');expect(s.quality.map(x=>x.name)).toEqual(['Says something real','One clear point',"Doesn't sound like you",'Fits the conversation',"Doesn't make anything up"]);expect(Judge.scoreDraft('Saturday works.',answer,false,voice,true).quality.find(x=>x.name==='Sounds like you')?.ok).toBe(true);});
 test('guideIsShortAndSkipsEndingsInReplies',()=>{const r={...voice,note:'short, lowercase'};expect(Voice.guide(r,false)).toBe('No em dashes. How they write: short, lowercase');expect(Voice.guide(r,true)).toBe('No em dashes. End on a statement, not a question. How they write: short, lowercase');expect(Voice.guide({...Slop.NO_RULES,never:Array.from({length:40},(_,i)=>`phrase number ${i}`)},true)).toBe('');expect(Voice.guide({...Slop.NO_RULES,note:'x'.repeat(900)},true)).toHaveLength(216);});
+
+test('legacyMobileWritersKeepSampleGuidesOutUntilBudgetIntegration',async()=>{
+ const base:Slop.Rules={never:['synergy'],noDashes:true,statementEndings:true,note:'n'.repeat(200)};
+ const profile:Slop.Rules={...base,samples:['a'.repeat(155),'b'.repeat(155),...Array.from({length:8},(_,i)=>String(i).repeat(1000))]};
+ const oldGuide=Voice.guide(base,true);
+ const guide=Voice.guide(profile,true);
+ expect(guide).toBe(oldGuide);
+ expect(Voice.selectedGuide(profile,true).samples).toHaveLength(2);
+ expect(Voice.selectedGuide(profile,true).line.length).toBeLessThanOrEqual(700);
+ for(const app of ['com.twitter.android','com.linkedin.android','com.reddit.frontpage','com.Slack','com.whatsapp','com.google.android.gm']){
+  const platform=Platforms.platformForApp(app);
+  const input={latest:'Latest.',conversation:'Screen.',guide,platform};
+  const prompt=Drafts.phoneReplyPrompt(input);
+  expect(prompt).toBe(Drafts.phoneReplyPrompt({...input,guide:oldGuide}));
+  expect(prompt.split('\n\n')[0].length).toBeLessThanOrEqual(700);
+  expect(Drafts.phoneSlotPrompt(Drafts.slotsFor(platform)[0],input,[])).toBe(Drafts.phoneSlotPrompt(Drafts.slotsFor(platform)[0],{...input,guide:oldGuide},[]));
+ }
+ const prompts:string[]=[];
+ await Judge.rewrite({ask:async(prompt:string)=>{prompts.push(prompt);return JSON.stringify({versions:['Typed, shorter.','Typed, first.']});}},'Typed.','Screen.',guide,()=>{},'remove');
+ expect(prompts).toEqual([Judge.rewritePrompt('Typed.','Screen.',oldGuide,'remove')]);
+ expect(Judge.lineRetryPrompt('Typed.','Screen.',Judge.versionsList[1],guide)).toBe(Judge.lineRetryPrompt('Typed.','Screen.',Judge.versionsList[1],oldGuide));
+});
