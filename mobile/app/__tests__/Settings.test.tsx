@@ -611,7 +611,7 @@ test('the rules, the note and the never-say list all save', async () => {
   await act(async () => { fireEvent.press(screen.getByText(words.ruleDashes)); });
   await act(async () => { fireEvent.changeText(screen.getByLabelText(words.howIWrite), 'short sentences'); });
   await act(async () => { fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve\ncircle back\n'); });
-  await waitFor(() => expect(loadVoice()).toEqual({ never: ['delve', 'circle back'], noDashes: true, statementEndings: false, note: 'short sentences' }));
+  await waitFor(() => expect(loadVoice()).toEqual({ never: ['delve', 'circle back'], noDashes: true, statementEndings: false, note: 'short sentences', samples: [] }));
   expect(screen.getByText(words.neverSayHelp)).toBeTruthy();
   expect(screen.getByText(words.wipeElsewhere)).toBeTruthy();
 });
