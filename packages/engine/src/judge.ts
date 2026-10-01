@@ -5,7 +5,7 @@ import {plainReason, technicalWords, words} from './words.ts';
 export type Check={name:string;ok:boolean;reason:string};
 export type Verdict={good:boolean;lead:string;rest:string};
 export type Mode='COMPOSE'|'REPLY'|'EMPTY';
-export type Scores={hits:Slop.Hit[];generic:number|null;specific:number|null;quality:Check[];reach:Check[];message:boolean;slop:number};
+export type Scores={hits:Slop.Hit[];generic:number|null;specific:number|null;quality:Check[];reach:Check[];message:boolean;slop:number;assessed?:boolean;slips?:number};
 type Kind={key:string;pass:string;concern:string};
 const v:Kind={key:'VOICE',pass:'Sounds like you',concern:"Doesn't sound like you"};
 const quality:Kind[]=[{key:'SPECIFIC',pass:'Says something real',concern:'Could be more specific'},{key:'CLEAR',pass:'One clear point',concern:"The point isn't clear"},v,{key:'FITS',pass:'Fits the conversation',concern:"Doesn't quite fit the conversation"},{key:'CLAIMS',pass:"Doesn't make anything up",concern:'Might make something up'}];
@@ -18,13 +18,39 @@ export const kindPrompt=(c:string)=>`Below is the text on someone's phone screen
 export const isMessage=(a:string):boolean|null=>/^\s*MESSAGE\.?\s*$/i.test(a)?true:/^\s*POST\.?\s*$/i.test(a)?false:null;
 export function draftPrompt(c:string,d:string,message:boolean,guide=''){return `You check a reply draft before someone sends it. Be strict, and brief. Casual tone, typos and bluntness are fine.\n\nScreen (the conversation, may include app labels):\n${c.slice(-2000)}\n\nDraft reply:\n${d}${guide?`\n\nThe person's own writing rules: ${guide}`:''}\n\nAnswer in exactly these lines and nothing else. Explain each check in everyday words for someone with no technical knowledge. Each check line is pass or concern, a dash, and at most 8 words.\nGENERIC: 0-10 (10 = could be sent to anyone about anything)\nSPECIFICITY: 0-10 (10 = concrete details from this conversation)\nSPECIFIC: pass or concern - does it say something concrete?\nCLEAR: pass or concern - does it make one clear point?\nVOICE: pass or concern - does it match how the person writes on screen${guide?' and follow their rules?':'?'}\nFITS: pass or concern - does its length and tone fit this thread?\nCLAIMS: pass or concern - concern if it states facts about the writer, numbers, times, dates, plans or products the screen doesn't support\n${message?'ANSWERS: pass or concern - does it answer every question asked?\nNEXT_STEP: pass or concern - is the next step or time clear?':'CONVERSATION: pass or concern - would people want to reply to it?\nNOT_INTERESTED: pass or concern - concern if readers may find it off-putting, salesy or irrelevant\nHOOK: pass or concern - does its first line make people read on?\n'}`;}
 export function parse(answer:string):Record<string,string>{return Object.fromEntries(answer.split(/\r?\n/).flatMap(line=>{const m=line.match(/^[\s*#>•-]*([A-Za-z_ ]+?)[*\s]*:[*\s]*(.+)$/);return m?[[m[1].trim().toUpperCase().replace(/ /g,'_'),m[2].trim()]]:[]}));}
-function checks(lines:Record<string,string>, kinds:Kind[]):Check[]{return kinds.flatMap(k=>{const value=lines[k.key];if(!value)return[];const m=value.match(/^[\s–—-]*(pass|concern)\b[\s:,.;–—-]*/i);if(!m)return[];const ok=m[1].toLowerCase()==='pass';const reason=value.slice(m[0].length).trim();const safe=reason&&plainReason(reason)?reason:(k.key==='MEANING'?'It may change what you meant.':k.concern+'.');return [{name:ok?k.pass:k.concern,ok,reason:safe[0].toUpperCase()+safe.slice(1)}];});}
+function checks(lines:Record<string,string>, kinds:Kind[]):Check[]{return kinds.flatMap(k=>{const value=lines[k.key];if(!value)return[];const m=value.match(/^[\s–—-]*(pass|concern)\b[\s:,.;–—-]*/i);if(!m)return[];const ok=m[1].toLowerCase()==='pass';const reason=value.slice(m[0].length).trim();const safe=reason&&plainReason(reason)?reason:(ok?'No reason was provided.':k.key==='MEANING'?'It may change what you meant.':k.concern+'.');return [{name:ok?k.pass:k.concern,ok,reason:safe[0].toUpperCase()+safe.slice(1)}];});}
 export const number=(v?:string)=>{const n=v?.match(/\d+/)?.[0];return n===undefined?null:Math.min(10,Number(n));};
 export function validDraftAnswer(answer:string,message:boolean):boolean{const lines=parse(answer);return number(lines.GENERIC)!==null&&number(lines.SPECIFICITY)!==null&&checks(lines,quality).length===quality.length&&checks(lines,message?response():reach).length===(message?response():reach).length;}
 export function scoreDraft(draft:string,answer:string|null,message:boolean,voice:Slop.Rules=Slop.NO_RULES,post=false,person?:string|null,platform:Platform=DEFAULT_PLATFORM):Scores{const lines=answer?parse(answer):{};const hits=Slop.hits(draft,voice,post&&!message);const broken=Voice.broken(hits,draft,voice);const q=checks(lines,quality).filter(x=>!(broken.length&&[v.pass,v.concern].includes(x.name)));if(broken.length)q.splice(Math.min(quality.indexOf(v),q.length),0,{name:v.concern,ok:false,reason:'Breaks your rules: '+broken.join('; ')+'.'});const r=checks(lines,message?response(person):reach);if(!message){if(/https?:\/\/|www\./.test(draft))r.push({name:'Links can mean fewer views',ok:false,reason:'Feeds may show posts with links to fewer people.'});if(platform.limit!=null){const known=platform.id!=='default';const long=platform.kind==='feed'
 ?[known?`Too long for ${platform.label}`:'Long for a post',known?'Shorten it or split it into a thread.':'Shorter posts get read more.','Right length for a post']
-:[known?`Too long for ${platform.label}`:'Long for a message',known?'Shorten it to fit one message.':'Shorter messages get read more.','Right length for a message'];r.push(draft.length>platform.limit?{name:long[0],ok:false,reason:long[1]}:{name:long[2],ok:true,reason:''});}}const generic=number(lines.GENERIC),specific=number(lines.SPECIFICITY);return {hits,generic,specific,quality:q,reach:r,message,slop:Slop.score(hits.length,generic,specific)};}
-export function verdict(s:Scores):Verdict{const concern=[...s.quality,...(s.message? s.reach:[])].find(x=>!x.ok);const lead=Slop.words(s.slop);if(!Slop.natural(s.slop))return s.hits.length?{good:false,lead,rest:`: ${s.hits.length===1?'a phrase':`${s.hits.length} phrases`} you could say more simply`}:{good:false,lead:concern?.name||GENERAL,rest:''};if(concern)return {good:false,lead:concern.name,rest:''};const ans=s.reach.find(x=>x.name.startsWith('Answers'));return {good:true,lead,rest:ans?' and '+ans.name[0].toLowerCase()+ans.name.slice(1):''};}
+:[known?`Too long for ${platform.label}`:'Long for a message',known?'Shorten it to fit one message.':'Shorter messages get read more.','Right length for a message'];r.push(draft.length>platform.limit?{name:long[0],ok:false,reason:long[1]}:{name:long[2],ok:true,reason:''});}}const generic=number(lines.GENERIC),specific=number(lines.SPECIFICITY);return {hits,generic,specific,quality:q,reach:r,message,assessed:!!answer&&validDraftAnswer(answer,message),slop:Slop.score(hits.length,generic,specific)};}
+/** Missing or partial evidence cannot approve a draft. Local concerns always veto approval. */
+export function verdict(s:Scores, slips=0):Verdict|null {
+  if (!s.assessed) return null;
+  if (slips || s.slips) return {good:false,lead:'Check the wording',rest:''};
+  const concern=[...s.quality,...(s.message?s.reach:[])].find(x=>!x.ok);
+  if(s.hits.length) return {good:false,lead:Slop.natural(s.slop)?'A bit stock':Slop.words(s.slop),rest:`: ${s.hits.length===1?'a phrase':`${s.hits.length} phrases`} you could say more simply`};
+  if(concern) return {good:false,lead:concern.name,rest:''};
+  if(!Slop.natural(s.slop)) return {good:false,lead:GENERAL,rest:''};
+  const ans=s.reach.find(x=>x.name.startsWith('Answers'));
+  return {good:true,lead:'Sounds natural',rest:ans?' and '+ans.name[0].toLowerCase()+ans.name.slice(1):''};
+}
+export type Reason={ok:boolean|null;name:string;detail:string};
+/** Every check keeps its own evidence; unknown is neither a pass nor a concern. */
+export function reasons(s:Scores,text:string,slips=0):Reason[] {
+  const phrases=[...new Set(s.hits.map(h=>`“${text.slice(h.start,h.end).trim()}”: ${h.reason}`))].join('\n');
+  const row=(kind:Kind):Reason=>{
+    const check=s.quality.find(c=>c.name===kind.pass||c.name===kind.concern);
+    return {ok:check?.ok??null,name:check?.name??kind.pass,detail:check?.reason??'This check has not run.'};
+  };
+  return [
+    {ok:!s.hits.length,name:'Stock phrases',detail:phrases||'No stock phrases found. This does not check the meaning.'},
+    row(quality[0]),row(quality[3]),row(quality[4]),
+    ...[...s.quality,...s.reach].filter(c=>![quality[0],quality[3],quality[4]].some(k=>c.name===k.pass||c.name===k.concern)).map(c=>({ok:c.ok,name:c.name,detail:c.reason})),
+    ...((slips||s.slips)?[{ok:false,name:'Check the wording',detail:'There are possible slips to review.'}]:[]),
+  ];
+}
+
 export const mode=(typed:string,written:string):Mode=>typed.trim()?'COMPOSE':replying(written)?'REPLY':'EMPTY';
 export const replying=(written:string)=>written.split(/\r?\n/).some(l=>l.trim().split(/\s+/).length>=4);
 export const WRITE_FIRST=words.writeFirst;

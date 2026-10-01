@@ -113,6 +113,11 @@ function grammar(text: string): Slip[] {
 /** Every slip in [text], sorted, one per spot. A spelling slip's fix is left to [suggestion], on a tap only: it can be slow. */
 export function slips(text: string, speller: Speller | null): Slip[] {
   const spell = speller ? spelling(text, speller) : [];
+  // Known slips remain detectable when the dictionary is not loaded.
+  for (const m of unprotected(text).matchAll(WORD)) {
+    const fix = AUTO_SPELLING.get(m[0].toLowerCase());
+    if (fix) spell.push({start:m.index!,end:m.index!+m[0].length,reason:SPELLING,fix:keepCase(m[0],fix)});
+  }
   const gram = grammar(text);
   const sentenceStart = new Set(gram.filter(g => (g.fix ?? '').length === 1 && /^\p{Lu}$/u.test(g.fix!)).map(g => g.start));
   for (const s of spell) if (s.fix && sentenceStart.has(s.start)) s.fix = s.fix[0].toUpperCase() + s.fix.slice(1);
@@ -145,8 +150,7 @@ export function fixedSlips(text: string, spell: Speller | null): string {
       continue;
     }
     if (spell.correct(word)) continue;
-    const suggestions = spell.suggest(word);
-    const fix = AUTO_SPELLING.get(word) ?? (suggestions.length === 1 ? suggestions[0] : undefined);
+    const fix = AUTO_SPELLING.get(word);
     if (!fix || /\p{Lu}/u.test(fix)) continue;
     corrections.push({ ...slip, fix });
   }

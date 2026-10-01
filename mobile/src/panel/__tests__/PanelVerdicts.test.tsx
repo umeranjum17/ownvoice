@@ -16,15 +16,15 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
 const native = Native as jest.Mocked<typeof Native>;
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 
-test('cards that differ keep every verdict line', async () => {
+test('cards without deeper evidence have no verdict line', async () => {
   native.capture.mockResolvedValue({ conversation: SAM, written: SAM, nodes: [], fieldTop: null, typed: '', app: 'dev.ownvoice.app', label: 'Ownvoice', at: 0, id: 'tap-1', hasField: true });
   const screen = await render(
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
       <Panel writer={stubWriter({ drafts: ['Yes, still on.', 'Saturday works.', "Let's delve in; at the end of the day, moving forward."] })} />
     </SafeAreaProvider>);
   await act(async () => { await Promise.resolve(); });
-  await waitFor(() => expect(JSON.stringify(screen.toJSON())).toContain('A bit stock'));
+  await waitFor(() => expect(screen.getAllByRole('button', {name:'Why?'})).toHaveLength(3));
   const text = JSON.stringify(screen.toJSON());
-  expect(text).toContain('Sounds natural');
-  expect(text).toContain('you could say more simply');
+  expect(text).not.toContain('Sounds natural');
+  expect(text).not.toContain('you could say more simply');
 });

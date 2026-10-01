@@ -65,12 +65,12 @@ test('Copy returns the chosen version and copies it (R4)', async () => {
     prompt.startsWith('Compare a rewrite') ? 'GENERIC: 2\nSPECIFICITY: 8\nMEANING: pass' : 'Move the call to Tuesday.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
-  await waitFor(() => expect(visibleStrings(screen)).toContain('Sounds natural'));
+  await waitFor(() => expect(visibleStrings(screen)).toContain('Same meaning as yours'));
   expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-/), expect.stringContaining('Rewrite the text below. Make it shorter and tighter. Cut filler, keep every point.'), { maxTokens: 256 });
   expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-check-/), expect.stringContaining('Compare a rewrite with its original.'), { maxTokens: 80 });
   const shown = visibleStrings(screen);
   expect(shown).toContain('Same meaning as yours');
-  expect(shown).toContain('Sounds natural');
+  expect(shown).not.toContain('Sounds natural');
   expect(shown).toContain('Copy it, then paste it where you like.');
   expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull();
   fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
@@ -136,9 +136,9 @@ test('saved writing rules guide and flag the rewrite', async () => {
   const screen = await renderRewrite({ text: 'cheers mate — see you soon', editable: true });
   expect(visibleStrings(screen)).toContain('cheers mate');
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
-  await waitFor(() => expect(visibleStrings(screen)).toContain("Doesn't sound like you"));
+  await waitFor(() => expect(visibleStrings(screen)).toContain('Same meaning as yours'));
   expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-/), expect.stringContaining("Follow the writer's rules: No em dashes. How they write: short, lowercase"), { maxTokens: 256 });
-  expect(visibleStrings(screen)).toContain("Doesn't sound like you");
+  expect(visibleStrings(screen)).not.toContain('Sounds natural');
   wipeVoice();
 });
 

@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Linking, Share, StyleSheet, Text, View } from 'react-native';
 import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
-import * as Slop from '../core/slop';
 import * as Typing from '../core/typing';
 import { speller } from '../core/speller';
 import { dashesFor } from '../core/drafts';
@@ -59,14 +58,6 @@ const openPrefill = (app: string | undefined, text: string) => {
 const modeOf = (typed: string, written: string): Mode =>
   typed.trim() ? (Judge.replying(written) ? 'polish' : 'compose') : Judge.replying(written) ? 'reply' : 'empty';
 
-/** The instant, rules-only first row of the Why? note (DraftActivity.kt's rule row). */
-function ruleRow(s: Scores, text: string): { ok: boolean; name: string; detail?: string } {
-  const phrases = [...new Set(s.hits.map(h => `“${text.slice(h.start, h.end).trim()}”: ${h.reason}`))].join('\n');
-  if (Slop.natural(s.slop)) return { ok: true, name: Slop.words(s.slop), detail: phrases || undefined };
-  if (!phrases) return { ok: false, name: `${Judge.GENERAL}.`, detail: 'It could be sent to almost anyone.' };
-  return { ok: false, name: `${Slop.words(s.slop)}.`, detail: phrases };
-}
-
 /** The pulsing "Checking…" row while the model checks run; still when motion is reduced. */
 function Checking() {
   const t = useTheme();
@@ -88,7 +79,7 @@ function Checking() {
 function distinctVerdict(card: Draft, cards: Draft[]): Verdict | null {
   const signature = (item: Draft) => {
     const value = Judge.verdict(item.scores);
-    return `${value.good}:${value.lead}:${value.rest}`;
+    return value ? `${value.good}:${value.lead}:${value.rest}` : 'unchecked';
   };
   return new Set(cards.map(signature)).size > 1 ? Judge.verdict(card.scores) : null;
 }
@@ -101,11 +92,10 @@ function ToneLine({ text, tones }: { text: string; tones: Map<string, string> })
   return <Text style={[type.note, { color: t.muted, marginTop: space.s }]}>{words.toneSounds} {tone}</Text>;
 }
 
-function WhyCover({ draft, checks, who }: { draft: Draft; checks: WhyState; who: string | null }) {
+function WhyCover({ draft, checks, who, slips }: { draft: Draft; checks: WhyState; who: string | null; slips: number }) {
   const t = useTheme();
   const rows = [
-    ruleRow(draft.scores, draft.text),
-    ...[...draft.scores.quality, ...draft.scores.reach].map(c => ({ ok: c.ok, name: c.name, detail: c.ok ? undefined : c.reason })),
+    ...Judge.reasons(draft.scores, draft.text, slips),
     ...(draft.label && checks.meaning ? [{ ok: checks.meaning.ok, name: checks.meaning.ok ? 'Same meaning' : 'Check this', detail: checks.meaning.ok ? undefined : checks.meaning.reason }] : []),
   ];
   return <View>
@@ -176,6 +166,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setReason(null);
     setFraction(null);
     setWhy(null);
+    setWhys(new Map());
+    kind.current = null;
+    setSlips([]);
     if (nextMode === 'empty') {
       setNote(null); setPhase('ready'); return;
     }
@@ -247,7 +240,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       start(value);
       void findSlips(value.typed.trim());
     }).catch(() => { setPhase('failed'); setNote(words.noCapture); });
-    return () => progress.remove();
+    return () => { ++run.current; progress.remove(); };
   }, [start]);
 
   // ---- Tone line (package 4): one batched writer call per tap names every shown text's tone; never per keystroke ----
@@ -298,6 +291,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   // ---- Why? (spec 4.4): the rule row is instant; the model checks run behind the cover, cached per draft ----
   const openWhy = (draft: Draft) => {
+    const id = run.current;
     setWhy(draft.slot);
     if (whys.has(draft.text)) return;
     setWhys(prev => new Map(prev).set(draft.text, { state: 'running', meaning: draft.meaning }));
@@ -322,7 +316,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (model && draft.label && yours) {
         meaning = Judge.meaning(yours.text, draft.text, await ask(Judge.rewriteCheckPrompt(yours.text, draft.text), 80));
       }
+      if (run.current !== id) return;
       setWhys(prev => new Map(prev).set(draft.text, { state: scores ? 'done' : 'none', meaning }));
+      if (scores) setYours(prev => prev?.text === draft.text ? { ...prev, scores } : prev);
       if (scores) setCards(prev => prev.map(card => (card && card.text === draft.text ? { ...card, scores, meaning } : card)));
     })();
   };
@@ -347,7 +343,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
   const insertLabel = mode === 'reply' ? words.insert : words.useThis;
   const prefill = prefillFor(platformForApp(capture?.app));
-  const coverDraft = why != null ? shown.find(draft => draft.slot === why) : undefined;
+  const coverDraft = why != null ? [...(yours ? [yours] : []), ...shown].find(draft => draft.slot === why) : undefined;
   const check = coverDraft ? whys.get(coverDraft.text) : undefined;
 
   return <Sheet
@@ -357,7 +353,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     onClose={() => { void Native.closePanel().catch(() => {}); }}
     cover={coverDraft ? {
       title: mode === 'reply' ? words.whyReply : words.whyVersion,
-      children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} />,
+      children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} />,
     } : undefined}
     onCloseCover={() => setWhy(null)}>
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
@@ -381,10 +377,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       <Card variant={done ? 'outlined' : 'filled'} label={done ? words.looksGood : 'Yours'}>
         <Marked text={yours.text} hits={[...yours.scores.hits, ...slips]} />
         <ToneLine text={yours.text} tones={tones} />
-        <VerdictLine verdict={Judge.verdict(yours.scores)} />
-        {done ? <View style={styles.actions}>
-          <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours.text)} />
-        </View> : null}
+        <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
+        <View style={styles.actions}>
+          {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours.text)} /> : null}
+          <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
+        </View>
       </Card>
     </View> : null}
     {cards.map((card, slot) => {
