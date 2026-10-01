@@ -129,7 +129,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const [tones, setTones] = useState<Map<string, string>>(new Map());
   const toneFor = useRef(0);
-  const [slips, setSlips] = useState<Typing.Slip[]>([]);
+  const [spelling, setSpelling] = useState<{ text: string; slips: Typing.Slip[] }>({ text: '', slips: [] });
+  const slips = yours?.text === spelling.text ? spelling.slips : [];
   // The text just copied: its card's copy button shows a tick for a moment.
   const [copied, setCopied] = useState<string | null>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -151,6 +152,24 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const shown = cards.filter((card): card is Draft => !!card);
 
+  // With "Check my spelling as I type" on, the tap also lists what to check in what they typed, each with its own Fix.
+  const findSlips = useCallback(async (text: string, id: number) => {
+    try {
+      if (!text || !await Native.typingCheck()) {
+        if (run.current === id) setSpelling({ text, slips: [] });
+        return;
+      }
+      const spell = await speller().catch(() => null);
+      const found = Typing.slips(text, spell);
+      // One word at a time, giving the screen a turn in between: an unusual word can take a moment.
+      for (const slip of found) if (spell && slip.fix === undefined && slip.reason === Typing.SPELLING) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+        slip.fix = Typing.suggestion(text.slice(slip.start, slip.end), spell);
+      }
+      if (run.current === id) setSpelling({ text, slips: found });
+    } catch {}
+  }, []);
+
   const start = useCallback((value: Capture, avoid?: string[]) => {
     const id = ++run.current;
     const rules = voice.current = loadVoice();
@@ -168,7 +187,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setWhy(null);
     setWhys(new Map());
     kind.current = null;
-    setSlips([]);
+    void findSlips(value.typed.trim(), id);
     if (nextMode === 'empty') {
       setNote(null); setPhase('ready'); return;
     }
@@ -229,7 +248,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         setPhase('failed');
       }
     })();
-  }, [writer, select]);
+  }, [writer, select, findSlips]);
 
   useEffect(() => {
     const progress = Native.addListener('onModelProgress', ({ fraction: value }) => setFraction(value));
@@ -238,7 +257,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (!value) { setPhase('failed'); setNote(words.noCapture); return; }
       setWho(Judge.who(value.written));
       start(value);
-      void findSlips(value.typed.trim());
     }).catch(() => { setPhase('failed'); setNote(words.noCapture); });
     return () => { ++run.current; progress.remove(); };
   }, [start]);
@@ -261,21 +279,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (found.length) setTones(new Map(texts.map((text, i) => [text, found[i]] as [string, string]).filter(([, tone]) => !!tone)));
     })();
   });
-
-  // With "Check my spelling as I type" on, the tap also lists what to check in what they typed, each with its own Fix.
-  const findSlips = async (text: string) => {
-    try {
-      if (!text || !await Native.typingCheck()) return;
-      const spell = await speller().catch(() => null);
-      const found = Typing.slips(text, spell);
-      // One word at a time, giving the screen a turn in between: an unusual word can take a moment.
-      for (const slip of found) if (spell && slip.fix === undefined && slip.reason === Typing.SPELLING) {
-        await new Promise(resolve => setTimeout(resolve, 0));
-        slip.fix = Typing.suggestion(text.slice(slip.start, slip.end), spell);
-      }
-      setSlips(found);
-    } catch {}
-  };
 
   // Puts [text] in their message box, only on their tap, through the same way as a draft.
   const put = (text: string) => {
