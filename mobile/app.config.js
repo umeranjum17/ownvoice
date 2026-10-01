@@ -3,13 +3,14 @@
 // distributable builds never set that flag, so the shipped manifest keeps it off.
 module.exports = {
   expo: {
-    name: 'Ownvoice (new)',
+    name: 'Ownvoice',
     slug: 'ownvoice-mobile',
     version: '1.0.0',
     scheme: 'ownvoice',
     icon: './assets/icon/dot-icon.png',
     android: {
       package: 'dev.ownvoice.next',
+      versionCode: 1,
       adaptiveIcon: {
         foregroundImage: './assets/icon/dot-icon-foreground.png',
         monochromeImage: './assets/icon/dot-icon-monochrome.png',

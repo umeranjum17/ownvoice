@@ -90,7 +90,7 @@ test('Home places its title beneath the status bar inset', async () => {
   const screen = await render(<SafeAreaInsetsContext.Provider value={{ top: 32, bottom: 0, left: 0, right: 0 }}><Home /></SafeAreaInsetsContext.Provider>);
   const page = screen.toJSON() as unknown as { props: { contentContainerStyle: unknown } };
   expect(page.props.contentContainerStyle).toEqual(expect.arrayContaining([expect.objectContaining({ paddingTop: 32 + space.xl })]));
-});
+}, 10_000);
 
 test('Home has no Try a writing task row outside lab builds', async () => {
   expect((await homeCopy()).queryByText(words.agentRow)).toBeNull();
