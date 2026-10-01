@@ -157,3 +157,51 @@ test('polish qualification rejects misleading labels and meaning changes before 
   expect(fallback.write).not.toHaveBeenCalled();
   await expect(polishGuard(original, async () => 'malformed decision', true)).rejects.toBeInstanceOf(PolishConcern);
 });
+
+
+test('the public kit preserves state and limits the shared announcement definition to Shorter', async () => {
+  const original = 'Hi, Just a quick update: Umer said he would pack the stove, while I shoud check the tent before we leave.';
+  const candidates = [
+    { text: original.replace('shoud', 'should'), slot: 0 },
+    { text: 'Hi, Umer said he would pack the stove, while I should check the tent before we leave.', slot: 1 },
+    { text: 'Hi, I should check the tent before we leave. Umer said he would pack the stove.', slot: 2 },
+  ];
+  const ask = jest.fn().mockImplementation(async (prompt: string) => {
+    const questions = JSON.parse(prompt.split('Questions: ')[1]);
+    return JSON.stringify(Object.fromEntries(Object.keys(questions).map(key => [key, { true: 1, false: 0 }])));
+  });
+  const guard = await polishGuard(original, ask, true);
+  await expect(guard.qualify(candidates)).resolves.toEqual(candidates);
+  const prompt = ask.mock.calls[1][0];
+  expect(JSON.parse(prompt.split('State: ')[1].split('\n\nQuestions: ')[0])).toEqual({ original, candidates });
+  const questions = JSON.parse(prompt.split('Questions: ')[1]);
+  expect(Object.keys(questions)).toEqual(['meaning0', 'label0', 'meaning1', 'label1', 'meaning2', 'label2']);
+  const phrase = "For SHORTER only, the introductory nonfactual announcement frames 'Just wanted to let you know that' and 'Just a quick update:' may be omitted without losing a substantive point. This permission does not cover greetings, hedges, uncertainty, attribution, quantities, timing, negation or commitment strength; all remaining content and the writer's voice must be preserved.";
+  for (const key of ['meaning1', 'label1']) expect(questions[key].yes_or_no).toContain(phrase);
+  for (const key of ['meaning0', 'label0', 'meaning2', 'label2']) expect(questions[key].yes_or_no).not.toContain(phrase);
+  expect(questions.label2.yes_or_no).toContain('removing a greeting');
+});
+
+// Scripted semantic answers establish routing/conjunction behavior, not model accuracy.
+test.each([
+  ['probably hedge',
+    'Just wanted to let you know that I will probably send Umer the revised plan by Friday, but I cannot promise the final price yet.',
+    'I will probably send Umer the revised plan by Friday, but I cannot promise the final price yet.',
+    'I will send Umer the revised plan by Friday, but I cannot promise the final price yet.'],
+  ['greeting', 'Hi, Just a quick update: Umer should pack the stove before we leave.',
+    'Hi, Umer should pack the stove before we leave.', 'Umer should pack the stove before we leave.'],
+  ['spelled quantity', 'Just a quick update: Umer should pack one stove before we leave.',
+    'Umer should pack one stove before we leave.', 'Umer should pack a stove before we leave.'],
+])('the frame permission cannot override a negative meaning decision for %s', async (_name, original, safe, unsafe) => {
+  expect(polishBasics(original, { text: safe, slot: 1 })).toBe(true);
+  expect(polishBasics(original, { text: unsafe, slot: 1 })).toBe(true);
+  const ask = jest.fn().mockResolvedValueOnce(JSON.stringify({ readable: { true: 1, false: 0 }, mainLater: { true: 0, false: 1 } }))
+    .mockResolvedValueOnce(JSON.stringify({ meaning0: { true: 1, false: 0 }, label0: { true: 1, false: 0 }, meaning1: { true: 0, false: 1 }, label1: { true: 1, false: 0 } }));
+  const guard = await polishGuard(original, ask, true);
+  await expect(guard.qualify([{ text: safe, slot: 1 }, { text: unsafe, slot: 1 }])).resolves.toEqual([{ text: safe, slot: 1 }]);
+  const prompt = ask.mock.calls[1][0];
+  const state = JSON.parse(prompt.split('State: ')[1].split('\n\nQuestions: ')[0]);
+  expect(state.original).toBe(original);
+  expect(state.candidates[1].text).toBe(unsafe);
+  expect(JSON.parse(prompt.split('Questions: ')[1]).meaning1.yes_or_no).toContain('greetings, hedges, uncertainty, attribution, quantities');
+});
