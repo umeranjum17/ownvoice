@@ -4,6 +4,8 @@ import { words as engineWords } from 'ownvoice-engine/src/words.ts';
 // Typing-check additions (opt-in spelling check as you type): kept here until
 // the shared engine copy carries them.
 const typingWords = {
+  polishUnclear:"I couldn't make sense of this. Check what you typed.",
+  polishUnchecked:"Couldn't check that this time. Try again.",
   // The typing check's slips, on the bubble (read out after "Ownvoice") and in the panel.
   slipOne:'one thing to check',
   slipMany:'things to check',

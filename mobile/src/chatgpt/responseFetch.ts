@@ -6,8 +6,7 @@ const requests = new WeakMap<AbortSignal, typeof fetch>();
 export const responseFetch: typeof fetch = (url, init) =>
   (init?.signal && requests.get(init.signal) || expoFetch as typeof fetch)(url, init);
 
-export async function withResponseFetch<T>(fetcher: typeof fetch, ask: (signal: AbortSignal) => Promise<T>): Promise<T> {
-  const { signal } = new AbortController();
+export async function withResponseFetch<T>(fetcher: typeof fetch, ask: (signal: AbortSignal) => Promise<T>, signal = new AbortController().signal): Promise<T> {
   requests.set(signal, fetcher);
   try { return await ask(signal); }
   finally { requests.delete(signal); }

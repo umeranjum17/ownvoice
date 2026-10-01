@@ -1,6 +1,7 @@
 import { classify } from '@byokit/accounts';
 import { CHATGPT_OFF } from './switch';
 import { words } from './words';
+import { PolishConcern } from './polishGuard';
 import type { ScreenText } from './drafts';
 import type { Platform } from './platforms';
 import type { PhoneCanWrite } from './phoneStatus';
@@ -10,7 +11,9 @@ export type DraftRequest = { conversation: string; written: string; nodes?: Scre
 export type WriterState = 'downloading' | 'writing';
 export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
 /** `unchanged`: no drafts because the writer gave their text back as it was, so it already reads well. */
-export type Choice = { drafts: string[]; reason?: string; unchanged?: boolean };
+export type Choice = { drafts: string[]; reason?: string; unchanged?: boolean;
+  /** Readability was checked, but an absent qualifying revision does not establish quality. */
+  polish?: { original: 'readable'; revision: 'checked' | 'none' } };
 export interface Writer { write(request: DraftRequest, on?: WriterEvents): Promise<Choice> }
 export class SendVeto extends Error {}
 
@@ -33,12 +36,15 @@ export function noPhoneLine(error: unknown): string {
 
 export async function withPhoneFallback(primary: Writer, phone: Writer, request: DraftRequest, on?: WriterEvents, fallbackNote?: () => Promise<string | null>, phoneStatus?: PhoneCanWrite): Promise<Choice> {
   try {
-    const { drafts, unchanged } = await primary.write(request, on);
+    const choice = await primary.write(request, on);
+    const { drafts, unchanged } = choice;
+    if (choice.polish?.revision === 'none' && !drafts.length) return choice;
     if (unchanged && !drafts.length) return { drafts, unchanged };
     if (!drafts.length || (!request.typed.trim() && drafts.length !== 3) || drafts.some(draft => !draft.trim())) throw new Error('empty');
-    return { drafts };
+    return choice;
   } catch (error) {
     on?.reset?.();
+    if (error instanceof PolishConcern) throw error;
     if (phoneStatus === 'cant') throw new Error(noPhoneLine(error));
     const message = error instanceof Error ? error.message : String(error);
     const reason = error instanceof SendVeto ? error.message

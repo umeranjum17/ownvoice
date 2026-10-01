@@ -1,6 +1,9 @@
 import { readFileSync } from 'fs';
 import nspell from 'nspell';
 import { polishAcceptor } from '../polish';
+import { polishGuard, PolishConcern } from '../polishGuard';
+import { words } from '../words';
+import { withPhoneFallback } from '../writers';
 
 const spell = nspell(readFileSync(`${__dirname}/../../../assets/dictionary/en-affixes.aff`, 'utf8'), readFileSync(`${__dirname}/../../../assets/dictionary/en-words.dic`, 'utf8'));
 
@@ -61,4 +64,42 @@ test.each(['accept', 'fix'] as const)('unchanged requires writer evidence throug
   const excluded = await polishAcceptor('We shoud leave.', 'keep', ['We should leave.'], spell);
   expect(excluded.local).toBeNull();
   expect(excluded.unchanged).toBe(false);
+});
+
+test('polish qualification rejects misleading labels and meaning changes before acceptance, and never falls back for garbled input', async () => {
+  const original = 'Hi, the heater has been broken since Monday. Please fix it soon.';
+  const ask = jest.fn().mockResolvedValueOnce(JSON.stringify({ readable: { true: 1, false: 0 } }))
+    .mockResolvedValueOnce(JSON.stringify({
+      meaning0: { true: 1, false: 0 }, label0: { true: 1, false: 0 },
+      meaning1: { true: 1, false: 0 }, label1: { true: 0, false: 1 },
+    }));
+  const guard = await polishGuard(original, ask, true);
+  const shorter = { text: 'Hi, the heater broke Monday. Please fix it soon.', slot: 1 };
+  await expect(guard.qualify([
+    { text: 'Hi, the heater has been broken since Monday. Please fix it as soon as possible.', slot: 1 },
+    shorter,
+    { text: 'The heater has been broken since Monday. Please fix it as soon as possible.', slot: 2 },
+  ])).resolves.toEqual([shorter]);
+  expect(ask).toHaveBeenCalledTimes(2);
+  const modalAsk = jest.fn().mockResolvedValue(JSON.stringify({ readable: { true: 1, false: 0 } }));
+  const modal = await polishGuard('I should pack the stove.', modalAsk, false);
+  await expect(modal.qualify([{ text: 'Yes, I will bring the stove..', slot: 1 }])).resolves.toEqual([]);
+  expect(modalAsk).toHaveBeenCalledTimes(1);
+  const spelling = await polishAcceptor('I shoud autosave locally', 'keep', [], spell);
+  const rejectsSubstitution = jest.fn().mockResolvedValueOnce(JSON.stringify({ readable: { true: 1, false: 0 } }))
+    .mockResolvedValueOnce(JSON.stringify({ meaning0: { true: 0, false: 1 }, label0: { true: 0, false: 1 } }));
+  const localGuard = await polishGuard('I shoud autosave locally', rejectsSubstitution, true);
+  expect(spelling.local).not.toBeNull();
+  await expect(localGuard.qualify([{ text: 'I should autoclave locally', slot: 0 }])).resolves.toEqual([]);
+  spelling.rejectLocal();
+  expect(spelling.results).toEqual([]);
+  const incoherent = jest.fn().mockResolvedValue(JSON.stringify({ readable: { true: 0, false: 1 } }));
+  const fallback = { write: jest.fn() };
+  await expect(withPhoneFallback({ write: async () => {
+    await polishGuard('purple toaster clouds ate the database backwards banana banana', incoherent, true);
+    return { drafts: [] };
+  } }, fallback, { typed: 'purple toaster clouds ate the database backwards banana banana', written: '', conversation: '' }, {}, undefined, 'cant'))
+    .rejects.toThrow(words.polishUnclear);
+  expect(fallback.write).not.toHaveBeenCalled();
+  await expect(polishGuard(original, async () => 'malformed decision', true)).rejects.toBeInstanceOf(PolishConcern);
 });

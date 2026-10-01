@@ -1,3 +1,13 @@
+// These transport/layout fixtures supply recorded positive decisions independently of the
+// writer transport. The real kit's negative/abstaining decisions are exercised in PolishTest;
+// live semantic interpretation is qualified on the signed-in emulator.
+jest.mock('../../core/polishGuard', () => {
+  const actual = jest.requireActual('../../core/polishGuard');
+  return { ...actual, polishGuard: (original: string, _ask: unknown, leaves: boolean) => actual.polishGuard(original, async (prompt: string) => {
+    const questions = JSON.parse(prompt.split('Questions: ')[1]);
+    return JSON.stringify(Object.fromEntries(Object.keys(questions).map(key => [key, { true: 1, false: 0 }])));
+  }, leaves) };
+});
 import { withPhoneFallback } from '../../core/writers';
 jest.mock('../../core/speller', () => {
   const fs = require('fs');
@@ -304,7 +314,7 @@ test('reply mode sends the C2 reply prompt; polish sends the rewrite prompt', as
       return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: '{"versions":["a","b"]}' })}\n\n${event({ type: 'response.completed' })}`) } as unknown as Response;
     }) as unknown as typeof fetch;
     const polish = await chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: 'i can bring the stove' });
-    expect(polish.drafts).toEqual(['a', 'b']);
+    expect(polish).toEqual({ drafts: [], unchanged: false, polish: { original: 'readable', revision: 'none' } });
     expect(bodies.at(-1)).toContain('Return the requested rewrite versions as JSON.');
     expect(bodies.at(-1)).toContain('Return 2 versions');
     expect(bodies.at(-1)).not.toContain('Light touch:');
@@ -513,24 +523,24 @@ test.each(['Its own engine', 'Bring woud for the fire.', 'We should visit Bora B
   global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
   try {
     const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
-    expect(result).toEqual({ drafts: [], unchanged: true });
+    expect(result).toEqual({ drafts: [], unchanged: false, polish: { original: 'readable', revision: 'none' } });
     expect(landed).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
 
 test.each([
-  { typed: 'Please bring the stove.', avoid: [] },
-  { typed: 'Please shoud bring the stove.', avoid: ['Please should bring the stove.'] },
-])('two valid ChatGPT polish cards survive fallback routing: $typed', async request => {
+  { typed: 'Please bring the stove if you can, please.', avoid: [], drafts: ['Please bring the stove if you can.', 'If you can, please bring the stove.'] },
+  { typed: 'I shoud pack the stove, if you can bring the tent.', avoid: ['I should pack the stove, if you can bring the tent.'], drafts: ['I should pack stove, if you can bring tent.', 'If you can bring the tent, I should pack the stove.'] },
+])('two labelled ChatGPT polish cards preserve modals through fallback routing: $typed', async request => {
   const originalFetch = global.fetch;
-  const drafts = ['Bring the stove, please.', 'The stove, please bring it.'];
+  const { drafts } = request;
   global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: drafts }) })}\n\n${event({ type: 'response.completed' })}`));
   const phone = { write: jest.fn(async () => ({ drafts: ['phone'] })) };
   const reset = jest.fn();
   const landed = jest.fn();
   try {
-    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, { reset, landed }, undefined, 'cant')).toEqual({ drafts });
+    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, { reset, landed }, undefined, 'cant')).toEqual({ drafts, unchanged: false, polish: { original: 'readable', revision: 'checked' } });
     expect(landed.mock.calls.map(([, slot]) => slot)).toEqual([1, 2]);
     expect(reset).not.toHaveBeenCalled();
     expect(phone.write).not.toHaveBeenCalled();

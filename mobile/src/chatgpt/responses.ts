@@ -6,6 +6,7 @@ import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, rep
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, writerVersions, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
 import { polishAcceptor } from '../core/polish';
+import { PolishConcern, polishGuard } from '../core/polishGuard';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
@@ -15,7 +16,7 @@ const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested rewrite versions as JSON.';
 
 /** One streamed Responses call; the requested array must have exactly `count` nonblank strings (`text` returns trimmed plain text instead). */
-async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> {
+async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch, checkSignal?: AbortSignal): Promise<string[]> {
   let started = false;
   let marked = false;
   try {
@@ -38,7 +39,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
     }, signal => accounts.respond('owner', {
       instructions, input: prompt, model: CHATGPT_MODEL, signal, onText,
       text: key === 'text' ? { verbosity: 'low' } : { verbosity: 'low', format: { type: 'json_object' } },
-    }));
+    }), checkSignal);
     if (key === 'text') {
       const line = text.trim();
       if (!line) throw new Error('ChatGPT could not answer.');
@@ -101,10 +102,18 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const note = avoidLine(avoid);
   const landed = on.landed ?? (() => {});
   const acceptor = await polishAcceptor(request.typed, dashes, avoid);
-  if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
+  const guard = await polishGuard(request.typed, async (prompt, signal) => {
+    const [answer] = await ask(prompt, 'Reply with the requested decision JSON only.', 'text', 1, on, undefined, expoFetch as typeof fetch, signal);
+    return answer;
+  }, true);
   const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', writerVersions.length, on);
-  raw.forEach((text, index) => {
-    const slot = index + 1;
+  const candidates = raw.map((text, index) => ({ text, slot: index + 1 }));
+  if (acceptor.local != null) candidates.unshift({ text: acceptor.local, slot: 0 });
+  const qualified = await guard.qualify(candidates);
+  // The acceptor creates a local candidate eagerly; only a checked local card may remain.
+  if (!qualified.some(candidate => candidate.slot === 0)) acceptor.rejectLocal();
+  qualified.forEach(({ text, slot }) => {
+    if (slot === 0) { landed(text, slot, versionsList[slot].label); return; }
     const clean = acceptor.accept(text, slot, versionsList[slot].label);
     if (clean != null) landed(clean, slot, versionsList[slot].label);
   });
@@ -117,10 +126,12 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
       rebuilt = rebuildLines(request.typed, rows ?? '');
     } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; continue; }
     if (rebuilt == null) continue;
+    if (!(await guard.qualify([{ text: rebuilt, slot: fail.slot }])).length) continue;
     const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
     if (fixed != null) landed(fixed, fail.slot, fail.label);
   }
-  return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: acceptor.unchanged };
+  return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: false,
+    polish: { original: 'readable', revision: acceptor.results.length ? 'checked' : 'none' } };
 }
 
 export const chatgptWriter: Writer = {
@@ -128,7 +139,7 @@ export const chatgptWriter: Writer = {
     try {
       return request.typed.trim() ? await polish(request, on) : { drafts: await replies(request, on) };
     } catch (error) {
-      if (error instanceof SendVeto) throw error;
+      if (error instanceof SendVeto || error instanceof PolishConcern) throw error;
       const message = error instanceof Error ? error.message : String(error);
       const kind = classify(message)?.kind;
       if (kind === 'network') throw error;

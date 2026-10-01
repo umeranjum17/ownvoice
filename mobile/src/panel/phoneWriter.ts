@@ -3,6 +3,7 @@ import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
 import { polishAcceptor } from '../core/polish';
+import { PolishConcern, polishGuard } from '../core/polishGuard';
 import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
@@ -19,7 +20,7 @@ async function ask(prompt: string, maxTokens: number): Promise<string> {
   return Native.ask(`phone-${Date.now()}-${calls++}`, prompt, { maxTokens });
 }
 
-/** Polish and compose: the C2 rewrite, streamed as versions land, with layout kept and near-duplicates dropped. */
+/** Polish and compose: qualify complete versions before landing cards, keeping their meaning and layout. */
 async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> {
   const dashes = request.dashes ?? 'remove';
   const avoid = request.avoid ?? [];
@@ -27,12 +28,24 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const engine = { ask: (prompt: string, maxTokens: number) => ask(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
   const landed = on.landed ?? (() => {});
   const acceptor = await polishAcceptor(request.typed, dashes, avoid);
-  if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
+  const guard = await polishGuard(request.typed, (prompt, signal) => {
+    if (signal.aborted) throw new PolishConcern(words.polishUnchecked);
+    return ask(prompt, 768);
+  }, false);
+  const candidates: { text: string; slot: number }[] = [];
+  if (acceptor.local != null) candidates.push({ text: acceptor.local, slot: 0 });
   await rewrite(engine, request.typed, request.conversation, request.guide ?? '', (version, text) => {
     const slot = versionsList.findIndex(v => v.name === version.name);
+    candidates.push({ text, slot });
+  }, dashes, request.platform);
+  const qualified = await guard.qualify(candidates);
+  if (!qualified.some(candidate => candidate.slot === 0)) acceptor.rejectLocal();
+  qualified.forEach(({ text, slot }) => {
+    const version = versionsList[slot];
+    if (slot === 0) { landed(text, slot, version.label); return; }
     const clean = acceptor.accept(text, slot, version.label);
     if (clean != null) landed(clean, slot, version.label);
-  }, dashes, request.platform);
+  });
   // A flattened list goes back row by row; the rebuild keeps the original markers, so the
   // layout is kept by construction - only a missing row or a changed number/time drops it.
   for (const fail of acceptor.layoutFails) {
@@ -42,10 +55,12 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
       rebuilt = rebuildLines(request.typed, await engine.ask(prompt, 256));
     } catch { continue; }
     if (rebuilt == null) continue;
+    if (!(await guard.qualify([{ text: rebuilt, slot: fail.slot }])).length) continue;
     const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
     if (fixed != null) landed(fixed, fail.slot, fail.label);
   }
-  return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: acceptor.unchanged };
+  return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: false,
+    polish: { original: 'readable', revision: acceptor.results.length ? 'checked' : 'none' } };
 }
 
 /** Replies: one numbered call, then one retry per empty slot within 8 s of its answer. */
@@ -144,6 +159,7 @@ export const phoneWriter = {
         ? await polish(request, on)
         : { drafts: await replies(request, on, started) };
     } catch (error) {
+      if (error instanceof PolishConcern) throw error;
       throw new Error(message(errorCode(error)));
     }
   },

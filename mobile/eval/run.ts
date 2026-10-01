@@ -15,6 +15,7 @@ import * as T from 'ownvoice-engine/src/threads.ts';
 
 import nspell from 'nspell';
 import { polishAcceptor } from '../src/core/polish.ts';
+import { polishGuard } from '../src/core/polishGuard.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
 
@@ -26,11 +27,12 @@ if (!label || !base || !outPath) {
 const MODEL = process.env.MODEL ?? '';
 type Call = { prompt: string; maxTokens: number; answer: string; ms: number; promptTokens: number; genTokens: number };
 
-async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<string> {
+async function call(prompt: string, maxTokens: number, calls: Call[], signal?: AbortSignal): Promise<string> {
   const started = Date.now();
   const res = await fetch(`${base}/v1/chat/completions`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
+    signal,
     body: JSON.stringify({
       ...(MODEL ? { model: MODEL } : {}),
       messages: [{ role: 'user', content: prompt }],
@@ -60,16 +62,22 @@ async function polish(c: any, calls: Call[]) {
   const acceptor = await polishAcceptor(c.typed, dashes, [], spell);
   const raw: Record<string, string> = { LIGHT: acceptor.local ?? c.typed };
   if (c.slot === 0) return { raw, shown: acceptor.results, rescued: [] };
+  const guard = await polishGuard(c.typed, (prompt, signal) => call(prompt, 768, calls, signal), false);
+  const candidates: { text: string; slot: number }[] = [];
+  if (acceptor.local != null) candidates.push({ text: acceptor.local, slot: 0 });
   await J.rewrite(engine, c.typed, c.screen, c.guide ?? '', (v: any, text: string) => {
     raw[v.name] = text;
-    acceptor.accept(text, J.versionsList.findIndex((x: any) => x.name === v.name), v.label);
+    candidates.push({ text, slot: J.versionsList.findIndex((x: any) => x.name === v.name) });
   }, dashes).catch(e => { raw.error = String(e); });
+  const qualified = await guard.qualify(candidates);
+  if (!qualified.some(candidate => candidate.slot === 0)) acceptor.rejectLocal();
+  for (const candidate of qualified) if (candidate.slot !== 0) acceptor.accept(candidate.text, candidate.slot, J.versionsList[candidate.slot].label);
   const rescued: number[] = [];
   for (const fail of acceptor.layoutFails) {
-    const lines = c.typed.split('\n');
-    const prompt = J.versionPrompt(c.typed, c.screen, J.versionsList[fail.slot], c.guide ?? '', dashes)
-      + `\nKeep exactly ${lines.length} lines in this order, including blank lines. Keep these line prefixes exactly: ${lines.map((line: string, i: number) => `${i + 1}: ${line.match(/^\s*(?:\d+[.)]|[-*•])\s+/)?.[0] ?? '(none)'}`).join('; ')}. Do not combine lines.`;
-    const fixed = acceptor.fix(await call(prompt, 256, calls), fail.slot, fail.label);
+    const prompt = J.lineRetryPrompt(c.typed, c.screen, J.versionsList[fail.slot], c.guide ?? '', dashes);
+    const rebuilt = D.rebuildLines(c.typed, await call(prompt, 256, calls));
+    if (rebuilt == null || !(await guard.qualify([{ text: rebuilt, slot: fail.slot }])).length) continue;
+    const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
     if (fixed != null) rescued.push(fail.slot);
   }
   return { raw, shown: acceptor.results.sort((a: any, b: any) => a.slot - b.slot), rescued };
