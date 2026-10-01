@@ -77,6 +77,33 @@ test('bare domains and markdown link destinations are flagged while sentence dot
   expect(fits[3].level).toBe(3);
 });
 
+test('dotted API calls reach judging on X and Reddit while genuine links stay omitted', async () => {
+  const eligible = [
+    'Use JSON.parse() when loading the saved timer state.',
+    'Use Object.prototype.hasOwnProperty() to check the saved entries.',
+    'Try offline files, e.g. PDFs. Version 3.14 works. Email me@sample.org.',
+  ];
+  const links = ['https://example.com', 'www.example.com', 'example.com', 'sub.example.co.uk/path', '[site](example.com)', 'example.com (more details)', 'Visit example.com.'];
+  const candidates = [...eligible, ...links];
+  for (const platform of [X, REDDIT]) {
+    const ask = jest.fn(async (_prompt: string) => JSON.stringify(Object.fromEntries(eligible.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }]))));
+    const fits = await judgeFit({ post: POST, candidates, platform, voice, ask });
+    expect(ask).toHaveBeenCalledTimes(1);
+    const prompt = ask.mock.calls[0][0];
+    eligible.forEach((candidate, i) => {
+      expect(prompt).toContain(candidate);
+      expect(prompt).toContain(`fit_${i}`);
+      expect(fits[i]).toEqual({ level: 3, words: LEVELS[3], best: 0, flags: [] });
+    });
+    links.forEach((candidate, i) => {
+      expect(prompt).not.toContain(candidate);
+      expect(prompt).not.toContain(`fit_${eligible.length + i}`);
+      expect(fits[eligible.length + i]).toEqual({ level: 0, words: LEVELS[0], best: 0, flags: ['Links can mean fewer views'] });
+    });
+    expect(rank(fits)).toEqual(candidates.map((_, i) => i));
+  }
+});
+
 test('X applies separate one-level drops for hashtags and trailing thoughts; Reddit does not', async () => {
   const candidates = ['A useful point #build #ship', 'A useful point. Thoughts?', 'A useful point #build #ship. Thoughts?'];
   const ask = async () => JSON.stringify({ fit_0: { 0: 0, 1: 0, 2: 0, 3: 1 }, fit_1: { 0: 0, 1: 0, 2: 0, 3: 1 }, fit_2: { 0: 0, 1: 0, 2: 0, 3: 1 } });
