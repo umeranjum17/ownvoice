@@ -5,12 +5,12 @@ module.exports = {
   expo: {
     name: 'Ownvoice',
     slug: 'ownvoice-mobile',
-    version: '1.0.1',
+    version: '1.0.2',
     scheme: 'ownvoice',
     icon: './assets/icon/dot-icon.png',
     android: {
       package: 'dev.ownvoice.next',
-      versionCode: 2,
+      versionCode: 3,
       adaptiveIcon: {
         foregroundImage: './assets/icon/dot-icon-foreground.png',
         monochromeImage: './assets/icon/dot-icon-monochrome.png',
