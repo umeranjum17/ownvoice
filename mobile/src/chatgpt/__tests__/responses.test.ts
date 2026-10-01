@@ -18,7 +18,7 @@ jest.mock('../accounts', () => {
   return { ...actual, codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })), reportFailure: jest.fn(async () => ({})) };
 });
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
-import { chatgptWriter, streamResponses, streamSelectionRewrite } from '../responses';
+import { chatgptWriter, streamResponses, streamSelectionRewrite, fitBackend } from '../responses';
 import { platformForApp } from '../../core/platforms';
 import { accounts, codexAuth, reportFailure } from '../accounts';
 import { words } from '../../core/words';
@@ -535,4 +535,23 @@ test.each([
     expect(reset).not.toHaveBeenCalled();
     expect(phone.write).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
+});
+
+
+test('fit accepts a React Native signal with no throwIfAborted method', async () => {
+  const { signal } = new AbortController();
+  Object.defineProperty(signal, 'throwIfAborted', { value: undefined });
+  const raw = JSON.stringify({ fit_0: { 0: 0, 1: 0, 2: 0, 3: 1 } });
+  const fetch = fetcher(body(event({ type: 'response.output_text.delta', delta: raw }) + '\n\n' + event({ type: 'response.completed' })));
+  const backend = fitBackend({ beforeSend: async () => true, beforeFetch: () => true }, fetch);
+  const result = await backend.ask({ candidates: { 0: 'Does it pause?' } }, { fit_0: { kind: 'score', levels: ['Weak', 'Okay', 'Good', 'Strong'] } }, signal);
+  expect(result.fit_0?.probabilities).toEqual({ 0: 0, 1: 0, 2: 0, 3: 1 });
+  expect(fetch).toHaveBeenCalledTimes(1);
+});
+
+test('fit retains an original pre-dispatch error as the veto cause', async () => {
+  const cause = new Error('fixture credential failure');
+  (codexAuth as jest.Mock).mockRejectedValueOnce(cause);
+  const backend = fitBackend({ beforeSend: async () => true, beforeFetch: () => true });
+  await expect(backend.ask({}, { fit_0: { kind: 'score', levels: ['Weak', 'Strong'] } }, new AbortController().signal)).rejects.toMatchObject({ message: words.phoneWrote, cause });
 });
