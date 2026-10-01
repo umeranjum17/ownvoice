@@ -62,11 +62,33 @@ test('long dashes, limits and upper-case links are checked without sending', asy
   expect(ask).not.toHaveBeenCalled();
 });
 
+test('bare domains and markdown link destinations are flagged while sentence dots and decimals are not', async () => {
+  const candidates = ['example.com', 'sub.example.co.uk/path', '[site](example.com)', 'A useful point. Version 3.14 works.'];
+  const prompts: string[] = [];
+  const ask = async (prompt: string) => {
+    prompts.push(prompt);
+    return JSON.stringify({ fit_3: { 0: 0, 1: 0, 2: 0, 3: 1 } });
+  };
+  const fits = await judgeFit({ post: POST, candidates, platform: X, voice, ask });
+  expect(fits.slice(0, 3).every(f => f.flags.includes('Links can mean fewer views'))).toBe(true);
+  expect(fits[3].flags).toEqual([]);
+  expect(prompts).toHaveLength(1);
+  expect(prompts[0]).not.toMatch(/fit_0|fit_1|fit_2|example\.com|example\.co\.uk/);
+  expect(fits[3].level).toBe(3);
+});
+
 test('X applies separate one-level drops for hashtags and trailing thoughts; Reddit does not', async () => {
   const candidates = ['A useful point #build #ship', 'A useful point. Thoughts?', 'A useful point #build #ship. Thoughts?'];
   const ask = async () => JSON.stringify({ fit_0: { 0: 0, 1: 0, 2: 0, 3: 1 }, fit_1: { 0: 0, 1: 0, 2: 0, 3: 1 }, fit_2: { 0: 0, 1: 0, 2: 0, 3: 1 } });
   expect((await judgeFit({ post: POST, candidates, platform: X, voice, ask })).map(f => f.level)).toEqual([2, 2, 1]);
   expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, ask })).map(f => f.level)).toEqual([3, 3, 3]);
+});
+
+test('X drops a level for common trailing asks only when they end the reply', async () => {
+  const asks = ['What do you think of this?', 'Thoughts on this?', 'Any thoughts?', 'Agree?', 'What about you?'];
+  const candidates = [...asks.map(ask => `A useful point. ${ask}`), 'A useful point. What do you think of this? More context follows.'];
+  const ask = async () => JSON.stringify(Object.fromEntries(candidates.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }])));
+  expect((await judgeFit({ post: POST, candidates, platform: X, voice, ask })).map(f => f.level)).toEqual([2, 2, 2, 2, 2, 3]);
 });
 
 test('timeout aborts the backend and returns rules only; unsupported platforms send nothing', async () => {
