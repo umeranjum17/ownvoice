@@ -8,6 +8,7 @@ const fixtures = new Map([
   ['i think maybe i would probably start with the notes working offline because if the save is not reliable then the rest does not really matter and you could show when it saved and also make exporting easy and then i guess deal with sync later once that all works', '06-reddit-weak'],
   ['Its a good plan, Umer shoud be there by the the evening.', '10-known-slips'],
   ['Just wanted to let you know that I will send Umer the revised plan by Friday, but I cannot promise the final price yet.', '11-promise'],
+  ['Just wanted to let you know that I will probably send Umer the revised plan by Friday, but I cannot promise the final price yet.', 'hedge-controls'],
   ['Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', '19-list'],
   ['Just a quick update: Umer said he would pack the stove, while I should check the tent before we leave.', '20-name-action'],
 ]);

@@ -3,10 +3,13 @@
 // live semantic interpretation is qualified on the signed-in emulator.
 jest.mock('../../core/polishGuard', () => {
   const actual = jest.requireActual('../../core/polishGuard');
-  return { ...actual, polishGuard: (original: string, _ask: unknown, leaves: boolean) => actual.polishGuard(original, async (prompt: string) => {
-    const questions = JSON.parse(prompt.split('Questions: ')[1]);
-    return JSON.stringify(Object.fromEntries(Object.keys(questions).map(key => [key, { true: 1, false: 0 }])));
-  }, leaves) };
+  return { ...actual, polishGuard: (original: string, ask: unknown, leaves: boolean) => {
+    if (process.env.EXPO_PUBLIC_J2_DIAGNOSTICS === '1') return actual.polishGuard(original, ask, leaves);
+    return actual.polishGuard(original, async (prompt: string) => {
+      const questions = JSON.parse(prompt.split('Questions: ')[1]);
+      return JSON.stringify(Object.fromEntries(Object.keys(questions).map(key => [key, { true: 1, false: 0 }])));
+    }, leaves);
+  } };
 });
 import { withPhoneFallback } from '../../core/writers';
 jest.mock('../../core/speller', () => {
@@ -42,6 +45,43 @@ const body = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(con
 const fetcher = (stream: ReadableStream<Uint8Array>) => jest.fn(async () => ({ ok: true, body: stream } as Response));
 const reported = reportFailure as jest.Mock;
 beforeEach(() => { jest.clearAllMocks(); });
+
+test('four flagged panel writer taps use eight actual decision transport calls and never generate or land cards', async () => {
+  const priorFlag = process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+  const priorFetch = global.fetch;
+  const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+  const landed = jest.fn();
+  const fetch = jest.fn(async (_url: unknown, options?: RequestInit) => {
+    const request = JSON.parse(String(options?.body));
+    expect(request.instructions).toBe('Reply with the requested decision JSON only.');
+    expect(JSON.stringify(request.input)).toContain('Questions:');
+    const output = JSON.stringify({ meaning0: { true: 1, false: 0 }, label0: { true: 1, false: 0 } });
+    return { ok: true, body: body(event({ type: 'response.output_text.delta', delta: output }) + '\n\n' + event({ type: 'response.completed' })) } as Response;
+  });
+  try {
+    process.env.EXPO_PUBLIC_J2_DIAGNOSTICS = '1';
+    global.fetch = fetch;
+    const originals = [
+      'Just wanted to let you know that I will send Umer the revised plan by Friday, but I cannot promise the final price yet.',
+      'Just a quick update: Umer said he would pack the stove, while I should check the tent before we leave.',
+      'Just wanted to let you know that I will probably send Umer the revised plan by Friday, but I cannot promise the final price yet.',
+      'Just wanted to let you know that I will probably send Umer the revised plan by Friday, but I cannot promise the final price yet.',
+    ];
+    for (const [index, typed] of originals.entries()) {
+      await expect(chatgptWriter.write({ conversation: '', written: '', typed }, { landed })).rejects.toThrow(words.polishUnchecked);
+      expect(fetch).toHaveBeenCalledTimes((index + 1) * 2);
+    }
+    await expect(chatgptWriter.write({ conversation: '', written: '', typed: originals[3] }, { landed })).rejects.toThrow(words.polishUnchecked);
+    expect(fetch).toHaveBeenCalledTimes(8);
+    expect(landed).not.toHaveBeenCalled();
+    expect(reportFailure).not.toHaveBeenCalled();
+  } finally {
+    global.fetch = priorFetch;
+    if (priorFlag === undefined) delete process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+    else process.env.EXPO_PUBLIC_J2_DIAGNOSTICS = priorFlag;
+    log.mockRestore();
+  }
+});
 
 test('accepts CRLF events split across chunks and a final unterminated completion', async () => {
   const first = event({ type: 'response.output_text.delta', delta: '{"versions":[' });

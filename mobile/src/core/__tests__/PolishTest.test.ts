@@ -1,4 +1,5 @@
 import { readFileSync } from 'fs';
+import { createHash } from 'crypto';
 import nspell from 'nspell';
 import { polishAcceptor } from '../polish';
 import { polishBasics, polishGuard, PolishConcern } from '../polishGuard';
@@ -33,15 +34,106 @@ test('task diagnostics stay off and exclude unknown drafts and non-whitelisted k
     expect(Object.keys(record.answers[0]).sort()).toEqual(['abstained', 'answer', 'confidence', 'ms', 'provenance', 'question', 'reason']);
     expect(line).not.toMatch(/SENTINEL|headers|engine|config|usage/);
     log.mockClear();
+    delete process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
     const ask = jest.fn().mockResolvedValue(JSON.stringify({ readable: { true: 1, false: 0 }, mainLater: { true: 0, false: 1 } }));
     const guard = await polishGuard(original, ask, true);
     const bad = { text: 'I will bring the stove Saturday. Umer can bring the tent.', slot: 1 };
     await expect(guard.qualify([bad])).resolves.toEqual([]);
     expect(ask).toHaveBeenCalledTimes(1);
-    const records = log.mock.calls.map(call => JSON.parse(String(call[0]).replace('Ownvoice J2 diagnostic ', '')));
-    expect(records.find(item => item.stage === 'candidate')).toMatchObject({ ...bad, accepted: false,
-      checks: expect.arrayContaining([{ check: 'modalsAndPack', passed: false }]),
+    expect(log).not.toHaveBeenCalled();
+  } finally {
+    if (prior === undefined) delete process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+    else process.env.EXPO_PUBLIC_J2_DIAGNOSTICS = prior;
+    log.mockRestore();
+  }
+});
+
+// Exercise the actual private branch via the existing public guard, with the actual pinned kit.
+const pairedStates = [
+  { original: 'Just wanted to let you know that I will send Umer the revised plan by Friday, but I cannot promise the final price yet.', candidates: [{ text: 'I will send Umer the revised plan by Friday, but I cannot promise the final price yet.', slot: 1 }] },
+  { original: 'Just a quick update: Umer said he would pack the stove, while I should check the tent before we leave.', candidates: [{ text: 'Umer said he would pack the stove, while I should check the tent before we leave.', slot: 1 }] },
+  { original: 'Just wanted to let you know that I will probably send Umer the revised plan by Friday, but I cannot promise the final price yet.', candidates: [{ text: 'I will probably send Umer the revised plan by Friday, but I cannot promise the final price yet.', slot: 1 }] },
+  { original: 'Just wanted to let you know that I will probably send Umer the revised plan by Friday, but I cannot promise the final price yet.', candidates: [{ text: 'I will send Umer the revised plan by Friday, but I cannot promise the final price yet.', slot: 1 }] },
+];
+const freshGuard = () => {
+  let guard!: typeof polishGuard;
+  jest.isolateModules(() => { guard = require('../polishGuard').polishGuard; });
+  return guard;
+};
+
+test('comparison-only branch caps four exact-field pairs at eight calls and prevents generation, wrong order, phone and overlap', async () => {
+  const prior = process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+  const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    process.env.EXPO_PUBLIC_J2_DIAGNOSTICS = '1';
+    const guard = freshGuard();
+    let release!: () => void;
+    const pending = new Promise<void>(resolve => { release = resolve; });
+    const ask = jest.fn().mockImplementation(async (prompt: string) => {
+      const call = ask.mock.calls.length - 1;
+      expect(JSON.parse(prompt.split('State: ')[1].split('\n\nQuestions: ')[0])).toEqual(pairedStates[Math.floor(call / 2)]);
+      const questions = JSON.parse(prompt.split('Questions: ')[1]);
+      expect(Object.keys(questions)).toEqual(['meaning0', 'label0']);
+      expect(questions.meaning0.yes_or_no).toContain('should is not will; pack is not bring');
+      const clarified = [1, 2, 5, 6].includes(call);
+      for (const question of Object.values(questions) as { yes_or_no: string }[]) {
+        expect(question.yes_or_no.includes('For SHORTER only')).toBe(clarified);
+      }
+      if (call === 0) await pending;
+      return JSON.stringify({ meaning0: { true: call < 6 ? 1 : 0, false: call < 6 ? 0 : 1 }, label0: { true: 1, false: 0 } });
     });
+    await expect(guard('Not a frozen field.', ask, true)).rejects.toThrow(words.polishUnchecked);
+    await expect(guard(pairedStates[1].original, ask, true)).rejects.toThrow(words.polishUnchecked);
+    await expect(guard(pairedStates[0].original, ask, false)).rejects.toThrow(words.polishUnchecked);
+    expect(ask).not.toHaveBeenCalled();
+    const first = expect(guard(pairedStates[0].original, ask, true)).rejects.toThrow(words.polishUnchecked);
+    await expect(guard(pairedStates[0].original, ask, true)).rejects.toThrow(words.polishUnchecked);
+    expect(ask).toHaveBeenCalledTimes(1);
+    release(); await first;
+    for (const state of pairedStates.slice(1)) await expect(guard(state.original, ask, true)).rejects.toThrow(words.polishUnchecked);
+    expect(ask).toHaveBeenCalledTimes(8);
+    await expect(guard(pairedStates[3].original, ask, true)).rejects.toThrow(words.polishUnchecked);
+    expect(ask).toHaveBeenCalledTimes(8);
+    const records = log.mock.calls.map(call => JSON.parse(String(call[0]).replace('Ownvoice J2 diagnostic ', '')));
+    expect(records).toHaveLength(16);
+    for (let call = 0; call < 8; call++) {
+      const digest = createHash('sha256').update(JSON.stringify(pairedStates[Math.floor(call / 2)])).digest('hex');
+      expect(records[call * 2]).toMatchObject({ stage: 'decisions', phase: 'start', slot: call, text: expect.stringContaining(digest) });
+      expect(records[call * 2 + 1]).toMatchObject({ stage: 'decisions', phase: 'result', slot: call, text: expect.stringContaining(digest) });
+    }
+    expect(records[13].answers[0]).toMatchObject({ question: 'meaning0', answer: false, abstained: false });
+    expect(records[15].answers[0]).toMatchObject({ question: 'meaning0', answer: false, abstained: false });
+    delete process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+    const ordinaryAsk = jest.fn().mockResolvedValueOnce(JSON.stringify({ readable: { true: 1, false: 0 }, mainLater: { true: 0, false: 1 } }))
+      .mockResolvedValueOnce(JSON.stringify({ meaning0: { true: 1, false: 0 }, label0: { true: 1, false: 0 } }));
+    const ordinary = await guard(pairedStates[0].original, ordinaryAsk, true);
+    await expect(ordinary.qualify([...pairedStates[0].candidates])).resolves.toEqual(pairedStates[0].candidates);
+    expect(ordinaryAsk).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledTimes(16);
+  } finally {
+    if (prior === undefined) delete process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+    else process.env.EXPO_PUBLIC_J2_DIAGNOSTICS = prior;
+    log.mockRestore();
+  }
+});
+
+test.each(['transport', 'abstention', 'malformed'])('a partial paired %s failure cannot dispatch any remaining call', async failure => {
+  const prior = process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+  const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    process.env.EXPO_PUBLIC_J2_DIAGNOSTICS = '1';
+    const guard = freshGuard();
+    const ask = jest.fn().mockResolvedValueOnce(JSON.stringify({ meaning0: { true: 1, false: 0 }, label0: { true: 1, false: 0 } }));
+    if (failure === 'transport') ask.mockRejectedValueOnce(new Error('offline transport failure'));
+    else ask.mockResolvedValueOnce(failure === 'malformed' ? 'invalid decision' : JSON.stringify({ meaning0: { true: 0.5, false: 0.5 }, label0: { true: 1, false: 0 } }));
+    await expect(guard(pairedStates[0].original, ask, true)).rejects.toThrow(failure === 'transport' ? 'offline transport failure' : words.polishUnchecked);
+    expect(ask).toHaveBeenCalledTimes(2);
+    for (const state of pairedStates) await expect(guard(state.original, ask, true)).rejects.toThrow(words.polishUnchecked);
+    expect(ask).toHaveBeenCalledTimes(2);
+    if (failure !== 'transport') {
+      const result = JSON.parse(String(log.mock.calls[3][0]).replace('Ownvoice J2 diagnostic ', ''));
+      expect(result.answers[0]).toMatchObject({ answer: null, abstained: true });
+    }
   } finally {
     if (prior === undefined) delete process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
     else process.env.EXPO_PUBLIC_J2_DIAGNOSTICS = prior;
