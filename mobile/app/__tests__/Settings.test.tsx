@@ -660,10 +660,10 @@ test('a failed import keeps its preview available to retry', async () => {
 });
 
 test('an import preview reads in plain words, both skipped counts', () => {
-  expect(foundLines({ never: ['delve'], noDashes: true, statementEndings: false, skipped: 0 }))
+  expect(foundLines({ never: ['delve'], noDashes: true, statementEndings: false, samples: [], skipped: 0 }))
     .toBe('Found in the file:\nNever say (1): “delve”\nRule: No long dashes (—)\nNothing else in the file is kept. Add these to Your voice?');
-  expect(foundLines({ never: [], noDashes: false, statementEndings: true, skipped: 1 })).toContain(SKIP_ONE);
-  expect(foundLines({ never: [], noDashes: false, statementEndings: true, skipped: 3 })).toContain('Left out 3 notes that read as advice, not phrases.');
+  expect(foundLines({ never: [], noDashes: false, statementEndings: true, samples: [], skipped: 1 })).toContain(SKIP_ONE);
+  expect(foundLines({ never: [], noDashes: false, statementEndings: true, samples: [], skipped: 3 })).toContain('Left out 3 notes that read as advice, not phrases.');
 });
 const SKIP_ONE = 'Left out 1 note that reads as advice, not a phrase.';
 
