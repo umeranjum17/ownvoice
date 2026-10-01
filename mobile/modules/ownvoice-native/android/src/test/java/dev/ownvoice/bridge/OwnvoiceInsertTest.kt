@@ -7,6 +7,7 @@ import android.os.Looper
 import io.github.umeranjum17.byokit.overlay.FieldNode
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
+import java.time.Duration
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -46,7 +47,7 @@ class OwnvoiceInsertTest {
     fun joinWorker() {
       worker.join(3000)
       assertFalse(worker.isAlive)
-      shadowOf(Looper.getMainLooper()).idle()
+      shadowOf(Looper.getMainLooper()).idleFor(Duration.ofSeconds(2))
     }
   }
 
