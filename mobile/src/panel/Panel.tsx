@@ -58,6 +58,8 @@ const openPrefill = (platform: Platform, text: string) => {
 const modeOf = (typed: string, written: string): Mode =>
   typed.trim() ? (Judge.replying(written) ? 'polish' : 'compose') : Judge.replying(written) ? 'reply' : 'empty';
 
+const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id === 'reddit';
+
 /** The pulsing "Checking…" row while the model checks run; still when motion is reduced. */
 function Checking() {
   const t = useTheme();
@@ -175,7 +177,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const rules = voice.current = loadVoice();
     const nextMode = modeOf(value.typed, value.written);
     const platform = platformForApp(value.app, value.nodes);
-    const post = nextMode === 'compose' || (platform.kind === 'feed' && !!platform.label);
+    const post = nextMode === 'compose' || namesPlatform(platform);
     const person = Judge.who(value.written);
     platformOf.current = platform;
     setMode(nextMode);
@@ -302,7 +304,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       try { return await Native.ask(`why-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, prompt, { maxTokens }); } catch { return null; }
     };
     void (async () => {
-      const post = mode === 'compose' || (platformOf.current.kind === 'feed' && !!platformOf.current.label);
+      const post = mode === 'compose' || namesPlatform(platformOf.current);
       const rules = voice.current;
       const conversation = capture?.conversation ?? '';
       // The checks stay on the phone when it can write; otherwise the cover shows the rules row plus noChecks.
@@ -328,11 +330,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const platform = platformOf.current;
   const title = mode == null ? words.writing
-    : mode === 'polish' ? (platform.kind === 'feed' && platform.label ? words.postTitle : words.polishTitle)
+    : mode === 'polish' ? (namesPlatform(platform) ? words.postTitle : words.polishTitle)
     : mode === 'compose' ? words.postTitle
     : mode === 'reply' ? (who ? `Reply to ${who}` : words.replyTitle)
     : words.nothingYet;
-  const placeTitle = platform.label && mode !== 'empty' && mode != null ? `${title} · ${platform.label}` : title;
+  const placeTitle = namesPlatform(platform) && mode !== 'empty' && mode != null ? `${title} · ${platform.label}` : title;
 
   const hasField = !!capture?.hasField;
   const mainNote = phase === 'failed' || phase === 'loading' ? note
