@@ -13,6 +13,15 @@ test('importsNothingFromOtherSections',()=>{const f=Voice.parse('# Me\n## Dictio
 test('readsBoldHeadingsAndZeroEmDashes',()=>{const f=Voice.parse('**Never say:**\n* per my last email\n\nZero em-dashes, ever.');expect(f.never).toEqual(['per my last email']);expect(f.noDashes).toBe(true);});
 test('importsDashRuleWithoutApostrophe',()=>{const rules=Voice.parse('Dont use em dashes');expect(rules.noDashes).toBe(true);expect(Voice.guide({...Slop.NO_RULES,noDashes:rules.noDashes},true)).toContain('No em dashes.');});
 test('mergeAddsWithoutDuplicatesOrSwitchingOff',()=>{const r=Voice.merge({never:['Synergy'],noDashes:false,statementEndings:true,note:'blunt'},Voice.parse(fixture));expect(r.never).toEqual(['Synergy','circle the wagons','low-hanging fruit','Hand on heart','wheelhouse']);expect(r.noDashes&&r.statementEndings).toBe(true);expect(r.note).toBe('blunt');});
+test('mobileImportsKeepOnlyLegacyRulesAndDoNotMergeReplySamples',()=>{
+ const found=Voice.parse('## Never say\n- synergy\n## How I reply\n- private reply\nunsupported prose\n## Never-say\n- circle back');
+ expect(found).toEqual({never:['synergy','circle back'],noDashes:false,statementEndings:false,skipped:0});
+ const base={never:['Synergy'],noDashes:false,statementEndings:true,note:'blunt'};
+ expect(Voice.merge(base,found)).toEqual({...base,never:['Synergy','circle back']});
+ const withSamples={...base,samples:['already stored']};
+ expect(Voice.merge(withSamples,{...found,samples:['unpreviewed reply']} as typeof found)).toEqual({...withSamples,never:['Synergy','circle back']});
+ expect(Voice.parse('**How I reply:**\n- No em dashes.\n- end on a statement')).toEqual({never:[],noDashes:true,statementEndings:true,skipped:0});
+});
 test('matchesNeverSayPhrases',()=>{expect(marked('Time to Circle  the\nwagons, team.')).toEqual(['Circle  the\nwagons']);expect(marked('Grab the low-hanging fruit first.')).toEqual(['low-hanging fruit']);expect(marked('Don’t worry about it.')).toEqual(['Don’t worry']);expect(marked('The AI wrote it.')).toEqual(['AI']);expect(marked('She said it again. Maintain the pace.')).toEqual([]);expect(marked('We circled the wagons.')).toEqual([]);});
 test('reasonSaysNeverSayList',()=>{expect(Slop.hits('low-hanging fruit',voice)[0].reason).toBe('on your never-say list');});
 test('endingQuestionOnlyInPosts',()=>{expect(marked('Shipped it. Who else ships on Fridays?',true)).toEqual(['Who else ships on Fridays?']);expect(marked('Shipped it. Who else ships on Fridays?')).toEqual([]);expect(marked('Shipped it on a Friday.',true)).toEqual([]);});

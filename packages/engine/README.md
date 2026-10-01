@@ -156,7 +156,13 @@ remain unchanged (531–691 UTF-16 units across the six protocol platforms).
 Phone polish already consumes the guide through `Judge.rewrite` and
 `lineRetryPrompt`. The mobile `src/core/voice.ts` wrapper deliberately clears
 samples before calling the engine guide, preserving the old no-sample guide
-for all existing mobile callers until budget-aware writer/fit integration.
+for all existing mobile callers until budget-aware writer/fit integration. Its
+parse/merge also retain legacy mobile behavior: only never-say phrases and
+dash/ending rules are previewed and imported, with no reply sample field in the
+parse result and no imported samples merged into saved rules. Both file-picker
+and shared-file imports use this boundary. Existing stored fields are preserved
+by merge. Mobile rule detection still scans the whole markdown; it does not use
+the engine's sample-section exclusion or sample validation limits.
 The engine's `Voice.guide`, `Voice.selectedGuide` and protocol still support
 explicit samples. Mobile callers must measure all other phone instructions and
 separator cost, subtract them from 700, then pass the remainder to
