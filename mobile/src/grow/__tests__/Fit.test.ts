@@ -84,6 +84,38 @@ test('X applies separate one-level drops for hashtags and trailing thoughts; Red
   expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, ask })).map(f => f.level)).toEqual([3, 3, 3]);
 });
 
+test('punctuation-separated hashtags lower X levels, labels and rank using engine boundaries', async () => {
+  const candidates = ['A useful point #build,#ship', 'A useful point (#build)/#ship. Thoughts?', 'A useful point #build', 'A useful point word#build ##ship'];
+  const ask = async () => JSON.stringify(Object.fromEntries(candidates.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }])));
+  const fits = await judgeFit({ post: POST, candidates, platform: X, voice, ask });
+  expect(fits.map(f => f.level)).toEqual([2, 1, 3, 3]);
+  expect(fits.map(f => f.words)).toEqual([LEVELS[2], LEVELS[1], LEVELS[3], LEVELS[3]]);
+  expect(rank(fits)).toEqual([2, 3, 0, 1]);
+  expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, ask })).map(f => f.level)).toEqual([3, 3, 3, 3]);
+});
+
+test('reply questions stay eligible under statement endings while hard flags stay omitted', async () => {
+  const candidates = ['Does it pause for PDFs?', 'Try offline files, e.g. PDFs.', 'A — B', 'A – B', 'A -- B', 'Game changer!', 'example.com', 'a'.repeat(281)];
+  const rules = { ...voice, noDashes: false, statementEndings: true };
+  for (const platform of [X, REDDIT]) {
+    const ask = jest.fn(async (_prompt: string) => JSON.stringify({ fit_0: { 0: 0, 1: 0, 2: 0, 3: 1 }, fit_1: { 0: 0, 1: 0, 2: 1, 3: 0 } }));
+    const fits = await judgeFit({ post: POST, candidates, platform, voice: rules, ask });
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(ask.mock.calls[0][0]).toContain(candidates[0]);
+    expect(ask.mock.calls[0][0]).toContain(candidates[1]);
+    const flagged = platform === X ? [2, 3, 4, 5, 6, 7] : [2, 3, 4, 5, 6];
+    for (const i of flagged) {
+      expect(ask.mock.calls[0][0]).not.toContain(candidates[i]);
+      expect(ask.mock.calls[0][0]).not.toContain(`fit_${i}`);
+      expect(fits[i]).toMatchObject({ level: 0, words: LEVELS[0], best: 0 });
+      expect(fits[i].flags.length).toBeGreaterThan(0);
+    }
+    expect(fits.slice(0, 2).map(f => f.flags)).toEqual([[], []]);
+    expect(fits.slice(0, 2).map(f => f.words)).toEqual([LEVELS[3], LEVELS[2]]);
+    expect(rank(fits)).toEqual(platform === X ? [0, 1, 2, 3, 4, 5, 6, 7] : [0, 1, 7, 2, 3, 4, 5, 6]);
+  }
+});
+
 test('X drops a level for common trailing asks only when they end the reply', async () => {
   const asks = ['What do you think of this?', 'Thoughts on this?', 'Any thoughts?', 'Agree?', 'What about you?'];
   const candidates = [...asks.map(ask => `A useful point. ${ask}`), 'A useful point. What do you think of this? More context follows.', 'A useful point. Thoughts on this? Does it pause for PDFs?'];
