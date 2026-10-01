@@ -78,7 +78,7 @@ class RewriteActivity : ReactActivity() {
       setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text))
       Log.i(OwnvoiceService.TAG, "rewrite returned sha=${sha(text)}")
     } else {
-      Toast.makeText(this, "Copied.", Toast.LENGTH_SHORT).show()
+      Toast.makeText(this, "Copied, paste it in", Toast.LENGTH_LONG).show()
       Log.i(OwnvoiceService.TAG, "rewrite copied sha=${sha(text)}")
     }
     finish()
