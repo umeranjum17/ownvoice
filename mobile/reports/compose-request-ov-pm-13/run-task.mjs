@@ -17,11 +17,6 @@ adb('logcat','-c');
 adb('shell','am','start','-a','android.intent.action.VIEW','-d',`'ownvoice://agent?mode=${mode}&taskId=${taskId}'`);
 await sleep(2800);
 snap('empty');
-if(taskId==='0'){
- adb('shell','input','tap','540','550');await sleep(400);
- adb('shell','input','text','Check%sthe%sdraft%sHello%sUmer.%swith%scheck_voice.%sDo%snot%sshare%sit.');
- adb('shell','input','keyevent','KEYCODE_BACK');await sleep(400);
-}
 const recording=spawn('adb',['-s',serial,'shell','screenrecord','--bit-rate','2000000','--time-limit','120',`/sdcard/a5-${mode}-${taskId}.mp4`],{stdio:['ignore','ignore','ignore']});
 await sleep(300);
 adb('shell','input','tap','540','2200');
