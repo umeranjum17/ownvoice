@@ -22,9 +22,15 @@ export function flags(text: string, platform: Platform, voice: Slop.Rules): stri
   const rules = { ...voice, noDashes: true };
   const out = Voice.broken(Slop.hits(text, rules, false), text, rules).map(x => 'Breaks your rules: ' + x);
   if (platform.limit != null && text.length > platform.limit) out.push(`Too long for ${platform.label}`);
-  const plain = text.replace(/[\p{L}\p{N}.!#$%&'*+\/=?^_`{|}~-]+@(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?![\p{L}\p{N}_@-]|\.[\p{L}\p{N}]|[/:?#])/gu, ' ');
   const explicit = /(?:^|[^\p{L}\p{N}_.-])(?:[a-z][a-z\d+.-]*:\/\/|mailto:)|\[[^\]\n]*\]\(\s*[^)\s]+[^)\n]*\)/iu.test(text);
-  if (explicit || /(?:^|[^\p{L}\p{N}_.-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}]|\()(?::\d+)?(?:[/?#][^\s]*)?/iu.test(plain)) out.push('Links can mean fewer views');
+  const email = /^[\p{L}\p{N}.!#$%&'*+\/=?^_`{|}~-]+@(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}$/u;
+  const bare = /(?:^|[^\p{L}\p{N}_.-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}]|\()(?::\d+)?([/?#][^\s]*)?/iu;
+  const linked = (text.match(/[^\s,;]+/gu) ?? []).some(part => {
+    const token = part.replace(/^[([{<"'“‘]+|[)\]}>.,!?;:"'”’]+$/gu, '');
+    const match = bare.exec(token);
+    return match != null && (!email.test(token) || (match[1] != null && token.indexOf(match[1]) < token.indexOf('@')));
+  });
+  if (explicit || linked) out.push('Links can mean fewer views');
   return out;
 }
 

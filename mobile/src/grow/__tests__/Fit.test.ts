@@ -90,6 +90,10 @@ test('dotted API calls and email hostnames reach judging on X and Reddit while l
     'Email first.last+tag@www.sub.sample.org.',
     'Email first.last%tag@sub.sample.org.',
     'Email first.last+tag@sample.org, then me@www.sample.org.',
+    'Can you email first.last+tag@sample.org?',
+    'Email first.last+tag@www.sub.sample.org!',
+    'Email (first.last+tag@sample.org).',
+    'Email first.last+tag@sample.org,me@www.sample.org.',
   ];
   const links = [
     'https://example.com', 'www.example.com', 'example.com', 'sub.example.co.uk/path',
@@ -99,6 +103,11 @@ test('dotted API calls and email hostnames reach judging on X and Reddit while l
     'https://first.last+tag@sample.org', 'https://me@www.sample.org/path',
     'mailto:first.last+tag@sample.org', '[contact](first.last+tag@sample.org)',
     '[contact](mailto:me@www.sample.org)', 'me@sample.org/path',
+    'www.example.com/users/me@sample.org', 'example.com/?email=me@sample.org',
+    'sub.example.co.uk/users/first.last+tag@www.sample.org',
+    'www.example.com?email=first.last+tag@sample.org',
+    'example.com/#contact=first.last+tag@sample.org',
+    'Email first.last+tag@sample.org? See example.com/?email=me@sample.org.',
   ];
   const candidates = [...links, ...eligible];
   for (const platform of [X, REDDIT]) {
