@@ -7,6 +7,7 @@ import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, w
 import { words } from '../core/words';
 import { polishAcceptor, shorterRetryPrompt } from '../core/polish';
 import { PolishConcern, polishGuard } from '../core/polishGuard';
+import { polishDiagnostic } from '../core/polishDiagnostics';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
@@ -97,6 +98,7 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
 
 /** Polish and compose through the C2 rewrite prompt, then the same acceptance rules as the phone. */
 async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> {
+  const trace = polishDiagnostic(request.typed);
   const dashes = request.dashes ?? 'remove' as const;
   const avoid = request.avoid ?? [];
   const note = avoidLine(avoid);
@@ -106,7 +108,9 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     const [answer] = await ask(prompt, 'Reply with the requested decision JSON only.', 'text', 1, on, undefined, expoFetch as typeof fetch, signal);
     return answer;
   }, true);
+  trace?.({ stage: 'generate', phase: 'start' });
   const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', writerVersions.length, on);
+  trace?.({ stage: 'generate' });
   const candidates = raw.map((text, index) => ({ text, slot: index + 1 }));
   if (acceptor.local != null) candidates.unshift({ text: acceptor.local, slot: 0 });
   const qualified = await guard.qualify(candidates);
@@ -122,9 +126,12 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : '');
     let rebuilt: string | null;
     try {
+      trace?.({ stage: 'row-answer', phase: 'start', slot: fail.slot });
       const [rows] = await ask(prompt, 'Output only the rewritten rows as the prompt asks.', 'text', 1, on);
+      trace?.({ stage: 'row-answer', slot: fail.slot, text: rows });
       rebuilt = rebuildLines(request.typed, rows ?? '');
     } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; continue; }
+    trace?.({ stage: 'row-rebuilt', slot: fail.slot, ...(rebuilt == null ? {} : { text: rebuilt }), accepted: rebuilt != null });
     if (rebuilt == null) continue;
     if (!(await guard.qualify([{ text: rebuilt, slot: fail.slot }])).length) continue;
     const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
@@ -132,12 +139,15 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   }
   if (!acceptor.results.length) {
     const prompt = shorterRetryPrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : '');
+    trace?.({ stage: 'shorter-retry', phase: 'start', slot: 1 });
     const [text] = await ask(prompt, 'Output only the rewritten text.', 'text', 1, on);
+    trace?.({ stage: 'shorter-retry', slot: 1, text });
     if ((await guard.qualify([{ text, slot: 1 }])).length) {
       const fixed = acceptor.fix(text, 1, versionsList[1].label);
       if (fixed != null) landed(fixed, 1, versionsList[1].label);
     }
   }
+  trace?.({ stage: 'complete', accepted: acceptor.results.length > 0 });
   return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: false,
     polish: { original: 'readable', revision: acceptor.results.length ? 'checked' : 'none' } };
 }

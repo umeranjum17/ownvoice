@@ -1,7 +1,8 @@
-import { layoutKept, undash, versionAcceptor } from './drafts.ts';
+import { fresh, layoutKept, numbersAndTimesKept, undash, versionAcceptor } from './drafts.ts';
 import { versionPrompt, versionsList } from './judge.ts';
 import { fixedSlips, type Speller } from './typing.ts';
 import { speller } from './speller.ts';
+import { polishDiagnostic } from './polishDiagnostics.ts';
 
 /** One bounded retry for an empty checked set, through the same writer and guard. */
 export function shorterRetryPrompt(original: string, screen: string, guide: string, dashes: 'keep' | 'remove', platform?: Parameters<typeof versionPrompt>[5]) {
@@ -10,11 +11,20 @@ export function shorterRetryPrompt(original: string, screen: string, guide: stri
 }
 
 export async function polishAcceptor(original: string, dashes: 'keep' | 'remove', avoid: string[], spell?: Speller | null) {
+  const trace = polishDiagnostic(original);
   const dictionary = spell === undefined ? await speller().catch(() => null) : spell;
   let acceptor = versionAcceptor(original, dashes, avoid);
   const corrected = fixedSlips(original, dictionary);
   const localText = dashes === 'remove' ? undash(corrected) : corrected;
   const local = localText === original ? null : acceptor.accept(localText, 0, versionsList[0].label);
+  const take = (text: string, slot: number, label: string | undefined, stage: 'accept' | 'fix') => {
+    const clean = (dashes === 'remove' ? undash(text) : text).trim();
+    const checks = trace ? { layout: layoutKept(original, clean), numbersAndTimes: numbersAndTimesKept(original, clean),
+      notExactInput: clean !== original.trim(), fresh: fresh(clean, [...acceptor.results.map(result => result.text), ...avoid]) } : undefined;
+    const accepted = slot === 0 ? null : acceptor[stage](text, slot, label);
+    trace?.({ stage, slot, text: clean, checks, accepted: accepted != null });
+    return accepted;
+  };
   return {
     local,
     get results() { return acceptor.results; },
@@ -29,7 +39,7 @@ export async function polishAcceptor(original: string, dashes: 'keep' | 'remove'
     },
     rejectLocal() { acceptor = versionAcceptor(original, dashes, avoid); },
     get unchanged() { return acceptor.unchanged; },
-    accept(text: string, slot: number, label?: string) { return slot === 0 ? null : acceptor.accept(text, slot, label); },
-    fix(text: string, slot: number, label?: string) { return slot === 0 ? null : acceptor.fix(text, slot, label); },
+    accept(text: string, slot: number, label?: string) { return take(text, slot, label, 'accept'); },
+    fix(text: string, slot: number, label?: string) { return take(text, slot, label, 'fix'); },
   };
 }

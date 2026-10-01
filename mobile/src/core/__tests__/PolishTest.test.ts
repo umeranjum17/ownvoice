@@ -4,8 +4,50 @@ import { polishAcceptor } from '../polish';
 import { polishBasics, polishGuard, PolishConcern } from '../polishGuard';
 import { words } from '../words';
 import { withPhoneFallback } from '../writers';
+import { polishDiagnostic } from '../polishDiagnostics';
 
 const spell = nspell(readFileSync(`${__dirname}/../../../assets/dictionary/en-affixes.aff`, 'utf8'), readFileSync(`${__dirname}/../../../assets/dictionary/en-words.dic`, 'utf8'));
+
+test('task diagnostics stay off and exclude unknown drafts and non-whitelisted kit data', async () => {
+  const original = 'I think I should pack the stove before we leave on Saturday. Umer can bring the tent.';
+  const prior = process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+  const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    delete process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+    expect(polishDiagnostic(original)).toBeUndefined();
+    process.env.EXPO_PUBLIC_J2_DIAGNOSTICS = '1';
+    expect(polishDiagnostic('A personal draft outside the demo corpus.')).toBeUndefined();
+    const trace = polishDiagnostic(original)!;
+    const answer = { answer: true, confidence: 0.95, abstained: false,
+      reason: 'Authorization: Bearer TEST_HEADER_SENTINEL', ms: 12, by: 'chatgpt', source: 'api' as const,
+      raw: { headers: { authorization: 'RAW_SENTINEL' }, engine: { handle: 'HANDLE_SENTINEL' } },
+      usage: { input_tokens: 5 }, config: 'CONFIG_SENTINEL' };
+    trace({ stage: 'decisions', answers: { readable: answer } });
+    expect(log).toHaveBeenCalledTimes(1);
+    const line = String(log.mock.calls[0][0]);
+    const record = JSON.parse(line.replace('Ownvoice J2 diagnostic ', ''));
+    expect(record).toMatchObject({ fixture: '02-modal-pack', stage: 'decisions', phase: 'result', answers: [{
+      question: 'readable', answer: true, confidence: 0.95, abstained: false,
+      reason: '[redacted]', ms: 12, provenance: { by: 'chatgpt', source: 'api' },
+    }] });
+    expect(Object.keys(record.answers[0]).sort()).toEqual(['abstained', 'answer', 'confidence', 'ms', 'provenance', 'question', 'reason']);
+    expect(line).not.toMatch(/SENTINEL|headers|engine|config|usage/);
+    log.mockClear();
+    const ask = jest.fn().mockResolvedValue(JSON.stringify({ readable: { true: 1, false: 0 }, mainLater: { true: 0, false: 1 } }));
+    const guard = await polishGuard(original, ask, true);
+    const bad = { text: 'I will bring the stove Saturday. Umer can bring the tent.', slot: 1 };
+    await expect(guard.qualify([bad])).resolves.toEqual([]);
+    expect(ask).toHaveBeenCalledTimes(1);
+    const records = log.mock.calls.map(call => JSON.parse(String(call[0]).replace('Ownvoice J2 diagnostic ', '')));
+    expect(records.find(item => item.stage === 'candidate')).toMatchObject({ ...bad, accepted: false,
+      checks: expect.arrayContaining([{ check: 'modalsAndPack', passed: false }]),
+    });
+  } finally {
+    if (prior === undefined) delete process.env.EXPO_PUBLIC_J2_DIAGNOSTICS;
+    else process.env.EXPO_PUBLIC_J2_DIAGNOSTICS = prior;
+    log.mockRestore();
+  }
+});
 
 test.each(['accept', 'fix'] as const)('polish %s ignores writer cleanup and shows only local fixes', async method => {
   for (const [typed, answer, expected] of [
@@ -81,6 +123,8 @@ test('polish qualification rejects misleading labels and meaning changes before 
     { text: 'The heater has been broken since Monday. Please fix it as soon as possible.', slot: 2 },
   ])).resolves.toEqual([shorter]);
   expect(ask).toHaveBeenCalledTimes(2);
+  expect(ask.mock.calls[1][0]).toContain('read naturally in the writer');
+  expect(ask.mock.calls[1][0]).toContain('A greeting stranded after a request is awkward flow');
   const modalAsk = jest.fn().mockResolvedValue(JSON.stringify({ readable: { true: 1, false: 0 }, mainLater: { true: 0, false: 1 } }));
   const modal = await polishGuard('I should pack the stove.', modalAsk, false);
   await expect(modal.qualify([{ text: 'Yes, I will bring the stove..', slot: 1 }])).resolves.toEqual([]);
