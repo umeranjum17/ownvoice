@@ -38,8 +38,9 @@ const titleOf = (draft: string): string =>
 /**
  * The fixed phone-agent script as a Brain behind the same seam as the loop brains, so the
  * experiment can compare loop vs script fairly: draft, check_voice, revise with the problems,
- * check_voice, then the share card; at most maxRevises revises. The writer only writes text;
- * code calls the tools. Stateless: everything it needs is in the items it is given.
+ * check_voice, then the share card; at most maxRevises revises. The writer is asked for a
+ * note envelope (see mobile/README.md, How Ownvoice writes); code calls the tools.
+ * Stateless: everything it needs is in the items it is given.
  */
 export function scriptBrain(write: (prompt: string) => Promise<string>, o: { maxRevises?: number } = {}): Brain {
   const maxRevises = o.maxRevises ?? 2;

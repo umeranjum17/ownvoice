@@ -25,7 +25,7 @@ These are the actual final draft/share bodies, not the loop's separate conversat
 
 ## What changed
 
-The compose instructions now require the requested tone changes to be applied before the final note, preserve facts, omit unknown names/signatures, and keep tool/capability explanations outside the note. The script's text-writing call asks for one JSON object containing a `note` string. Parsing converts only that complete single-field envelope (optionally inside a JSON fence); plaintext, literal brackets/stars, unrelated fences, additional fields and invalid envelopes remain untouched. Decoded text is used consistently for checking, display and approved sharing. A flow regression proves this continuity and punctuation preservation.
+The compose instructions and script output format changed; their contract is documented in [How Ownvoice writes](../../README.md#how-ownvoice-writes). The [PhoneScript flow regression](../../src/agent/__tests__/PhoneScript.test.ts) covers decoded-text continuity through checking, display and sharing, plus punctuation preservation.
 
 No shipping screen, layout, style, writer integration or feature flag changed. Existing lab gating is preserved. The scratch adapter is retained as [live-adapter.patch](live-adapter.patch) for reproducibility; it was restored before building the unflagged candidate and is absent from the shipping diff.
 
