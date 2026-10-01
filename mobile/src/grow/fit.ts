@@ -20,7 +20,7 @@ export type Ask = (prompt: string, signal: AbortSignal) => Promise<string>;
 export function flags(text: string, platform: Platform, voice: Slop.Rules): string[] {
   const out = Voice.broken(Slop.hits(text, voice, true), text, voice).map(x => 'Breaks your rules: ' + x);
   if (platform.limit != null && text.length > platform.limit) out.push(`Too long for ${platform.label}`);
-  if (/https?:\/\/|www\./i.test(text)) out.push('Links can mean fewer views');
+  if (/https?:\/\/|www\./i.test(text) || /(?:^|[^\p{L}\p{N}_@-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?::\d+)?(?:[/?#][^\s]*)?/iu.test(text)) out.push('Links can mean fewer views');
   return out;
 }
 
@@ -43,7 +43,7 @@ export async function judgeFit(o: { post: string; candidates: string[]; platform
     if (hard[i].length) return { level: 0, words: LEVELS[0], best: 0, flags: hard[i] };
     const f = a[`fit_${i}`];
     const rated = f && !f.abstained ? Number(f.answer) : null;
-    const drops = o.platform.id === 'x' ? Number((o.candidates[i].match(/(?:^|\s)#[\p{L}\p{N}_]+/gu) ?? []).length >= 2) + Number(/\b(?:thoughts|what do you think)\s*\?\s*$/i.test(o.candidates[i])) : 0;
+    const drops = o.platform.id === 'x' ? Number((o.candidates[i].match(/(?:^|\s)#[\p{L}\p{N}_]+/gu) ?? []).length >= 2) + Number(/\b(?:thoughts(?:\s+on\s+.+)?|any\s+thoughts(?:\s+on\s+.+)?|what\s+do\s+you\s+think(?:\s+of\s+.+)?|agree|what\s+about\s+you)\s*\?\s*$/i.test(o.candidates[i])) : 0;
     const level = rated == null ? null : Math.max(0, rated - drops);
     return { level, words: level == null ? UNSURE : LEVELS[level], best: best[String(i)] ?? 0, flags: [] };
   });
