@@ -14,7 +14,7 @@ import * as D from 'ownvoice-engine/src/drafts.ts';
 import * as T from 'ownvoice-engine/src/threads.ts';
 
 import nspell from 'nspell';
-import { polishAcceptor } from '../src/core/polish.ts';
+import { polishAcceptor, shorterRetryPrompt } from '../src/core/polish.ts';
 import { polishGuard } from '../src/core/polishGuard.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
@@ -73,12 +73,17 @@ async function polish(c: any, calls: Call[]) {
   if (!qualified.some(candidate => candidate.slot === 0)) acceptor.rejectLocal();
   for (const candidate of qualified) if (candidate.slot !== 0) acceptor.accept(candidate.text, candidate.slot, J.versionsList[candidate.slot].label);
   const rescued: number[] = [];
-  for (const fail of acceptor.layoutFails) {
+  for (const fail of acceptor.layoutRetries(candidates)) {
     const prompt = J.lineRetryPrompt(c.typed, c.screen, J.versionsList[fail.slot], c.guide ?? '', dashes);
     const rebuilt = D.rebuildLines(c.typed, await call(prompt, 256, calls));
     if (rebuilt == null || !(await guard.qualify([{ text: rebuilt, slot: fail.slot }])).length) continue;
     const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
     if (fixed != null) rescued.push(fail.slot);
+  }
+  if (!acceptor.results.length) {
+    const text = await call(shorterRetryPrompt(c.typed, c.screen, c.guide ?? '', dashes), 256, calls);
+    raw.TIGHTER_RETRY = text;
+    if ((await guard.qualify([{ text, slot: 1 }])).length) acceptor.fix(text, 1, J.versionsList[1].label);
   }
   return { raw, shown: acceptor.results.sort((a: any, b: any) => a.slot - b.slot), rescued };
 }

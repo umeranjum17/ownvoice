@@ -315,8 +315,9 @@ test('reply mode sends the C2 reply prompt; polish sends the rewrite prompt', as
     }) as unknown as typeof fetch;
     const polish = await chatgptWriter.write({ conversation: 'chat on screen', written: 'chat on screen', typed: 'i can bring the stove' });
     expect(polish).toEqual({ drafts: [], unchanged: false, polish: { original: 'readable', revision: 'none' } });
-    expect(bodies.at(-1)).toContain('Return the requested rewrite versions as JSON.');
-    expect(bodies.at(-1)).toContain('Return 2 versions');
+    expect(bodies.some(value => value.includes('Return the requested rewrite versions as JSON.') && value.includes('Return 2 versions'))).toBe(true);
+    expect(bodies.at(-1)).toContain('Return one version');
+    expect(bodies.at(-1)).toContain('The previous set had no qualifying revision.');
     expect(bodies.at(-1)).not.toContain('Light touch:');
     expect(bodies.at(-1)).toContain('Their text:\ni can bring the stove');
     expect(bodies.at(-1)).toContain('Screen (context only):\nchat on screen');
@@ -423,8 +424,8 @@ test.each(retryCases)('incomplete slot retries never land partial output', async
   ) }));
   const landed = jest.fn();
   try {
-    const result = await chatgptWriter.write(request, { landed });
-    expect(result.drafts).toEqual(request.typed ? [] : ['No thanks']);
+    if (request.typed) await expect(chatgptWriter.write(request, { landed })).rejects.toThrow(words.chatgptFailed);
+    else expect((await chatgptWriter.write(request, { landed })).drafts).toEqual(['No thanks']);
     expect(landed).toHaveBeenCalledTimes(request.typed ? 0 : 1);
     expect(accounts.failed).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
@@ -520,11 +521,14 @@ test.each([
 test.each(['Its own engine', 'Bring woud for the fire.', 'We should visit Bora Bora.', "Give Ben Ben's keys.", 'Hey @will will you join us?'])('ChatGPT cleanup preserves %s', async typed => {
   const originalFetch = global.fetch;
   const landed = jest.fn();
-  global.fetch = fetcher(body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: [typed, typed] }) })}\n\n${event({ type: 'response.completed' })}`));
+  const response = (text: string) => ({ ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: text })}\n\n${event({ type: 'response.completed' })}`) });
+  global.fetch = jest.fn().mockResolvedValueOnce(response(JSON.stringify({ versions: [typed, typed] })))
+    .mockImplementation(async () => response(typed));
   try {
     const result = await chatgptWriter.write({ typed, conversation: '', written: '' }, { landed });
     expect(result).toEqual({ drafts: [], unchanged: false, polish: { original: 'readable', revision: 'none' } });
     expect(landed).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   } finally { global.fetch = originalFetch; }
 });
 

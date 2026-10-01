@@ -2,7 +2,7 @@ import Native, { type ModelStatus } from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
-import { polishAcceptor } from '../core/polish';
+import { polishAcceptor, shorterRetryPrompt } from '../core/polish';
 import { PolishConcern, polishGuard } from '../core/polishGuard';
 import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
@@ -48,7 +48,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   });
   // A flattened list goes back row by row; the rebuild keeps the original markers, so the
   // layout is kept by construction - only a missing row or a changed number/time drops it.
-  for (const fail of acceptor.layoutFails) {
+  for (const fail of acceptor.layoutRetries(candidates)) {
     const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : '');
     let rebuilt: string | null;
     try {
@@ -58,6 +58,13 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     if (!(await guard.qualify([{ text: rebuilt, slot: fail.slot }])).length) continue;
     const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
     if (fixed != null) landed(fixed, fail.slot, fail.label);
+  }
+  if (!acceptor.results.length) {
+    const text = await engine.ask(shorterRetryPrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform), 256);
+    if ((await guard.qualify([{ text, slot: 1 }])).length) {
+      const fixed = acceptor.fix(text, 1, versionsList[1].label);
+      if (fixed != null) landed(fixed, 1, versionsList[1].label);
+    }
   }
   return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: false,
     polish: { original: 'readable', revision: acceptor.results.length ? 'checked' : 'none' } };

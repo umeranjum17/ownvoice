@@ -5,7 +5,7 @@ import { withResponseFetch } from './responseFetch';
 import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, writerVersions, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
-import { polishAcceptor } from '../core/polish';
+import { polishAcceptor, shorterRetryPrompt } from '../core/polish';
 import { PolishConcern, polishGuard } from '../core/polishGuard';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 
@@ -117,7 +117,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     const clean = acceptor.accept(text, slot, versionsList[slot].label);
     if (clean != null) landed(clean, slot, versionsList[slot].label);
   });
-  for (const fail of acceptor.layoutFails) {
+  for (const fail of acceptor.layoutRetries(candidates)) {
     // The rescue answer is plain Row lines, not the versions JSON: read it as text, then rebuild.
     const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : '');
     let rebuilt: string | null;
@@ -129,6 +129,14 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     if (!(await guard.qualify([{ text: rebuilt, slot: fail.slot }])).length) continue;
     const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
     if (fixed != null) landed(fixed, fail.slot, fail.label);
+  }
+  if (!acceptor.results.length) {
+    const prompt = shorterRetryPrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : '');
+    const [text] = await ask(prompt, 'Output only the rewritten text.', 'text', 1, on);
+    if ((await guard.qualify([{ text, slot: 1 }])).length) {
+      const fixed = acceptor.fix(text, 1, versionsList[1].label);
+      if (fixed != null) landed(fixed, 1, versionsList[1].label);
+    }
   }
   return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: false,
     polish: { original: 'readable', revision: acceptor.results.length ? 'checked' : 'none' } };

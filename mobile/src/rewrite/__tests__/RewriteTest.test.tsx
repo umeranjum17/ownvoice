@@ -66,7 +66,7 @@ test('Copy returns the chosen version and copies it (R4)', async () => {
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain('Sounds natural'));
-  expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-/), expect.stringContaining('Rewrite the text below. Make it shorter and tighter. Cut filler, keep every point.'), { maxTokens: 256 });
+  expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-/), expect.stringContaining('Rewrite the text below. Use strictly fewer words, not just shorter spellings.'), { maxTokens: 256 });
   expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-check-/), expect.stringContaining('Compare a rewrite with its original.'), { maxTokens: 80 });
   const shown = visibleStrings(screen);
   expect(shown).toContain('Same meaning as yours');

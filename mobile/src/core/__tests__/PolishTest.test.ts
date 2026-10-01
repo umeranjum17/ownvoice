@@ -1,7 +1,7 @@
 import { readFileSync } from 'fs';
 import nspell from 'nspell';
 import { polishAcceptor } from '../polish';
-import { polishGuard, PolishConcern } from '../polishGuard';
+import { polishBasics, polishGuard, PolishConcern } from '../polishGuard';
 import { words } from '../words';
 import { withPhoneFallback } from '../writers';
 
@@ -68,7 +68,7 @@ test.each(['accept', 'fix'] as const)('unchanged requires writer evidence throug
 
 test('polish qualification rejects misleading labels and meaning changes before acceptance, and never falls back for garbled input', async () => {
   const original = 'Hi, the heater has been broken since Monday. Please fix it soon.';
-  const ask = jest.fn().mockResolvedValueOnce(JSON.stringify({ readable: { true: 1, false: 0 } }))
+  const ask = jest.fn().mockResolvedValueOnce(JSON.stringify({ readable: { true: 1, false: 0 }, mainLater: { true: 1, false: 0 } }))
     .mockResolvedValueOnce(JSON.stringify({
       meaning0: { true: 1, false: 0 }, label0: { true: 1, false: 0 },
       meaning1: { true: 1, false: 0 }, label1: { true: 0, false: 1 },
@@ -81,18 +81,28 @@ test('polish qualification rejects misleading labels and meaning changes before 
     { text: 'The heater has been broken since Monday. Please fix it as soon as possible.', slot: 2 },
   ])).resolves.toEqual([shorter]);
   expect(ask).toHaveBeenCalledTimes(2);
-  const modalAsk = jest.fn().mockResolvedValue(JSON.stringify({ readable: { true: 1, false: 0 } }));
+  const modalAsk = jest.fn().mockResolvedValue(JSON.stringify({ readable: { true: 1, false: 0 }, mainLater: { true: 0, false: 1 } }));
   const modal = await polishGuard('I should pack the stove.', modalAsk, false);
   await expect(modal.qualify([{ text: 'Yes, I will bring the stove..', slot: 1 }])).resolves.toEqual([]);
   expect(modalAsk).toHaveBeenCalledTimes(1);
   const spelling = await polishAcceptor('I shoud autosave locally', 'keep', [], spell);
-  const rejectsSubstitution = jest.fn().mockResolvedValueOnce(JSON.stringify({ readable: { true: 1, false: 0 } }))
+  const rejectsSubstitution = jest.fn().mockResolvedValueOnce(JSON.stringify({ readable: { true: 1, false: 0 }, mainLater: { true: 0, false: 1 } }))
     .mockResolvedValueOnce(JSON.stringify({ meaning0: { true: 0, false: 1 }, label0: { true: 0, false: 1 } }));
   const localGuard = await polishGuard('I shoud autosave locally', rejectsSubstitution, true);
   expect(spelling.local).not.toBeNull();
   await expect(localGuard.qualify([{ text: 'I should autoclave locally', slot: 0 }])).resolves.toEqual([]);
   spelling.rejectLocal();
   expect(spelling.results).toEqual([]);
+  const alreadyLeading = await polishGuard('I think I should pack the stove before we leave on Saturday. Umer can bring the tent.', modalAsk, true);
+  await expect(alreadyLeading.qualify([{ text: 'Umer can bring the tent. I think I should pack the stove before we leave on Saturday.', slot: 2 }])).resolves.toEqual([]);
+  const promise = 'Just wanted to let you know that I will send Umer the revised plan by Friday, but I cannot promise the final price yet.';
+  expect(polishBasics(promise, { text: "I'll send Umer the revised plan by Friday, but I can't promise the final price yet.", slot: 1 })).toBe(true);
+  expect(polishBasics(promise, { text: "I'll send Umer the revised plan by Friday, but I can promise the final price yet.", slot: 1 })).toBe(false);
+  expect(polishBasics('Umer said he would pack the stove, while I should check the tent before we leave.', { text: "Umer said he'd pack the stove; I should check the tent before we leave.", slot: 1 })).toBe(true);
+  expect(polishBasics('Yes, I should pack the stove..', { text: 'Yes, Yes, I should pack the stove...', slot: 0 })).toBe(false);
+  const list = await polishAcceptor('Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', 'keep', [], spell);
+  expect(list.layoutRetries([{ text: 'Bring the tent; pack the stove; meet Saturday at noon.', slot: 1 }])).toEqual([{ slot: 1, label: 'Shorter' }]);
+  expect(list.results).toEqual([]);
   const incoherent = jest.fn().mockResolvedValue(JSON.stringify({ readable: { true: 0, false: 1 } }));
   const fallback = { write: jest.fn() };
   await expect(withPhoneFallback({ write: async () => {

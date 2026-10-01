@@ -83,7 +83,7 @@ test('ChatGPT chosen rewrites in one call while the phone still checks the meani
   await waitFor(() => expect(visibleStrings(screen)).toContain('Move the call to Tuesday.'));
   const fetch = (global as unknown as { fetch: jest.Mock }).fetch;
   expect(fetch).toHaveBeenCalledWith('https://chatgpt.com/backend-api/codex/responses', expect.objectContaining({ method: 'POST' }));
-  expect(String(fetch.mock.calls[0][1].body)).toContain('Rewrite the text below. Make it shorter and tighter.');
+  expect(String(fetch.mock.calls[0][1].body)).toContain('Rewrite the text below. Use strictly fewer words, not just shorter spellings.');
   expect(String(fetch.mock.calls[0][1].body)).not.toContain('json_object');
   expect(session.current).toHaveBeenCalled();
   // The phone did only the meaning check, never the rewrite itself.
