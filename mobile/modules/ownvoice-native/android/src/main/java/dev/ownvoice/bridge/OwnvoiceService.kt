@@ -439,9 +439,20 @@ class OwnvoiceService : AccessibilityService() {
       val result = FocusedFields.insert(node, text, "all",
         InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = false), Thread::sleep, ::copyDraft,
         cancellation = cancellation, service = this)
-      main.post { finishInsert(cancellation, reading, text, result, done) }
+      main.post { confirmInsert(cancellation, reading, text, result, done) }
     }
   }
+  /** Closing the panel restores focus asynchronously. Retry the read, never the write,
+   * so a confirmation cannot race the activity transition or write to a new field. */
+  private fun confirmInsert(cancellation: InsertCancellation, reading: Capture?, text: String, result: String, done: (Boolean, Boolean) -> Unit, remaining: Int = 13) {
+    if (insertCancellation !== cancellation) return
+    if (result != "inserted") return finishInsert(cancellation, reading, text, result, done)
+    if (capture !== reading) return finishInsert(cancellation, reading, text, "cancelled", done)
+    if (verifyInsert(reading, text)) return finishInsert(cancellation, reading, text, "verified", done)
+    if (remaining <= 1) return finishInsert(cancellation, reading, text, "failed", done)
+    main.postDelayed({ confirmInsert(cancellation, reading, text, result, done, remaining - 1) }, 150)
+  }
+
   /** The insert's fallback: the draft on the clipboard for the person to paste. True when it stuck. */
   private fun copyDraft(text: String): Boolean = runCatching {
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
@@ -450,7 +461,7 @@ class OwnvoiceService : AccessibilityService() {
   private fun finishInsert(cancellation: InsertCancellation, reading: Capture?, text: String, result: String, done: (Boolean, Boolean) -> Unit) {
     if (insertCancellation !== cancellation) return
     val cancelled = result == "cancelled" || capture !== reading
-    val ok = !cancelled && result == "inserted" && verifyInsert(reading, text)
+    val ok = !cancelled && result == "verified"
     val newlinesLost = false
     val practice = ok && reading?.app == packageName && reading?.input?.contentDescription?.toString() == "Practice message"
     insertCancellation = null
