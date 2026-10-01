@@ -86,25 +86,37 @@ test('dotted API calls and email hostnames reach judging on X and Reddit while l
     'Email me@deep.sub.sample.org.',
     'Email first.last@sample.org.',
     'Email me@www.sample.org.',
+    'Email first.last+tag@sample.org.',
+    'Email first.last+tag@www.sub.sample.org.',
+    'Email first.last%tag@sub.sample.org.',
+    'Email first.last+tag@sample.org, then me@www.sample.org.',
   ];
-  const links = ['https://example.com', 'www.example.com', 'example.com', 'sub.example.co.uk/path', '[site](example.com)', 'example.com (more details)', 'Visit example.com.', 'HTTP://example.com', '[site](www.example.com)', 'www.sub.example.com/path', 'Email first.last@sample.org; see example.com.'];
-  const candidates = [...eligible, ...links];
+  const links = [
+    'https://example.com', 'www.example.com', 'example.com', 'sub.example.co.uk/path',
+    '[site](example.com)', 'example.com (more details)', 'Visit example.com.', 'HTTP://example.com',
+    '[site](www.example.com)', 'www.sub.example.com/path', 'Email first.last@sample.org; see example.com.',
+    'Email first.last+tag@sample.org; see sub.example.com/path.',
+    'https://first.last+tag@sample.org', 'https://me@www.sample.org/path',
+    'mailto:first.last+tag@sample.org', '[contact](first.last+tag@sample.org)',
+    '[contact](mailto:me@www.sample.org)', 'me@sample.org/path',
+  ];
+  const candidates = [...links, ...eligible];
   for (const platform of [X, REDDIT]) {
-    const ask = jest.fn(async (_prompt: string) => JSON.stringify(Object.fromEntries(eligible.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }]))));
+    const ask = jest.fn(async (_prompt: string) => JSON.stringify(Object.fromEntries(eligible.map((_, i) => [`fit_${links.length + i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }]))));
     const fits = await judgeFit({ post: POST, candidates, platform, voice, ask });
     expect(ask).toHaveBeenCalledTimes(1);
     const prompt = ask.mock.calls[0][0];
     eligible.forEach((candidate, i) => {
       expect(prompt).toContain(candidate);
-      expect(prompt).toContain(`fit_${i}`);
-      expect(fits[i]).toEqual({ level: 3, words: LEVELS[3], best: 0, flags: [] });
+      expect(prompt).toContain(`fit_${links.length + i}`);
+      expect(fits[links.length + i]).toEqual({ level: 3, words: LEVELS[3], best: 0, flags: [] });
     });
     links.forEach((candidate, i) => {
       expect(prompt).not.toContain(candidate);
-      expect(prompt).not.toContain(`fit_${eligible.length + i}`);
-      expect(fits[eligible.length + i]).toEqual({ level: 0, words: LEVELS[0], best: 0, flags: ['Links can mean fewer views'] });
+      expect(prompt).not.toMatch(new RegExp(`\\bfit_${i}\\b`));
+      expect(fits[i]).toEqual({ level: 0, words: LEVELS[0], best: 0, flags: ['Links can mean fewer views'] });
     });
-    expect(rank(fits)).toEqual(candidates.map((_, i) => i));
+    expect(rank(fits)).toEqual([...eligible.map((_, i) => links.length + i), ...links.map((_, i) => i)]);
   }
 });
 
