@@ -67,3 +67,27 @@ test('a no to sharing stops the script and nothing is shared', async () => {
   expect(out.stop).toBe('declined');
   expect(shared).toEqual([]);
 });
+
+test('only a verified note envelope is converted before checking, displaying and sharing', async () => {
+  // The brackets and stars here are literal recipient-facing content, not templates.
+  const note = 'Hi Sam, use [ready] and * as the labels at 3.';
+  const write = jest.fn(async () => JSON.stringify({ note }));
+  const check = checkVoice(() => NO_RULES);
+  const run = jest.spyOn(check, 'run');
+  const shared: string[] = [], displayed: string[] = [];
+  const out = await runAgent({ instructions: 'i', task: 'use [ready] and * at 3',
+    brain: scriptBrain(write), tools: [check, shareNote(async (_title, body) => { shared.push(body); return true; })],
+    approve: async () => true, onText: text => displayed.push(text) });
+  expect(run).toHaveBeenCalledWith({ draft: note, original: 'use [ready] and * at 3' });
+  expect(displayed).toEqual([note]);
+  expect(shared).toEqual([note]);
+  expect(out.text).toBe(note);
+
+  const fenced = await scriptBrain(async () => '```json\n' + JSON.stringify({ note }) + '\n```').step('i', [], []);
+  expect(fenced.text).toBe(note);
+
+  for (const literal of [note, '```text\n[ready] *\n```', '{"note":"one","other":"two"}', '{"note":42}']) {
+    const next = await scriptBrain(async () => literal).step('i', [], []);
+    expect(next.text).toBe(literal);
+  }
+});
