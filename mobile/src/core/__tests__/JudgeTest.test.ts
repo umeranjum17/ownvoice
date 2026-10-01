@@ -22,7 +22,7 @@ test('emptyFieldRepliesToAConversation',()=>{expect(Judge.mode('','Sam\nAre we s
 test('emptyFieldWithNothingToReplyToInventsNothing',()=>{expect(Judge.mode('','')).toBe('EMPTY');expect(Judge.mode('','Cancel\nPost\nEveryone can reply\nexample.com')).toBe('EMPTY');});
 test('verdict needs complete evidence and never approves local concerns',()=>{
  const full='GENERIC: 1\nSPECIFICITY: 9\n'+['SPECIFIC','CLEAR','VOICE','FITS','CLAIMS','ANSWERS','NEXT_STEP'].map(k=>`${k}: pass - supported by the chat`).join('\n');
- expect(Judge.verdict(Judge.scoreDraft('Saturday works.',full,true,undefined,false,'Sam'))).toEqual({good:true,lead:'Sounds natural',rest:' and answers Sam'});
+ expect(Judge.verdict(Judge.scoreDraft('Saturday works.',full,true,undefined,false,'Sam'))).toBeNull();
  for(const text of ['Saturday works.','contenteditable multiline draft','purple toaster clouds ate the database backwards banana banana','i can bring the stove, at the end of the day']) {
    expect(Judge.verdict(Judge.scoreDraft(text,null,true))).toBeNull();
    expect(Judge.verdict(Judge.scoreDraft(text,'GENERIC: 1\nSPECIFICITY: 9\nMEANING: pass',true))).toBeNull();
@@ -32,8 +32,9 @@ test('verdict needs complete evidence and never approves local concerns',()=>{
  expect(Judge.verdict(Judge.scoreDraft('i can bring the stove, at the end of the day',full,true))?.good).toBe(false);
  expect(Judge.verdict(Judge.scoreDraft('Saturday works.',full.replace('CLAIMS: pass','CLAIMS: concern'),true))?.lead).toBe('Might make something up');
  const rows=Judge.reasons(Judge.scoreDraft('Saturday works.',null,true),'Saturday works.');
- expect(rows).toHaveLength(4);
- expect(rows.slice(1).every(row=>row.ok===null&&row.detail==='This check has not run.')).toBe(true);
+ expect(rows).toHaveLength(5);
+ expect(rows.slice(1,4).every(row=>row.ok===null&&row.detail==='This check has not run.')).toBe(true);
+ expect(rows[4]).toEqual({ok:null,name:'Check the wording',detail:'Wording has not been fully checked.'});
 });
 test('whoIsTheOnePersonInAChat',()=>{expect(Judge.who('Sam: Are we still on for Saturday?\nSam: I can bring the tent.')).toBe('Sam');expect(Judge.who('Update: shipped the fix')).toBeNull();expect(Judge.who('Sam\nAre we still on for Saturday?')).toBeNull();expect(Judge.quickChecks('Sam')).toBe('These are quick checks to help you choose. You know Sam best.');});
 test('cleanDropsPreambleAndQuotes',()=>{expect(Judge.clean('Here\'s the rewrite:\n"Shipped it.\nMore soon"')).toBe('Shipped it.\nMore soon');expect(Judge.clean('Here: it is')).toBe('Here: it is');});

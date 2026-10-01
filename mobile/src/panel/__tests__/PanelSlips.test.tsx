@@ -122,5 +122,5 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
   await screen.findByText('Names the stove');
   expect(screen.queryByText('There are possible slips to review.')).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
-  expect(screen.getByText('Sounds natural', { exact: false })).toBeTruthy();
+  expect(screen.queryByText('Sounds natural', { exact: false })).toBeNull();
 });
