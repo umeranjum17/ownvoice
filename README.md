@@ -37,7 +37,7 @@ Ownvoice lives where you already write. It reads the screen only when you tap it
 
 ### Reply ideas, one tap away
 
-Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen and offers three short replies shaped to the place you are writing in: a feed post, a chat, or an email each gets its own three kinds of reply. When writing on this phone, a finished reply can appear while the others are still being written. **Insert** puts one in your message box, **Copy** copies it, and **Write new ones** tries again. Each draft can also open your app's own compose screen with the text already filled in — you still press Send yourself.
+Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen and offers three short replies shaped to the place you are writing in: a feed post, a chat, or an email each gets its own three kinds of reply. With either writer, a finished reply can appear while the others are still being written. **Insert** puts one in your message box, even while the others load, **Copy** copies it, and **Write new ones** tries again. If the initial ChatGPT answer fails or is cut short, its reply cards are cleared; this phone writes instead when it can, otherwise Ownvoice shows a failure message. Each draft can also open your app's own compose screen with the text already filled in — you still press Send yourself.
 
 <p align="center">
   <img src="docs/readme/replies.webp" alt="Suggested replies to Sam's question about Saturday, each with Insert, Copy and Why?" width="300" />
