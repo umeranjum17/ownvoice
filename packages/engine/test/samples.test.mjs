@@ -16,6 +16,30 @@ test('explicit markdown bullets parse through the raw verb into a guide', () => 
   assert.deepEqual(Protocol.handle({ verb: 'check', drafts: ['hello'], platform: 'x', rules: result.rules }), Protocol.handle({ verb: 'check', drafts: ['hello'], platform: 'x', rules: old }));
 });
 
+test('sample headings match exact names without changing never-say or line boundaries', () => {
+  for (const newline of ['\n', '\r\n']) {
+    const markdown = [
+      '## How-I-Reply', '- excluded first',
+      '## How I reply', '- exact',
+      '###### hOW i REPLY ###', '* case variant',
+      '**How I reply**:', '+ bold',
+      '**HOW-I-REPLY**:', '- excluded after',
+      '**HOW I REPLY**', '1. bold variant',
+      '## Never-say', '- synergy',
+      '**Never-say**:', '- seamless',
+      '## Other', '- excluded last',
+    ].join(newline);
+    const parsed = Voice.parse(markdown);
+    assert.deepEqual(parsed.samples, ['exact', 'case variant', 'bold', 'bold variant']);
+    assert.deepEqual(parsed.never, ['synergy', 'seamless']);
+    assert.equal(parsed.skipped, 0);
+    const result = Protocol.handle({ verb: 'voice.parse', markdown });
+    assert.deepEqual(result.rules.samples, parsed.samples);
+    assert.deepEqual(result.rules.never, parsed.never);
+    assert.equal(result.skipped, 0);
+  }
+});
+
 test('sample text never sets flags or populates never-say rules', () => {
   const parsed = Voice.parse('## How I reply\n- No em dashes. End posts on a statement.\n- **Never say:**\n- synergy\n## Other\njust text');
   assert.equal(parsed.noDashes, false);
