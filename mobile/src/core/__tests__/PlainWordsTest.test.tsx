@@ -1,3 +1,4 @@
+import { LEVELS, UNSURE, judgeFit } from '../../grow/fit';
 import { ERROR_CODES, message } from '../nano';
 import { words, CHATGPT_TERMS, technicalWords } from '../words';
 import { offeredApps } from '../onboarding';
@@ -214,4 +215,10 @@ describe('panel copy', () => {
     expect(visibleStrings(screen)).not.toContain('Sounds natural');
     expect(screen.getAllByRole('button', { name: words.why }).length).toBe(3);
   });
+});
+
+
+test('fit levels and rule explanations use plain words', async () => {
+  const fits = await judgeFit({ post: 'Umer made a timer.', candidates: ['Game changer!', 'A — B', 'x'.repeat(281), 'https://example.com'], platform: Platform.platformForApp('com.twitter.android'), voice: { ...Slop.NO_RULES, never: ['game changer'], noDashes: true } });
+  assertPlain([...LEVELS, UNSURE, ...fits.flatMap(f => f.flags)]);
 });

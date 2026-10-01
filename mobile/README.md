@@ -43,3 +43,24 @@ Setup asks **How should Ownvoice write?**, and Home's **How Ownvoice writes** ro
 Live proofs run through the app on the signed-in test emulator, using its byokit sign-in. Never read or copy another tool's credentials for a proof. See the [current release A/B report](reports/accounts-090-live-ab.md) for candidate evidence; the [earlier in-app proof](reports/live-proof-p9.md) records the reverted transport's history.
 
 To produce a switch flag offline, keep a 32-byte private signing key as hex outside this repository and, from `mobile/`, run `SWITCH_SEQ=1 node --experimental-strip-types scripts/sign-switch.ts /path/to/private-key off` (increment the sequence for later flags). This prints the signed JSON; it does not publish it. Never commit the private key.
+
+
+### Reply fit judge (growth foundation)
+
+`src/grow/fit.ts` judges a draft and its alternatives for X or Reddit in one
+`@byokit/decide` call, through a pluggable ordered backend list. The platform
+rubrics estimate text fit, not reach or calibrated engagement probabilities.
+Never-say phrases, long dashes when disallowed, platform limits and links are
+checked first; flagged candidates and their questions are omitted from the
+outward request. X replies lose one level for two or more hashtags and another
+for a trailing request for thoughts. Unknown platforms use rules only.
+
+`fitBackends(app, events)` in `src/chatgpt/settings.ts` supplies the ChatGPT
+answerer through the existing `responses.ts` ask path and accounts response
+transport. It rechecks source, app visibility, pause, phone-only routing,
+sign-out epoch and a known-on remote switch before sending and at dispatch.
+Pass `sent` with the tap's read-log hook, as with the writer. A veto, timeout or
+malformed answer yields rules only. The deadline is 20 seconds; each invocation
+uses a new in-memory decision cache, so text is never cached across taps.
+The confidence floor is decide's 0.6; abstained best picks never affect order.
+This foundation does not yet wire the judge into the panel or change posting.
