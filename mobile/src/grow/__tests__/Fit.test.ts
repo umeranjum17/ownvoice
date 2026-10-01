@@ -86,9 +86,9 @@ test('X applies separate one-level drops for hashtags and trailing thoughts; Red
 
 test('X drops a level for common trailing asks only when they end the reply', async () => {
   const asks = ['What do you think of this?', 'Thoughts on this?', 'Any thoughts?', 'Agree?', 'What about you?'];
-  const candidates = [...asks.map(ask => `A useful point. ${ask}`), 'A useful point. What do you think of this? More context follows.'];
+  const candidates = [...asks.map(ask => `A useful point. ${ask}`), 'A useful point. What do you think of this? More context follows.', 'A useful point. Thoughts on this? Does it pause for PDFs?'];
   const ask = async () => JSON.stringify(Object.fromEntries(candidates.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }])));
-  expect((await judgeFit({ post: POST, candidates, platform: X, voice, ask })).map(f => f.level)).toEqual([2, 2, 2, 2, 2, 3]);
+  expect((await judgeFit({ post: POST, candidates, platform: X, voice, ask })).map(f => f.level)).toEqual([2, 2, 2, 2, 2, 3, 3]);
 });
 
 test('timeout aborts the backend and returns rules only; unsupported platforms send nothing', async () => {
@@ -117,8 +117,8 @@ const recorded: Recording[] = require('../../../../.lab-f2/live-answers.json').r
 test.each(recorded)('recorded $demo.platform answer resolves and replays without a live call', async record => {
   record.fits.forEach((fit, index) => {
     const resolved = resolve(record.questions[`fit_${index}`], record.raw[`fit_${index}`]);
-    expect(resolved.abstained).toBe(false);
-    expect(resolved.answer).toBe(fit.level);
+    expect(resolved.abstained).toBe(fit.level == null);
+    if (!resolved.abstained) expect(resolved.answer).toBe(fit.level);
   });
   expect(resolve(record.questions.best, record.raw.best).answer).toBe(String(record.rank[0]));
   const ask = jest.fn(async () => JSON.stringify(Object.fromEntries(Object.entries(record.raw).map(([name, raw]) => [name, raw.probabilities]))));
@@ -126,4 +126,9 @@ test.each(recorded)('recorded $demo.platform answer resolves and replays without
   expect(fits).toEqual(record.fits);
   expect(rank(fits)).toEqual(record.rank);
   expect(ask).toHaveBeenCalledTimes(1);
+  if (record.demo.candidates.length === 4) {
+    expect(fits[0].level == null || fits[0].level < 2).toBe(true);
+    expect(rank(fits).indexOf(3)).toBeLessThan(rank(fits).indexOf(2));
+    expect(fits.every(fit => fit.flags.length === 0)).toBe(true);
+  }
 });
