@@ -22,11 +22,11 @@ const run = (input, args = []) => {
 };
 const ask = (request) => JSON.parse(run(JSON.stringify(request)));
 
-test('hello carries protocol 1 and the package version', () => {
-  assert.equal(hello().protocol, 1);
+test('hello carries protocol 2 and the package version', () => {
+  assert.equal(hello().protocol, 2);
   assert.equal(hello().version, JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')).version);
   assert.equal(VERSION, hello().version);
-  assert.equal(PROTOCOL, 1);
+  assert.equal(PROTOCOL, 2);
 });
 
 test('voice.parse imports never-say bullets and rules (VoiceTest)', () => {

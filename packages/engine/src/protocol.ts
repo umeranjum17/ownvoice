@@ -1,16 +1,17 @@
-// OV-3: the one JSON surface over the pure core (protocol 1). Model-free:
+// OV-3: the one JSON surface over the pure core (protocol 2). Model-free:
 // every verb reuses the existing slop/voice/drafts/platforms/threads
 // functions; nothing here fetches, calls a model, or imports expo,
 // react-native or @byokit. Plain JSON in, plain JSON out.
 import { addedNumbers, hits, inventedTimes, NO_RULES, score, words as slopWords, type Rules } from './slop.ts';
+import { MAX_MARKDOWN_LENGTH, normalizeSamples } from './samples.ts';
 import { broken, guide, parse, type Found } from './voice.ts';
 import { layoutKept, slotsFor } from './drafts.ts';
 import { platformForApp, platformLine, polishLine, type Platform } from './platforms.ts';
 import { splitThread, threadLimit } from './threads.ts';
 
 /** Bump with packages/engine/package.json (protocol.test.mjs enforces it). */
-export const VERSION = '0.1.0';
-export const PROTOCOL = 1;
+export const VERSION = '0.2.0';
+export const PROTOCOL = 2;
 
 export const hello = () => ({ protocol: PROTOCOL, version: VERSION });
 
@@ -41,12 +42,15 @@ const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 function asRules(v: unknown): Rules | null {
   if (v === undefined) return { ...NO_RULES };
   if (!isRecord(v)) return null;
-  const { never, noDashes, statementEndings, note } = v;
+  const { never, noDashes, statementEndings, note, samples } = v;
   if (never !== undefined && (!Array.isArray(never) || !never.every(s => typeof s === 'string'))) return null;
   if (noDashes !== undefined && typeof noDashes !== 'boolean') return null;
   if (statementEndings !== undefined && typeof statementEndings !== 'boolean') return null;
   if (note !== undefined && typeof note !== 'string') return null;
+  const normalized = normalizeSamples(samples);
+  if (normalized === null) return null;
   return {
+    samples: normalized,
     never: never !== undefined ? (never as string[]) : [],
     noDashes: noDashes !== undefined ? (noDashes as boolean) : false,
     statementEndings: statementEndings !== undefined ? (statementEndings as boolean) : false,
@@ -110,13 +114,13 @@ export function handle(request: unknown): Record<string, unknown> | unknown[] | 
   const req = request as Record<string, unknown>;
   switch (req.verb) {
     case 'voice.parse': {
-      if (typeof req.markdown !== 'string') return err('bad-request', 'voice.parse needs {markdown}');
+      if (typeof req.markdown !== 'string' || req.markdown.length > MAX_MARKDOWN_LENGTH) return err('bad-request', 'voice.parse needs {markdown}');
       const found: Found = parse(req.markdown);
-      return { rules: { never: found.never, noDashes: found.noDashes, statementEndings: found.statementEndings, note: '' }, skipped: found.skipped };
+      return { rules: { never: found.never, noDashes: found.noDashes, statementEndings: found.statementEndings, note: '', samples: found.samples }, skipped: found.skipped };
     }
     case 'voice.guide': {
       const rules = asRules(req.rules);
-      if (!rules) return err('bad-request', 'voice.guide rules must be {never?, noDashes?, statementEndings?, note?}');
+      if (!rules) return err('bad-request', 'voice.guide rules must be {never?, noDashes?, statementEndings?, note?, samples?}');
       const post = req.post === undefined ? false : req.post;
       if (typeof post !== 'boolean') return err('bad-request', 'voice.guide post must be a boolean');
       return { line: guide(rules, post) };
@@ -133,7 +137,7 @@ export function handle(request: unknown): Record<string, unknown> | unknown[] | 
       const platform = asPlatform(req.platform);
       if (!platform) return err('bad-request', `brief platform must be one of ${PLATFORM_IDS.join(', ')}`);
       const rules = asRules(req.rules);
-      if (!rules) return err('bad-request', 'brief rules must be {never?, noDashes?, statementEndings?, note?}');
+      if (!rules) return err('bad-request', 'brief rules must be {never?, noDashes?, statementEndings?, note?, samples?}');
       return { lines: briefLines(req.kind, platform, rules) };
     }
     case 'check': {
@@ -142,7 +146,7 @@ export function handle(request: unknown): Record<string, unknown> | unknown[] | 
       const platform = asPlatform(req.platform);
       if (!platform) return err('bad-request', `check platform must be one of ${PLATFORM_IDS.join(', ')}`);
       const rules = asRules(req.rules);
-      if (!rules) return err('bad-request', 'check rules must be {never?, noDashes?, statementEndings?, note?}');
+      if (!rules) return err('bad-request', 'check rules must be {never?, noDashes?, statementEndings?, note?, samples?}');
       if (req.original !== undefined && typeof req.original !== 'string')
         return err('bad-request', 'check original must be a string');
       return (req.drafts as string[]).map(d => checkOne(d, platform, rules, req.original as string | undefined));

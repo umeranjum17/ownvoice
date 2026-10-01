@@ -1,7 +1,7 @@
 // Port of Slop.kt and Voice.matcher: marks stock phrasing; never guesses who wrote a text.
 export type Hit = { start: number; end: number; reason: string };
-export type Rules = { never: string[]; noDashes: boolean; statementEndings: boolean; note: string };
-export const NO_RULES: Rules = { never: [], noDashes: false, statementEndings: false, note: '' };
+export type Rules = { never: string[]; noDashes: boolean; statementEndings: boolean; note: string; samples?: string[] };
+export const NO_RULES: Rules = { never: [], noDashes: false, statementEndings: false, note: '', samples: [] };
 export const NEVER_SAY = 'on your never-say list';
 export const ENDS_ON_QUESTION = 'ends on a question';
 export const LONG_DASH = 'long dash (—)';
