@@ -15,7 +15,8 @@ export const CHATGPT_MODEL = 'gpt-6-sol';
 const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested rewrite versions as JSON.';
 
-/** One streamed Responses call; the requested array must have exactly `count` nonblank strings (`text` returns trimmed plain text instead). */
+/** Draft/version arrays must have exactly `count` nonblank strings. `text` returns trimmed plain text;
+ *  `fit` returns trimmed JSON for decide to parse and resolve. */
 async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text' | 'fit', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch, signal?: AbortSignal): Promise<string[]> {
   let started = false;
   let marked = false;
