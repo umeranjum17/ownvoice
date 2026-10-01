@@ -77,11 +77,13 @@ test('bare domains and markdown link destinations are flagged while sentence dot
   expect(fits[3].level).toBe(3);
 });
 
-test('dotted API calls reach judging on X and Reddit while genuine links stay omitted', async () => {
+test('dotted API calls and email hostnames reach judging on X and Reddit while links stay omitted', async () => {
   const eligible = [
     'Use JSON.parse() when loading the saved timer state.',
     'Use Object.prototype.hasOwnProperty() to check the saved entries.',
     'Try offline files, e.g. PDFs. Version 3.14 works. Email me@sample.org.',
+    'Email me@sub.sample.org.',
+    'Email me@deep.sub.sample.org.',
   ];
   const links = ['https://example.com', 'www.example.com', 'example.com', 'sub.example.co.uk/path', '[site](example.com)', 'example.com (more details)', 'Visit example.com.'];
   const candidates = [...eligible, ...links];
