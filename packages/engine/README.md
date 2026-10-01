@@ -150,9 +150,19 @@ structural instruction/data boundary, not proof a model ignores hostile text.
 The schema's Unicode `maxLength` is a necessary bound; raw runtime additionally
 enforces the stricter UTF-16 limits (e.g. emoji cost two units).
 
-**Remaining F5 integration/proof holds:** the phone path does not yet consume
-the guide. Its caller must measure all other phone instructions and separator
-cost, subtract them from 700, then pass the remainder to `selectedGuide`. A
+**Remaining F5 integration/proof holds:** phone reply and slot-retry prompts
+ignore the guide passed by `phoneWriter.replies`; their existing instructions
+remain unchanged (531–691 UTF-16 units across the six protocol platforms).
+Phone polish already consumes the guide through `Judge.rewrite` and
+`lineRetryPrompt`. The mobile `src/core/voice.ts` wrapper deliberately clears
+samples before calling the engine guide, preserving the old no-sample guide
+for all existing mobile callers until budget-aware writer/fit integration.
+The engine's `Voice.guide`, `Voice.selectedGuide` and protocol still support
+explicit samples. Mobile callers must measure all other phone instructions and
+separator cost, subtract them from 700, then pass the remainder to
+`selectedGuide` when that integration lands. The existing X polish prompt has
+1,484 UTF-16 units before screen/text/guide even without samples: that is a
+pre-existing deferred phone-budget defect, not a new total-instruction pass. A
 700-unit guide is not proof the complete phone prompt is within 700. Mobile
 import preview/persistence, writer/fit wiring with identical selected examples,
 F3b never-say integration, the per-card “Sounds like you” outcome and level
