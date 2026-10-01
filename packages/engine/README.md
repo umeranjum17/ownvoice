@@ -135,9 +135,11 @@ there is no new wire verb or wire result. Budget must be an integer 0–700 or i
 throws `RangeError`. It covers the **entire returned guide**, including base rules,
 note, label, JSON escaping and separators. If the base cannot fit, returns
 `{line: '', samples: []}` without truncating rules. Otherwise examples are sorted
-by normalized length, with original order breaking ties, and greedily included
-whole when the escaped output fits, up to three. Fewer than two fitting examples
-means the base alone with `samples: []`. Neither samples nor JSON are truncated.
+by normalized length, with original order breaking ties. Pairs are tried in that
+order (first index, then second index); the first pair whose escaped output fits
+is selected. The first later example that fits with that pair is appended as a
+third. If no pair fits, the base alone is returned with `samples: []`.
+Neither samples nor JSON are truncated.
 `guide` uses this same selector with the default budget.
 
 The exact label is `Replies they wrote (match this voice, don't copy)`, followed

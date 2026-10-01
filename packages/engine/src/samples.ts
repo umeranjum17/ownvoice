@@ -35,12 +35,17 @@ export function selectExamples(samples: string[], base: string, budget: number):
   if (normalized === null) throw new TypeError('invalid reply samples');
   const candidates = normalized.map((sample, index) => ({ sample, index }))
     .sort((a, b) => a.sample.length - b.sample.length || a.index - b.index);
-  const selected: string[] = [];
   const render = (xs: string[]) => `${base ? base + ' ' : ''}${label}${encode(xs)}`;
-  for (const { sample } of candidates) {
-    if (selected.length === 3) break;
-    if (render([...selected, sample]).length <= budget) selected.push(sample);
+  for (let i = 0; i < candidates.length; i++) {
+    for (let j = i + 1; j < candidates.length; j++) {
+      const selected = [candidates[i].sample, candidates[j].sample];
+      if (render(selected).length > budget) continue;
+      for (let k = j + 1; k < candidates.length; k++) {
+        const triple = [...selected, candidates[k].sample];
+        if (render(triple).length <= budget) return { line: render(triple), samples: triple };
+      }
+      return { line: render(selected), samples: selected };
+    }
   }
-  // One example is too little context: keep the base until two whole examples fit.
-  return selected.length < 2 ? { line: base, samples: [] } : { line: render(selected), samples: selected };
+  return { line: base, samples: [] };
 }
