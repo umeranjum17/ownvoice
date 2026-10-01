@@ -76,7 +76,8 @@ jobs:
           apksigner="$(printf '%s\n' "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
           "$apksigner" verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk > "$RUNNER_TEMP/apk-signature.txt"
           cat "$RUNNER_TEMP/apk-signature.txt"
-          grep -Fx "Signer #1 certificate SHA-256 digest: 173e156c926dad5d41bfb5453a7f415e6754763b4046bdbd10b0a2ca58e055cf" "$RUNNER_TEMP/apk-signature.txt"
+          certificate_digest="$(sed -n 's/.*certificate SHA-256 digest: //p' "$RUNNER_TEMP/apk-signature.txt")"
+          test "$certificate_digest" = '173e156c926dad5d41bfb5453a7f415e6754763b4046bdbd10b0a2ca58e055cf'
           mkdir -p release
           cp android/app/build/outputs/apk/release/app-release.apk release/Ownvoice.apk
           cd release
