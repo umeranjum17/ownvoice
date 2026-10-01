@@ -26,3 +26,8 @@ mobile/.run08.sh
 *.log
 node_modules/
 packages/engine/dist/
+
+# Release signing credentials must never enter source control.
+*.jks
+*.keystore
+*.p12

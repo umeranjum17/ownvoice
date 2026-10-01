@@ -105,14 +105,24 @@ Ownvoice reads the screen only when you tap its bubble, never in the background,
 - **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once, along with Your voice.
 
 <p align="center">
-  <img src="docs/readme/reads.webp" alt="What Ownvoice read: one entry, 'Suggested replies in Ownvoice (new), read the chat on screen, Today', and Wipe everything" width="300" />
+  <img src="docs/readme/reads.webp" alt="What Ownvoice read: one entry, 'Suggested replies in Ownvoice, read the chat on screen, Today', and Wipe everything" width="300" />
 </p>
 
 The exact data flows, including the one-time download and the remote on/off switch for ChatGPT, are written down in [mobile/README.md](mobile/README.md#how-ownvoice-writes).
 
 ## Download / Install
 
-Download the APK from the [latest release](https://github.com/umeranjum17/ownvoice/releases/latest) (all releases: https://github.com/umeranjum17/ownvoice/releases). No ready-made APK is published yet, and Ownvoice isn't in an app store yet. For now it goes on your phone by building it from this repository: see [Build it yourself](#build-it-yourself), or ask someone who builds Android apps to do it for you. On your phone it shows up as **Ownvoice (new)**.
+[**Download Ownvoice for Android**](https://github.com/umeranjum17/ownvoice/releases/latest/download/Ownvoice.apk)
+
+Open this link on your phone, tap **Download**, then **Open** and **Install**; if asked, allow your browser to install it, come back, and tap **Install**. Tap **Open** to see Welcome. The app appears as **Ownvoice** on your home screen. Requires Android 8 or later.
+
+If **Use Ownvoice** is greyed out during setup, open Ownvoice's **App info**, tap **⋮** at the top, choose **Allow restricted settings**, then return to Ownvoice and tap **Turn on**.
+
+<p align="center">
+  <img src="docs/readme/restricted-settings.svg" alt="Illustration: open the three-dot menu in Ownvoice App info and choose Allow restricted settings" width="400" />
+</p>
+
+[All releases](https://github.com/umeranjum17/ownvoice/releases)
 
 ## Get started
 

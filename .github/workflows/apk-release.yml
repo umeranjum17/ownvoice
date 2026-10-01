@@ -1,0 +1,92 @@
+name: Release Ownvoice APK
+
+on:
+  push:
+    tags: ['v[0-9]*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ownvoice-apk-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Check release version
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          git fetch origin main --no-tags
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo 'Release tags must point to current main.' >&2
+            exit 1
+          fi
+          node - <<'JS'
+          const { expo } = require('./app.config');
+          if (!/^v\d+\.\d+\.\d+$/.test(process.env.RELEASE_TAG) || process.env.RELEASE_TAG !== `v${expo.version}`) {
+            throw new Error('Tag must match the app version (vMAJOR.MINOR.PATCH)');
+          }
+          JS
+      - run: npm ci
+      - run: npm run lint && npm run typecheck && npm test -- --ci
+      - run: npx expo prebuild --platform android --no-install
+      - name: Restore release key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.OWNVOICE_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          test -n "$KEYSTORE_BASE64"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/ownvoice-release.jks"
+      - name: Build signed APK
+        working-directory: mobile/android
+        env:
+          OWNVOICE_RELEASE_SIGNING: '1'
+          OWNVOICE_KEYSTORE_PATH: ${{ runner.temp }}/ownvoice-release.jks
+          OWNVOICE_STORE_PASSWORD: ${{ secrets.OWNVOICE_STORE_PASSWORD }}
+          OWNVOICE_KEY_ALIAS: ${{ secrets.OWNVOICE_KEY_ALIAS }}
+          OWNVOICE_KEY_PASSWORD: ${{ secrets.OWNVOICE_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --no-daemon --max-workers=2 -PreactNativeArchitectures=arm64-v8a,x86_64
+      - name: Verify and package download
+        run: |
+          apksigner="$(printf '%s\n' "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -1)"
+          "$apksigner" verify --verbose --print-certs android/app/build/outputs/apk/release/app-release.apk > "$RUNNER_TEMP/apk-signature.txt"
+          cat "$RUNNER_TEMP/apk-signature.txt"
+          grep -Fx "Signer #1 certificate SHA-256 digest: 173e156c926dad5d41bfb5453a7f415e6754763b4046bdbd10b0a2ca58e055cf" "$RUNNER_TEMP/apk-signature.txt"
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk release/Ownvoice.apk
+          cd release
+          sha256sum Ownvoice.apk > Ownvoice.apk.sha256
+      - name: Publish download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$RELEASE_TAG" release/Ownvoice.apk release/Ownvoice.apk.sha256 \
+            --verify-tag --title "Ownvoice $RELEASE_TAG" \
+            --notes 'Download Ownvoice.apk on your Android phone, tap Open, then Install. If asked, allow your browser to install it, then come back and tap Install. Open Ownvoice to get started.'
+      - name: Remove signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ownvoice-release.jks"
