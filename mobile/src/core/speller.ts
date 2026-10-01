@@ -13,7 +13,7 @@ export function speller(): Promise<Speller> {
     const nspell = require('nspell') as typeof import('nspell');
     const read = async (module: number) => new File((await Asset.fromModule(module).downloadAsync()).localUri!).text();
     const [aff, dic] = await Promise.all([read(require('../../assets/dictionary/en-affixes.aff')), read(require('../../assets/dictionary/en-words.dic'))]);
-    return nspell(aff, dic);
+    return nspell(aff, dic).add('autosave');
   })().catch(error => { loading = null; throw error; });
   return loading;
 }

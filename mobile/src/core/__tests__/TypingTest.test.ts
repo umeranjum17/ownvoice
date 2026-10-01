@@ -2,6 +2,16 @@ import { readFileSync } from 'fs';
 import nspell from 'nspell';
 import { count, fixed, fixedSlips, slips, suggestion, GRAMMAR, SPELLING } from '../typing';
 import { NO_RULES } from '../slop';
+import { speller as loadSpeller } from '../speller';
+
+jest.mock('../../../assets/dictionary/en-affixes.aff', () => 1);
+jest.mock('../../../assets/dictionary/en-words.dic', () => 2);
+jest.mock('expo-asset', () => ({ Asset: { fromModule: (id: number) => ({
+  downloadAsync: async () => ({ localUri: id === 1 ? 'en-affixes.aff' : 'en-words.dic' }),
+}) } }));
+jest.mock('expo-file-system', () => ({ File: jest.fn((uri: string) => ({
+  text: async () => require('fs').readFileSync(`${__dirname}/../../../assets/dictionary/${uri}`, 'utf8'),
+})) }));
 
 const speller = nspell(readFileSync(`${__dirname}/../../../assets/dictionary/en-affixes.aff`, 'utf8'), readFileSync(`${__dirname}/../../../assets/dictionary/en-words.dic`, 'utf8'));
 
@@ -176,6 +186,26 @@ test('automatic contractions fix clear forms and preserve ambiguous ones', () =>
   expect(fixedSlips(ambiguous, speller)).toBe(ambiguous);
   expect(fixedSlips('We cant go and I wont', speller)).toBe('We cant go and I wont');
   expect(fixedSlips('https://site.test/dont @im #thats', speller)).toBe('https://site.test/dont @im #thats');
+});
+
+test('the app speller keeps autosave and real words without suppressing clear typos', async () => {
+  const spell = await loadSpeller();
+  const original = 'i would keep the offline notes simple first. autosave locally, show when the last save happened, and make export easy. sync can wait until the basics feel reliable.';
+  expect(spell.correct('autosave')).toBe(true);
+  expect(slips(original, spell)).toEqual([]);
+  expect(fixedSlips(original, spell)).toBe(original);
+  expect(slips('Autosave locally', spell)).toEqual([]);
+  expect(fixedSlips('Autosave locally', spell)).toBe('Autosave locally');
+  expect(spell.correct('autoclave')).toBe(true);
+  expect(slips('autoclave locally', spell)).toEqual([]);
+  expect(fixedSlips('autoclave locally', spell)).toBe('autoclave locally');
+  expect(suggestion('shoud', spell)).toBe('should');
+  expect(suggestion('teh', spell)).toBe('the');
+  expect(fixedSlips('shoud teh', spell)).toBe('should the');
+  expect(slips('Shoud', spell)).toEqual([]);
+  expect(fixedSlips('Shoud teh', spell)).toBe('Shoud the');
+  expect(suggestion('qwxzvbn', spell)).toBeUndefined();
+  expect(fixedSlips('qwxzvbn', spell)).toBe('qwxzvbn');
 });
 
 test('correction tables do not inherit object keys', () => {
