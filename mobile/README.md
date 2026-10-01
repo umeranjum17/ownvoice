@@ -101,6 +101,11 @@ Known limit: the read-screen → rated card → edit → insert flow has not bee
 on the native X app. No demo device with X installed and signed in exists, so the
 evidence is unit and panel tests only.
 
+
+### Insertion confirmation
+
+After writing a draft, Ownvoice reads the focused field again through the same reader used at capture time. It reports **Inserted** only if the same field contains the exact draft and its selection is collapsed at the end. Missing newlines, a stale field, or an unavailable read-back copy the complete draft and show **Copied, paste it in**. **Send it yourself** accompanies confirmation only when the current screen exposes a clickable Send, Post, Reply, Publish or Tweet action. Ownvoice screens hide the bubble even if switched on in app choices; setup practice is the exception.
+
 ## Signed APK releases
 
 The [APK release workflow](../.github/workflows/apk-release.yml) builds the Expo app on tags such as `v1.0.0`, verifies its signature, and publishes `Ownvoice.apk` plus its SHA-256 alongside the GitHub Release. Before tagging, update `expo.version` and increase `android.versionCode` in `app.config.js`; the tag must match `expo.version`. Tag only reviewed commits on current `main`; the workflow rejects a tag that points elsewhere. Download links use `releases/latest/download/Ownvoice.apk` so they survive version updates. A manual workflow run on the version tag can retry a failed build before the release is published.
