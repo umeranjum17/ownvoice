@@ -1,0 +1,99 @@
+{
+  "mode": "script",
+  "taskId": "6",
+  "seenShare": true,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790853659670
+    },
+    {
+      "event": "request",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790853659703
+    },
+    {
+      "event": "response",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790853664271,
+      "turn": {
+        "text": "{\"note\":\"Hello, the heater has been broken since Monday. Please arrange to repair it and let me know when it will be fixed.\"}",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790853664272,
+      "latest": "Hello, the heater has been broken since Monday. Please arrange to repair it and let me know when it will be fixed."
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790853664300,
+      "latest": "Hello, the heater has been broken since Monday. Please arrange to repair it and let me know when it will be fixed."
+    },
+    {
+      "event": "approval",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790853664303,
+      "call": {
+        "id": "c2",
+        "name": "share_note",
+        "args": "{\"title\":\"Hello, the heater has been broken since \",\"body\":\"Hello, the heater has been broken since Monday. Please arrange to repair it and let me know when it will be fixed.\"}"
+      }
+    },
+    {
+      "event": "reply",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790853666835,
+      "yes": false
+    },
+    {
+      "event": "done",
+      "mode": "script",
+      "taskId": 6,
+      "at": 1790853666875,
+      "out": {
+        "text": "Hello, the heater has been broken since Monday. Please arrange to repair it and let me know when it will be fixed.",
+        "steps": 2,
+        "stop": "declined"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790853661698,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853662743,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853663778,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853664832,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853665874,
+      "events": 6
+    },
+    {
+      "hostAt": 1790853669039,
+      "events": 8
+    }
+  ]
+}

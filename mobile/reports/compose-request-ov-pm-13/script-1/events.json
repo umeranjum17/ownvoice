@@ -1,0 +1,102 @@
+{
+  "mode": "script",
+  "taskId": "1",
+  "seenShare": true,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "script",
+      "taskId": 1,
+      "at": 1790853581636
+    },
+    {
+      "event": "request",
+      "mode": "script",
+      "taskId": 1,
+      "at": 1790853581660
+    },
+    {
+      "event": "response",
+      "mode": "script",
+      "taskId": 1,
+      "at": 1790853585478,
+      "turn": {
+        "text": "{\"note\":\"Hello, the heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen.\"}",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 1,
+      "at": 1790853585478,
+      "latest": "Hello, the heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen."
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 1,
+      "at": 1790853585481,
+      "latest": "Hello, the heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen."
+    },
+    {
+      "event": "approval",
+      "mode": "script",
+      "taskId": 1,
+      "at": 1790853585481,
+      "call": {
+        "id": "c2",
+        "name": "share_note",
+        "args": "{\"title\":\"Hello, the heater has been broken since \",\"body\":\"Hello, the heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen.\"}"
+      }
+    },
+    {
+      "event": "reply",
+      "mode": "script",
+      "taskId": 1,
+      "at": 1790853588367,
+      "yes": true
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 1,
+      "at": 1790853588428,
+      "latest": "Hello, the heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen."
+    },
+    {
+      "event": "done",
+      "mode": "script",
+      "taskId": 1,
+      "at": 1790853588428,
+      "out": {
+        "text": "Hello, the heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen.",
+        "steps": 3,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790853583423,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853584711,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853585741,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853586769,
+      "events": 6
+    },
+    {
+      "hostAt": 1790853591896,
+      "events": 9
+    }
+  ]
+}

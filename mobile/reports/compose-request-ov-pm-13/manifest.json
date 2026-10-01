@@ -1,0 +1,86 @@
+{
+  "date": "2026-10-01",
+  "deviceSerial": "emulator-5684",
+  "avd": "ownvoice-signed",
+  "mocked": false,
+  "signedIn": true,
+  "model": "gpt-6-sol",
+  "reasoningEffort": "none",
+  "verbosity": "low",
+  "byokitAccounts": "0.13.0",
+  "labApkSha256": "7270f32c60c8b3cde63541bd7d54dd35ac16344ea6299607c9f97117c5f3c09f",
+  "unflaggedApkSha256": "c1736b1143b562f3937380b620a78f9aad708201b744eb26294577beae90b610",
+  "priorApkSha256": "034d669751bd49c5dc2d9ff827c74df7abf4e1d0bbdcfc20f6be8e71ae2b581f",
+  "bootMemAvailableKiB": 25018828,
+  "labFlags": {
+    "EXPO_PUBLIC_PHONE_AGENT": "1"
+  },
+  "e2eFlags": "all unset",
+  "unflaggedFlags": "PHONE_AGENT and all E2E flags unset",
+  "restoreInstallExit": 0,
+  "emulatorExited": true,
+  "restorationSettingsReadback": "outstanding supervisor-coordinated check",
+  "formalPhoneEval": "not run; producer/runner handoff outstanding",
+  "manualReview": [
+    {
+      "mode": "loop",
+      "task": 1,
+      "judgment": "Heater and Monday preserved; direct repair request, no cold-room claim, extra deadline or name."
+    },
+    {
+      "mode": "loop",
+      "task": 2,
+      "judgment": "All times, Thursday and Priya/deck retained; casual plain-bullet list."
+    },
+    {
+      "mode": "loop",
+      "task": 3,
+      "judgment": "Sam, Saturday and Sunday after 2 retained; no invented reason or meeting detail."
+    },
+    {
+      "mode": "loop",
+      "task": 4,
+      "judgment": "Alex and shift retained; warmth expressed as thanks, no repayment promise or invented circumstances."
+    },
+    {
+      "mode": "loop",
+      "task": 5,
+      "judgment": "Sam, standup 12:00 and demo Thursday 3pm retained; no claim email/calendar action happened."
+    },
+    {
+      "mode": "loop",
+      "task": 6,
+      "judgment": "Heater and Monday retained; no invented circumstances. Decline stops sharing."
+    },
+    {
+      "mode": "script",
+      "task": 1,
+      "judgment": "Heater and Monday preserved; direct repair request, no cold-room claim, extra deadline or name."
+    },
+    {
+      "mode": "script",
+      "task": 2,
+      "judgment": "All times, Thursday and Priya/deck retained; casual plain-bullet list."
+    },
+    {
+      "mode": "script",
+      "task": 3,
+      "judgment": "Sam, Saturday and Sunday after 2 retained; no invented reason or meeting detail."
+    },
+    {
+      "mode": "script",
+      "task": 4,
+      "judgment": "Alex and shift retained; warmth expressed as thanks, no repayment promise or invented circumstances."
+    },
+    {
+      "mode": "script",
+      "task": 5,
+      "judgment": "Sam, standup 12:00 and demo Thursday 3pm retained; no claim email/calendar action happened."
+    },
+    {
+      "mode": "script",
+      "task": 6,
+      "judgment": "Heater and Monday retained; no invented circumstances. Decline stops sharing."
+    }
+  ]
+}
