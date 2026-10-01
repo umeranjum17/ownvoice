@@ -53,11 +53,9 @@ Already typed something? The same tap shows your text with the stock phrases mar
 
 ### Honest about every draft
 
-After the deeper checks run, drafts can get one plain sentence about how they read, such as "Sounds natural" or "A bit stock: 3 phrases you could say more simply" (when every draft reads the same, the sentence is left off rather than repeated). Without those checks, no verdict is shown. **Why?** lists the stock-phrase check separately and says which deeper checks have not run. Each draft also names its tone in a word or two, such as "Sounds friendly". **Why?** on any draft shows each check in everyday words, with a tick or a gentle warning. There is no score to chase: the checks look at whether a draft sounds stock, says something real, fits the chat and makes nothing up, and they are kept apart rather than blended into one number.
+A draft shows no verdict until all the deeper checks have run. Even then, Ownvoice leaves approval blank because the wording has not been fully checked; it does not call a draft “Sounds natural”. Concerns can still appear, such as “Check the wording” or “A bit stock: 3 phrases you could say more simply”. When every suggested draft has the same verdict, the repeated sentence is left off.
 
-<p align="center">
-  <img src="docs/readme/why.webp" alt="Why this reply: the draft quoted, 'Sounds natural' with a tick, and 'These are quick checks to help you choose.'" width="300" />
-</p>
+**Why?** on your original text or a suggested draft lists stock phrases, whether it says something real, whether it fits the chat and whether it makes anything up separately, each with a reason or a note that the check has not run. Possible slips get their own warning; otherwise a separate wording row says the wording has not been fully checked. Ticks mark passing checks, warnings mark concerns, and a dash marks an unchecked item. Each draft also names its tone in a word or two, such as “Sounds friendly”. There is no score to chase.
 
 ### Make any text better
 
@@ -159,7 +157,7 @@ This repository holds two Android apps plus the shared writing core:
 
 - **[`mobile/`](mobile/README.md)**: the Expo app shown in this README. Its README covers the checks, emulator tests, build flags and how Ownvoice writes. The writer's quality gate is in [`mobile/eval/`](mobile/eval/README.md).
 - **[`app/`](app/README.md)**: the original Kotlin app (`dev.ownvoice.app`), which the Expo app succeeds but does not yet fully replace. Its README covers how drafts are scored, its privacy details, and its build and device tests.
-- **[`packages/engine/`](packages/engine/README.md)**: the model-free writing core. Its README covers package usage, protocol, checks and releases. The app imports it; `mobile/src/core/` holds only re-export shims.
+- **[`packages/engine/`](packages/engine/README.md)**: the model-free writing core. Its README covers package usage, protocol, checks and releases. The app imports it; `mobile/src/core/` also holds app-specific adapters and local checks.
 
 For both apps' shared artwork, regeneration commands and icon previews, see the
 [Android icon guide](docs/icons/README.md).
