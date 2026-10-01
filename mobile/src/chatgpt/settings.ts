@@ -162,7 +162,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   return route;
 }
 
-/** Fit is an optional outward call: unknown switch state always keeps it on the phone. */
+/** Fit is an optional outward call: unknown switch state leaves rules only. */
 export function fitBackends(app: string, on: WriterEvents = {}, fetcher?: typeof fetch): import('@byokit/decide').Backend[] {
   const bubble = chatgptConsent(app);
   const remote = agentChatgptConsent();

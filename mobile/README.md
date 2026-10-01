@@ -49,10 +49,15 @@ To produce a switch flag offline, keep a 32-byte private signing key as hex outs
 `src/grow/fit.ts` judges a draft and its alternatives for X or Reddit in one
 `@byokit/decide` call, through a pluggable ordered backend list. The platform
 rubrics estimate text fit, not reach or calibrated engagement probabilities.
-Never-say phrases, long dashes when disallowed, platform limits and links are
-checked first; flagged candidates and their questions are omitted from the
-outward request. X replies lose one level for two or more hashtags and another
-for a trailing request for thoughts. Unknown platforms use rules only.
+Never-say phrases, long dashes (regardless of the saved no-dashes rule),
+platform limits and links, including bare domains and Markdown destinations,
+are checked first; flagged candidates and their questions are omitted from
+the outward request. Ordinary sentence dots, decimals and abbreviations such
+as "e.g." are not links. The statement-ending preference applies to posts,
+so reply questions remain eligible. X replies lose one level for two or more
+hashtags, including punctuation-separated tags, and another for a trailing
+request for thoughts or agreement. An earlier ask followed by another
+sentence does not trigger that drop. Unknown platforms use rules only.
 
 `fitBackends(app, events)` in `src/chatgpt/settings.ts` supplies the ChatGPT
 answerer through the existing `responses.ts` ask path and accounts response
