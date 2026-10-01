@@ -161,7 +161,7 @@ cd android
 adb install app/build/outputs/apk/release/app-release.apk
 ```
 
-This installs the Expo app shown above (`dev.ownvoice.next`) alongside any other Ownvoice build on the phone.
+This installs the Expo app shown above (`dev.ownvoice.next`) alongside the original Kotlin app (`dev.ownvoice.app`). If you already installed the downloaded APK, see [Signed APK releases](mobile/README.md#signed-apk-releases) before installing a local build.
 
 ## Development
 
