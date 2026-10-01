@@ -54,8 +54,8 @@ internal fun conversationText(text: CharSequence?, hint: Boolean, action: Boolea
 internal fun isControl(buttonAncestor: Boolean, className: String?): Boolean =
   buttonAncestor || className?.endsWith("Button") == true
 
-internal fun includeScreenNode(hasText: Boolean, hasDescription: Boolean, action: Boolean, editable: Boolean): Boolean =
-  !editable && (hasText || action && hasDescription)
+internal fun includeScreenNode(hasText: Boolean, hasDescription: Boolean, action: Boolean, editable: Boolean, viewId: String? = null): Boolean =
+  (!editable || viewId == "com.android.chrome:id/url_bar") && (hasText || action && hasDescription)
 
 /** The typing check looks only at a message worth checking: at least 12 characters and three words. */
 internal fun worthChecking(text: String): Boolean = text.trim().let { it.length >= 12 && it.split(Regex("\\s+")).size >= 3 }
@@ -127,7 +127,7 @@ class OwnvoiceService : AccessibilityService() {
   }
 
   data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false)
-  data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean)
+  data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean, val viewId: String? = null, val description: String? = null)
   data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String)
   private val main = Handler(Looper.getMainLooper())
   private var capture: Capture? = null
@@ -375,12 +375,12 @@ class OwnvoiceService : AccessibilityService() {
       val conversation = if (text != null) conversationText(node.text ?: node.contentDescription, node.isShowingHintText, action) else null
       if (conversation != null && lines.lastOrNull() != conversation) lines += conversation
       text?.let {
-        if (includeScreenNode(node.text != null, node.contentDescription != null, action, node.isEditable)) {
-          if (conversation != null) written += it
+        if (includeScreenNode(node.text != null, node.contentDescription != null, action, node.isEditable, node.viewIdResourceName)) {
+          if (conversation != null && node.viewIdResourceName != "com.android.chrome:id/url_bar") written += it
           val bounds = Rect()
           node.getBoundsInScreen(bounds)
           val density = resources.displayMetrics.density
-          nodes += ScreenText(it, (bounds.left / density).roundToInt(), (bounds.top / density).roundToInt(), (bounds.bottom / density).roundToInt(), action)
+          nodes += ScreenText(it, (bounds.left / density).roundToInt(), (bounds.top / density).roundToInt(), (bounds.bottom / density).roundToInt(), action, node.viewIdResourceName, node.contentDescription?.toString())
         }
       }
       for (i in 0 until node.childCount) node.getChild(i)?.let { walk(it, action) }

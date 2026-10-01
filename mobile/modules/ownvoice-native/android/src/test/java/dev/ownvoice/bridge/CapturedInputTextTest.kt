@@ -4,6 +4,13 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class CapturedInputTextTest {
+  @Test fun browserUrlBarIsTheOnlyEditableScreenNodeIncluded() {
+    assertEquals(true, includeScreenNode(true, false, false, true, "com.android.chrome:id/url_bar"))
+    assertEquals(false, includeScreenNode(true, false, false, true, "page-compose"))
+    assertEquals(false, includeScreenNode(true, false, false, true, null))
+    assertEquals(false, includeScreenNode(false, false, false, true, "com.android.chrome:id/url_bar"))
+  }
+
   @Test fun hintTextIsNotCapturedAsUserWords() {
     assertEquals(null, accessibleText("Message", true))
     assertEquals("", capturedInputText("Message", true))
