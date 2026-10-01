@@ -97,10 +97,11 @@ class OwnvoiceInsertTest {
           ready.awaitWorker()
           ready.joinWorker()
           assertEquals("first\nsecond", ready.text)
-          assertEquals(listOf(false to false, true to false), completions)
-          assertEquals(listOf(Triple(false, false, false), Triple(true, false, false)), events)
+          // A successful cached-node write with no focused-field read-back must fall back.
+          assertEquals(listOf(false to false, false to false), completions)
+          assertEquals(listOf(Triple(false, false, false), Triple(false, false, false)), events)
           assertNull(service.captured())
-          assertEquals("keep", clipboard.primaryClip!!.getItemAt(0).text.toString())
+          assertEquals("first\nsecond", clipboard.primaryClip!!.getItemAt(0).text.toString())
         }
       } finally {
         service.onDestroy()

@@ -43,3 +43,7 @@ Setup asks **How should Ownvoice write?**, and Home's **How Ownvoice writes** ro
 Live proofs run through the app on the signed-in test emulator, using its byokit sign-in. Never read or copy another tool's credentials for a proof. See the [current release A/B report](reports/accounts-090-live-ab.md) for candidate evidence; the [earlier in-app proof](reports/live-proof-p9.md) records the reverted transport's history.
 
 To produce a switch flag offline, keep a 32-byte private signing key as hex outside this repository and, from `mobile/`, run `SWITCH_SEQ=1 node --experimental-strip-types scripts/sign-switch.ts /path/to/private-key off` (increment the sequence for later flags). This prints the signed JSON; it does not publish it. Never commit the private key.
+
+### Insertion confirmation
+
+After writing a draft, Ownvoice reads the focused field again through the same reader used at capture time. It reports **Inserted** only if the same field contains the exact draft and its selection is collapsed at the end. Missing newlines, a stale field, or an unavailable read-back copy the complete draft and show **Copied, paste it in**. **Send it yourself** accompanies confirmation only when the current screen exposes a clickable Send, Post, Reply, Publish or Tweet action. Ownvoice screens hide the bubble even if switched on in app choices; setup practice is the exception.
