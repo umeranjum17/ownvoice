@@ -81,6 +81,36 @@ const accountFailure = (error: unknown) => {
   return kind != null && kind !== 'network';
 };
 
+/** Read only closed strings in the requested array, never a half-written draft or escape. */
+function finishedReplies(text: string): string[] {
+  const start = text.match(/^\s*\{\s*"drafts"\s*:\s*\[/);
+  if (!start) return [];
+  const drafts: string[] = [];
+  let at = start[0].length;
+  while (drafts.length < 3) {
+    while (/\s/.test(text[at] ?? '') && at < text.length) at++;
+    if (text[at] !== '"') break;
+    const from = at++;
+    let escaped = false;
+    while (at < text.length) {
+      const char = text[at++];
+      if (escaped) { escaped = false; continue; }
+      if (char === '\\') { escaped = true; continue; }
+      if (char !== '"') continue;
+      let draft: string;
+      try { draft = JSON.parse(text.slice(from, at)); } catch { return drafts; }
+      while (/\s/.test(text[at] ?? '') && at < text.length) at++;
+      // A closing quote alone could still belong to malformed JSON. Wait for its separator.
+      if (text[at] !== ',' && text[at] !== ']') return drafts;
+      drafts.push(draft);
+      if (text[at++] === ']') return drafts;
+      break;
+    }
+    if (at >= text.length) break;
+  }
+  return drafts;
+}
+
 /** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt). */
 async function replies(request: DraftRequest, on: WriterEvents): Promise<string[]> {
   const dashes = request.dashes ?? 'remove' as const;
@@ -88,8 +118,26 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
-  const made = acceptReplies(await ask(replyPrompt(input), REPLY_INSTRUCTIONS, 'drafts', 3, on), exclude, 3, dashes, controls);
-  made.forEach((text, slot) => { if (text) { exclude.push(text); landed(text, slot); } });
+  const made: (string | null)[] = [null, null, null];
+  const take = (raw: string[]) => {
+    acceptReplies(raw, request.avoid ?? [], 3, dashes, controls).forEach((text, slot) => {
+      if (!text || made[slot]) return;
+      made[slot] = text;
+      exclude.push(text);
+      landed(text, slot);
+    });
+  };
+  let partial = '';
+  try {
+    take(await ask(replyPrompt(input), REPLY_INSTRUCTIONS, 'drafts', 3, on, delta => {
+      partial += delta;
+      take(finishedReplies(partial));
+    }));
+  } catch (error) {
+    // A failed/incomplete response cannot leave its provisional cards on screen.
+    if (made.some(Boolean)) on.reset?.();
+    throw error;
+  }
   const slots = slotsFor(request.platform);
   for (let slot = 0; slot < slots.length; slot++) {
     if (made[slot]) continue;

@@ -33,6 +33,56 @@ const fetcher = (stream: ReadableStream<Uint8Array>) => jest.fn(async () => ({ o
 const reported = reportFailure as jest.Mock;
 beforeEach(() => { jest.clearAllMocks(); });
 
+test('finished reply slots land before completion, with escaped text, cleanup and retry labels intact', async () => {
+  const originalFetch = global.fetch;
+  let controller!: ReadableStreamDefaultController<Uint8Array>;
+  const stream = new ReadableStream<Uint8Array>({ start(value) { controller = value; } });
+  const push = (item: object) => controller.enqueue(new TextEncoder().encode(`${event(item)}\n\n`));
+  const first = 'Yes, bring the "tent".\nSkip';
+  const last = 'What time should I bring the stove?';
+  const retry = 'Saturday is out. Could you bring both instead?';
+  const fetch = jest.fn()
+    .mockResolvedValueOnce({ ok: true, body: stream })
+    .mockResolvedValueOnce({ ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ drafts: [retry] }) })}\n\n${event({ type: 'response.completed' })}`) });
+  global.fetch = fetch;
+  const landed = jest.fn();
+  let notify!: () => void;
+  const seen = () => new Promise<void>(resolve => { notify = resolve; });
+  let pending = seen();
+  const writing = chatgptWriter.write({
+    conversation: 'Sam: Saturday? I can bring the tent if you bring the stove.', written: '', typed: '',
+    nodes: [{ text: 'Skip', left: 0, top: 0, bottom: 10, clickable: true }],
+  }, { landed: (text, slot) => { landed(text, slot); notify(); } });
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const waitForCard = async () => {
+    try {
+      await Promise.race([pending, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('No finished card before stream completion')), 1000); })]);
+    } finally { clearTimeout(timer); }
+  };
+  try {
+    // The JSON string closes while the response itself stays open.
+    push({ type: 'response.output_text.delta', delta: `{"drafts":[${JSON.stringify(first)},"Yes, bring the ` });
+    await waitForCard();
+    expect(landed.mock.calls).toEqual([['Yes, bring the "tent".', 0]]);
+    pending = seen();
+    // Slot 2 repeats slot 1 and is rejected. An unfinished escape in slot 3 stays hidden.
+    push({ type: 'response.output_text.delta', delta: `\\"tent\\".\\nSkip",${JSON.stringify(last).slice(0, -1)}` });
+    expect(landed).toHaveBeenCalledTimes(1);
+    push({ type: 'response.output_text.delta', delta: '"]}' });
+    await waitForCard();
+    expect(landed.mock.calls).toEqual([['Yes, bring the "tent".', 0], [last, 2]]);
+    push({ type: 'response.completed' });
+    controller.close();
+    await expect(writing).resolves.toEqual({ drafts: ['Yes, bring the "tent".', retry, last] });
+    expect(landed.mock.calls).toEqual([['Yes, bring the "tent".', 0], [last, 2], [retry, 1]]);
+    expect(fetch).toHaveBeenCalledTimes(2);
+  } finally {
+    try { controller.close(); } catch { /* already closed */ }
+    await writing.catch(() => {});
+    global.fetch = originalFetch;
+  }
+});
+
 test('accepts CRLF events split across chunks and a final unterminated completion', async () => {
   const first = event({ type: 'response.output_text.delta', delta: '{"versions":[' });
   const second = event({ type: 'response.output_text.delta', delta: '"A","B","C"]}' });
@@ -383,17 +433,24 @@ test('incomplete selection text fails plainly and keeps the transmitted read mar
 test.each([
   ['versions', { versions: ['A', 'B', 'C'] }],
   ['replies', { drafts: ['Yes please', 'No thanks', 'What time?'] }],
-])('incomplete %s never land drafts even when the JSON is valid', async (mode, partial) => {
+])('incomplete %s fails and clears any finished streamed replies', async (mode, partial) => {
   const originalFetch = global.fetch;
   global.fetch = fetcher(body(
     event({ type: 'response.output_text.delta', delta: JSON.stringify(partial) }) + '\n\n',
     event({ type: 'response.incomplete', response: { incomplete_details: { reason: 'max_output_tokens' } } }),
   ));
   const landed = jest.fn();
+  const reset = jest.fn();
   try {
     const request = { conversation: 'Sam: Saturday?', written: 'Sam: Saturday?', typed: mode === 'versions' ? 'hello' : '' };
-    await expect(chatgptWriter.write(request, { landed })).rejects.toThrow(words.chatgptFailed);
-    expect(landed).not.toHaveBeenCalled();
+    await expect(chatgptWriter.write(request, { landed, reset })).rejects.toThrow(words.chatgptFailed);
+    if (mode === 'versions') {
+      expect(landed).not.toHaveBeenCalled();
+      expect(reset).not.toHaveBeenCalled();
+    } else {
+      expect(landed.mock.calls).toEqual([['Yes please', 0], ['No thanks', 1], ['What time?', 2]]);
+      expect(reset).toHaveBeenCalledTimes(1);
+    }
     expect(accounts.failed).not.toHaveBeenCalled();
     if (mode === 'versions') {
       await expect(streamResponses('polish', undefined, fetcher(body(
