@@ -1,18 +1,18 @@
 import { Text, View } from 'react-native';
 import type { Ratings as Value, Signal } from '../core/ratings';
-import { CheckIcon, WarnIcon } from './icons';
+import { WarnIcon } from './icons';
 import { space, type, useTheme } from './theme';
 
 const ICON = 18;
 
-/** One rating: an icon that never carries the meaning alone, its name, its level in words, then the reasons. */
-function Row({ title, label, good, bad, lines }: { title: string; label: string; good: boolean; bad: boolean; lines: string[] }) {
+/** One rating: a warning or a neutral dot that never carries the meaning alone, its name, its level in words, then the reasons.
+ *  Nothing here rates a draft up, so there is no tick. */
+function Row({ title, label, bad, lines }: { title: string; label: string; bad: boolean; lines: string[] }) {
   const t = useTheme();
-  const tint = bad ? t.attention : good ? t.primary : t.muted;
+  const tint = bad ? t.attention : t.muted;
   return <View style={{ flexDirection: 'row', marginTop: space.s }}>
     <View style={{ width: ICON + space.s, alignItems: 'flex-start', paddingTop: (type.note.lineHeight - ICON) / 2 }}>
       {bad ? <WarnIcon size={ICON} color={tint} />
-        : good ? <CheckIcon size={ICON} color={tint} />
         : <View style={{ width: 8, height: 8, borderRadius: 4, marginLeft: (ICON - 8) / 2, marginTop: (ICON - 8) / 2, backgroundColor: tint }} />}
     </View>
     <View style={{ flex: 1 }}>
@@ -36,7 +36,7 @@ export function Ratings({ ratings }: { ratings: Value | null }) {
   const stockLines = texts(s.signals);
   const label = `${sentence(e.title, e.label, [...texts(e.signals), ...e.unknown])} ${sentence(s.title, s.label, stockLines)}`;
   return <View accessible accessibilityLabel={label} style={{ marginTop: space.xs }}>
-    <Row title={e.title} label={e.label} good={e.level === 'helps'} bad={e.level === 'hurts'} lines={engagementLines} />
-    <Row title={s.title} label={s.label} good={false} bad={s.level !== 'none'} lines={stockLines} />
+    <Row title={e.title} label={e.label} bad={e.level === 'concerns'} lines={engagementLines} />
+    <Row title={s.title} label={s.label} bad={s.level !== 'none'} lines={stockLines} />
   </View>;
 }

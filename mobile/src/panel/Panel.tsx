@@ -205,8 +205,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     }
     setNote(words.writing);
     setPhase('writing');
-    // The post on screen, or '' when it couldn't be read: the ratings then say so rather than guess.
-    const shownPost = feedRead(value.nodes, value.fieldTop).post;
+    // What the reply answers: the post block when the layout shows one, else the screen text the
+    // writer drafts from; '' only when nothing was read. A new post has no parent to compare with.
+    const shownPost = post ? null : feedRead(value.nodes, value.fieldTop).post || value.conversation.trim();
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
       setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(text, platform, shownPost, rules) });
