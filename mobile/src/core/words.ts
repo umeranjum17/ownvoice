@@ -31,6 +31,8 @@ const homeWords = {
   cantWriteIn:'Ownvoice can\'t write in {apps} yet',
   cantWriteNote:'This phone can\'t write, and you kept writing there on this phone. Let ChatGPT write there instead.',
   cantWriteFix:'Choose where ChatGPT writes',
+  cantWriteReadyNote:'You kept writing there on this phone, and this phone needs to get ready first. It needs about 2 to 3 GB, once, on Wi-Fi.',
+  changeFailed:'That change didn\'t save, so nothing changed.',
 } as const;
 
 export const words = {

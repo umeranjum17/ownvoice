@@ -219,6 +219,26 @@ test('an app kept on the phone only blocks readiness when this phone really can\
   expect(screen.queryByText(words.cantWriteFix)).toBeNull();
 });
 
+test('Gmail kept on a phone that still needs its one-time download: Home asks first, with the size, and never says ready', async () => {
+  native.modelStatus.mockResolvedValue('downloadable');
+  native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.google.android.gm'], off: ['com.whatsapp', 'com.netflix.netflix', 'com.android.chrome'] });
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  kv.set(PHONE_ONLY_KEY, '["com.google.android.gm"]');
+  gpt.current.mockResolvedValue(connected);
+  const screen = await show(<Home />);
+  expect(await screen.findByText('Ownvoice can\'t write in Gmail yet')).toBeTruthy();
+  expect(screen.getByText(words.cantWriteReadyNote)).toBeTruthy();
+  expect(screen.queryByText(words.statusReady)).toBeNull();
+  await act(async () => { await Promise.resolve(); });
+  expect(native.downloadModel).not.toHaveBeenCalled();
+  await fireEvent.press(screen.getByText(words.cantWriteFix));
+  expect(router.push).toHaveBeenCalledWith('/phone-apps');
+  // Get it ready is the yes, given right where the size shows.
+  await fireEvent.press(screen.getByText(words.getReady));
+  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+  expect(kv.get(AGREED_KEY)).toBe('true');
+});
+
 test('Home never says ready before it knows whether this phone can write', async () => {
   native.modelStatus.mockReturnValue(new Promise(() => {}));
   const screen = await show(<Home />);
@@ -379,19 +399,24 @@ test('a failed power-off keeps the switch on and tells the user', async () => {
   native.turnOff.mockRejectedValueOnce(new Error('cannot turn off'));
   const screen = await homeCopy();
   fireEvent(screen.getByLabelText(words.powerRow), 'valueChange', false);
-  expect(await screen.findByText(words.failed)).toBeTruthy();
+  expect(await screen.findByText(words.changeFailed)).toBeTruthy();
   expect(screen.getByLabelText(words.powerRow).props.value).toBe(true);
+  // One tap tries the same change again.
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  await waitFor(() => expect(native.turnOff).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(screen.queryByText(words.changeFailed)).toBeNull());
 });
 
 test('a failed pause choice stays off, explains the failure, and can be retried', async () => {
   native.setBubbleRules.mockRejectedValueOnce(new Error('could not save'));
   const screen = await homeCopy();
   fireEvent.press(screen.getByText(words.rowPause));
-  expect(await screen.findByText(words.failed)).toBeTruthy();
+  expect(await screen.findByText(words.changeFailed)).toBeTruthy();
   expect(native.setBubbleRules).toHaveBeenCalledWith({ ...rules, paused: true });
-  fireEvent.press(screen.getByText(words.rowPause));
-  await waitFor(() => expect(screen.queryByText(words.failed)).toBeNull());
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  await waitFor(() => expect(screen.queryByText(words.changeFailed)).toBeNull());
   expect(native.setBubbleRules).toHaveBeenCalledTimes(2);
+  expect(native.setBubbleRules).toHaveBeenLastCalledWith({ ...rules, paused: true });
 });
 
 test('checking spelling as you type starts off, and one tap switches it on', async () => {
@@ -405,9 +430,11 @@ test('a failed typing check choice says so and stays off', async () => {
   native.setTypingCheck.mockRejectedValueOnce(new Error('could not save'));
   const screen = await homeCopy();
   fireEvent.press(screen.getByText(words.rowTyping));
-  expect(await screen.findByText(words.failed)).toBeTruthy();
-  fireEvent.press(screen.getByText(words.rowTyping));
-  await waitFor(() => expect(native.setTypingCheck).toHaveBeenLastCalledWith(true));
+  expect(await screen.findByText(words.changeFailed)).toBeTruthy();
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  await waitFor(() => expect(native.setTypingCheck).toHaveBeenCalledTimes(2));
+  expect(native.setTypingCheck).toHaveBeenLastCalledWith(true);
+  await waitFor(() => expect(screen.queryByText(words.changeFailed)).toBeNull());
 });
 
 test('a dropped service asks to be turned back on', async () => {

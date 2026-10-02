@@ -53,7 +53,8 @@ export default function Home() {
   const [apps, setApps] = useState<App[] | null>(null);
   const [phrases, setPhrases] = useState(0);
   const [week, setWeek] = useState(0);
-  const [settingsFailed, setSettingsFailed] = useState(false);
+  // A change that didn't save: what Try again repeats.
+  const [retry, setRetry] = useState<(() => void) | null>(null);
   const [typing, setTyping] = useState<boolean | null>(null);
   const [source, setShownSource] = useState<Source | undefined>(storedSource);
   const [gpt, setGpt] = useState<GptState | null>(null);
@@ -107,19 +108,19 @@ export default function Home() {
       const next = update(await Native.bubbleRules());
       await saveBubbleRules(next);
       setRules(next);
-      setSettingsFailed(false);
-    }).catch(() => setSettingsFailed(true));
+      setRetry(null);
+    }).catch(() => setRetry(() => () => changeRules(update)));
   };
   // The switch is the phone's own: turning it on goes to the permission screen, off stops the service.
   const power = (want: boolean) => {
-    setSettingsFailed(false);
+    setRetry(null);
     if (want) router.push('/setup');
-    else { void Native.turnOff().then(reload).catch(() => { reload(); setSettingsFailed(true); }); }
+    else { void Native.turnOff().then(reload).catch(() => { reload(); setRetry(() => () => power(false)); }); }
   };
   // Off unless the person switches it on: then the bubble counts slips after each typing pause, on this phone.
   const changeTyping = (on: boolean) => {
-    setSettingsFailed(false);
-    void Native.setTypingCheck(on).then(() => setTyping(on)).catch(() => setSettingsFailed(true));
+    setRetry(null);
+    void Native.setTypingCheck(on).then(() => setTyping(on)).catch(() => setRetry(() => () => changeTyping(on)));
   };
   // The person's yes starts the one-time download (on Wi-Fi unless they pick mobile data).
   const start = (mobileData = false) => { void getReady(mobileData).catch(() => {}); };
@@ -132,23 +133,25 @@ export default function Home() {
   const needs = source === null;
   const viaGpt = source === 'chatgpt';
   const viaPhone = source === 'phone';
-  const getting = viaPhone && (model === 'downloading' || fetching);
-  // Ask for the download only where the person picked this phone, never under ChatGPT.
-  const ask = viaPhone && model === 'downloadable' && !yes && !getting;
-  const stopped = viaPhone && model === 'downloadable' && yes && !getting;
   // ChatGPT chosen but not writing right now: signed out, or resting (in byokit's own words).
   const gptLine = viaGpt && gpt ? (!gpt.signedIn ? say('status.needsAgain', { name: NAME }) : gpt.resting) : null;
-  const problem = stopped ? words.readyStopped : null;
-  // Apps the bubble shows in that no writer serves: kept on this phone while ChatGPT writes, on a
-  // phone that really can't write (the panel says phoneOnlyCant there). Unknown is not can't.
-  const stranded = viaGpt && !gptLine && !paused && model === 'unavailable' && rules && apps
+  // Apps the bubble shows in that stay on this phone while ChatGPT writes: they need this phone's writer.
+  const kept = viaGpt && !gptLine && !paused && rules && apps
     ? apps.filter(({ app }) => !isOwnApp(app) && showsBubble(rules, app) && phoneListed(app)).map(({ label }) => label) : [];
-  const cantWrite = stranded.length ? words.cantWriteIn.replace('{apps}', appsLine(stranded)) : null;
+  const keptLine = kept.length ? words.cantWriteIn.replace('{apps}', appsLine(kept)) : null;
+  const phoneNeeded = viaPhone || !!keptLine;
+  const getting = phoneNeeded && (model === 'downloading' || fetching);
+  // Ask for the download only where this phone writes: picked, or kept for some apps under ChatGPT.
+  const ask = phoneNeeded && model === 'downloadable' && !yes && !getting;
+  const stopped = phoneNeeded && model === 'downloadable' && yes && !getting;
+  const problem = stopped ? words.readyStopped : null;
+  // No writer at all for those apps: this phone really can't write (the panel says phoneOnlyCant there). Unknown is not can't.
+  const cantWrite = model === 'unavailable' ? keptLine : null;
   // Never ready from missing data: wait until the writer, its apps and this phone's answer are known.
   const checking = source === undefined || rules === null || viaPhone && model === null || viaGpt && (gpt === null || apps === null || model === null);
   const green = !needs && on && !paused && problem === null && !ask && !gptLine && !cantWrite && !checking;
-  const headline = needs ? words.needWriter : !on ? words.statusOff : ask ? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : cantWrite ?? (checking ? words.statusChecking : words.statusReady));
-  const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : !on ? words.statusOffNote : ask ? words.readyNote : problem
+  const headline = needs ? words.needWriter : !on ? words.statusOff : ask ? keptLine ?? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : cantWrite ?? (checking ? words.statusChecking : words.statusReady));
+  const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : !on ? words.statusOffNote : ask ? (keptLine ? words.cantWriteReadyNote : words.readyNote) : problem
     ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : cantWrite ? words.cantWriteNote : checking ? null : words.statusReadyNote);
   const mood = needs ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (gpt?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : cantWrite ? 'check' : checking ? 'idle' : 'ready';
   const signIn = needs && !phoneCan || on && viaGpt && !!gpt && !gpt.signedIn;
@@ -169,7 +172,10 @@ export default function Home() {
       <Text style={[type.heading, { color: onCard, marginTop: space.l }]}>{headline}</Text>
       {detail && <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted, marginTop: space.xs }]}>{detail}</Text>}
       {on && getting && <View style={{ marginTop: space.l }}><Progress fraction={fraction} /></View>}
-      {settingsFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
+      {retry && <View style={{ paddingTop: space.m, gap: space.s, alignItems: 'flex-start' }}>
+        <Text style={[type.body, { color: t.text }]}>{words.changeFailed}</Text>
+        <Button kind="text" label={words.tryAgain} onPress={() => { const again = retry; setRetry(null); again(); }} />
+      </View>}
       {(needs || signIn || on && (problem !== null || ask || !!cantWrite) || service !== 'on') && <View style={styles.statusActions}>
         {service === 'off' && !needs && !signIn && <Button kind="filled" label={words.turnOn} onPress={() => power(true)} />}
         {signIn && <Button kind="filled" label={words.gptButton} onPress={() => router.push('/source?start=chatgpt')} />}
@@ -177,7 +183,7 @@ export default function Home() {
         {!needs && on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="filled" label={words.tryAgain} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="text" label={words.useMobileData} onPress={() => start(true)} />}
-        {!needs && on && cantWrite && <Button kind="filled" label={words.cantWriteFix} onPress={() => router.push('/phone-apps')} />}
+        {!needs && on && (cantWrite || ask && keptLine) && <Button kind={cantWrite ? 'filled' : 'text'} label={words.cantWriteFix} onPress={() => router.push('/phone-apps')} />}
         {service === 'stuck' && <Button kind="filled" label={words.turnBackOn} onPress={() => router.push('/setup')} />}
       </View>}
     </View>
