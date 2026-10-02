@@ -56,7 +56,7 @@ export async function judgeFit(o: { post: string; candidates: string[]; platform
     if (hard[i].length) return { level: 0, words: LEVELS[0], best: 0, flags: hard[i] };
     const f = a[`fit_${i}`];
     const rated = f && !f.abstained ? Number(f.answer) : null;
-    const drops = o.platform.id === 'x' ? Number((o.candidates[i].match(/(?<![\w#])#[\p{L}\d_]+/gu) ?? []).length >= 2) + Number(/(?:^|[.!?,;:\n])\s*(?:please\s+)?(?:(?:thoughts(?:\s+(?:on|about)\s+[^\n.!?,;:]+)?|any\s+thoughts(?:\s+(?:on|about)\s+[^\n.!?,;:]+)?|what\s+do\s+you\s+think(?:\s+(?:of|about)\s+[^\n.!?,;:]+)?|agree|what\s+about\s+you)\s*\?|(?:let\s+(?:me|us)\s+know|share|what\s+are)\s+your\s+thoughts(?:\s+(?:on|about)\s+[^\n.!?,;:]+)?\s*[.!?]?)\s*$/i.test(o.candidates[i])) : 0;
+    const drops = o.platform.id === 'x' ? Number((o.candidates[i].match(/(?<![\w#])#[\p{L}\d_]+/gu) ?? []).length >= 2) + Number(/(?:^|[.!?,;:\n])\s*(?:please\s+)?(?:(?:thoughts(?:\s+(?:on|about)\s+[^\n.!?,;:]+)?|any\s+thoughts(?:\s+(?:on|about)\s+[^\n.!?,;:]+)?|what\s+do\s+you\s+think(?:\s+(?:of|about)\s+[^\n.!?,;:]+)?|agree|what\s+about\s+you)\s*\?|(?:let\s+(?:me|us)\s+know\s+(?:your\s+thoughts|what\s+you\s+think)|(?:share|what\s+are)\s+your\s+thoughts)(?:\s+(?:on|about|of)\s+[^\n.!?,;:]+)?\s*[.!?]?)\s*$/i.test(o.candidates[i])) : 0;
     const level = rated == null ? null : Math.max(0, rated - drops);
     return { level, words: level == null ? UNSURE : LEVELS[level], best: best[String(i)] ?? 0, flags: [] };
   });
