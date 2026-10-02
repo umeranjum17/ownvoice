@@ -66,7 +66,9 @@ sentence does not trigger that drop. The bounded English rule recognizes
 by `your thoughts` or `what you think`. Optional topics begin with `on`,
 `about` or `of` and may contain commas; sentence punctuation, semicolons,
 colons and newlines end topics. It does not infer unlisted paraphrases or
-quoted requests. Unknown platforms use rules only.
+quote-bearing replies. Matches with question or reporting prefixes, and comma
+clauses beginning with explicit question words, are excluded conservatively.
+Unknown platforms use rules only.
 
 `fitBackends(app, events)` in `src/chatgpt/settings.ts` supplies the ChatGPT
 answerer through the existing `responses.ts` ask path and accounts response

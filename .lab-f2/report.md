@@ -81,8 +81,12 @@ require a question mark; the remaining forms allow a period, exclamation mark,
 question mark or no ending. Requests must begin at the reply start or a
 sentence/clause separator. Optional on/about/of topics allow commas but stop
 at . ! ? ; : or a newline. Embedded substantive questions and requests
-followed by another sentence or clause remain excluded. This is a bounded
-heuristic, not general grammar or intent classification: quoted requests and
+followed by another sentence or clause remain excluded. Matches with
+interrogative or reporting/quoted prefixes, and comma-topic clauses beginning
+with explicit question words (optionally after and/or or a topic modifier),
+are conservatively excluded. The bounded heuristic may abstain from a
+request penalty for ambiguous quoted or reporting contexts. This is a bounded
+heuristic, not general grammar or intent classification: quote-bearing replies and
 unlisted paraphrases are unsupported.
 
 Per the approved review disposition, a later finding requesting only another

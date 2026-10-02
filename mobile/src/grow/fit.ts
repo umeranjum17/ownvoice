@@ -40,11 +40,15 @@ export function flags(text: string, platform: Platform, voice: Slop.Rules): stri
 }
 
 /** Bounded English heuristic: only these explicit request stems at a terminal sentence or clause.
- * Topics are opaque and may contain commas; . ! ? ; : and newlines end them.
- * Unlisted paraphrases and quoted requests are outside this rule, not inferred intent. */
+ * Topics may contain commas, but explicit question clauses and reporting/quoted prefixes are excluded.
+ * Unlisted paraphrases and quote-bearing replies are outside this rule, not inferred intent. */
 function terminalRequest(text: string): boolean {
-  const match = /(?:^|[.!?,;:\n])[ \t]*(?:please[ \t]+)?(?:(?:agree|what[ \t]+about[ \t]+you)[ \t]*\?|(?:(?<question>(?:any[ \t]+)?thoughts|what[ \t]+do[ \t]+you[ \t]+think)|let[ \t]+(?:me|us)[ \t]+know[ \t]+(?:your[ \t]+thoughts|what[ \t]+you[ \t]+think)|(?:share|what[ \t]+are)[ \t]+your[ \t]+thoughts)(?:[ \t]+(?:on|about|of)[ \t]+[^.!?;:\n]+)?[ \t]*(?<ending>[.!?]?))\s*$/i.exec(text);
-  return match != null && (match.groups?.question == null || match.groups.ending === '?');
+  if (/["“”`]/.test(text)) return false;
+  const match = /(?:^|[.!?,;:\n])[ \t]*(?:please[ \t]+)?(?:(?:agree|what[ \t]+about[ \t]+you)[ \t]*\?|(?:(?<question>(?:any[ \t]+)?thoughts|what[ \t]+do[ \t]+you[ \t]+think)|let[ \t]+(?:me|us)[ \t]+know[ \t]+(?:your[ \t]+thoughts|what[ \t]+you[ \t]+think)|(?:share|what[ \t]+are)[ \t]+your[ \t]+thoughts)(?:[ \t]+(?:on|about|of)[ \t]+(?<topic>[^.!?;:\n]+))?[ \t]*(?<ending>[.!?]?))\s*$/i.exec(text);
+  if (match == null || (match.groups?.question != null && match.groups.ending !== '?')) return false;
+  const prefix = /^[,;:\n]/.test(match[0]) ? text.slice(0, match.index).split(/[.!?\n]/).pop() ?? '' : '';
+  if (/^[ \t]*(?:can|could|do|does|did|is|are|was|were|has|have|had|will|would|should|may|might|must|what|which|who|whom|whose|where|when|why|how)\b|\b(?:say|says|said|quote|quotes|quoted|ask|asks|asked)\b|[‘’]/i.test(prefix)) return false;
+  return !/,[ \t]*(?:(?:and|or|especially|including|particularly)[ \t]+)*(?:can|could|do|does|did|is|are|was|were|has|have|had|will|would|should|may|might|must|what|which|who|whom|whose|where|when|why|how)\b/i.test(match.groups?.topic ?? '');
 }
 
 /** One decide call for the unflagged candidates: `fit_<i>` rubric levels plus a `best` pick, on the person's ChatGPT.
