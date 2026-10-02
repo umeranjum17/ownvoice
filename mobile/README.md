@@ -56,6 +56,9 @@ the outward request. Ordinary sentence dots, decimals and abbreviations such
 as "e.g." are not links. Bare domains must end in a registered suffix from
 `src/grow/domainEndings.json`, bundled from [IANA’s root list](https://data.iana.org/TLD/tlds-alpha-by-domain.txt)
 (2026-10-02), so non-domain endings such as `.json` and `.keys` stay eligible.
+Domain labels and suffixes include Unicode combining marks; suffix lookup
+uses NFC normalization. Email addresses remain eligible unless explicitly
+linked.
 The statement-ending preference applies to posts,
 so reply questions remain eligible. X replies lose one level for two or more
 hashtags, including punctuation-separated tags, and another for a trailing
@@ -63,7 +66,10 @@ request for thoughts or agreement. An earlier ask followed by another
 sentence does not trigger that drop. The bounded English rule recognizes
 `Thoughts?`, `Any thoughts?`, `What do you think?`, `Agree?`, `What about you?`,
 `What are your thoughts`, `Share your thoughts`, and `Let me/us know` followed
-by `your thoughts` or `what you think`. Optional topics begin with `on`,
+by `your thoughts` or `what you think`. `Please` is optional. The first five
+forms require a question mark; the remaining forms also allow a period,
+exclamation mark or no ending. Requests begin at the reply start or a
+sentence/clause separator. Optional topics begin with `on`,
 `about` or `of` and may contain commas; sentence punctuation, semicolons,
 colons and newlines end topics. It does not infer unlisted paraphrases or
 quote-bearing replies. Matches with question or reporting prefixes, and comma

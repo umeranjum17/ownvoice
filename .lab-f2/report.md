@@ -66,42 +66,22 @@ through both `resolve()` and `judgeFit()` in `Fit.test.ts` without network calls
 
 ## Runtime corrections and verification
 
-The initial transport probes abstained because a pre-dispatch failure was masked as a veto. Replacing `AbortSignal.throwIfAborted()` with an explicit aborted check allowed the production path to answer; regression coverage uses a signal without that helper. Pre-dispatch failures retain their original cause. Review added bare-domain/Markdown-link flags and common trailing X asks. A further regression proved an earlier “Thoughts?” question must not lower a reply ending with a concrete question; the trailing pattern is now sentence bounded.
+The initial transport probes abstained because a pre-dispatch failure was masked as a veto. Replacing `AbortSignal.throwIfAborted()` with an explicit aborted check allowed the production path to answer; regression coverage uses a signal without that helper. Pre-dispatch failures retain their original cause. Review added bare-domain/Markdown-link flags and common trailing X asks. A further regression proved an earlier “Thoughts?” question must not lower a reply ending with a concrete question; the current bounded rule is documented in the [reply fit judge reference](../mobile/README.md#reply-fit-judge-growth-foundation).
 
 Lint and typecheck passed on the revised rubric. Full Jest passed **53 suites, 939 tests, 46 snapshots**, before adding the two final hard-recording replay cases. The x86_64 corrected-rubric release proof build passed in 1m54s. The final replay suite passed **15 tests**. Its recordings replay through both `resolve()` and `judgeFit()` without network calls, with explicit hard-case ordering/nonsense checks. The proof route is removed from the delivered app. Each emulator session restored the previously installed APK; no sign-out or wipe occurred. Emulator shutdown and lock release are checked after restoration. Panel wiring and UI remain later packages.
 
 
 ## PR notes: bounded request rule and international domains
 
-The X penalty uses one terminal-request recognizer with a fixed English vocabulary:
-Thoughts?, Any thoughts?, What do you think?, Agree?, What about you?,
-What are your thoughts, Share your thoughts, and Let me/us know followed by
-your thoughts or what you think. Please is optional. The first five forms
-require a question mark; the remaining forms allow a period, exclamation mark,
-question mark or no ending. Requests must begin at the reply start or a
-sentence/clause separator. Optional on/about/of topics allow commas but stop
-at . ! ? ; : or a newline. Embedded substantive questions and requests
-followed by another sentence or clause remain excluded. Matches with
-interrogative or reporting/quoted prefixes, and comma-topic clauses beginning
-with explicit question words (optionally after and/or or a topic modifier),
-are conservatively excluded. Blank lines and intervening whitespace preserve
-preceding question/reporting context; . ! ? reset it. Interrogative openings
-at each retained line or clause start are excluded, even after an
-unpunctuated declarative line. This deliberately
-conservative rule may leave ambiguous multiline requests without a drop.
-The bounded heuristic may abstain from a
-request penalty for ambiguous quoted or reporting contexts. This is a bounded
-heuristic, not general grammar or intent classification: quote-bearing replies and
-unlisted paraphrases are unsupported.
+The current request vocabulary, context exclusions and heuristic limits live
+in the [reply fit judge reference](../mobile/README.md#reply-fit-judge-growth-foundation).
 
 Per the approved review disposition, a later finding requesting only another
 phrasing should retain its text and return for non-fix disposition with this
 bounded-rule reason. Substantive-question false positives and consent or
 hard-flag defects still require correction.
 
-Domain labels, suffixes and email spans now include Unicode combining marks,
-with NFC normalization for suffix lookup. The bundled IANA suffix check and
-explicit-link handling remain in place. Fit.test.ts covers international
+Fit.test.ts covers international
 links omitted from shared state/questions, equivalent emails remaining
 eligible, all previously reported request phrases, comma-containing topics,
 labels and rank. These notes are ready for the outer executor's PR description;
