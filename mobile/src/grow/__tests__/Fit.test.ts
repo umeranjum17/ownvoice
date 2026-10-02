@@ -178,10 +178,16 @@ test('reply questions stay eligible under statement endings while hard flags sta
 });
 
 test('X drops a level for common trailing asks only when they end the reply', async () => {
-  const asks = ['What do you think of this?', 'Thoughts on this?', 'Any thoughts?', 'Agree?', 'What about you?'];
-  const candidates = [...asks.map(ask => `A useful point. ${ask}`), 'A useful point. What do you think of this? More context follows.', 'A useful point. Thoughts on this? Does it pause for PDFs?'];
+  const asks = ['What do you think of this?', 'Thoughts on this?', 'Any thoughts?', 'Agree?', 'What about you?', 'Let me know your thoughts.', 'Share your thoughts.', 'What are your thoughts?', 'Share your thoughts!', 'Let me know your thoughts', 'Let me know your thoughts about this.\n', 'What are your thoughts on this?'];
+  const ordinary = ['A useful point. What do you think of this? More context follows.', 'A useful point. Thoughts on this? Does it pause for PDFs?', 'A useful point. Share your thoughts. More context follows.', 'A useful point. Let me know your thoughts on this. Does it pause for PDFs?', 'I wrote down my thoughts.', 'Does it pause for PDFs?'];
+  const candidates = [...asks.map(ask => `A useful point. ${ask}`), ...ordinary, 'A useful point #build #ship. Share your thoughts.'];
   const ask = async () => JSON.stringify(Object.fromEntries(candidates.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }])));
-  expect((await judgeFit({ post: POST, candidates, platform: X, voice, ask })).map(f => f.level)).toEqual([2, 2, 2, 2, 2, 3, 3]);
+  const fits = await judgeFit({ post: POST, candidates, platform: X, voice, ask });
+  const levels = [...asks.map(() => 2), ...ordinary.map(() => 3), 1];
+  expect(fits.map(f => f.level)).toEqual(levels);
+  expect(fits.map(f => f.words)).toEqual(levels.map(level => LEVELS[level]));
+  expect(rank(fits)).toEqual([...ordinary.map((_, i) => asks.length + i), ...asks.map((_, i) => i), candidates.length - 1]);
+  expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, ask })).map(f => f.level)).toEqual(candidates.map(() => 3));
 });
 
 test('timeout aborts the backend and returns rules only; unsupported platforms send nothing', async () => {
