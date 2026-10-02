@@ -85,7 +85,9 @@ followed by another sentence or clause remain excluded. Matches with
 interrogative or reporting/quoted prefixes, and comma-topic clauses beginning
 with explicit question words (optionally after and/or or a topic modifier),
 are conservatively excluded. Blank lines and intervening whitespace preserve
-preceding question/reporting context; . ! ? reset it. This deliberately
+preceding question/reporting context; . ! ? reset it. Interrogative openings
+at each retained line or clause start are excluded, even after an
+unpunctuated declarative line. This deliberately
 conservative rule may leave ambiguous multiline requests without a drop.
 The bounded heuristic may abstain from a
 request penalty for ambiguous quoted or reporting contexts. This is a bounded
