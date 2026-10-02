@@ -1,4 +1,4 @@
-import { resolve, type Question, type Raw } from '@byokit/decide';
+import { answerer, resolve, type Question, type Raw } from '@byokit/decide';
 import { judgeFit, rank, LEVELS, UNSURE } from '../fit';
 import { platformForApp } from '../../core/platforms';
 import { NO_RULES } from '../../core/slop';
@@ -21,7 +21,7 @@ test('one call rates the unflagged candidates; flagged ones never reach the prom
     prompts.push(p);
     return JSON.stringify({ fit_1: { 0: 0.05, 1: 0.1, 2: 0.25, 3: 0.6 }, fit_2: { 0: 0.05, 1: 0.15, 2: 0.65, 3: 0.15 }, best: { 1: 0.7, 2: 0.3 } });
   });
-  const fits = await judgeFit({ post: POST, candidates: C, platform: X, voice, ask });
+  const fits = await judgeFit({ post: POST, candidates: C, platform: X, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] });
   expect(ask).toHaveBeenCalledTimes(1);
   // Neither the flagged questions nor the flagged text (his never-say draft, the link) goes to the model.
   expect(prompts[0]).not.toMatch(/fit_0|fit_3|Game changer|example\.com/);
@@ -32,14 +32,14 @@ test('one call rates the unflagged candidates; flagged ones never reach the prom
 });
 
 test('a reply that is not the JSON asked for abstains: unsure cards, never a guess, still above flagged ones', async () => {
-  const fits = await judgeFit({ post: POST, candidates: C, platform: X, voice, ask: async () => 'Sure! Here is my rating: strong.' });
+  const fits = await judgeFit({ post: POST, candidates: C, platform: X, voice, backends: [answerer({ name: 'fixture', leaves: true, ask: async () => 'Sure! Here is my rating: strong.' })] });
   expect(fits.map(f => f.words)).toEqual([LEVELS[0], UNSURE, UNSURE, LEVELS[0]]);
   expect(rank(fits)).toEqual([1, 2, 0, 3]);
 });
 
 test('a best pick below the floor does not order the cards', async () => {
   const ask = async () => JSON.stringify({ fit_1: { 0: 0, 1: 0, 2: 1, 3: 0 }, fit_2: { 0: 0, 1: 0, 2: 1, 3: 0 }, best: { 1: 0.45, 2: 0.55 } });
-  const fits = await judgeFit({ post: POST, candidates: C.slice(0, 3), platform: X, voice, ask });
+  const fits = await judgeFit({ post: POST, candidates: C.slice(0, 3), platform: X, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] });
   expect(fits.map(f => f.best)).toEqual([0, 0, 0]);
   expect(rank(fits)).toEqual([1, 2, 0]);
 });
@@ -57,7 +57,7 @@ test('the level words are plain', () => {
 
 test('long dashes, limits and upper-case links are checked without sending', async () => {
   const ask = jest.fn(async () => '{}');
-  const fits = await judgeFit({ post: POST, candidates: ['A — B', 'a'.repeat(281), 'HTTPS://example.com'], platform: X, voice, ask });
+  const fits = await judgeFit({ post: POST, candidates: ['A — B', 'a'.repeat(281), 'HTTPS://example.com'], platform: X, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] });
   expect(fits.every(f => f.level === 0 && f.flags.length > 0)).toBe(true);
   expect(ask).not.toHaveBeenCalled();
 });
@@ -69,7 +69,7 @@ test('bare domains and markdown link destinations are flagged while sentence dot
     prompts.push(prompt);
     return JSON.stringify({ fit_3: { 0: 0, 1: 0, 2: 0, 3: 1 } });
   };
-  const fits = await judgeFit({ post: POST, candidates, platform: X, voice, ask });
+  const fits = await judgeFit({ post: POST, candidates, platform: X, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] });
   expect(fits.slice(0, 3).every(f => f.flags.includes('Links can mean fewer views'))).toBe(true);
   expect(fits[3].flags).toEqual([]);
   expect(prompts).toHaveLength(1);
@@ -140,7 +140,7 @@ test('dotted code, filenames and email hostnames reach judging on X and Reddit w
   const candidates = [...links, ...eligible];
   for (const platform of [X, REDDIT]) {
     const ask = jest.fn(async (_prompt: string) => JSON.stringify(Object.fromEntries(eligible.map((_, i) => [`fit_${links.length + i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }]))));
-    const fits = await judgeFit({ post: POST, candidates, platform, voice, ask });
+    const fits = await judgeFit({ post: POST, candidates, platform, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] });
     expect(ask).toHaveBeenCalledTimes(1);
     const prompt = ask.mock.calls[0][0];
     eligible.forEach((candidate, i) => {
@@ -160,18 +160,18 @@ test('dotted code, filenames and email hostnames reach judging on X and Reddit w
 test('X applies separate one-level drops for hashtags and trailing thoughts; Reddit does not', async () => {
   const candidates = ['A useful point #build #ship', 'A useful point. Thoughts?', 'A useful point #build #ship. Thoughts?'];
   const ask = async () => JSON.stringify({ fit_0: { 0: 0, 1: 0, 2: 0, 3: 1 }, fit_1: { 0: 0, 1: 0, 2: 0, 3: 1 }, fit_2: { 0: 0, 1: 0, 2: 0, 3: 1 } });
-  expect((await judgeFit({ post: POST, candidates, platform: X, voice, ask })).map(f => f.level)).toEqual([2, 2, 1]);
-  expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, ask })).map(f => f.level)).toEqual([3, 3, 3]);
+  expect((await judgeFit({ post: POST, candidates, platform: X, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] })).map(f => f.level)).toEqual([2, 2, 1]);
+  expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] })).map(f => f.level)).toEqual([3, 3, 3]);
 });
 
 test('punctuation-separated hashtags lower X levels, labels and rank using engine boundaries', async () => {
   const candidates = ['A useful point #build,#ship', 'A useful point (#build)/#ship. Thoughts?', 'A useful point #build', 'A useful point word#build ##ship'];
   const ask = async () => JSON.stringify(Object.fromEntries(candidates.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }])));
-  const fits = await judgeFit({ post: POST, candidates, platform: X, voice, ask });
+  const fits = await judgeFit({ post: POST, candidates, platform: X, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] });
   expect(fits.map(f => f.level)).toEqual([2, 1, 3, 3]);
   expect(fits.map(f => f.words)).toEqual([LEVELS[2], LEVELS[1], LEVELS[3], LEVELS[3]]);
   expect(rank(fits)).toEqual([2, 3, 0, 1]);
-  expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, ask })).map(f => f.level)).toEqual([3, 3, 3, 3]);
+  expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] })).map(f => f.level)).toEqual([3, 3, 3, 3]);
 });
 
 test('reply questions stay eligible under statement endings while hard flags stay omitted', async () => {
@@ -179,7 +179,7 @@ test('reply questions stay eligible under statement endings while hard flags sta
   const rules = { ...voice, noDashes: false, statementEndings: true };
   for (const platform of [X, REDDIT]) {
     const ask = jest.fn(async (_prompt: string) => JSON.stringify({ fit_0: { 0: 0, 1: 0, 2: 0, 3: 1 }, fit_1: { 0: 0, 1: 0, 2: 1, 3: 0 } }));
-    const fits = await judgeFit({ post: POST, candidates, platform, voice: rules, ask });
+    const fits = await judgeFit({ post: POST, candidates, platform, voice: rules, backends: [answerer({ name: 'fixture', leaves: true, ask })] });
     expect(ask).toHaveBeenCalledTimes(1);
     expect(ask.mock.calls[0][0]).toContain(candidates[0]);
     expect(ask.mock.calls[0][0]).toContain(candidates[1]);
@@ -203,21 +203,32 @@ test('X drops a level for common trailing asks only when they end the reply', as
   const requests = [...asks.flatMap(ask => prefixes.map(prefix => prefix + ask)), 'Pick a PDF reader once. What are your thoughts on the timer, especially the PDF case?'];
   const candidates = [...requests, ...ordinary, 'A useful point #build #ship; let us know what you think.'];
   const ask = async () => JSON.stringify(Object.fromEntries(candidates.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }])));
-  const fits = await judgeFit({ post: POST, candidates, platform: X, voice, ask });
+  const fits = await judgeFit({ post: POST, candidates, platform: X, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] });
   const levels = [...requests.map(() => 2), ...ordinary.map(() => 3), 1];
   expect(fits.map(f => f.level)).toEqual(levels);
   expect(fits.map(f => f.words)).toEqual(levels.map(level => LEVELS[level]));
   expect(rank(fits)).toEqual([...ordinary.map((_, i) => requests.length + i), ...requests.map((_, i) => i), candidates.length - 1]);
-  expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, ask })).map(f => f.level)).toEqual(candidates.map(() => 3));
+  expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, backends: [answerer({ name: 'fixture', leaves: true, ask })] })).map(f => f.level)).toEqual(candidates.map(() => 3));
 });
 
-test('timeout aborts the backend and returns rules only; unsupported platforms send nothing', async () => {
-  const ask = jest.fn((_prompt: string, signal: AbortSignal) => new Promise<string>((_resolve, reject) => { signal.addEventListener('abort', () => reject(new Error('aborted'))); }));
-  const fits = await judgeFit({ post: POST, candidates: C, platform: X, voice, ask, timeoutMs: 5 });
-  expect(fits.map(f => f.level)).toEqual([0, null, null, 0]);
-  ask.mockClear();
-  await judgeFit({ post: POST, candidates: C, platform: platformForApp('com.linkedin.android'), voice, ask });
-  expect(ask).not.toHaveBeenCalled();
+test('the fixed 20-second deadline aborts the backend; unsupported platforms send nothing', async () => {
+  jest.useFakeTimers();
+  try {
+    const ask = jest.fn((_prompt: string, signal: AbortSignal) => new Promise<string>((_resolve, reject) => { signal.addEventListener('abort', () => reject(new Error('aborted'))); }));
+    const backends = [answerer({ name: 'fixture', leaves: true, ask })];
+    const pending = judgeFit({ post: POST, candidates: C, platform: X, voice, backends });
+    await jest.advanceTimersByTimeAsync(19999);
+    expect(ask).toHaveBeenCalledTimes(1);
+    expect(ask.mock.calls[0][1].aborted).toBe(false);
+    await jest.advanceTimersByTimeAsync(1);
+    expect(ask.mock.calls[0][1].aborted).toBe(true);
+    expect((await pending).map(f => f.level)).toEqual([0, null, null, 0]);
+    ask.mockClear();
+    await judgeFit({ post: POST, candidates: C, platform: platformForApp('com.linkedin.android'), voice, backends });
+    expect(ask).not.toHaveBeenCalled();
+  } finally {
+    jest.useRealTimers();
+  }
 });
 
 
@@ -242,7 +253,7 @@ test.each(recorded)('recorded $demo.platform answer resolves and replays without
   });
   expect(resolve(record.questions.best, record.raw.best).answer).toBe(String(record.rank[0]));
   const ask = jest.fn(async () => JSON.stringify(Object.fromEntries(Object.entries(record.raw).map(([name, raw]) => [name, raw.probabilities]))));
-  const fits = await judgeFit({ ...record.demo, platform: platformForApp(record.demo.platform), voice: NO_RULES, ask });
+  const fits = await judgeFit({ ...record.demo, platform: platformForApp(record.demo.platform), voice: NO_RULES, backends: [answerer({ name: 'fixture', leaves: true, ask })] });
   expect(fits).toEqual(record.fits);
   expect(rank(fits)).toEqual(record.rank);
   expect(ask).toHaveBeenCalledTimes(1);
