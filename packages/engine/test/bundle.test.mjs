@@ -15,6 +15,7 @@ const PURE = new Set([
   'dist/index.js',
   'dist/slop.js',
   'dist/voice.js',
+  'dist/samples.js',
   'dist/platforms.js',
   'dist/drafts.js',
   'dist/judge.js',
@@ -56,7 +57,7 @@ test('engine bundle has no impure imports or fetch calls', async () => {
   };
   runInNewContext(result.outputFiles[0].text, context);
   const { Protocol, Judge } = context.Engine;
-  assert.equal(Protocol.hello().protocol, 1);
+  assert.equal(Protocol.hello().protocol, 2);
   const rules = Protocol.handle({
     verb: 'voice.parse', markdown: '**Never say:**\n* seamless\n\nZero em-dashes, ever.',
   }).rules;

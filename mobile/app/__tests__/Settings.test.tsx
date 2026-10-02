@@ -513,7 +513,7 @@ test('an app list that fails to load offers Try again', async () => {
 
 // ---- H4: Your voice ----
 test('an import previews what it found before adding anything', async () => {
-  picker.pickFileAsync.mockResolvedValue({ canceled: false, result: { text: async () => '# Never say\n- "delve"\n- "circle back"\n\nNo em dashes anywhere.\n' } });
+  picker.pickFileAsync.mockResolvedValue({ canceled: false, result: { text: async () => '# Never say\n- "delve"\n- "circle back"\n\nNo em dashes anywhere.\n## How I reply\n- private reply\n' } });
   const screen = await show(<Voice />);
   fireEvent.press(screen.getByText(words.importFile));
   expect(await screen.findByText(/Found in the file:/)).toBeTruthy();
@@ -523,16 +523,20 @@ test('an import previews what it found before adding anything', async () => {
   fireEvent.press(screen.getByText(words.addThese));
   await waitFor(() => expect(loadVoice().never).toEqual(['delve', 'circle back']));
   expect(screen.getByText(words.added)).toBeTruthy();
+  expect(loadVoice().samples).toEqual([]);
+  expect(JSON.parse(kv.get('voice')!)).toEqual({ never: ['delve', 'circle back'], noDashes: true, statementEndings: false, note: '', samples: [] });
 });
 
 test('a markdown share previews and adds through Your voice without a picker', async () => {
-  native.sharedMarkdown.mockResolvedValue('# Never say\n- "circle back"\n\nNo em dashes.');
+  native.sharedMarkdown.mockResolvedValue('# Never say\n- "circle back"\n\nNo em dashes.\n## How I reply\n- private reply');
   const screen = await show(<Voice shared />);
   expect(await screen.findByText(/“circle back”/)).toBeTruthy();
   expect(loadVoice().never).toEqual([]);
   expect(picker.pickFileAsync).not.toHaveBeenCalled();
   fireEvent.press(screen.getByText(words.addThese));
   await waitFor(() => expect(loadVoice()).toEqual(expect.objectContaining({ never: ['circle back'], noDashes: true })));
+  expect(loadVoice().samples).toEqual([]);
+  expect(JSON.parse(kv.get('voice')!)).toEqual({ never: ['circle back'], noDashes: true, statementEndings: false, note: '', samples: [] });
   fireEvent.press(screen.getByLabelText(words.back));
   expect(native.finishRewrite).toHaveBeenCalledWith(null, false);
 });
@@ -611,7 +615,7 @@ test('the rules, the note and the never-say list all save', async () => {
   await act(async () => { fireEvent.press(screen.getByText(words.ruleDashes)); });
   await act(async () => { fireEvent.changeText(screen.getByLabelText(words.howIWrite), 'short sentences'); });
   await act(async () => { fireEvent.changeText(screen.getByLabelText(words.neverSay), 'delve\ncircle back\n'); });
-  await waitFor(() => expect(loadVoice()).toEqual({ never: ['delve', 'circle back'], noDashes: true, statementEndings: false, note: 'short sentences' }));
+  await waitFor(() => expect(loadVoice()).toEqual({ never: ['delve', 'circle back'], noDashes: true, statementEndings: false, note: 'short sentences', samples: [] }));
   expect(screen.getByText(words.neverSayHelp)).toBeTruthy();
   expect(screen.getByText(words.wipeElsewhere)).toBeTruthy();
 });
