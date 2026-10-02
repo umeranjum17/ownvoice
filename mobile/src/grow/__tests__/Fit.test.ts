@@ -77,12 +77,22 @@ test('bare domains and markdown link destinations are flagged while sentence dot
   expect(fits[3].level).toBe(3);
 });
 
-test('dotted API calls and email hostnames reach judging on X and Reddit while links stay omitted', async () => {
+test('dotted code, filenames and email hostnames reach judging on X and Reddit while links stay omitted', async () => {
   const eligible = [
+    'Use Object.keys to count the allowed apps.',
+    'Use Object.prototype.hasOwnProperty to check saved entries.',
+    'Use JSON.parse when loading the saved timer state.',
+    'Store the app list in settings.json.',
+    'Store the app list in config/settings.json.',
+    'Try notes.txt, icon.png and app.test.ts.',
+    'Use `Object.keys` with `settings.json`.',
     'Use JSON.parse() when loading the saved timer state.',
     'Use Object.prototype.hasOwnProperty() to check the saved entries.',
     'Try offline files, e.g. PDFs. Version 3.14 works. Email me@sample.org.',
     'Email me@sub.sample.org.',
+    'Email me@почта.рф.',
+    'Email me@sample.xn--p1ai.',
+    'Email me@SAMPLE.XN--P1AI.',
     'Email me@deep.sub.sample.org.',
     'Email first.last@sample.org.',
     'Email me@www.sample.org.',
@@ -101,7 +111,8 @@ test('dotted API calls and email hostnames reach judging on X and Reddit while l
     'Email first.last+tag@sample.org or **me@www.sample.org**.',
   ];
   const links = [
-    'https://example.com', 'www.example.com', 'example.com', 'sub.example.co.uk/path',
+    'https://example.com', 'www.example.com', 'EXAMPLE.COM', 'example.dev', 'example.design', 'example.ae', 'пример.рф', 'example.xn--p1ai',
+    'https://example.com/settings.json', '[file](settings.json)', 'Use Object.keys; see example.com.', 'Read settings.json; see example.com.', 'example.com', 'sub.example.co.uk/path',
     '[site](example.com)', 'example.com (more details)', 'Visit example.com.', 'HTTP://example.com',
     '[site](www.example.com)', 'www.sub.example.com/path', 'Email first.last@sample.org; see example.com.',
     'Email first.last+tag@sample.org; see sub.example.com/path.',

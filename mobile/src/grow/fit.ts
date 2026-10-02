@@ -2,6 +2,9 @@ import { decide, answerer, type Answer, MemoryCache, type Backend, type Question
 import * as Slop from '../core/slop';
 import * as Voice from '../core/voice';
 import type { Platform } from '../core/platforms';
+import domainEndings from './domainEndings.json';
+
+const DOMAIN_ENDINGS = new Set(domainEndings);
 
 /** Lowest first, as decide's `score` wants. Plain words: no numbers, no "score". */
 export const LEVELS = ['Likely to be skipped', 'Might get a reply', 'Good fit here', 'Strong fit here'];
@@ -23,14 +26,14 @@ export function flags(text: string, platform: Platform, voice: Slop.Rules): stri
   const out = Voice.broken(Slop.hits(text, rules, false), text, rules).map(x => 'Breaks your rules: ' + x);
   if (platform.limit != null && text.length > platform.limit) out.push(`Too long for ${platform.label}`);
   const explicit = /(?:^|[^\p{L}\p{N}_.-])(?:[a-z][a-z\d+.-]*:\/\/|mailto:)|\[[^\]\n]*\]\(\s*[^)\s]+[^)\n]*\)/iu.test(text);
-  const email = /[\p{L}\p{N}.!#$%&'*+\/=?^_`{|}~-]+@(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}])/gu;
-  const bare = /(?<![\p{L}\p{N}_.-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+[\p{L}]{2,}(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}]|\()(?::\d+)?([/?#][^\s]*)?/giu;
+  const email = /[\p{L}\p{N}.!#$%&'*+\/=?^_`{|}~-]+@(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+(?:[\p{L}]{2,}|xn--[a-z\d-]+)(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}])/giu;
+  const bare = /(?<![\p{L}\p{N}_.-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+(?<suffix>[\p{L}]{2,}|xn--[a-z\d-]+)(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}]|\()(?::\d+)?(?<path>[/?#][^\s]*)?/giu;
   const linked = (text.match(/[^\s,;]+/gu) ?? []).some(part => {
     const addresses = [...part.matchAll(email)];
-    return [...part.matchAll(bare)].some(match => !addresses.some(address =>
+    return [...part.matchAll(bare)].some(match => DOMAIN_ENDINGS.has(match.groups?.suffix.toLowerCase() ?? '') && !addresses.some(address =>
       match.index >= address.index &&
       match.index + match[0].replace(/[\p{Pe}\p{Pf}.,!?;:'"`]+$/gu, '').length <= address.index + address[0].length &&
-      !(match[1] != null && part.indexOf(match[1], match.index) < part.indexOf('@', address.index))
+      !(match.groups?.path != null && part.indexOf(match.groups.path, match.index) < part.indexOf('@', address.index))
     ));
   });
   if (explicit || linked) out.push('Links can mean fewer views');

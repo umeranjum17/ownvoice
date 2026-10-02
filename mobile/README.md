@@ -53,7 +53,10 @@ Never-say phrases, long dashes (regardless of the saved no-dashes rule),
 platform limits and links, including bare domains and Markdown destinations,
 are checked first; flagged candidates and their questions are omitted from
 the outward request. Ordinary sentence dots, decimals and abbreviations such
-as "e.g." are not links. The statement-ending preference applies to posts,
+as "e.g." are not links. Bare domains must end in a registered suffix from
+`src/grow/domainEndings.json`, bundled from [IANA’s root list](https://data.iana.org/TLD/tlds-alpha-by-domain.txt)
+(2026-10-02), so non-domain endings such as `.json` and `.keys` stay eligible.
+The statement-ending preference applies to posts,
 so reply questions remain eligible. X replies lose one level for two or more
 hashtags, including punctuation-separated tags, and another for a trailing
 request for thoughts or agreement. An earlier ask followed by another
