@@ -44,6 +44,51 @@ Live proofs run through the app on the signed-in test emulator, using its byokit
 
 To produce a switch flag offline, keep a 32-byte private signing key as hex outside this repository and, from `mobile/`, run `SWITCH_SEQ=1 node --experimental-strip-types scripts/sign-switch.ts /path/to/private-key off` (increment the sequence for later flags). This prints the signed JSON; it does not publish it. Never commit the private key.
 
+### Reply fit judge (growth foundation)
+
+`src/grow/fit.ts` judges a draft and its alternatives for X or Reddit in one
+`@byokit/decide` call, through a pluggable ordered backend list. The platform
+rubrics estimate text fit, not reach or calibrated engagement probabilities.
+Never-say phrases, long dashes (regardless of the saved no-dashes rule),
+platform limits and links, including bare domains and Markdown destinations,
+are checked first; flagged candidates and their questions are omitted from
+the outward request. Ordinary sentence dots, decimals and abbreviations such
+as "e.g." are not links. Bare domains must end in a registered suffix from
+`src/grow/domainEndings.json`, bundled from [IANA’s root list](https://data.iana.org/TLD/tlds-alpha-by-domain.txt)
+(2026-10-02), so non-domain endings such as `.json` and `.keys` stay eligible.
+Domain labels and suffixes include Unicode combining marks; suffix lookup
+uses NFC normalization. Email addresses remain eligible unless explicitly
+linked.
+The statement-ending preference applies to posts,
+so reply questions remain eligible. X replies lose one level for two or more
+hashtags, including punctuation-separated tags, and another for a trailing
+request for thoughts or agreement. An earlier ask followed by another
+sentence does not trigger that drop. The bounded English rule recognizes
+`Thoughts?`, `Any thoughts?`, `What do you think?`, `Agree?`, `What about you?`,
+`What are your thoughts`, `Share your thoughts`, and `Let me/us know` followed
+by `your thoughts` or `what you think`. `Please` is optional. The first five
+forms require a question mark; the remaining forms also allow a period,
+exclamation mark or no ending. Requests begin at the reply start or a
+sentence/clause separator. Optional topics begin with `on`,
+`about` or `of` and may contain commas; sentence punctuation, semicolons,
+colons and newlines end topics. It does not infer unlisted paraphrases or
+quote-bearing replies. Matches with question or reporting prefixes, and comma
+clauses beginning with explicit question words, are excluded conservatively.
+Blank lines retain preceding question/reporting context; only sentence
+punctuation resets that context. Question openings at each retained line or
+clause start are excluded. Ambiguous multiline requests may receive no drop.
+Unknown platforms use rules only.
+
+`fitBackends(app, events)` in `src/chatgpt/settings.ts` supplies the ChatGPT
+answerer through the existing `responses.ts` ask path and accounts response
+transport. It rechecks source, app visibility, pause, phone-only routing,
+sign-out epoch and a known-on remote switch before sending and at dispatch.
+Pass `sent` with the tap's read-log hook, as with the writer. A veto, timeout or
+malformed answer yields rules only. The deadline is 20 seconds; each invocation
+uses a new in-memory decision cache, so text is never cached across taps.
+The confidence floor is decide's 0.6; abstained best picks never affect order.
+This foundation does not yet wire the judge into the panel or change posting.
+
 ## Signed APK releases
 
 The [APK release workflow](../.github/workflows/apk-release.yml) builds the Expo app on tags such as `v1.0.0`, verifies its signature, and publishes `Ownvoice.apk` plus its SHA-256 alongside the GitHub Release. Before tagging, update `expo.version` and increase `android.versionCode` in `app.config.js`; the tag must match `expo.version`. Tag only reviewed commits on current `main`; the workflow rejects a tag that points elsewhere. Download links use `releases/latest/download/Ownvoice.apk` so they survive version updates. A manual workflow run on the version tag can retry a failed build before the release is published.

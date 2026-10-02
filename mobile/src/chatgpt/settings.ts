@@ -161,3 +161,14 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   });
   return route;
 }
+
+/** Fit is an optional outward call: unknown switch state leaves rules only. */
+export function fitBackends(app: string, on: WriterEvents = {}, fetcher?: typeof fetch): import('@byokit/decide').Backend[] {
+  const bubble = chatgptConsent(app);
+  const remote = agentChatgptConsent();
+  const beforeSend = async () => (await getSource()) === 'chatgpt'
+    && await bubble.beforeSend() && await remote.beforeSend();
+  const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === 'chatgpt'
+    && bubble.beforeFetch() && remote.beforeFetch();
+  return [require('./responses').fitBackend({ ...on, beforeSend, beforeFetch }, fetcher)];
+}
