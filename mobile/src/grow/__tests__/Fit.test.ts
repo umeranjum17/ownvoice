@@ -178,15 +178,16 @@ test('reply questions stay eligible under statement endings while hard flags sta
 });
 
 test('X drops a level for common trailing asks only when they end the reply', async () => {
-  const asks = ['What do you think of this?', 'Thoughts on this?', 'Any thoughts?', 'Agree?', 'What about you?', 'Let me know your thoughts.', 'Share your thoughts.', 'What are your thoughts?', 'Share your thoughts!', 'Let me know your thoughts', 'Let me know your thoughts about this.\n', 'What are your thoughts on this?'];
-  const ordinary = ['A useful point. What do you think of this? More context follows.', 'A useful point. Thoughts on this? Does it pause for PDFs?', 'A useful point. Share your thoughts. More context follows.', 'A useful point. Let me know your thoughts on this. Does it pause for PDFs?', 'I wrote down my thoughts.', 'Does it pause for PDFs?'];
-  const candidates = [...asks.map(ask => `A useful point. ${ask}`), ...ordinary, 'A useful point #build #ship. Share your thoughts.'];
+  const asks = ['What do you think of this?', 'Thoughts on this?', 'Any thoughts?', 'Agree?', 'What about you?', 'Let me know your thoughts.', 'Share your thoughts.', 'What are your thoughts?', 'Share your thoughts!', 'Let me know your thoughts', 'Let me know your thoughts about this.\n', 'What are your thoughts on this?', 'Let us know your thoughts.', 'Please let us know your thoughts on this?', 'Please share your thoughts.'];
+  const ordinary = ['A useful point. What do you think of this? More context follows.', 'A useful point. Thoughts on this? Does it pause for PDFs?', 'A useful point. Share your thoughts. More context follows.', 'A useful point. Let me know your thoughts on this. Does it pause for PDFs?', 'I wrote down my thoughts.', 'Does it pause for PDFs?', 'Does the timer keep counting while you write down your thoughts?', 'Does it save any thoughts?', 'Does it run faster if the users agree?', 'Do the saved notes include what about you?', 'Can the prompt say share your thoughts?', 'A useful point. Let us know your thoughts. More context follows.'];
+  const requests = asks.flatMap(ask => [ask, `A useful point. ${ask}`]);
+  const candidates = [...requests, ...ordinary, 'A useful point #build #ship. Let us know your thoughts.'];
   const ask = async () => JSON.stringify(Object.fromEntries(candidates.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }])));
   const fits = await judgeFit({ post: POST, candidates, platform: X, voice, ask });
-  const levels = [...asks.map(() => 2), ...ordinary.map(() => 3), 1];
+  const levels = [...requests.map(() => 2), ...ordinary.map(() => 3), 1];
   expect(fits.map(f => f.level)).toEqual(levels);
   expect(fits.map(f => f.words)).toEqual(levels.map(level => LEVELS[level]));
-  expect(rank(fits)).toEqual([...ordinary.map((_, i) => asks.length + i), ...asks.map((_, i) => i), candidates.length - 1]);
+  expect(rank(fits)).toEqual([...ordinary.map((_, i) => requests.length + i), ...requests.map((_, i) => i), candidates.length - 1]);
   expect((await judgeFit({ post: POST, candidates, platform: REDDIT, voice, ask })).map(f => f.level)).toEqual(candidates.map(() => 3));
 });
 
