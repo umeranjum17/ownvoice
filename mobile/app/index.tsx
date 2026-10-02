@@ -103,6 +103,7 @@ export default function Home() {
     try { setSource(null); setShownSource(null); } catch {}
   }, [source, model]);
 
+  // Callers fix the value they want at the tap, so Try again asks for the same value, never a second toggle.
   const changeRules = (update: (current: Rules) => Rules) => {
     busy.current = busy.current.then(async () => {
       const next = update(await Native.bubbleRules());
@@ -198,7 +199,7 @@ export default function Home() {
     <View style={group}>
       <Row lead={icon(PauseIcon)} title={words.rowPause} subtitle={words.rowPauseNote}
         end={<View pointerEvents="none"><Switch value={paused} disabled={!rules} onValueChange={v => changeRules(r => ({ ...r, paused: v }))} /></View>}
-        onPress={() => { if (rules) changeRules(r => ({ ...r, paused: !r.paused })); }} />
+        onPress={() => { if (rules) { const want = !rules.paused; changeRules(r => ({ ...r, paused: want })); } }} />
       <Row lead={icon(CheckIcon)} title={words.rowTyping} subtitle={words.rowTypingNote}
         end={<View pointerEvents="none"><Switch value={!!typing} disabled={typing === null} onValueChange={changeTyping} /></View>}
         onPress={() => { if (typing !== null) changeTyping(!typing); }} />

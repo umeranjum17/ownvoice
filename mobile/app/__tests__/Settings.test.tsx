@@ -419,6 +419,19 @@ test('a failed pause choice stays off, explains the failure, and can be retried'
   expect(native.setBubbleRules).toHaveBeenLastCalledWith({ ...rules, paused: true });
 });
 
+test('a pause that took effect but reported failure: Try again still asks for pause, never undoes it', async () => {
+  let saved = { ...rules };
+  native.bubbleRules.mockImplementation(async () => saved);
+  native.setBubbleRules.mockImplementationOnce(async next => { saved = next; throw new Error('saved, then failed'); });
+  const screen = await homeCopy();
+  fireEvent.press(screen.getByText(words.rowPause));
+  expect(await screen.findByText(words.changeFailed)).toBeTruthy();
+  expect(saved.paused).toBe(true);
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  await waitFor(() => expect(native.setBubbleRules).toHaveBeenCalledTimes(2));
+  expect(native.setBubbleRules).toHaveBeenLastCalledWith({ ...rules, paused: true });
+});
+
 test('checking spelling as you type starts off, and one tap switches it on', async () => {
   const screen = await homeCopy();
   expect(screen.getByText(words.rowTypingNote)).toBeTruthy();
