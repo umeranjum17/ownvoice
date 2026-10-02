@@ -7,6 +7,8 @@ import { speller } from '../core/speller';
 import { dashesFor } from '../core/drafts';
 import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
 import { prefillFor, prefillUrl } from '../core/prefill';
+import { feedRead } from '../core/feed';
+import { rate, type Ratings as CardRatings } from '../core/ratings';
 import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
@@ -21,6 +23,7 @@ import { MeaningLine } from '../ui/MeaningLine';
 import { Marked } from '../ui/Marked';
 import { Placeholder } from '../ui/Placeholder';
 import { Progress } from '../ui/Progress';
+import { Ratings } from '../ui/Ratings';
 import { ReasonRow } from '../ui/ReasonRow';
 import { Sheet } from '../ui/Sheet';
 import { VerdictLine } from '../ui/VerdictLine';
@@ -40,7 +43,7 @@ const TAGS: Record<string, [string, string, string]> = {
 };
 const CHAT_TAGS: [string, string, string] = [words.replyYes, words.replyNo, words.replyAsk];
 type Phase = 'loading' | 'writing' | 'ready' | 'failed';
-type Draft = { text: string; label?: string; slot: number; scores: Scores; meaning: Check | null };
+type Draft = { text: string; label?: string; slot: number; scores: Scores; meaning: Check | null; ratings: CardRatings | null };
 type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
 
 /** Lines only Ownvoice itself can fix (choosing a writer, signing in, the phone's one-time download): the panel offers to open it. */
@@ -202,9 +205,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     }
     setNote(words.writing);
     setPhase('writing');
+    // The post on screen, or '' when it couldn't be read: the ratings then say so rather than guess.
+    const shownPost = feedRead(value.nodes, value.fieldTop).post;
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
-      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null });
+      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(text, platform, shownPost, rules) });
     }
     void (async () => {
       let path: WriterRoute;
@@ -239,7 +244,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             if (run.current !== id) return;
             const scores = Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform);
             const meaning = label ? Judge.meaning(value.typed, text, null) : null;
-            setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
+            const ratings = rate(text, platform, shownPost, rules);
+            setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning, ratings }; return next; });
           },
         });
         if (run.current !== id) return;
@@ -392,6 +398,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <Marked text={yours.text} hits={[...yours.scores.hits, ...slips]} />
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
+        <Ratings ratings={yours.ratings} />
         <View style={styles.actions}>
           {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
           <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
@@ -407,6 +414,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           <Marked text={card.text} hits={card.scores.hits} />
           <ToneLine text={card.text} tones={tones} />
           {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
+          <Ratings ratings={card.ratings} />
           <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
