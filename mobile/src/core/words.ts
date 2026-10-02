@@ -24,8 +24,17 @@ const editWords = {
   editField:'Edit this draft',
 } as const;
 
+// Home's readiness card: never "Ready to help" while it is still checking, or while an app the
+// bubble shows in has no writer.
+const homeWords = {
+  statusChecking:'Checking…',
+  cantWriteIn:'Ownvoice can\'t write in {apps} yet',
+  cantWriteNote:'This phone can\'t write, and you kept writing there on this phone. Let ChatGPT write there instead.',
+  cantWriteFix:'Choose where ChatGPT writes',
+} as const;
+
 export const words = {
-  ...engineWords, ...typingWords, ...editWords,
+  ...engineWords, ...typingWords, ...editWords, ...homeWords,
   replyWithheld: "Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.",
   tryInsert: 'Write a reply first, then tap the bubble to polish it. Or tap Skip.',
 };

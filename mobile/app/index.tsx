@@ -13,7 +13,7 @@ import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { store } from '../src/core/store';
-import { getSource, setSource, storedSource, type Source } from '../src/core/source';
+import { getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
 import { NAME, session, type GptState } from '../src/chatgpt/session';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
@@ -47,10 +47,10 @@ export default function Home() {
   const inset = useSafeAreaInsets().top;
   const [rules, setRules] = useState<Rules | null>(null);
   const [service, setService] = useState<ServiceState>('off');
-  const [model, setModel] = useState<ModelStatus>('available');
+  const [model, setModel] = useState<ModelStatus | null>(null);
   const [fraction, setFraction] = useState(0);
   const [fetching, setFetching] = useState(downloading);
-  const [apps, setApps] = useState<App[]>([]);
+  const [apps, setApps] = useState<App[] | null>(null);
   const [phrases, setPhrases] = useState(0);
   const [week, setWeek] = useState(0);
   const [settingsFailed, setSettingsFailed] = useState(false);
@@ -139,15 +139,22 @@ export default function Home() {
   // ChatGPT chosen but not writing right now: signed out, or resting (in byokit's own words).
   const gptLine = viaGpt && gpt ? (!gpt.signedIn ? say('status.needsAgain', { name: NAME }) : gpt.resting) : null;
   const problem = stopped ? words.readyStopped : null;
-  const green = !needs && on && !paused && problem === null && !ask && !gptLine;
-  const headline = needs ? words.needWriter : !on ? words.statusOff : ask ? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : words.statusReady);
+  // Apps the bubble shows in that no writer serves: kept on this phone while ChatGPT writes, on a
+  // phone that really can't write (the panel says phoneOnlyCant there). Unknown is not can't.
+  const stranded = viaGpt && !gptLine && !paused && model === 'unavailable' && rules && apps
+    ? apps.filter(({ app }) => !isOwnApp(app) && showsBubble(rules, app) && phoneListed(app)).map(({ label }) => label) : [];
+  const cantWrite = stranded.length ? words.cantWriteIn.replace('{apps}', appsLine(stranded)) : null;
+  // Never ready from missing data: wait until the writer, its apps and this phone's answer are known.
+  const checking = source === undefined || rules === null || viaPhone && model === null || viaGpt && (gpt === null || apps === null || model === null);
+  const green = !needs && on && !paused && problem === null && !ask && !gptLine && !cantWrite && !checking;
+  const headline = needs ? words.needWriter : !on ? words.statusOff : ask ? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : cantWrite ?? (checking ? words.statusChecking : words.statusReady));
   const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : !on ? words.statusOffNote : ask ? words.readyNote : problem
-    ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : words.statusReadyNote);
-  const mood = needs ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (gpt?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : 'ready';
+    ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : cantWrite ? words.cantWriteNote : checking ? null : words.statusReadyNote);
+  const mood = needs ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (gpt?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : cantWrite ? 'check' : checking ? 'idle' : 'ready';
   const signIn = needs && !phoneCan || on && viaGpt && !!gpt && !gpt.signedIn;
   const onCard = green ? t.onPrimaryContainer : t.text;
   const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
-  const shown = apps.filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
+  const shown = (apps ?? []).filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };
 
   return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={[styles.page, { paddingTop: inset + space.xl }]}>
@@ -163,13 +170,14 @@ export default function Home() {
       {detail && <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted, marginTop: space.xs }]}>{detail}</Text>}
       {on && getting && <View style={{ marginTop: space.l }}><Progress fraction={fraction} /></View>}
       {settingsFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
-      {(needs || signIn || on && (problem !== null || ask) || service !== 'on') && <View style={styles.statusActions}>
+      {(needs || signIn || on && (problem !== null || ask || !!cantWrite) || service !== 'on') && <View style={styles.statusActions}>
         {service === 'off' && !needs && !signIn && <Button kind="filled" label={words.turnOn} onPress={() => power(true)} />}
         {signIn && <Button kind="filled" label={words.gptButton} onPress={() => router.push('/source?start=chatgpt')} />}
         {needs && phoneCan && <Button kind="filled" label={words.continueLabel} onPress={() => router.push('/source')} />}
         {!needs && on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="filled" label={words.tryAgain} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="text" label={words.useMobileData} onPress={() => start(true)} />}
+        {!needs && on && cantWrite && <Button kind="filled" label={words.cantWriteFix} onPress={() => router.push('/phone-apps')} />}
         {service === 'stuck' && <Button kind="filled" label={words.turnBackOn} onPress={() => router.push('/setup')} />}
       </View>}
     </View>

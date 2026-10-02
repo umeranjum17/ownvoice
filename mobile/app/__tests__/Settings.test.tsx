@@ -9,7 +9,7 @@ import Source from '../source';
 import { router } from 'expo-router';
 import { session, nothing, type GptState } from '../../src/chatgpt/session';
 import { AGREED_KEY } from '../../src/core/phoneDownload';
-import { SOURCE_KEY, setSource, storedSource } from '../../src/core/source';
+import { PHONE_ONLY_KEY, SOURCE_KEY, setSource, storedSource } from '../../src/core/source';
 import Native, { type TapFact } from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
 import { space } from '../../src/ui/theme';
@@ -193,6 +193,38 @@ test('ChatGPT chosen and connected on a phone that cannot write reads ready, nev
   const text = JSON.stringify(screen.toJSON());
   for (const gone of [words.unsupported, words.statusNotReady, words.tryAgain, words.gptButton]) expect(text).not.toContain(gone);
   expect(storedSource()).toBe('chatgpt');
+});
+
+test('bubble only in Gmail, Gmail kept on a phone that cannot write: Home says it can\'t write in Gmail and offers the fix', async () => {
+  native.modelStatus.mockResolvedValue('unavailable');
+  native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.google.android.gm'], off: ['com.whatsapp', 'com.netflix.netflix', 'com.android.chrome'] });
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  kv.set(PHONE_ONLY_KEY, '["com.google.android.gm"]');
+  gpt.current.mockResolvedValue(connected);
+  const screen = await show(<Home />);
+  expect(await screen.findByText('Ownvoice can\'t write in Gmail yet')).toBeTruthy();
+  expect(screen.getByText(words.cantWriteNote)).toBeTruthy();
+  expect(screen.queryByText(words.statusReady)).toBeNull();
+  await fireEvent.press(screen.getByText(words.cantWriteFix));
+  expect(router.push).toHaveBeenCalledWith('/phone-apps');
+});
+
+test('an app kept on the phone only blocks readiness when this phone really can\'t write', async () => {
+  native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.google.android.gm'], off: [] });
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  kv.set(PHONE_ONLY_KEY, '["com.google.android.gm"]');
+  gpt.current.mockResolvedValue(connected);
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.statusReady)).toBeTruthy();
+  expect(screen.queryByText(words.cantWriteFix)).toBeNull();
+});
+
+test('Home never says ready before it knows whether this phone can write', async () => {
+  native.modelStatus.mockReturnValue(new Promise(() => {}));
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.statusChecking)).toBeTruthy();
+  await act(async () => { await Promise.resolve(); });
+  expect(screen.queryByText(words.statusReady)).toBeNull();
 });
 
 test('ChatGPT chosen but signed out: the card asks to sign in again, and this phone writes until then', async () => {
