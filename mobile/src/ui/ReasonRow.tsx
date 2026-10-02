@@ -2,12 +2,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { CheckIcon, WarnIcon } from './icons';
 import { space, type, useTheme } from './theme';
 
-/** One row in the Why? reasons card: a tick or a warning in a soft circle, the check's name, and its detail. */
-export function ReasonRow({ ok, name, detail }: { ok: boolean; name: string; detail?: string }) {
+/** One row in the Why? reasons card: a tick, warning or unchecked dash in a soft circle, the check's name, and its detail. */
+export function ReasonRow({ ok, name, detail }: { ok: boolean | null; name: string; detail?: string }) {
   const t = useTheme();
   return <View style={styles.row}>
-    <View style={[styles.badge, { backgroundColor: ok ? t.primaryContainer : t.attention + '26' }]}>
-      {ok
+    <View style={[styles.badge, { backgroundColor: ok === null ? t.raised : ok ? t.primaryContainer : t.attention + '26' }]}>
+      {ok === null ? <Text style={{color:t.muted}}>–</Text> : ok
         ? <CheckIcon size={16} color={t.onPrimaryContainer} />
         : <WarnIcon size={16} color={t.attention} />}
     </View>

@@ -70,7 +70,7 @@ test('a pause never works out fixes, and counts stock phrases too', () => {
 
 test('no close word, no fix', () => expect(suggestion('qwxzvbn', speller)).toBeUndefined());
 
-test('without the dictionary only the rules run', () => expect(slips('Its a shoud day.', null).map(s => s.fix)).toEqual(["It's"]));
+test('without the dictionary known slips still run', () => expect(slips('Its a shoud day.', null).map(s => s.fix)).toEqual(["It's", "should"]));
 
 // The on-phone budget is under a frame (16 ms) per pause; the host is far faster, so this only catches a runaway.
 test('a pause check is quick', () => {
@@ -103,11 +103,11 @@ test.each([
   expect(fixedSlips(typed, speller)).toBe(expected);
 });
 
-test('automatic spelling requires a single clear suggestion', () => {
+test('automatic spelling uses only known safe corrections', () => {
   const ambiguous = { correct: () => false, suggest: () => ['cat', 'bat'] };
   expect(fixedSlips('We saw a dat.', ambiguous)).toBe('We saw a dat.');
   expect(fixedSlips('dat', { correct: () => false, suggest: () => ['cat', 'elephant'] })).toBe('dat');
-  expect(fixedSlips('dat', { correct: () => false, suggest: () => ['cat'] })).toBe('cat');
+  expect(fixedSlips('dat', { correct: () => false, suggest: () => ['cat'] })).toBe('dat');
   expect(fixedSlips('Bring woud for the fire.', speller)).toBe('Bring woud for the fire.');
   expect(fixedSlips('shoud teh recieve', speller)).toBe('should the receive');
   expect(fixed('Its a plan.', withFixes('Its a plan.')[0])).toBe("It's a plan.");
