@@ -292,7 +292,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       .finally(() => { inserting.current = false; setInsertBusy(false); });
   };
 
-  // ---- Why? (spec 4.4): the rule row is instant; the model checks run behind the cover, cached per draft ----
+  // Why? starts with local evidence and unchecked rows; deeper results are cached by text for this run.
   const openWhy = (draft: Draft) => {
     const id = run.current;
     setWhy(draft.slot);
