@@ -43,7 +43,7 @@ test('an edited card inserts exactly the edited text and is rated as edited', as
   await fireEvent.press(screen.getAllByRole('button', { name: 'Edit' })[0]);
   const edited = 'Week twelve, for us. More at https://example.com';
   await fireEvent.changeText(screen.getByLabelText('Edit this draft'), edited);
-  expect(firstRating(screen)).toMatch(/^Engagement on X: Holds it back\. Has a link\./);
+  expect(firstRating(screen)).toMatch(/^Engagement on X: Worth a second look\. Has a link\./);
   await fireEvent.press(screen.getAllByRole('button', { name: 'Insert' })[0]);
   await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(1));
   expect(native.insert).toHaveBeenCalledWith(edited);

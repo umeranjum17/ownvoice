@@ -55,11 +55,11 @@ test('each X reply card shows its own engagement and stock-wording rating, and n
   const [question, linked, repeat] = labels;
   // A question mark is reported as a plain fact, never as a reason the reply will do well.
   expect(question).toBe("Engagement on X: Nothing flagged. Asks a question. Text alone can't predict reach. Stock wording: None found.");
-  expect(linked).toMatch(/^Engagement on X: Holds it back\. Has a link\./);
+  expect(linked).toMatch(/^Engagement on X: Worth a second look\. Has a link\./);
   expect(linked).toMatch(/Stock wording: Some\. “Great post!”: starts with flattery/);
   // The repeat is a literal word-overlap fact under stock wording, not an engagement judgement.
   expect(repeat).toMatch(/^Engagement on X: Nothing flagged\. Text alone can't predict reach\./);
-  expect(repeat).toContain("Stock wording: Some. Reuses most of the post's words.");
+  expect(repeat).toContain("Stock wording: Some. Shares most of its wording with the post.");
   for (const label of labels) {
     expect(label).not.toMatch(/Helps|Adds something|until you post|viral|will get|\d/i);
     expect(technicalWords.test(label)).toBe(false);
@@ -76,13 +76,13 @@ test('the post the writer drafted from counts as read even when the layout shows
   const labels = ratingsOf(await open(capture({ nodes: [], fieldTop: null })));
   expect(labels).toHaveLength(3);
   for (const label of labels) expect(label).not.toContain("Couldn't read the post");
-  expect(labels[2]).toContain("Reuses most of the post's words");
+  expect(labels[2]).toContain("Shares most of its wording with the post");
 });
 
 test('a new post with nothing on screen makes no parent comparison and reports no missing post', async () => {
   const labels = ratingsOf(await open(capture({ conversation: '', written: '', nodes: [], fieldTop: null, typed: 'Shipping one small fix beats another week polishing the launch page.' })));
   expect(labels.length).toBeGreaterThan(0);
-  for (const label of labels) expect(label).not.toMatch(/Couldn't read the post|Reuses most of the post's words|Tags people/);
+  for (const label of labels) expect(label).not.toMatch(/Couldn't read the post|Shares most of its wording with the post|Tags people/);
 });
 
 test('Insert still puts the exact rated card text in the box and never posts', async () => {
