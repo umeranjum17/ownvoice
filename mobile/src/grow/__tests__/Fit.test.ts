@@ -91,6 +91,10 @@ test('dotted code, filenames and email hostnames reach judging on X and Reddit w
     'Try offline files, e.g. PDFs. Version 3.14 works. Email me@sample.org.',
     'Email me@sub.sample.org.',
     'Email me@почта.рф.',
+    'Email me@mail.भारत.',
+    'Email me@परीक्षा.mail.भारत.',
+    'Email सुनील@mail.भारत.',
+    'Email me@e\u0301mail.com.',
     'Email me@sample.xn--p1ai.',
     'Email me@SAMPLE.XN--P1AI.',
     'Email me@deep.sub.sample.org.',
@@ -112,6 +116,10 @@ test('dotted code, filenames and email hostnames reach judging on X and Reddit w
   ];
   const links = [
     'https://example.com', 'www.example.com', 'EXAMPLE.COM', 'example.dev', 'example.design', 'example.ae', 'пример.рф', 'example.xn--p1ai',
+    'Read example.भारत for the timer setup.', 'परीक्षा.com', 'परीक्षा.example.भारत/path',
+    'example.भारत:8080/path', 'example.भारत?query=timer', 'e\u0301xample.com',
+    'https://example.भारत/path', 'mailto:me@website.भारत', '[site](example.भारत)',
+    'me@website.भारत/path',
     'https://example.com/settings.json', '[file](settings.json)', 'Use Object.keys; see example.com.', 'Read settings.json; see example.com.', 'example.com', 'sub.example.co.uk/path',
     '[site](example.com)', 'example.com (more details)', 'Visit example.com.', 'HTTP://example.com',
     '[site](www.example.com)', 'www.sub.example.com/path', 'Email first.last@sample.org; see example.com.',
@@ -189,10 +197,10 @@ test('reply questions stay eligible under statement endings while hard flags sta
 });
 
 test('X drops a level for common trailing asks only when they end the reply', async () => {
-  const asks = ['What do you think of this?', 'Thoughts on this?', 'Any thoughts?', 'Agree?', 'What about you?', 'Let me know your thoughts.', 'Share your thoughts.', 'What are your thoughts?', 'Share your thoughts!', 'Let me know your thoughts', 'Let me know your thoughts about this.\n', 'What are your thoughts on this?', 'Let us know your thoughts.', 'Please let us know your thoughts on this?', 'Please share your thoughts.', ...['me', 'us'].flatMap(who => ['', '.', '!', '?', ' about this.', ' of this?', ' on this.'].map(ending => `Let ${who} know what you think${ending}`))];
-  const ordinary = ['A useful point. What do you think of this? More context follows.', 'A useful point. Thoughts on this? Does it pause for PDFs?', 'A useful point. Share your thoughts. More context follows.', 'A useful point. Let me know your thoughts on this. Does it pause for PDFs?', 'I wrote down my thoughts.', 'Does it pause for PDFs?', 'Does the timer keep counting while you write down your thoughts?', 'Does it save any thoughts?', 'Does it run faster if the users agree?', 'Do the saved notes include what about you?', 'Can the prompt say share your thoughts?', 'A useful point. Let us know your thoughts. More context follows.', 'A useful point; let us know your thoughts; more context follows.', 'A useful point, share your thoughts, more context follows.', 'A useful point: thoughts on this; does it pause for PDFs?', 'A useful point; what do you think of this: does it pause for PDFs?', 'Does it pause for PDFs, or keep counting while you write down your thoughts?', 'Does the prompt let me know what you think?', 'Does the prompt let us know what you think?', 'A useful point; let me know what you think. More context follows.', 'A useful point; let us know what you think about this; more context follows.'];
+  const asks = ['What do you think of this?', 'Thoughts on this?', 'Any thoughts?', 'Agree?', 'What about you?', 'Let me know your thoughts.', 'Share your thoughts.', 'What are your thoughts?', 'Share your thoughts!', 'Let me know your thoughts', 'Let me know your thoughts about this.\n', 'What are your thoughts on this?', 'Let us know your thoughts.', 'Please let us know your thoughts on this?', 'Please share your thoughts.', 'What are your thoughts on the timer, especially the PDF case?', 'Thoughts on the timer, especially the PDF case?', 'Any thoughts about the timer, especially PDFs?', 'What do you think of the timer, especially PDFs?', 'Share your thoughts on the timer, especially PDFs.', 'Let me know your thoughts about the timer, especially PDFs.', 'Let us know your thoughts on the timer, especially PDFs.', 'Let me know what you think of the timer, especially PDFs.', 'Let us know what you think about the timer, especially PDFs.', ...['me', 'us'].flatMap(who => ['', '.', '!', '?', ' about this.', ' of this?', ' on this.'].map(ending => `Let ${who} know what you think${ending}`))];
+  const ordinary = ['A useful point. What do you think of this? More context follows.', 'A useful point. Thoughts on this? Does it pause for PDFs?', 'A useful point. Share your thoughts. More context follows.', 'A useful point. Let me know your thoughts on this. Does it pause for PDFs?', 'I wrote down my thoughts.', 'Does it pause for PDFs?', 'Does the timer keep counting while you write down your thoughts?', 'Does it save any thoughts?', 'Does it run faster if the users agree?', 'Do the saved notes include what about you?', 'Can the prompt say share your thoughts?', 'A useful point. Let us know your thoughts. More context follows.', 'A useful point; let us know your thoughts; more context follows.', 'A useful point, share your thoughts, more context follows.', 'A useful point: thoughts on this; does it pause for PDFs?', 'A useful point; what do you think of this: does it pause for PDFs?', 'Does it pause for PDFs, or keep counting while you write down your thoughts?', 'Does the prompt let me know what you think?', 'Does the prompt let us know what you think?', 'A useful point; let me know what you think. More context follows.', 'A useful point; let us know what you think about this; more context follows.', 'Pick a PDF reader once. What are your thoughts on the timer, especially the PDF case? Does it pause for PDFs?', 'Does the timer save your thoughts on the timer, especially the PDF case?', 'Does the timer keep counting, especially while you write down your thoughts?', 'I save my thoughts on the timer, especially the PDF case.', 'Agree on saving PDFs?', 'What do you think.', 'Thoughts.'];
   const prefixes = ['', 'A useful point. ', 'Pick a PDF reader once; ', 'A useful point, ', 'A useful point: ', 'A useful point\n'];
-  const requests = asks.flatMap(ask => prefixes.map(prefix => prefix + ask));
+  const requests = [...asks.flatMap(ask => prefixes.map(prefix => prefix + ask)), 'Pick a PDF reader once. What are your thoughts on the timer, especially the PDF case?'];
   const candidates = [...requests, ...ordinary, 'A useful point #build #ship; let us know what you think.'];
   const ask = async () => JSON.stringify(Object.fromEntries(candidates.map((_, i) => [`fit_${i}`, { 0: 0, 1: 0, 2: 0, 3: 1 }])));
   const fits = await judgeFit({ post: POST, candidates, platform: X, voice, ask });

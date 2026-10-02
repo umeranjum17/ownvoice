@@ -60,7 +60,13 @@ The statement-ending preference applies to posts,
 so reply questions remain eligible. X replies lose one level for two or more
 hashtags, including punctuation-separated tags, and another for a trailing
 request for thoughts or agreement. An earlier ask followed by another
-sentence does not trigger that drop. Unknown platforms use rules only.
+sentence does not trigger that drop. The bounded English rule recognizes
+`Thoughts?`, `Any thoughts?`, `What do you think?`, `Agree?`, `What about you?`,
+`What are your thoughts`, `Share your thoughts`, and `Let me/us know` followed
+by `your thoughts` or `what you think`. Optional topics begin with `on`,
+`about` or `of` and may contain commas; sentence punctuation, semicolons,
+colons and newlines end topics. It does not infer unlisted paraphrases or
+quoted requests. Unknown platforms use rules only.
 
 `fitBackends(app, events)` in `src/chatgpt/settings.ts` supplies the ChatGPT
 answerer through the existing `responses.ts` ask path and accounts response

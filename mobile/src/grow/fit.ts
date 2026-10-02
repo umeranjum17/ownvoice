@@ -25,12 +25,12 @@ export function flags(text: string, platform: Platform, voice: Slop.Rules): stri
   const rules = { ...voice, noDashes: true };
   const out = Voice.broken(Slop.hits(text, rules, false), text, rules).map(x => 'Breaks your rules: ' + x);
   if (platform.limit != null && text.length > platform.limit) out.push(`Too long for ${platform.label}`);
-  const explicit = /(?:^|[^\p{L}\p{N}_.-])(?:[a-z][a-z\d+.-]*:\/\/|mailto:)|\[[^\]\n]*\]\(\s*[^)\s]+[^)\n]*\)/iu.test(text);
-  const email = /[\p{L}\p{N}.!#$%&'*+\/=?^_`{|}~-]+@(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+(?:[\p{L}]{2,}|xn--[a-z\d-]+)(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}])/giu;
-  const bare = /(?<![\p{L}\p{N}_.-])(?:[\p{L}\p{N}](?:[\p{L}\p{N}-]*[\p{L}\p{N}])?\.)+(?<suffix>[\p{L}]{2,}|xn--[a-z\d-]+)(?![\p{L}\p{N}_-]|\.[\p{L}\p{N}]|\()(?::\d+)?(?<path>[/?#][^\s]*)?/giu;
+  const explicit = /(?:^|[^\p{L}\p{M}\p{N}_.-])(?:[a-z][a-z\d+.-]*:\/\/|mailto:)|\[[^\]\n]*\]\(\s*[^)\s]+[^)\n]*\)/iu.test(text);
+  const email = /[\p{L}\p{M}\p{N}.!#$%&'*+\/=?^_`{|}~-]+@(?:[\p{L}\p{M}\p{N}](?:[\p{L}\p{M}\p{N}-]*[\p{L}\p{M}\p{N}])?\.)+(?:[\p{L}\p{M}]{2,}|xn--[a-z\d-]+)(?![\p{L}\p{M}\p{N}_-]|\.[\p{L}\p{M}\p{N}])/giu;
+  const bare = /(?<![\p{L}\p{M}\p{N}_.-])(?:[\p{L}\p{M}\p{N}](?:[\p{L}\p{M}\p{N}-]*[\p{L}\p{M}\p{N}])?\.)+(?<suffix>[\p{L}\p{M}]{2,}|xn--[a-z\d-]+)(?![\p{L}\p{M}\p{N}_-]|\.[\p{L}\p{M}\p{N}]|\()(?::\d+)?(?<path>[/?#][^\s]*)?/giu;
   const linked = (text.match(/[^\s,;]+/gu) ?? []).some(part => {
     const addresses = [...part.matchAll(email)];
-    return [...part.matchAll(bare)].some(match => DOMAIN_ENDINGS.has(match.groups?.suffix.toLowerCase() ?? '') && !addresses.some(address =>
+    return [...part.matchAll(bare)].some(match => DOMAIN_ENDINGS.has(match.groups?.suffix.normalize('NFC').toLowerCase() ?? '') && !addresses.some(address =>
       match.index >= address.index &&
       match.index + match[0].replace(/[\p{Pe}\p{Pf}.,!?;:'"`]+$/gu, '').length <= address.index + address[0].length &&
       !(match.groups?.path != null && part.indexOf(match.groups.path, match.index) < part.indexOf('@', address.index))
@@ -38,6 +38,14 @@ export function flags(text: string, platform: Platform, voice: Slop.Rules): stri
   });
   if (explicit || linked) out.push('Links can mean fewer views');
   return out;
+}
+
+/** Bounded English heuristic: only these explicit request stems at a terminal sentence or clause.
+ * Topics are opaque and may contain commas; . ! ? ; : and newlines end them.
+ * Unlisted paraphrases and quoted requests are outside this rule, not inferred intent. */
+function terminalRequest(text: string): boolean {
+  const match = /(?:^|[.!?,;:\n])[ \t]*(?:please[ \t]+)?(?:(?:agree|what[ \t]+about[ \t]+you)[ \t]*\?|(?:(?<question>(?:any[ \t]+)?thoughts|what[ \t]+do[ \t]+you[ \t]+think)|let[ \t]+(?:me|us)[ \t]+know[ \t]+(?:your[ \t]+thoughts|what[ \t]+you[ \t]+think)|(?:share|what[ \t]+are)[ \t]+your[ \t]+thoughts)(?:[ \t]+(?:on|about|of)[ \t]+[^.!?;:\n]+)?[ \t]*(?<ending>[.!?]?))\s*$/i.exec(text);
+  return match != null && (match.groups?.question == null || match.groups.ending === '?');
 }
 
 /** One decide call for the unflagged candidates: `fit_<i>` rubric levels plus a `best` pick, on the person's ChatGPT.
@@ -59,7 +67,7 @@ export async function judgeFit(o: { post: string; candidates: string[]; platform
     if (hard[i].length) return { level: 0, words: LEVELS[0], best: 0, flags: hard[i] };
     const f = a[`fit_${i}`];
     const rated = f && !f.abstained ? Number(f.answer) : null;
-    const drops = o.platform.id === 'x' ? Number((o.candidates[i].match(/(?<![\w#])#[\p{L}\d_]+/gu) ?? []).length >= 2) + Number(/(?:^|[.!?,;:\n])\s*(?:please\s+)?(?:(?:thoughts(?:\s+(?:on|about)\s+[^\n.!?,;:]+)?|any\s+thoughts(?:\s+(?:on|about)\s+[^\n.!?,;:]+)?|what\s+do\s+you\s+think(?:\s+(?:of|about)\s+[^\n.!?,;:]+)?|agree|what\s+about\s+you)\s*\?|(?:let\s+(?:me|us)\s+know\s+(?:your\s+thoughts|what\s+you\s+think)|(?:share|what\s+are)\s+your\s+thoughts)(?:\s+(?:on|about|of)\s+[^\n.!?,;:]+)?\s*[.!?]?)\s*$/i.test(o.candidates[i])) : 0;
+    const drops = o.platform.id === 'x' ? Number((o.candidates[i].match(/(?<![\w#])#[\p{L}\d_]+/gu) ?? []).length >= 2) + Number(terminalRequest(o.candidates[i])) : 0;
     const level = rated == null ? null : Math.max(0, rated - drops);
     return { level, words: level == null ? UNSURE : LEVELS[level], best: best[String(i)] ?? 0, flags: [] };
   });
