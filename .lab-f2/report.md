@@ -84,7 +84,10 @@ at . ! ? ; : or a newline. Embedded substantive questions and requests
 followed by another sentence or clause remain excluded. Matches with
 interrogative or reporting/quoted prefixes, and comma-topic clauses beginning
 with explicit question words (optionally after and/or or a topic modifier),
-are conservatively excluded. The bounded heuristic may abstain from a
+are conservatively excluded. Blank lines and intervening whitespace preserve
+preceding question/reporting context; . ! ? reset it. This deliberately
+conservative rule may leave ambiguous multiline requests without a drop.
+The bounded heuristic may abstain from a
 request penalty for ambiguous quoted or reporting contexts. This is a bounded
 heuristic, not general grammar or intent classification: quote-bearing replies and
 unlisted paraphrases are unsupported.

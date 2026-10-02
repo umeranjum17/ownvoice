@@ -68,6 +68,8 @@ by `your thoughts` or `what you think`. Optional topics begin with `on`,
 colons and newlines end topics. It does not infer unlisted paraphrases or
 quote-bearing replies. Matches with question or reporting prefixes, and comma
 clauses beginning with explicit question words, are excluded conservatively.
+Blank lines retain preceding question/reporting context; only sentence
+punctuation resets that context. Ambiguous multiline requests may receive no drop.
 Unknown platforms use rules only.
 
 `fitBackends(app, events)` in `src/chatgpt/settings.ts` supplies the ChatGPT

@@ -46,8 +46,8 @@ function terminalRequest(text: string): boolean {
   if (/["“”`]/.test(text)) return false;
   const match = /(?:^|[.!?,;:\n])[ \t]*(?:please[ \t]+)?(?:(?:agree|what[ \t]+about[ \t]+you)[ \t]*\?|(?:(?<question>(?:any[ \t]+)?thoughts|what[ \t]+do[ \t]+you[ \t]+think)|let[ \t]+(?:me|us)[ \t]+know[ \t]+(?:your[ \t]+thoughts|what[ \t]+you[ \t]+think)|(?:share|what[ \t]+are)[ \t]+your[ \t]+thoughts)(?:[ \t]+(?:on|about|of)[ \t]+(?<topic>[^.!?;:\n]+))?[ \t]*(?<ending>[.!?]?))\s*$/i.exec(text);
   if (match == null || (match.groups?.question != null && match.groups.ending !== '?')) return false;
-  const prefix = /^[,;:\n]/.test(match[0]) ? text.slice(0, match.index).split(/[.!?\n]/).pop() ?? '' : '';
-  if (/^[ \t]*(?:can|could|do|does|did|is|are|was|were|has|have|had|will|would|should|may|might|must|what|which|who|whom|whose|where|when|why|how)\b|\b(?:say|says|said|quote|quotes|quoted|ask|asks|asked)\b|[‘’]/i.test(prefix)) return false;
+  const prefix = /^[,;:\n]/.test(match[0]) ? text.slice(0, match.index).split(/[.!?]/).pop()?.trim() ?? '' : '';
+  if (/^(?:can|could|do|does|did|is|are|was|were|has|have|had|will|would|should|may|might|must|what|which|who|whom|whose|where|when|why|how)\b|\b(?:say|says|said|quote|quotes|quoted|ask|asks|asked)\b|[‘’]/i.test(prefix)) return false;
   return !/,[ \t]*(?:(?:and|or|especially|including|particularly)[ \t]+)*(?:can|could|do|does|did|is|are|was|were|has|have|had|will|would|should|may|might|must|what|which|who|whom|whose|where|when|why|how)\b/i.test(match.groups?.topic ?? '');
 }
 
