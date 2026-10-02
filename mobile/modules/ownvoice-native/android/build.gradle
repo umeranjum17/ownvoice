@@ -34,3 +34,10 @@ dependencies {
   androidTestImplementation 'androidx.test:runner:1.5.2'
   androidTestImplementation 'androidx.test.ext:junit:1.1.5'
 }
+
+tasks.withType(Test).configureEach {
+  // Robolectric extracts its native runtime here; avoid the host's shared /tmp quota.
+  def runtimeTemp = layout.buildDirectory.dir("tmp/${name}/runtime")
+  systemProperty 'java.io.tmpdir', runtimeTemp.get().asFile.absolutePath
+  doFirst { runtimeTemp.get().asFile.mkdirs() }
+}
