@@ -61,7 +61,7 @@ const visibleStrings = (screen: { toJSON: () => unknown }): string[] => {
 };
 
 test('errorMessages', () => { const msgs = [...ERROR_CODES, -1].map(message); expect(message(9)).toBe(words.busy); expect(message(27)).toBe(words.batteryQuota); expect(message(30)).toBe(words.backgroundBlocked); expect(message(501)).toBe(words.noSpace); expect(message(12)).toBe(words.requestTooLarge); expect(message(16)).toBe(words.unsupported); expect(message(604)).toBe(words.systemUpdate); assertPlain([...msgs, words.unsupported, words.gettingReady]); });
-test('checksAndVerdicts', () => { const keys = ['SPECIFIC', 'CLEAR', 'VOICE', 'FITS', 'CLAIMS', 'ANSWERS', 'NEXT_STEP', 'CONVERSATION', 'NOT_INTERESTED', 'HOOK']; const shown = [Judge.GENERAL, Judge.WRITE_FIRST, Judge.quickChecks(null), Judge.quickChecks('Sam')]; for (const verdict of ['pass', 'concern']) for (const msg of [true, false]) for (const who of [null, 'Sam']) for (const generic of [0, 5, 10]) for (const draft of ['Saturday works.', 'Read this https://example.com ' + 'x'.repeat(300), "Let's circle back — who's in?"]) { const answer = `GENERIC: ${generic}\nSPECIFICITY: ${10 - generic}\n` + keys.map(k => `${k}: ${verdict}`).join('\n'); const s = Judge.scoreDraft(draft, answer, msg, { never: ['circle back'], noDashes: true, statementEndings: true, note: '' }, true, who); shown.push(...[...s.quality, ...s.reach].flatMap(x => [x.name, x.reason]), Judge.verdict(s).lead + Judge.verdict(s).rest); } for (const a of ['MEANING: pass', 'MEANING: concern - drops the date']) { const c = Judge.meaning('See you at 5', 'See you then', a); if (c) shown.push(c.name, c.reason); } const c = Judge.meaning('See you then', 'See you at 4', null); if (c) shown.push(c.name, c.reason); shown.push('Shorter', 'More like you', 'Start with a detail', 'Cleaned up', words.noChecks); assertPlain(shown); });
+test('checksAndVerdicts', () => { const keys = ['SPECIFIC', 'CLEAR', 'VOICE', 'FITS', 'CLAIMS', 'ANSWERS', 'NEXT_STEP', 'CONVERSATION', 'NOT_INTERESTED', 'HOOK']; const shown = [Judge.GENERAL, Judge.WRITE_FIRST, Judge.quickChecks(null), Judge.quickChecks('Sam')]; for (const verdict of ['pass', 'concern']) for (const msg of [true, false]) for (const who of [null, 'Sam']) for (const generic of [0, 5, 10]) for (const draft of ['Saturday works.', 'Read this https://example.com ' + 'x'.repeat(300), "Let's circle back — who's in?"]) { const answer = `GENERIC: ${generic}\nSPECIFICITY: ${10 - generic}\n` + keys.map(k => `${k}: ${verdict}`).join('\n'); const s = Judge.scoreDraft(draft, answer, msg, { never: ['circle back'], noDashes: true, statementEndings: true, note: '' }, true, who); shown.push(...Judge.reasons(s, draft).flatMap(x => [x.name, x.detail]), ...[...s.quality, ...s.reach].flatMap(x => [x.name, x.reason]), (Judge.verdict(s)?.lead ?? '') + (Judge.verdict(s)?.rest ?? '')); } for (const a of ['MEANING: pass', 'MEANING: concern - drops the date']) { const c = Judge.meaning('See you at 5', 'See you then', a); if (c) shown.push(c.name, c.reason); } const c = Judge.meaning('See you then', 'See you at 4', null); if (c) shown.push(c.name, c.reason); shown.push('Shorter', 'More like you', 'Start with a detail', 'Cleaned up', words.noChecks); assertPlain(shown); });
 test('platformLengthChecks', () => { const shown: string[] = []; for (const app of ['com.twitter.android', 'com.linkedin.android', 'com.reddit.frontpage', 'com.instagram.barcelona', 'xyz.blueskyweb.app', 'com.Slack', 'com.whatsapp', 'com.whatsapp.w4b', 'com.google.android.gm', 'com.example.other']) { const platform = Platform.platformForApp(app); for (const draft of ['See you soon', 'x'.repeat(300), 'x'.repeat(70000)]) { const s = Judge.scoreDraft(draft, null, false, Slop.NO_RULES, true, null, platform); shown.push(...s.reach.flatMap(x => [x.name, x.reason])); } } assertPlain(shown.filter(x => x)); });
 test('platformStyles', () => { const shown: string[] = []; for (const app of ['com.twitter.android', 'com.linkedin.android', 'com.reddit.frontpage', 'com.Slack', 'com.whatsapp', 'com.whatsapp.w4b', 'com.google.android.gm', 'com.example.other', undefined]) { const platform = Platform.platformForApp(app); shown.push(...Platform.slotsFor(platform), Platform.polishLine(platform)); } assertPlain(shown.filter(x => x)); });
 test('markedPhrases', () => { const text = "Here's a reply: Great post! Let's delve in. It's not just fast, but fun — quick, simple, and fun. #one #two 😀😀😀 What do you think?"; const reasons = [...Slop.hits(text, { ...Slop.NO_RULES, noDashes: true }, true).map(h => h.reason), ...Slop.hits('Is it on?', { ...Slop.NO_RULES, statementEndings: true }, true).map(h => h.reason)]; assertPlain([...new Set([...reasons, ...Array.from({ length: 101 }, (_, i) => Slop.words(i))])]); });
@@ -118,7 +118,7 @@ describe('panel copy', () => {
       expect(write.mock.calls[0][0].guide).toContain('No em dashes.');
       expect(write.mock.calls[0][0].guide).toContain('short sentences');
       expect(write.mock.calls[0][0].dashes).toBe('remove');
-      fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
+      await fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
       await waitFor(() => expect(native.ask).toHaveBeenCalled());
       await waitFor(() => expect(visibleStrings(screen).join(' ')).toContain('Breaks your rules'));
     } finally { kv.delete('voice'); }
@@ -126,7 +126,7 @@ describe('panel copy', () => {
 
   test('compose cards use post checks even before a model answer', async () => {
     const screen = await renderPanel(stubWriter(), { typed: 'Read https://example.com', written: '' });
-    fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
+    await fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
     await waitFor(() => expect(visibleStrings(screen)).toContain('Links can mean fewer views'));
   });
 
@@ -135,7 +135,8 @@ describe('panel copy', () => {
     // The first answer feeds the panel's one batched tone call; Why? then takes the next two.
     native.ask.mockResolvedValueOnce('1: matter-of-fact').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: concern - needs a question\nNOT_INTERESTED: pass\nHOOK: concern - start with the result').mockResolvedValueOnce('MEANING: pass');
     const screen = await renderPanel(stubWriter(), { typed: 'Shipped the fix today', written: '' });
-    fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
+    await screen.findByRole('button', { name: words.writeNew });
+    await fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[1]);
     await waitFor(() => expect(visibleStrings(screen)).toContain('Weak first line'));
     expect(visibleStrings(screen)).not.toContain('Answers the question');
     expect(native.ask).toHaveBeenCalledTimes(3);
@@ -154,7 +155,8 @@ describe('panel copy', () => {
     native.modelStatus.mockResolvedValue('available');
     native.ask.mockResolvedValueOnce('1: calm').mockResolvedValueOnce('MESSAGE').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: concern - The model token limit was low\nFITS: pass\nCLAIMS: pass\nANSWERS: concern - The model token limit was low\nNEXT_STEP: pass').mockResolvedValueOnce('MEANING: concern - The model token limit was low');
     const screen = await renderPanel(stubWriter(), { typed: 'hello there' });
-    fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
+    await screen.findByRole('button', { name: words.writeNew });
+    await fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[1]);
     await waitFor(() => expect(visibleStrings(screen)).toContain('It may change what you meant.'));
     const shown = visibleStrings(screen);
     expect(shown).toContain("Doesn't sound like you.");
@@ -168,7 +170,7 @@ describe('panel copy', () => {
     for (const answer of answers) native.ask.mockResolvedValueOnce(answer);
     const screen = await renderPanel(stubWriter());
     const button = (await screen.findAllByRole('button', { name: words.why }))[0];
-    await act(async () => { fireEvent.press(button); await Promise.resolve(); });
+    await act(async () => { await fireEvent.press(button); await Promise.resolve(); });
     await waitFor(() => expect(visibleStrings(screen)).toContain(words.noChecks));
     expect(native.ask).toHaveBeenCalledTimes(calls);
   });
@@ -202,8 +204,8 @@ describe('panel copy', () => {
     native.serviceState.mockImplementation(() => new Promise(resolve => { settle = resolve; }));
     const screen = await renderPanel(stubWriter());
     const button = (await screen.findAllByRole('button', { name: words.insert }))[0];
-    fireEvent.press(button);
-    fireEvent.press(button);
+    await fireEvent.press(button);
+    await fireEvent.press(button);
     await act(async () => { settle('on'); await Promise.resolve(); });
     expect(native.serviceState).toHaveBeenCalledTimes(1);
     expect(native.insert).toHaveBeenCalledTimes(1);

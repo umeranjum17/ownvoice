@@ -72,6 +72,12 @@ test('tonePromptNamesOneWordPerTextAndParsesOnlyCleanOnes',()=>{
   expect(parseTones('1: the on-device model is ready')).toEqual([]);
   expect(parseTones('1: quite extraordinarily and remarkably verbose today')).toEqual([]);
   expect(cleanTone('Friendly.')).toBe('friendly');
+  for (const approval of ['natural', 'very natural', 'fluent', 'correct', 'perfect', 'flawless', 'polished', 'good', 'error-free', 'typo-free']) expect(cleanTone(approval)).toBeNull();
+  const filtered = parseTones('1: natural\n2: friendly\n3: very natural\n4: a bit sharp');
+  expect(filtered[0]).toBeUndefined();
+  expect(filtered[1]).toBe('friendly');
+  expect(filtered[2]).toBeUndefined();
+  expect(filtered[3]).toBe('a bit sharp');
   expect(cleanTone('42')).toBe(null);
   expect(toneLine('friendly')).toBe('Sounds friendly');
   expect(toneLine('a bit sharp')).toBe('Sounds a bit sharp');

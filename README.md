@@ -45,7 +45,7 @@ Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen a
 
 ### Polish what you wrote
 
-Already typed something? The same tap shows your text with the stock phrases marked, then a few better versions of it. **Use this** swaps your text for one of them. **Cleaned up** fixes clear spelling slips, clear missing apostrophes such as “dont”, accidental repeats of “the”, “a” or “an” starting with a lowercase copy, and “Its” before “a”, “an” or “the”. For example, “Its a good plan, I shoud be there by the the evening.” becomes “It's a good plan, I should be there by the evening.” This card uses only your own text and those clear fixes; the writer supplies the other versions. Other suspected slips appear under **Check these** when spelling checks are on; each has its own **Fix**. If your text is already as short and clear as it gets, Ownvoice says **Looks good as it is** instead of inventing changes.
+Already typed something? The same tap shows your text with the stock phrases marked, then a few better versions of it. **Use this** swaps your text for one of them. **Cleaned up** fixes clear spelling slips, clear missing apostrophes such as “dont”, accidental repeats of “the”, “a” or “an” starting with a lowercase copy, and “Its” before “a”, “an” or “the”. For example, “Its a good plan, I shoud be there by the the evening.” becomes “It's a good plan, I should be there by the evening.” This card uses only your own text and those clear fixes; the writer supplies the other versions. Other suspected slips appear under **Check these** when spelling checks are on; each has its own **Fix**. When no different version is found, Ownvoice keeps your text and asks you to read it over before sending. That does not approve the writing.
 
 <p align="center">
   <img src="docs/readme/polish.webp" alt="Polish your message: the typed text with 'at the end of the day' marked, and three versions, one flagged 'A bit stock: 3 phrases you could say more simply'" width="300" />
@@ -53,11 +53,9 @@ Already typed something? The same tap shows your text with the stock phrases mar
 
 ### Honest about every draft
 
-Drafts get one plain sentence about how they read, such as "Sounds natural" or "A bit stock: 3 phrases you could say more simply" (when every draft reads the same, the sentence is left off rather than repeated). Each draft also names its tone in a word or two, such as "Sounds friendly". **Why?** on any draft shows each check in everyday words, with a tick or a gentle warning. There is no score to chase: the checks look at whether a draft sounds stock, says something real, fits the chat and makes nothing up, and they are kept apart rather than blended into one number.
+A draft shows no verdict until all the deeper checks have run. Even then, Ownvoice leaves approval blank because the wording has not been fully checked; it does not call a draft “Sounds natural”. Concerns can still appear, such as “Check the wording” or “A bit stock: 3 phrases you could say more simply”. When every suggested draft has the same verdict, the repeated sentence is left off.
 
-<p align="center">
-  <img src="docs/readme/why.webp" alt="Why this reply: the draft quoted, 'Sounds natural' with a tick, and 'These are quick checks to help you choose.'" width="300" />
-</p>
+**Why?** on your original text or a suggested draft lists stock phrases, whether it says something real, whether it fits the chat and whether it makes anything up separately, each with a reason or a note that the check has not run. Possible slips get their own warning; otherwise a separate wording row says the wording has not been fully checked. Ticks mark passing checks, warnings mark concerns, and a dash marks an unchecked item. Each draft also names its tone in a word or two, such as “Sounds friendly”. There is no score to chase.
 
 ### Make any text better
 
@@ -169,7 +167,7 @@ This repository holds two Android apps plus the shared writing core:
 
 - **[`mobile/`](mobile/README.md)**: the Expo app shown in this README. Its README covers the checks, emulator tests, build flags and how Ownvoice writes. The writer's quality gate is in [`mobile/eval/`](mobile/eval/README.md).
 - **[`app/`](app/README.md)**: the original Kotlin app (`dev.ownvoice.app`), which the Expo app succeeds but does not yet fully replace. Its README covers how drafts are scored, its privacy details, and its build and device tests.
-- **[`packages/engine/`](packages/engine/README.md)**: the model-free writing core. Its README covers package usage, protocol, checks and releases. The app imports it; for the mobile voice wrapper's compatibility behavior and deferred integration, see [Reply samples](packages/engine/README.md#reply-samples-020--protocol-2).
+- **[`packages/engine/`](packages/engine/README.md)**: the model-free writing core. Its README covers package usage, protocol, checks and releases. The app imports it; `mobile/src/core/` also holds app-specific adapters and local checks. For the mobile voice wrapper's compatibility behavior and deferred integration, see [Reply samples](packages/engine/README.md#reply-samples-020--protocol-2).
 
 For both apps' shared artwork, regeneration commands and icon previews, see the
 [Android icon guide](docs/icons/README.md).

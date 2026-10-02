@@ -5,6 +5,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import Panel from '../Panel';
 import { stubWriter } from '../stubWriter';
+import type { Writer } from '../../core/writers';
 import { technicalWords, words } from '../../core/words';
 import Native from '../../../modules/ownvoice-native';
 
@@ -67,4 +68,59 @@ test('with the typing check off, the panel lists no slips', async () => {
   await waitFor(() => expect(screen.getByText('Yours')).toBeTruthy());
   expect(screen.queryByText(words.slipsTitle)).toBeNull();
   expect(screen.queryByRole('button', { name: words.fix })).toBeNull();
+});
+
+test('original spelling evidence survives regeneration and retry, and refreshes for changed text', async () => {
+  const conversation = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
+  const capture = { conversation, written: conversation, nodes: [], fieldTop: null, typed: 'I can definately bring the stove.', app: 'com.whatsapp', label: 'WhatsApp', at: 0, id: 'tap-regen', hasField: true };
+  native.capture.mockResolvedValue(capture);
+  native.typingCheck.mockResolvedValue(true);
+  native.modelStatus.mockResolvedValue('available');
+  native.ask.mockImplementation(async (_id, prompt) => prompt.startsWith('Below is the text') ? 'MESSAGE' :
+    'GENERIC: 0\nSPECIFICITY: 10\nSPECIFIC: pass - names the stove\nCLEAR: pass - one clear point\nVOICE: pass - sounds like you\nFITS: pass - fits this chat\nCLAIMS: pass - makes nothing up\nANSWERS: pass - answers the question\nNEXT_STEP: pass - the time is clear');
+  let writes = 0;
+  const writer: Writer = { write: async (_request, events) => {
+    if (++writes === 2) return { drafts: [] };
+    events?.landed?.('I can bring the stove.', 0, 'Cleaned up');
+    return { drafts: ['I can bring the stove.'] };
+  } };
+  const view = (selected: Writer) => <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
+    <Panel writer={selected} />
+  </SafeAreaProvider>;
+  const screen = await render(view(writer));
+  const checkOriginal = async () => {
+    await fireEvent.press(screen.getAllByRole('button', { name: words.why })[0]);
+    await screen.findByText('Names the stove');
+    expect(screen.getByText('There are possible slips to review.')).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.getByText(words.slipsTitle)).toBeTruthy();
+    expect(screen.getByText('Check the wording')).toBeTruthy();
+    expect(screen.queryByText('Sounds natural', { exact: false })).toBeNull();
+    const insertions = native.insert.mock.calls.length;
+    await fireEvent.press(screen.getByRole('button', { name: words.fix }));
+    await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(insertions + 1));
+    await waitFor(() => expect(native.insert).toHaveBeenLastCalledWith('I can definitely bring the stove.'));
+  };
+  await screen.findByText(words.slipsTitle);
+  await screen.findByRole('button', { name: words.writeNew });
+  await checkOriginal();
+  let finishRefresh!: (enabled: boolean) => void;
+  native.typingCheck.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
+  await fireEvent.press(screen.getByRole('button', { name: words.writeNew }));
+  await screen.findByRole('button', { name: words.tryAgain });
+  await checkOriginal();
+  await fireEvent.press(screen.getByRole('button', { name: words.tryAgain }));
+  await screen.findByRole('button', { name: words.writeNew });
+  await checkOriginal();
+  native.capture.mockResolvedValue({ ...capture, typed: 'I can bring the stove.', id: 'tap-changed' });
+  await screen.rerender(view({ ...writer }));
+  await waitFor(() => expect(screen.queryByText(words.slipsTitle)).toBeNull());
+  await act(async () => { finishRefresh(true); });
+  expect(screen.queryByText(words.slipsTitle)).toBeNull();
+  expect(screen.queryByRole('button', { name: words.fix })).toBeNull();
+  await fireEvent.press(screen.getAllByRole('button', { name: words.why })[0]);
+  await screen.findByText('Names the stove');
+  expect(screen.queryByText('There are possible slips to review.')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.queryByText('Sounds natural', { exact: false })).toBeNull();
 });
