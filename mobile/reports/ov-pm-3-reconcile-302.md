@@ -22,7 +22,10 @@ The accepted range is `c319f30..cfd145c`, containing:
 Freshly fetched `origin/main` is
 `2e9acc58d7170d90727f7aa4fd899e5c88252356`.
 The new branch is `fm/ov-pm-3-reconcile-302`, assembled from that base using
-only the accepted range plus this reconciliation receipt. None of the original
+the accepted range plus this reconciliation receipt. Validation also adds a
+build-directory temporary path for native JVM tests in
+`modules/ownvoice-native/android/build.gradle`, avoiding the host's shared `/tmp`
+quota without changing product behavior. None of the original
 five changed-file deltas was already present on this main; nothing was replayed
 from other lanes. Three-way application was clean with zero conflicts.
 Every added and removed line in each original file delta equals the corresponding
