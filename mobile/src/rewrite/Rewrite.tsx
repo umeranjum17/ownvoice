@@ -89,7 +89,9 @@ export default function Rewrite() {
       const answer = stub === null && canWrite ? await Native.ask(`rewrite-check-${Date.now()}`, Judge.rewriteCheckPrompt(input.text, text), { maxTokens: 80 }).catch(() => null) : null;
       if (id !== run.current) return false;
       const scores = Judge.scoreDraft(text, answer, true, rules);
-      setResult({ text, meaning: Judge.meaning(input.text, text, answer), scores, verdict: answer && scores.generic !== null && scores.specific !== null ? Judge.verdict(scores) : null });
+      const verdict = answer && scores.generic !== null && scores.specific !== null ? Judge.verdict(scores) : null;
+      // A rewrite keeps the person's own details, so "A bit general" would only criticise Ownvoice's own result; a broken writing rule still shows.
+      setResult({ text, meaning: Judge.meaning(input.text, text, answer), scores, verdict: verdict?.lead === Judge.GENERAL ? null : verdict });
       return true;
     };
     try {

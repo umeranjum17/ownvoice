@@ -75,6 +75,20 @@ internal fun insertTextMatches(app: String, text: String, readingApp: String, ex
 internal fun insertSelectionSettled(selection: FieldSelection?, expected: String): Boolean =
   selection?.start == expected.length && selection?.end == expected.length
 
+/**
+ * Ownvoice's own sheets (the drafts panel and the rewrite sheet) on screen. A set, not a flag: Android stops a
+ * finished activity only once the next one goes idle, so a closing panel's onStop can land after the rewrite
+ * sheet's onStart and must not bring the bubble back over the sheet that is still open.
+ */
+internal class OpenSheets {
+  private val open = mutableSetOf<Any>()
+  /** Records [sheet] as shown or gone; true while any sheet is still open. */
+  @Synchronized fun shown(sheet: Any, shown: Boolean): Boolean {
+    if (shown) open += sheet else open -= sheet
+    return open.isNotEmpty()
+  }
+}
+
 class OwnvoiceService : AccessibilityService() {
   companion object {
     const val TAG = "OwnvoiceNative"
@@ -87,6 +101,13 @@ class OwnvoiceService : AccessibilityService() {
     /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. Never saved. */
     @Volatile var practice = false
     @Volatile var panelIsOpen = false
+    private val sheets = OpenSheets()
+    /** A sheet's onStart/onStop: the bubble hides while any of Ownvoice's sheets is open. */
+    fun sheetShown(sheet: Any, shown: Boolean) {
+      val any = sheets.shown(sheet, shown)
+      panelIsOpen = any
+      instance?.panelOpen = any
+    }
     @Volatile var onInserted: ((Boolean, Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
     /** "Check my spelling as I type": off unless the person switches it on in Home. */

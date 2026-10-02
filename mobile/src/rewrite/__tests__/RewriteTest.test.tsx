@@ -1,6 +1,7 @@
 // Slice 8 (rows R1–R5): the selected-text rewrite screen, ported from the Kotlin RewriteActivity's
 // scenarios (§2.8: Replace returns the chosen version; a new number is warned; read-only offers only Copy).
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import Native from '../../../modules/ownvoice-native';
@@ -58,6 +59,38 @@ test('the five chips read Shorter, Simpler, Fix spelling, Friendlier and Firmer 
   for (const label of ['Shorter', 'Simpler', 'Fix spelling', 'Friendlier', 'Firmer']) expect(screen.getByRole('button', { name: label })).toBeTruthy();
   expect(visibleStrings(screen)).toContain("Pick how you'd like it. You'll see it before anything changes.");
   expect(visibleStrings(screen)).toContain('You selected');
+});
+
+// ov-pm-15: "Fix spe…" and "Friendl…" were cut off at 720 wide and at 1.3x text. Jest has no layout,
+// so this pins the two things that cut them: a one-line label and a single fixed-width row.
+test('every chip label shows in full and the chips wrap instead of cutting a label off', async () => {
+  const screen = await renderRewrite({ text: SELECTION, editable: true });
+  for (const label of ['Shorter', 'Simpler', 'Fix spelling', 'Friendlier', 'Firmer']) {
+    const text = screen.getByText(label);
+    expect(text.props.numberOfLines).toBeUndefined();
+    expect(StyleSheet.flatten(text.props.style)).toEqual(expect.objectContaining({ flexShrink: 1 }));
+    const chip = StyleSheet.flatten(screen.getByRole('button', { name: label }).props.style);
+    expect(chip.flex).toBeUndefined();
+    expect(chip).toEqual(expect.objectContaining({ flexGrow: 1, flexShrink: 1 }));
+  }
+  const bar = screen.getByRole('button', { name: 'Shorter' }).parent;
+  let node = bar;
+  while (node && !StyleSheet.flatten(node.props.style)?.flexWrap) node = node.parent;
+  expect(StyleSheet.flatten(node?.props.style)).toEqual(expect.objectContaining({ flexDirection: 'row', flexWrap: 'wrap' }));
+});
+
+test('its own rewrite is never called "A bit general" (ov-pm-15)', async () => {
+  native.ask.mockImplementation(async (_id: string, prompt: string) =>
+    prompt.startsWith('Compare a rewrite') ? 'GENERIC: 9\nSPECIFICITY: 1\nMEANING: pass' : 'Bring the tent. Pack the stove.');
+  const screen = await renderRewrite({ text: 'Please bring the tent. Pack the stove.', editable: true });
+  fireEvent.press(screen.getByRole('button', { name: 'Firmer' }));
+  await waitFor(() => expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-check-/), expect.anything(), { maxTokens: 80 }));
+  await act(async () => { await Promise.resolve(); });
+  const shown = visibleStrings(screen);
+  expect(shown).toContain('Bring the tent. Pack the stove.');
+  expect(shown).toContain('Same meaning as yours');
+  expect(shown).not.toContain('A bit general');
+  expect(shown).not.toContain('Sounds natural');
 });
 
 test('Copy returns the chosen version and copies it (R4)', async () => {
