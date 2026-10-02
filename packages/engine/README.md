@@ -18,7 +18,8 @@ const result = Protocol.handle({ verb: 'check', drafts: ['See you Saturday.'], p
 ```
 
 Protocol **2** takes plain JSON requests and returns plain JSON responses.
-`ownvoice-engine/protocol/schema.json` contains the request/response schema.
+`ownvoice-engine/protocol/schema.json` validates requests and documents response
+shapes in its `$comment`; it does not validate successful responses.
 The `ownvoice-engine` executable reads one request on stdin and prints one
 response on stdout. Errors print an error envelope and exit with status 1.
 
@@ -73,7 +74,8 @@ errors other than a missing version stop the release. Real releases require a
 clean checkout at `origin/main`; GitHub Actions uses OIDC and provenance, with
 no stored npm token. Local preview: `npm run release -- --dry-run`.
 
-Version 0.1.0 is already public. Later releases use the main-only workflow;
+Version 0.1.0 is already public and does not support reply samples.
+Later releases use the main-only workflow;
 owner approval of npm trusted publishing/2FA remains a separate release hold.
 Do not repeat bootstrap publication or change working authentication settings.
 See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
