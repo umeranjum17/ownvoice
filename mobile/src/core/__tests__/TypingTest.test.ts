@@ -2,6 +2,16 @@ import { readFileSync } from 'fs';
 import nspell from 'nspell';
 import { count, fixed, fixedSlips, slips, suggestion, GRAMMAR, SPELLING } from '../typing';
 import { NO_RULES } from '../slop';
+import { speller as loadSpeller } from '../speller';
+
+jest.mock('../../../assets/dictionary/en-affixes.aff', () => 1);
+jest.mock('../../../assets/dictionary/en-words.dic', () => 2);
+jest.mock('expo-asset', () => ({ Asset: { fromModule: (id: number) => ({
+  downloadAsync: async () => ({ localUri: id === 1 ? 'en-affixes.aff' : 'en-words.dic' }),
+}) } }));
+jest.mock('expo-file-system', () => ({ File: jest.fn((uri: string) => ({
+  text: async () => require('fs').readFileSync(`${__dirname}/../../../assets/dictionary/${uri}`, 'utf8'),
+})) }));
 
 const speller = nspell(readFileSync(`${__dirname}/../../../assets/dictionary/en-affixes.aff`, 'utf8'), readFileSync(`${__dirname}/../../../assets/dictionary/en-words.dic`, 'utf8'));
 
@@ -176,6 +186,20 @@ test('automatic contractions fix clear forms and preserve ambiguous ones', () =>
   expect(fixedSlips(ambiguous, speller)).toBe(ambiguous);
   expect(fixedSlips('We cant go and I wont', speller)).toBe('We cant go and I wont');
   expect(fixedSlips('https://site.test/dont @im #thats', speller)).toBe('https://site.test/dont @im #thats');
+});
+
+// Checkpoint 298, j4-fixed30/case-05: the advisory Fix offered autosave → autoclave.
+test('the app dictionary preserves the captured autosave text in advisory and automatic paths', async () => {
+  const typed = 'autosave locally and make export easy.';
+  expect(speller.correct('autosave')).toBe(false);
+  expect(suggestion('autosave', speller)).toBe('autoclave'); // unchanged upstream dictionary
+  const appSpell = await loadSpeller();
+  expect(appSpell.correct('autosave')).toBe(true);
+  expect(slips(typed, appSpell)).toEqual([]); // no advisory Fix button
+  expect(fixedSlips(typed, appSpell)).toBe(typed);
+  expect(slips('autoclave locally', appSpell)).toEqual([]);
+  expect(suggestion('shoud', appSpell)).toBe('should');
+  expect(fixedSlips('shoud teh recieve', appSpell)).toBe('should the receive');
 });
 
 test('correction tables do not inherit object keys', () => {

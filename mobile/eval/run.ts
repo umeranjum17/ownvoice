@@ -14,7 +14,7 @@ import * as D from 'ownvoice-engine/src/drafts.ts';
 import * as T from 'ownvoice-engine/src/threads.ts';
 
 import nspell from 'nspell';
-import { polishAcceptor } from '../src/core/polish.ts';
+import { canPolish, polishAcceptor } from '../src/core/polish.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
 
@@ -57,6 +57,8 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
 async function polish(c: any, calls: Call[]) {
   const dashes = D.dashDecision(false, c.typed);
   const engine = { ask: (p: string, n: number) => call(p, n, calls) };
+  // Slot-0 fixtures qualify local cleanup only; live polish includes the original-point gate.
+  if (c.slot !== 0 && !await canPolish(c.typed, prompt => call(prompt, 8, calls))) return { raw: {}, shown: [], rescued: [] };
   const acceptor = await polishAcceptor(c.typed, dashes, [], spell);
   const raw: Record<string, string> = { LIGHT: acceptor.local ?? c.typed };
   if (c.slot === 0) return { raw, shown: acceptor.results, rescued: [] };

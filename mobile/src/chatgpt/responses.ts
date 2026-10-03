@@ -6,7 +6,7 @@ import { withResponseFetch } from './responseFetch';
 import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, writerVersions, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
-import { polishAcceptor } from '../core/polish';
+import { canPolish, polishAcceptor } from '../core/polish';
 import { SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
@@ -155,6 +155,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const avoid = request.avoid ?? [];
   const note = avoidLine(avoid);
   const landed = on.landed ?? (() => {});
+  if (!await canPolish(request.typed, prompt => ask(prompt, 'Answer only CLEAR or UNCLEAR.', 'text', 1, on).then(([text]) => text))) return { drafts: [], declined: true };
   const acceptor = await polishAcceptor(request.typed, dashes, avoid);
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   const raw = await ask(rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', writerVersions.length, on);

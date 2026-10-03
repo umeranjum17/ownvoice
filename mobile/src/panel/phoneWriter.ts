@@ -2,7 +2,7 @@ import Native, { type ModelStatus } from '../../modules/ownvoice-native';
 import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
-import { polishAcceptor } from '../core/polish';
+import { canPolish, polishAcceptor } from '../core/polish';
 import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
@@ -26,6 +26,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const note = avoidLine(avoid);
   const engine = { ask: (prompt: string, maxTokens: number) => ask(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
   const landed = on.landed ?? (() => {});
+  if (!await canPolish(request.typed, prompt => ask(prompt, 8))) return { drafts: [], declined: true };
   const acceptor = await polishAcceptor(request.typed, dashes, avoid);
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   await rewrite(engine, request.typed, request.conversation, request.guide ?? '', (version, text) => {

@@ -1,8 +1,20 @@
 import { readFileSync } from 'fs';
 import nspell from 'nspell';
-import { polishAcceptor } from '../polish';
+import { canPolish, polishAcceptor } from '../polish';
 
 const spell = nspell(readFileSync(`${__dirname}/../../../assets/dictionary/en-affixes.aff`, 'utf8'), readFileSync(`${__dirname}/../../../assets/dictionary/en-words.dic`, 'utf8'));
+
+test('original-point admission requires an explicit clear answer, never a fluent alternate', async () => {
+  const typed = 'purple toaster clouds ate the database backwards banana banana';
+  const bad = 'the database got eaten backwards by purple toaster clouds banana banana';
+  for (const answer of ['UNCLEAR', '', bad, 'CLEAR or UNCLEAR']) {
+    expect(await canPolish(typed, async prompt => {
+      expect(prompt).toContain(`Text:\n${typed}`);
+      return answer;
+    })).toBe(false);
+  }
+  expect(await canPolish('autosave locally and make export easy.', async () => 'CLEAR')).toBe(true);
+});
 
 test.each(['accept', 'fix'] as const)('polish %s ignores writer cleanup and shows only local fixes', async method => {
   for (const [typed, answer, expected] of [
