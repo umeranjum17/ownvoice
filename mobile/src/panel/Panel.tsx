@@ -49,14 +49,16 @@ const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {})
 
 /** Prefill hand-off: the app's own compose opens with this text, or the share
  *  sheet when it has no compose link; either way the person presses Send. */
-const openPrefill = (app: string | undefined, text: string) => {
-  const url = prefillUrl(prefillFor(platformForApp(app)).dest, text);
+const openPrefill = (platform: Platform, text: string) => {
+  const url = prefillUrl(prefillFor(platform).dest, text);
   if (url) void Linking.openURL(url).catch(() => { void Share.share({ message: text }).catch(() => {}); });
   else void Share.share({ message: text }).catch(() => {});
 };
 
 const modeOf = (typed: string, written: string): Mode =>
   typed.trim() ? (Judge.replying(written) ? 'polish' : 'compose') : Judge.replying(written) ? 'reply' : 'empty';
+
+const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id === 'reddit';
 
 /** The pulsing "Checking…" row while the model checks run; still when motion is reduced. */
 function Checking() {
@@ -174,8 +176,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const id = ++run.current;
     const rules = voice.current = loadVoice();
     const nextMode = modeOf(value.typed, value.written);
+    const platform = platformForApp(value.app, value.nodes);
     const post = nextMode === 'compose';
+    const publicScreen = post || namesPlatform(platform);
     const person = Judge.who(value.written);
+    platformOf.current = platform;
     setMode(nextMode);
     setCards([null, null, null]);
     setYours(null);
@@ -193,11 +198,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     }
     setNote(words.writing);
     setPhase('writing');
-    const platform = platformForApp(value.app);
-    platformOf.current = platform;
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
-      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, rules, post, person, platform), meaning: null });
+      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null });
     }
     void (async () => {
       let path: WriterRoute;
@@ -230,7 +233,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
           landed: (text, slot, label) => {
             if (run.current !== id) return;
-            const scores = Judge.scoreDraft(text, null, !post, rules, post, person, platform);
+            const scores = Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform);
             const meaning = label ? Judge.meaning(value.typed, text, null) : null;
             setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
           },
@@ -303,16 +306,17 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     };
     void (async () => {
       const post = mode === 'compose';
+      const publicScreen = post || namesPlatform(platformOf.current);
       const rules = voice.current;
       const conversation = capture?.conversation ?? '';
       // The checks stay on the phone when it can write; otherwise the cover shows the rules row plus noChecks.
       const model = await phoneCanWrite() !== 'cant';
-      if (!post && !kind.current && model) {
+      if (!publicScreen && !kind.current && model) {
         const answer = await ask(Judge.kindPrompt(conversation), 5);
         const message = answer ? Judge.isMessage(answer) : null;
         if (message !== null) kind.current = { message };
       }
-      const message = post ? false : kind.current?.message;
+      const message = publicScreen ? false : kind.current?.message;
       const answer = model && message !== undefined ? await ask(Judge.draftPrompt(conversation, draft.text, message, voiceGuide(rules, post && !message)), 220) : null;
       const scores = answer && message !== undefined && Judge.validDraftAnswer(answer, message) ? Judge.scoreDraft(draft.text, answer, message, rules, post, who, platformOf.current) : null;
       let meaning = draft.meaning;
@@ -326,10 +330,13 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     })();
   };
 
-  const title = mode === 'polish' ? words.polishTitle
+  const platform = platformOf.current;
+  const title = mode == null ? words.writing
+    : mode === 'polish' ? (namesPlatform(platform) ? words.postTitle : words.polishTitle)
     : mode === 'compose' ? words.postTitle
     : mode === 'reply' ? (who ? `Reply to ${who}` : words.replyTitle)
     : words.nothingYet;
+  const placeTitle = namesPlatform(platform) && mode !== 'empty' && mode != null ? `${title} · ${platform.label}` : title;
 
   const hasField = !!capture?.hasField;
   const mainNote = phase === 'failed' || phase === 'loading' ? note
@@ -345,12 +352,12 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const done = phase === 'ready' && unchanged;
   const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
   const insertLabel = mode === 'reply' ? words.insert : words.useThis;
-  const prefill = prefillFor(platformForApp(capture?.app));
+  const prefill = prefillFor(platform);
   const coverDraft = why != null ? [...(yours ? [yours] : []), ...shown].find(draft => draft.slot === why) : undefined;
   const check = coverDraft ? whys.get(coverDraft.text) : undefined;
 
   return <Sheet
-    title={title}
+    title={placeTitle}
     note={empty ? undefined : mainNote ?? undefined}
     mood={empty ? undefined : mood}
     onClose={() => { void Native.closePanel().catch(() => {}); }}
@@ -391,7 +398,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (!card) return phase === 'writing' ? <View key={slot} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
       const verdict = card.label ? null : distinctVerdict(card, shown);
       return <View key={slot} style={{ marginBottom: space.m }}>
-        <Card variant="outlined" label={card.label ?? (mode === 'reply' ? (TAGS[platformForApp(capture?.app).id] ?? CHAT_TAGS)[card.slot] : undefined)}>
+        <Card variant="outlined" label={card.label ?? (mode === 'reply' ? (TAGS[platform.id] ?? CHAT_TAGS)[card.slot] : undefined)}>
           <Marked text={card.text} hits={card.scores.hits} />
           <ToneLine text={card.text} tones={tones} />
           {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
@@ -399,7 +406,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} onPress={() => copy(card.text)} />
-            <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} onPress={() => openPrefill(capture?.app, card.text)} />
+            <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} onPress={() => openPrefill(platform, card.text)} />
             <View style={{ flex: 1 }} />
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>

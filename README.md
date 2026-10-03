@@ -45,6 +45,8 @@ Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen a
 
 ### Polish what you wrote
 
+On X and Reddit, the panel names the platform beside its heading. Typed drafts show **Polish your post · X** or **Polish your post · Reddit**; replies get a reply heading instead. This works in their Android apps and in Chrome when its address bar identifies the site. Replies and versions use that platform’s writing rules and length checks. Other apps keep their existing headings. While Ownvoice reads the screen, the heading says **Writing…**.
+
 Already typed something? The same tap shows your text with the stock phrases marked, then a few better versions of it. **Use this** swaps your text for one of them. **Cleaned up** fixes clear spelling slips, clear missing apostrophes such as “dont”, accidental repeats of “the”, “a” or “an” starting with a lowercase copy, and “Its” before “a”, “an” or “the”. For example, “Its a good plan, I shoud be there by the the evening.” becomes “It's a good plan, I should be there by the evening.” This card uses only your own text and those clear fixes; the writer supplies the other versions. Other suspected slips appear under **Check these** when spelling checks are on; each has its own **Fix**. When no different version is found, Ownvoice keeps your text and asks you to read it over before sending. That does not approve the writing.
 
 <p align="center">
@@ -83,7 +85,7 @@ Home shows at a glance whether Ownvoice is ready, and holds every setting: how O
 
 **Also on your phone:**
 
-- **Your voice**: the phrases you never say, a short note on how you write, and two rules (no long dashes; end posts on a statement). Drafts follow them, and any phrase on your list is marked wherever it shows up. Long dashes are removed unless your text uses one and the no-dashes rule is off; dashes inside links, email addresses, handles and tags stay intact. You can also import a list from a file.
+- **Your voice**: the phrases you never say, a short note on how you write, and two rules (no long dashes; end posts on a statement). Questions remain allowed in replies, including on X and Reddit. Drafts follow them, and any phrase on your list is marked wherever it shows up. Long dashes are removed unless your text uses one and the no-dashes rule is off; dashes inside links, email addresses, handles and tags stay intact. You can also import a list from a file.
 - **Where the bubble shows**: the bubble appears only in the apps you switch on. X, LinkedIn, Reddit, Slack, WhatsApp (and WhatsApp Business) and Gmail start on; everything else starts off.
 - **Pause for now**: hides the bubble everywhere until you turn it back on.
 - **Your phone's look**: Ownvoice uses your phone's colours and font, and follows light and dark mode.
