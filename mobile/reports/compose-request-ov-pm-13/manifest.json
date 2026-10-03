@@ -19,7 +19,7 @@
   "unflaggedFlags": "PHONE_AGENT and all E2E flags unset",
   "restoreInstallExit": 0,
   "emulatorExited": true,
-  "restorationSettingsReadback": "outstanding supervisor-coordinated check",
+  "restorationSettingsReadback": "resolved by coordinated next owner: initial null/0 corrected to saved service and enabled=1; final readback verified",
   "formalPhoneEval": "not run; producer/runner handoff outstanding",
   "manualReview": [
     {
@@ -82,5 +82,7 @@
       "task": 6,
       "judgment": "Heater and Monday retained; no invented circumstances. Decline stops sharing."
     }
-  ]
+  ],
+  "restoredApkSha256Verified": "034d669751bd49c5dc2d9ff827c74df7abf4e1d0bbdcfc20f6be8e71ae2b581f",
+  "restorationVerifiedAt": "2026-10-01T11:40:30.574350Z"
 }
