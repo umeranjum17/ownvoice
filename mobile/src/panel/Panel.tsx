@@ -177,7 +177,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const rules = voice.current = loadVoice();
     const nextMode = modeOf(value.typed, value.written);
     const platform = platformForApp(value.app, value.nodes);
-    const post = nextMode === 'compose' || namesPlatform(platform);
+    const post = nextMode === 'compose';
+    const publicScreen = post || namesPlatform(platform);
     const person = Judge.who(value.written);
     platformOf.current = platform;
     setMode(nextMode);
@@ -199,7 +200,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setPhase('writing');
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
-      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !post, rules, post, person, platform), meaning: null });
+      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null });
     }
     void (async () => {
       let path: WriterRoute;
@@ -232,7 +233,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
           landed: (text, slot, label) => {
             if (run.current !== id) return;
-            const scores = Judge.scoreDraft(text, null, !post, rules, post, person, platform);
+            const scores = Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform);
             const meaning = label ? Judge.meaning(value.typed, text, null) : null;
             setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
           },
@@ -304,17 +305,18 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       try { return await Native.ask(`why-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, prompt, { maxTokens }); } catch { return null; }
     };
     void (async () => {
-      const post = mode === 'compose' || namesPlatform(platformOf.current);
+      const post = mode === 'compose';
+      const publicScreen = post || namesPlatform(platformOf.current);
       const rules = voice.current;
       const conversation = capture?.conversation ?? '';
       // The checks stay on the phone when it can write; otherwise the cover shows the rules row plus noChecks.
       const model = await phoneCanWrite() !== 'cant';
-      if (!post && !kind.current && model) {
+      if (!publicScreen && !kind.current && model) {
         const answer = await ask(Judge.kindPrompt(conversation), 5);
         const message = answer ? Judge.isMessage(answer) : null;
         if (message !== null) kind.current = { message };
       }
-      const message = post ? false : kind.current?.message;
+      const message = publicScreen ? false : kind.current?.message;
       const answer = model && message !== undefined ? await ask(Judge.draftPrompt(conversation, draft.text, message, voiceGuide(rules, post && !message)), 220) : null;
       const scores = answer && message !== undefined && Judge.validDraftAnswer(answer, message) ? Judge.scoreDraft(draft.text, answer, message, rules, post, who, platformOf.current) : null;
       let meaning = draft.meaning;

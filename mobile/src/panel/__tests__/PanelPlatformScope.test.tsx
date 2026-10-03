@@ -30,7 +30,10 @@ describe.each([
   ['com.twitter.android', 'X'],
   ['com.reddit.frontpage', 'Reddit'],
 ])('%s heading and post scope', (app, label) => {
-  test.each(['polish', 'reply', 'compose'] as const)('%s retains the intended rules and checks', async mode => {
+  test.each([
+    ['polish', 0], ['polish', 1], ['reply', 0], ['compose', 0], ['compose', 1],
+  ] as const)('%s card %s retains the intended rules and checks', async (mode, card) => {
+    (Native.ask as jest.Mock).mockClear();
     const written = mode === 'compose' ? '' : 'Sam: Are we meeting on Saturday?';
     (Native.capture as jest.Mock).mockResolvedValue({
       conversation: written, written, nodes: [], fieldTop: null,
@@ -48,14 +51,23 @@ describe.each([
       return { drafts: ['Shall we meet on Saturday morning?'] };
     });
     const screen = await render(<Panel writer={{ write }} />);
-    const post = mode === 'compose' || !!label;
-    const title = mode === 'reply' ? 'Suggested replies' : post ? 'Polish your post' : 'Polish your message';
+    const post = mode === 'compose';
+    const publicScreen = post || !!label;
+    const title = mode === 'reply' ? 'Suggested replies' : publicScreen ? 'Polish your post' : 'Polish your message';
     await waitFor(() => expect(screen.getByText(label ? `${title} · ${label}` : title)).toBeTruthy());
     expect(write.mock.calls[0][0].guide).toBe(post ? 'End on a statement, not a question.' : '');
-    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Why?' }).length).toBeGreaterThan(0));
-    fireEvent.press(screen.getAllByRole('button', { name: 'Why?' })[0]);
-    await waitFor(() => expect(screen.getByText(post ? 'Invites replies' : 'Answers the question')).toBeTruthy());
-    expect(screen.queryByText(post ? 'Answers the question' : 'Invites replies')).toBeNull();
+    await waitFor(() => expect(screen.getAllByRole('button', { name: 'Why?' }).length).toBeGreaterThan(card));
+    await fireEvent.press(screen.getAllByRole('button', { name: 'Why?' })[card]);
+    if (post) expect(screen.getByText("Doesn't sound like you")).toBeTruthy();
+    else expect(screen.queryByText("Doesn't sound like you")).toBeNull();
+    await waitFor(() => expect(screen.getByText(publicScreen ? 'Invites replies' : 'Answers the question')).toBeTruthy());
+    expect(screen.queryByText(publicScreen ? 'Answers the question' : 'Invites replies')).toBeNull();
+    if (post) expect(screen.getByText("Doesn't sound like you")).toBeTruthy();
+    else expect(screen.queryByText("Doesn't sound like you")).toBeNull();
+    const checkPrompt = (Native.ask as jest.Mock).mock.calls.find(([_id, prompt]) => prompt.includes('You check a reply draft'))?.[1];
+    expect(checkPrompt).toBeDefined();
+    expect(checkPrompt.includes('End on a statement, not a question.')).toBe(post);
+    if (label) expect(screen.getByText('Right length for a post')).toBeTruthy();
     await screen.unmount();
   });
 });
