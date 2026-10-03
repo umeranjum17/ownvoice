@@ -17,6 +17,7 @@ export const words = {
   noCapture:'Nothing to read on this screen. Close this and tap the bubble again.',
   noReplies:'Couldn\'t come up with replies this time. Try again.',
   noVersions:'Couldn\'t polish that this time. Try again.',
+  unclearPolish:'This text has no clear message to polish yet.',
   looksGood:'No different version found',
   looksGoodNote:'Read it over before you send it.',
   serviceOff:'Ownvoice is off. Use Copy instead.',

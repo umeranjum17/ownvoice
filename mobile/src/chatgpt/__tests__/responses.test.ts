@@ -626,6 +626,20 @@ test('captured nonsense is declined before any alternate can land or trigger pho
   } finally { global.fetch = originalFetch; }
 });
 
+test('an unreadable point check remains a transient failure, allowing fallback rather than false semantic refusal', async () => {
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
+  const originalFetch = global.fetch;
+  global.fetch = fetcher(body(event({ type: 'response.output_text.delta', delta: 'not sure' }) + '\n\n' + event({ type: 'response.completed' })));
+  const phone = { write: jest.fn(async () => ({ drafts: ['autosave locally. Make export easy.'] })) };
+  try {
+    const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' });
+    expect(choice).toEqual({ drafts: ['autosave locally. Make export easy.'], reason: words.fallback });
+    expect(choice.declined).toBeUndefined();
+    expect(phone.write).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  } finally { global.fetch = originalFetch; }
+});
+
 test('fit accepts a React Native signal with no throwIfAborted method', async () => {
   const { signal } = new AbortController();
   Object.defineProperty(signal, 'throwIfAborted', { value: undefined });

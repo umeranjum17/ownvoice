@@ -15,6 +15,8 @@ import { store } from '../core/store';
 import { SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
 import { preserveFragment, cleanSelection } from '../core/drafts';
+import { fixedSentenceSplits } from '../core/typing';
+import { speller } from '../core/speller';
 import { Button } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Choices } from '../ui/Choices';
@@ -71,8 +73,9 @@ export default function Rewrite() {
     setNote(words.writing);
     const stub = process.env.EXPO_PUBLIC_E2E_STUB === '1' ? stubRewrite(input.text, how) : null;
     const guide = Voice.guide(rules, false);
-    const finish = (raw: string) => {
-      const text = cleanSelection(input.text, Judge.clean(raw));
+    const finish = async (raw: string) => {
+      const spell = await speller().catch(() => null);
+      const text = fixedSentenceSplits(input.text, cleanSelection(input.text, Judge.clean(raw)), spell);
       return how === Judge.Rewrite.GRAMMAR ? preserveFragment(input.text, text) : text;
     };
     const phoneRewrite = async () => finish(stub ?? await Native.ask(`rewrite-${Date.now()}`, Judge.selectionRewritePrompt(input.text, how, guide), { maxTokens: 256 }));
@@ -97,7 +100,7 @@ export default function Rewrite() {
         return;
       }
       try {
-        await showResult(finish(await streamSelectionRewrite(input.text, how, guide, consent())), canWrite);
+        await showResult(await finish(await streamSelectionRewrite(input.text, how, guide, consent())), canWrite);
       } catch (error) {
         if (id !== run.current) return;
         const veto = error instanceof SendVeto ? error.message : null;
