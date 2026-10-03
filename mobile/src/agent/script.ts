@@ -1,4 +1,7 @@
 import type { Brain, Call, Item, Turn } from './loop';
+import { noteText } from './note';
+
+const OUTPUT = 'This writing call has no tools. Return one JSON object with exactly one field, "note", containing only the finished recipient-facing message as a string. No explanation or capability limit belongs in that string.';
 
 const check = (id: string, draft: string, original: string): Call =>
   ({ id, name: 'check_voice', args: JSON.stringify({ draft, original }) });
@@ -35,8 +38,9 @@ const titleOf = (draft: string): string =>
 /**
  * The fixed phone-agent script as a Brain behind the same seam as the loop brains, so the
  * experiment can compare loop vs script fairly: draft, check_voice, revise with the problems,
- * check_voice, then the share card; at most maxRevises revises. The writer only writes text;
- * code calls the tools. Stateless: everything it needs is in the items it is given.
+ * check_voice, then the share card; at most maxRevises revises. The writer is asked for a
+ * note envelope (see mobile/README.md, How Ownvoice writes); code calls the tools.
+ * Stateless: everything it needs is in the items it is given.
  */
 export function scriptBrain(write: (prompt: string) => Promise<string>, o: { maxRevises?: number } = {}): Brain {
   const maxRevises = o.maxRevises ?? 2;
@@ -48,7 +52,7 @@ export function scriptBrain(write: (prompt: string) => Promise<string>, o: { max
       }
       const done = items.filter(i => 'type' in i && i.type === 'function_call_output').length;
       if (done === 0) {
-        const draft = await write(`${instructions}\n\nTask: ${task}\n\nWrite the note:`);
+        const draft = noteText(await write(`${instructions}\n\nTask: ${task}\n\n${OUTPUT}\nWrite the note:`));
         onText?.(draft);
         return { text: draft, calls: [check('c1', draft, task)] };
       }
@@ -56,7 +60,7 @@ export function scriptBrain(write: (prompt: string) => Promise<string>, o: { max
       const latest = lastCheckedDraft(items);
       const checks = items.filter(i => 'type' in i && i.type === 'function_call' && i.name === 'check_voice').length;
       if (problems?.trim() !== 'OK' && checks - 1 < maxRevises && latest) {
-        const revised = await write(`${instructions}\n\nTask: ${task}\n\nDraft: ${latest}\n\nIt has these problems: ${problems}\n\nRewrite the draft fixing each problem, keeping every fact:`);
+        const revised = noteText(await write(`${instructions}\n\nTask: ${task}\n\nDraft: ${latest}\n\nIt has these problems: ${problems}\n\n${OUTPUT}\nRewrite the draft fixing each problem, keeping every fact:`));
         onText?.(revised);
         return { text: revised, calls: [check(`c${done + 1}`, revised, task)] };
       }

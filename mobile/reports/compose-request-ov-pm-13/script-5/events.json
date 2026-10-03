@@ -1,0 +1,102 @@
+{
+  "mode": "script",
+  "taskId": "5",
+  "seenShare": true,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790853641088
+    },
+    {
+      "event": "request",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790853641113
+    },
+    {
+      "event": "response",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790853644848,
+      "turn": {
+        "text": "{\"note\":\"Hi Sam,\\n\\nStandup moves to 12:00, and the demo is Thursday at 3pm.\"}",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790853644850,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3pm."
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790853644854,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3pm."
+    },
+    {
+      "event": "approval",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790853644855,
+      "call": {
+        "id": "c2",
+        "name": "share_note",
+        "args": "{\"title\":\"Hi Sam,\",\"body\":\"Hi Sam,\\n\\nStandup moves to 12:00, and the demo is Thursday at 3pm.\"}"
+      }
+    },
+    {
+      "event": "reply",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790853650043,
+      "yes": true
+    },
+    {
+      "event": "display",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790853650131,
+      "latest": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3pm."
+    },
+    {
+      "event": "done",
+      "mode": "script",
+      "taskId": 5,
+      "at": 1790853650132,
+      "out": {
+        "text": "Hi Sam,\n\nStandup moves to 12:00, and the demo is Thursday at 3pm.",
+        "steps": 3,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790853643074,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853644175,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853645269,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853646376,
+      "events": 6
+    },
+    {
+      "hostAt": 1790853654251,
+      "events": 9
+    }
+  ]
+}

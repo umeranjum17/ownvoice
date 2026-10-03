@@ -1,0 +1,174 @@
+{
+  "mode": "loop",
+  "taskId": "3",
+  "seenShare": true,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853490458
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853490534
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853498315,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_mOnJYQA5F8hJybeVfQ26X8mg",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Hi Sam, I can't make Saturday. Would Sunday after 2 work for you?\",\"original\":\"Reply to Sam: can't make Saturday, offer Sunday after 2.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853498315,
+      "latest": "Hi Sam, I can't make Saturday. Would Sunday after 2 work for you?"
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853498319
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853501898,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_g1DH6bHzGk0JJGshJwHPWpNZ",
+            "name": "share_note",
+            "args": "{\"title\":\"Reply to Sam\",\"body\":\"Hi Sam, I can't make Saturday. Would Sunday after 2 work for you?\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853501898,
+      "latest": "Hi Sam, I can't make Saturday. Would Sunday after 2 work for you?"
+    },
+    {
+      "event": "approval",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853501898,
+      "call": {
+        "id": "call_g1DH6bHzGk0JJGshJwHPWpNZ",
+        "name": "share_note",
+        "args": "{\"title\":\"Reply to Sam\",\"body\":\"Hi Sam, I can't make Saturday. Would Sunday after 2 work for you?\"}"
+      }
+    },
+    {
+      "event": "reply",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853503404,
+      "yes": true
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853503458
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853506348,
+      "turn": {
+        "text": "Hi Sam, I can't make Saturday. Would Sunday after 2 work for you?\n\nI can’t send the reply, but the note is ready to share.",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853506348,
+      "latest": "Hi Sam, I can't make Saturday. Would Sunday after 2 work for you?"
+    },
+    {
+      "event": "done",
+      "mode": "loop",
+      "taskId": 3,
+      "at": 1790853506348,
+      "out": {
+        "text": "Hi Sam, I can't make Saturday. Would Sunday after 2 work for you?\n\nI can’t send the reply, but the note is ready to share.",
+        "steps": 3,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790853492319,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853493377,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853494449,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853495487,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853496513,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853497590,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853498623,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853499661,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853500679,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853501697,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853502719,
+      "events": 8
+    },
+    {
+      "hostAt": 1790853509181,
+      "events": 13
+    }
+  ]
+}

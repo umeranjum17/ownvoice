@@ -1,0 +1,167 @@
+{
+  "mode": "loop",
+  "taskId": "6",
+  "seenShare": true,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853557934
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853557955
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853562376,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_E3H5Z0obqjwyeUirXQY50LXX",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Hi,\\n\\nThe heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen.\\n\\nThank you.\",\"original\":\"Write my landlord a note that the heater's broken since Monday, then make it firmer, then give me something I can send.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853562376,
+      "latest": "Hi,\n\nThe heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen.\n\nThank you."
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853562379
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853572889,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_og9cVYi2zFlifRxrAs6YZxi9",
+            "name": "share_note",
+            "args": "{\"title\":\"Note to landlord about heater\",\"body\":\"Hi,\\n\\nThe heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen.\\n\\nThank you.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853572889,
+      "latest": "Hi,\n\nThe heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen.\n\nThank you."
+    },
+    {
+      "event": "approval",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853572889,
+      "call": {
+        "id": "call_og9cVYi2zFlifRxrAs6YZxi9",
+        "name": "share_note",
+        "args": "{\"title\":\"Note to landlord about heater\",\"body\":\"Hi,\\n\\nThe heater has been broken since Monday. Please arrange to have it repaired and let me know when that will happen.\\n\\nThank you.\"}"
+      }
+    },
+    {
+      "event": "reply",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853574535,
+      "yes": false
+    },
+    {
+      "event": "done",
+      "mode": "loop",
+      "taskId": 6,
+      "at": 1790853574556,
+      "out": {
+        "text": "",
+        "steps": 2,
+        "stop": "declined"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790853559716,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853560740,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853561775,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853562801,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853563825,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853564837,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853565852,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853566867,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853567880,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853568894,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853569907,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853570923,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853571940,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853572956,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853573970,
+      "events": 8
+    },
+    {
+      "hostAt": 1790853576732,
+      "events": 10
+    }
+  ]
+}

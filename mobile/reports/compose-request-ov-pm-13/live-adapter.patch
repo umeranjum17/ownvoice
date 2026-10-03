@@ -1,0 +1,49 @@
+diff --git a/mobile/src/agent/Screen.tsx b/mobile/src/agent/Screen.tsx
+index 9232151..d88c8dd 100644
+--- a/mobile/src/agent/Screen.tsx
++++ b/mobile/src/agent/Screen.tsx
+@@ -3 +3 @@ import { Share, StyleSheet, Text, TextInput, View } from 'react-native';
+-import { router, useFocusEffect } from 'expo-router';
++import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+@@ -21,0 +22,4 @@ import { phoneBrain } from './phoneBrain';
++import { chatgptBrain } from './chatgptBrain';
++import { scriptBrain } from './script';
++import fixture from '../../e2e/agent-tasks.json';
++import { mocked, session } from '../chatgpt/session';
+@@ -59 +63,17 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
+-  const [task, setTask] = useState('');
++  const params = useLocalSearchParams<{ taskId?: string; mode?: string }>();
++  const mode = params.mode ?? 'loop';
++  const taskId = Number(params.taskId ?? 1);
++  const [task, setTask] = useState(fixture.tasks.find(t => t.id === taskId)?.task ?? '');
++  const liveBrain = useRef<Brain | null>(null);
++  if (!liveBrain.current) {
++    const raw = chatgptBrain();
++    const measured: Brain = { async step(i, items, tools, onText) {
++      console.log('A5LIVE ' + JSON.stringify({event:'request',mode,taskId,at:Date.now()}));
++      const turn = await raw.step(i,items,tools,onText);
++      console.log('A5LIVE ' + JSON.stringify({event:'response',mode,taskId,at:Date.now(),turn}));
++      return turn;
++    }};
++    liveBrain.current = mode === 'script' ? scriptBrain(async prompt => (await measured.step('Follow the writing call and return only its requested JSON note envelope. Tools are unavailable in this writing call.',[{role:'user',content:[{type:'input_text',text:prompt}]}],[])).text) : measured;
++  }
++  brains = {chatgpt: liveBrain.current};
++  const experimentVoice = () => ({...loadVoice(), ...fixture.voice});
+@@ -78,0 +99,2 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
++    console.log('A5LIVE ' + JSON.stringify({event:'start',mode,taskId,at:Date.now()}));
++    console.log('A5GUARD ' + JSON.stringify({mocked,signedIn:(await session.current()).signedIn}));
+@@ -100,0 +123 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
++        console.log('A5LIVE ' + JSON.stringify({event:'display',mode,taskId,at:Date.now(),latest}));
+@@ -106,2 +129,2 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
+-        instructions: instructions(loadVoice()), task, brain,
+-        tools: [checkVoice(loadVoice), shareNote(async (_title, body) => (await Share.share({ message: body })).action !== Share.dismissedAction)],
++        instructions: instructions(experimentVoice()), task, brain,
++        tools: [checkVoice(experimentVoice), shareNote(async (_title, body) => (await Share.share({ message: body })).action !== Share.dismissedAction)],
+@@ -111,0 +135 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
++          console.log('A5LIVE ' + JSON.stringify({event:'approval',mode,taskId,at:Date.now(),call}));
+@@ -118,0 +143 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
++      console.log('A5LIVE ' + JSON.stringify({event:'done',mode,taskId,at:Date.now(),out}));
+@@ -121,0 +147 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
++      console.log('A5LIVE ' + JSON.stringify({event:'failure',mode,taskId,at:Date.now(),message:String(error)}));
+@@ -130,0 +157 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
++    console.log('A5LIVE ' + JSON.stringify({event:'reply',mode,taskId,at:Date.now(),yes}));

@@ -1,0 +1,194 @@
+{
+  "mode": "loop",
+  "taskId": "2",
+  "seenShare": true,
+  "finished": true,
+  "events": [
+    {
+      "event": "start",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853461819
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853461888
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853473990,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_cAXccUCkg3BFuLbd5ZPwEA6S",
+            "name": "check_voice",
+            "args": "{\"draft\":\"Hey team, quick update:\\n• Standup moves to 12:00.\\n• Demo is Thursday at 3pm.\\n• Priya owns the deck.\",\"original\":\"Turn this into a list for the team: standup moves to 12:00, demo Thursday 3pm, Priya owns the deck. Keep it casual.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853473991,
+      "latest": "Hey team, quick update:\n• Standup moves to 12:00.\n• Demo is Thursday at 3pm.\n• Priya owns the deck."
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853473994
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853477201,
+      "turn": {
+        "text": "",
+        "calls": [
+          {
+            "id": "call_DIotyr01Z8tqQ1HHylWn2f8c",
+            "name": "share_note",
+            "args": "{\"title\":\"Team update\",\"body\":\"Hey team, quick update:\\n• Standup moves to 12:00.\\n• Demo is Thursday at 3pm.\\n• Priya owns the deck.\"}"
+          }
+        ]
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853477201,
+      "latest": "Hey team, quick update:\n• Standup moves to 12:00.\n• Demo is Thursday at 3pm.\n• Priya owns the deck."
+    },
+    {
+      "event": "approval",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853477201,
+      "call": {
+        "id": "call_DIotyr01Z8tqQ1HHylWn2f8c",
+        "name": "share_note",
+        "args": "{\"title\":\"Team update\",\"body\":\"Hey team, quick update:\\n• Standup moves to 12:00.\\n• Demo is Thursday at 3pm.\\n• Priya owns the deck.\"}"
+      }
+    },
+    {
+      "event": "reply",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853478768,
+      "yes": true
+    },
+    {
+      "event": "request",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853478802
+    },
+    {
+      "event": "response",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853481808,
+      "turn": {
+        "text": "Hey team, quick update:\n• Standup moves to 12:00.\n• Demo is Thursday at 3pm.\n• Priya owns the deck.",
+        "calls": []
+      }
+    },
+    {
+      "event": "display",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853481808,
+      "latest": "Hey team, quick update:\n• Standup moves to 12:00.\n• Demo is Thursday at 3pm.\n• Priya owns the deck."
+    },
+    {
+      "event": "done",
+      "mode": "loop",
+      "taskId": 2,
+      "at": 1790853481808,
+      "out": {
+        "text": "Hey team, quick update:\n• Standup moves to 12:00.\n• Demo is Thursday at 3pm.\n• Priya owns the deck.",
+        "steps": 3,
+        "stop": "done"
+      }
+    }
+  ],
+  "polling": [
+    {
+      "hostAt": 1790853463681,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853464752,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853465805,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853466842,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853467890,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853468924,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853469950,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853470985,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853472010,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853473042,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853474089,
+      "events": 2
+    },
+    {
+      "hostAt": 1790853475118,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853476135,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853477151,
+      "events": 5
+    },
+    {
+      "hostAt": 1790853478166,
+      "events": 8
+    },
+    {
+      "hostAt": 1790853482298,
+      "events": 10
+    },
+    {
+      "hostAt": 1790853483326,
+      "events": 13
+    }
+  ]
+}
