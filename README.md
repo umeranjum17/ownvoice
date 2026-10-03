@@ -85,7 +85,7 @@ Home shows at a glance whether Ownvoice is ready, and holds every setting: how O
 
 **Also on your phone:**
 
-- **Your voice**: the phrases you never say, a short note on how you write, and two rules (no long dashes; end posts on a statement). Drafts follow them, and any phrase on your list is marked wherever it shows up. Long dashes are removed unless your text uses one and the no-dashes rule is off; dashes inside links, email addresses, handles and tags stay intact. You can also import a list from a file.
+- **Your voice**: the phrases you never say, a short note on how you write, and two rules (no long dashes; end posts on a statement). Questions remain allowed in replies, including on X and Reddit. Drafts follow them, and any phrase on your list is marked wherever it shows up. Long dashes are removed unless your text uses one and the no-dashes rule is off; dashes inside links, email addresses, handles and tags stay intact. You can also import a list from a file.
 - **Where the bubble shows**: the bubble appears only in the apps you switch on. X, LinkedIn, Reddit, Slack, WhatsApp (and WhatsApp Business) and Gmail start on; everything else starts off.
 - **Pause for now**: hides the bubble everywhere until you turn it back on.
 - **Your phone's look**: Ownvoice uses your phone's colours and font, and follows light and dark mode.

@@ -18,7 +18,9 @@ The corrected failed-Push endpoint `ed6942c004cb44bacd3e16c4a5462a5aa69f86d7` wa
 
 The five corrected-to-replacement range-diff entries are all `=`. No original accepted commit was skipped. The pipeline equivalents adapt the old patches to already-landed honest-verdict changes rather than restoring stale source or documentation.
 
-## File containment
+## File containment at the replay checkpoint
+
+These comparisons describe the five replayed commits through `8ca59112cb7d56731517c00d26ce8afb51d77d2b`, before subsequent validation fixes; they are not current-head blob claims.
 
 - `Panel.tsx`: exact corrected endpoint blob `db90c97d2f73c15e02430fe429c3bedb72334fb8`; node-aware platform selection, platform-specific drafting/checks/labels/hand-off, loading heading and X/Reddit-only heading scope retained. Current-main verdict changes remain intact.
 - `PanelChromeReddit.test.tsx`, `PanelChromeX.test.tsx`, `PanelPlatformScope.test.tsx`: byte-identical original/corrected/replacement blobs. These are mocked behavioral tests, not proof of real generated output.
