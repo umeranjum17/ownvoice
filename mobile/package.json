@@ -7,7 +7,8 @@
     "start": "expo start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "jest --runInBand"
+    "test": "jest --runInBand",
+    "floor": "node ../scripts/floor-guard.mjs"
   },
   "dependencies": {
     "@byokit/accounts": "0.13.0",
