@@ -148,6 +148,7 @@ class OwnvoiceService : AccessibilityService() {
   private var lastPrune = 0L
   private val readCue by lazy { ReadCue(this) }
   private val openPanel = Runnable {
+    readCue.stop()
     if (capture != null) startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
   }
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
@@ -334,6 +335,7 @@ class OwnvoiceService : AccessibilityService() {
 
   fun readScreen() {
     main.removeCallbacks(openPanel)
+    readCue.stop()
     forget()
     val app = currentApp()?.takeIf(::allowed) ?: run { restIdle(); return }
     val field = focusedField()
@@ -345,8 +347,9 @@ class OwnvoiceService : AccessibilityService() {
     (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written, nodes, boxes, practiceField) }
     Log.d(TAG, "capture practice=$practiceField conversationLines=${lines.size} clickableNodes=${nodes.count { it.clickable }}")
     // Show the reading right away; the rest of the read below can block this thread for a few hundred ms.
-    val cue = boxes.isNotEmpty() && !reducedMotion()
-    if (cue) readCue.play(bubbleBounds(), boxes)
+    val drawable = drawableBoxes(boxes, resources.displayMetrics.heightPixels)
+    val cue = drawable.isNotEmpty() && !reducedMotion()
+    if (cue) readCue.play(bubbleBounds(), drawable)
     val fieldBounds = Rect()
     field?.getBoundsInScreen(fieldBounds)
     val typed = FocusedFields.read(this)?.takeIf { it.app == app }?.text.orEmpty()

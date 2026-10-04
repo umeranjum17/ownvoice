@@ -24,6 +24,9 @@ import kotlin.math.pow
  * The reading moment: each line Ownvoice reads gets a quick highlighter stroke in reading order, then one spark
  * carries them into Dot and the highlights let go together. Drawn in a see-through window that never takes a touch.
  */
+// Text lines only: a box taller than a quarter of the screen is a page or a list, not a line.
+internal fun drawableBoxes(lines: List<Rect>, heightPx: Int): List<Rect> =
+  lines.filter { !it.isEmpty && it.height() < heightPx / 4 }
 class ReadCue(private val context: Context) {
   private val windows = context.getSystemService(WindowManager::class.java)
   // Its own looper, so the cue keeps moving while the main thread is still busy reading the screen.
@@ -79,8 +82,7 @@ class ReadCue(private val context: Context) {
   private class LinesView(context: Context, private val bubble: Rect?, lines: List<Rect>) : View(context) {
     var t = 0f
     private val dp = context.resources.displayMetrics.density
-    // Text lines only, in reading order: a box taller than a quarter of the screen is a page or a list, not a line.
-    private val boxes = lines.filter { !it.isEmpty && it.height() < context.resources.displayMetrics.heightPixels / 4 }
+    private val boxes = drawableBoxes(lines, context.resources.displayMetrics.heightPixels)
       .sortedWith(compareBy({ it.top }, { it.left })).takeLast(MAX_LINES)
     // However many lines there are, the last one starts by STAGGER, so the cue keeps its length.
     private val step = if (boxes.size > 1) min(0.05f, STAGGER / (boxes.size - 1)) else 0f
