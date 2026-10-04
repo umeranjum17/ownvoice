@@ -21,6 +21,7 @@ export function Button({ kind, label, disabled = false, large = false, onPress }
   const tonal = kind === 'tonal';
   return <Pressable
     accessibilityRole="button"
+    accessibilityState={{ disabled: off }}
     disabled={off}
     onPress={onPress}
     hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
@@ -31,17 +32,19 @@ export function Button({ kind, label, disabled = false, large = false, onPress }
 }
 
 /** A round icon-only action beside a card's main button; [label] is what a screen reader says. */
-export function IconButton({ icon: Icon, label, onPress }: { icon: ComponentType<{ size: number; color: string }>; label: string; onPress: () => void }) {
+export function IconButton({ icon: Icon, label, disabled = false, onPress }: { icon: ComponentType<{ size: number; color: string }>; label: string; disabled?: boolean; onPress: () => void }) {
   const t = useTheme();
   const busy = useCardBusy();
+  const off = disabled || busy;
   return <Pressable
     accessibilityRole="button"
     accessibilityLabel={label}
-    disabled={busy}
+    accessibilityState={{ disabled: off }}
+    disabled={off}
     onPress={onPress}
     hitSlop={4}
     android_ripple={{ color: t.primary.slice(0, 7) + '1F', foreground: true, borderless: false }}
-    style={[styles.icon, { backgroundColor: t.primary.slice(0, 7) + '14' }, busy && { opacity: 0.38 }]}>
+    style={[styles.icon, { backgroundColor: t.primary.slice(0, 7) + '14' }, off && { opacity: 0.38 }]}>
     <Icon size={20} color={t.primary} />
   </Pressable>;
 }

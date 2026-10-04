@@ -61,7 +61,7 @@ A draft shows no verdict until all the deeper checks have run. Even then, Ownvoi
 
 ### Make any text better
 
-Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler**, **Fix spelling**, **Friendlier** or **Firmer**. **Copy** copies the version, then paste it where you like, or **Share this text** to choose where it goes. If a new version adds a time, a number or a fact you didn't write, it says **Check this**. This works without the bubble's permission.
+Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler**, **Fix spelling**, **Friendlier** or **Firmer**. **Copy** copies the version, then paste it where you like, or **Share this text** to choose where it goes. If a new version adds a time, a number or a fact you didn't write, it says **Check this**, and **Copy** and **Share this text** stay disabled while it shows. This works without the bubble's permission.
 
 <p align="center">
   <img src="docs/readme/rewrite.webp" alt="Make it better over the home screen: a selected sentence and its Shorter version, with Copy" width="300" />
