@@ -24,6 +24,7 @@ mobile/.rn08.log
 mobile/.rn08.pid
 mobile/.run08.sh
 *.log
+verify-artifacts/
 node_modules/
 packages/engine/dist/
 

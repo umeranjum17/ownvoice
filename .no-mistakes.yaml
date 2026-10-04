@@ -19,5 +19,10 @@ test:
   # headless. On-device checks stay manual per README.md.
   instructions: |
     Trust the commands.test baseline result as the primary evidence.
-    Do not start, connect to, install anything on, or change settings on any
-    Android emulator or physical device.
+    For behavioral proof beyond the baseline, follow
+    .cursor/skills/verify-ownvoice/SKILL.md and its features/ map: drive one
+    mapped feature with the named instrument and keep evidence under
+    verify-artifacts/. The engine-protocol feature runs on the host with no
+    device. Do not start, connect to, install anything on, or change settings
+    on any Android emulator or physical device without an explicit device
+    allocation naming it; the test phone is never eligible.
