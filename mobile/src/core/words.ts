@@ -18,4 +18,10 @@ const typingWords = {
   rowTypingNote:'It stays on this phone.',
 } as const;
 
-export const words = { ...engineWords, ...typingWords };
+// Edit before insert: a card's text can be changed in the panel; Insert then uses the edited text.
+const editWords = {
+  edit:'Edit',
+  editField:'Edit this draft',
+} as const;
+
+export const words = { ...engineWords, ...typingWords, ...editWords };

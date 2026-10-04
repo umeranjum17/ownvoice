@@ -7,3 +7,4 @@ export * as Words from './words.ts';
 export * as Threads from './threads.ts';
 export * as Feed from './feed.ts';
 export * as Protocol from './protocol.ts';
+export * as Ratings from './ratings.ts';

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, Linking, Share, StyleSheet, Text, View } from 'react-native';
+import { Animated, Linking, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import Native, { type Capture } from '../../modules/ownvoice-native';
 import * as Judge from '../core/judge';
 import * as Typing from '../core/typing';
@@ -7,6 +7,8 @@ import { speller } from '../core/speller';
 import { dashesFor } from '../core/drafts';
 import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
 import { prefillFor, prefillUrl } from '../core/prefill';
+import { feedRead } from '../core/feed';
+import { rate, type Ratings as CardRatings } from '../core/ratings';
 import { gptRoute } from '../chatgpt/settings';
 import { guide as voiceGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
@@ -21,6 +23,7 @@ import { MeaningLine } from '../ui/MeaningLine';
 import { Marked } from '../ui/Marked';
 import { Placeholder } from '../ui/Placeholder';
 import { Progress } from '../ui/Progress';
+import { Ratings } from '../ui/Ratings';
 import { ReasonRow } from '../ui/ReasonRow';
 import { Sheet } from '../ui/Sheet';
 import { VerdictLine } from '../ui/VerdictLine';
@@ -40,7 +43,7 @@ const TAGS: Record<string, [string, string, string]> = {
 };
 const CHAT_TAGS: [string, string, string] = [words.replyYes, words.replyNo, words.replyAsk];
 type Phase = 'loading' | 'writing' | 'ready' | 'failed';
-type Draft = { text: string; label?: string; slot: number; scores: Scores; meaning: Check | null };
+type Draft = { text: string; label?: string; slot: number; scores: Scores; meaning: Check | null; ratings: CardRatings | null };
 type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
 
 /** Lines only Ownvoice itself can fix (choosing a writer, signing in, the phone's one-time download): the panel offers to open it. */
@@ -154,6 +157,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [insertBusy, setInsertBusy] = useState(false);
   const kind = useRef<{ message: boolean } | null>(null);
   const platformOf = useRef<Platform>(DEFAULT_PLATFORM);
+  const postOf = useRef<string | null>(null);
+  // The card being edited and its current text; Insert uses this text, Cancel drops it.
+  const [edit, setEdit] = useState<{ slot: number; text: string } | null>(null);
   const voice = useRef(loadVoice());
 
   const shown = cards.filter((card): card is Draft => !!card);
@@ -195,6 +201,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setFraction(null);
     setWhy(null);
     setWhys(new Map());
+    setEdit(null);
     kind.current = null;
     void findSlips(value.typed.trim(), id);
     if (nextMode === 'empty') {
@@ -202,9 +209,12 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     }
     setNote(words.writing);
     setPhase('writing');
+    // What the reply answers: the post block when the layout shows one, else the screen text the
+    // writer drafts from; '' only when nothing was read. A new post has no parent to compare with.
+    const shownPost = postOf.current = post ? null : feedRead(value.nodes, value.fieldTop).post || value.conversation.trim();
     if (nextMode !== 'reply') {
       const text = value.typed.trim();
-      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null });
+      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(text, platform, shownPost, rules) });
     }
     void (async () => {
       let path: WriterRoute;
@@ -239,7 +249,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             if (run.current !== id) return;
             const scores = Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform);
             const meaning = label ? Judge.meaning(value.typed, text, null) : null;
-            setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning }; return next; });
+            const ratings = rate(text, platform, shownPost, rules);
+            setCards(prev => { const next = [...prev]; next[slot] = { text, label, slot, scores, meaning, ratings }; return next; });
           },
         });
         if (run.current !== id) return;
@@ -392,6 +403,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <Marked text={yours.text} hits={[...yours.scores.hits, ...slips]} />
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
+        <Ratings ratings={yours.ratings} />
         <View style={styles.actions}>
           {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
           <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
@@ -402,19 +414,29 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (!card) return phase === 'writing' ? <View key={slot} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
       const verdict = card.label ? null : distinctVerdict(card, shown);
       const exportBlocked = card.meaning?.ok === false;
+      const editing = edit?.slot === slot ? edit : null;
       return <View key={slot} style={{ marginBottom: space.m }}>
         <Card variant="outlined" label={card.label ?? (mode === 'reply' ? (TAGS[platform.id] ?? CHAT_TAGS)[card.slot] : undefined)}>
-          <Marked text={card.text} hits={card.scores.hits} />
-          <ToneLine text={card.text} tones={tones} />
-          {card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
-          <View style={styles.actions}>
+          {editing
+            ? <TextInput accessibilityLabel={words.editField} multiline autoFocus value={editing.text} onChangeText={text => setEdit({ slot, text })}
+              style={[type.body, { color: t.text, backgroundColor: t.raised, borderRadius: shape.card, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 88, textAlignVertical: 'top' }]} />
+            : <Marked text={card.text} hits={card.scores.hits} />}
+          {editing ? null : <ToneLine text={card.text} tones={tones} />}
+          {editing ? null : card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
+          {/* While editing, the ratings follow the edited text, never the original. */}
+          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} />
+          {editing ? <View style={styles.actions}>
+            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
+            <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
+          </View> : <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />
             <View style={{ flex: 1 }} />
+            <Button kind="text" label={words.edit} onPress={() => setEdit({ slot, text: card.text })} />
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
-          </View>
+          </View>}
         </Card>
       </View>;
     })}

@@ -22,6 +22,7 @@ const PURE = new Set([
   'dist/words.js',
   'dist/threads.js',
   'dist/feed.js',
+  'dist/ratings.js',
   'dist/protocol.js',
 ].map(p => path.normalize(path.join(dir, '..', p))));
 
