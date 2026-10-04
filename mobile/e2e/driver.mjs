@@ -159,7 +159,7 @@ const chooseApp = async (label, prior) => {
   visibleLine('Where the bubble shows');
 };
 
-await chooseApp('Ownvoice (new)', 'Off');
+await chooseApp('Ownvoice', 'Off');
 expectBubble(true, 'test app enabled');
 await chooseApp('Chrome', 'Off');
 
@@ -203,9 +203,9 @@ await wait(700);
 expectBubble(true, 'resumed');
 adb('shell', 'input', 'swipe', String(width / 2), String(height * .3), String(width / 2), String(height * .8), '350');
 await wait(400);
-await chooseApp('Ownvoice (new)', 'On');
+await chooseApp('Ownvoice', 'On');
 expectBubble(false, 'app turned off');
-await chooseApp('Ownvoice (new)', 'Off');
+await chooseApp('Ownvoice', 'Off');
 await wait(700);
 expectBubble(true, 'app turned back on');
 
