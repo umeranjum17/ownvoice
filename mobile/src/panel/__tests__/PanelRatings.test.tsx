@@ -6,9 +6,9 @@ import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import Panel from '../Panel';
-import { stubWriter } from '../stubWriter';
+import { technicalWords, words } from '../../core/words';
+import type { DraftRequest, WriterEvents } from '../../core/writers';
 import Native, { type Capture } from '../../../modules/ownvoice-native';
-import { technicalWords } from '../../core/words';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
@@ -33,21 +33,30 @@ const DRAFTS = [
 // Flattery plus words the post never used: new words alone must not read as a good reply.
 const NONSENSE = 'Great post! Purple turbines whisper banana logistics forever.';
 
+// Empty-field replies withhold every card in 1.0.3, so the rating suite drives polish:
+// typed text plus a writer landing the same drafts the reply path used to show.
+const TYPED = 'My take: shipping one small fix beats more polishing.';
 const capture = (over: Partial<Capture> = {}): Capture => ({
-  conversation: `Dana Lee @danabuilds · 2h\n${POST}`, written: POST, nodes: X_NODES, fieldTop: 900, typed: '',
+  conversation: `Dana Lee @danabuilds · 2h\n${POST}`, written: POST, nodes: X_NODES, fieldTop: 900, typed: TYPED,
   app: 'com.twitter.android', label: 'X', at: 0, id: 'tap-x', hasField: true, ...over,
 });
 
 const open = async (value: Capture, drafts = DRAFTS) => {
   native.capture.mockResolvedValue(value);
+  const write = async (_request: DraftRequest, on: WriterEvents = {}) => {
+    await new Promise(resolve => setTimeout(resolve, 1));
+    drafts.forEach((text, slot) => on.landed?.(text, slot));
+    return { drafts: [...drafts] };
+  };
   const screen = await render(
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-      <Panel writer={stubWriter({ drafts, delay: 1 })} />
+      <Panel writer={{ write }} />
     </SafeAreaProvider>);
   await waitFor(() => expect(screen.getAllByRole('button', { name: value.typed.trim() ? 'Use this' : 'Insert' }).length).toBeGreaterThan(0));
   return screen;
 };
-const ratingsOf = (screen: Awaited<ReturnType<typeof open>>) => screen.queryAllByLabelText(/^Engagement on /).map(node => node.props.accessibilityLabel as string);
+// Index 0 is the Yours card for the typed text; the rest are the landed drafts.
+const ratingsOf = (screen: Awaited<ReturnType<typeof open>>) => screen.queryAllByLabelText(/^Engagement on /).slice(1).map(node => node.props.accessibilityLabel as string);
 
 test('each X reply card shows its own engagement and stock-wording rating, and none rates a draft up', async () => {
   const labels = ratingsOf(await open(capture()));
@@ -96,7 +105,7 @@ test('a card with four engagement signals reads all four aloud, concerns include
 
 test('Insert still puts the exact rated card text in the box and never posts', async () => {
   const screen = await open(capture());
-  fireEvent.press(screen.getAllByRole('button', { name: 'Insert' })[0]);
+  fireEvent.press(screen.getAllByRole('button', { name: words.useThis })[0]);
   await waitFor(() => expect(native.insert).toHaveBeenCalledWith(DRAFTS[0]));
 });
 

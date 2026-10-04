@@ -207,15 +207,18 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (nextMode === 'empty') {
       setNote(null); setPhase('ready'); return;
     }
+    // Neither writer has a qualified grounding check for replies from screen text.
+    // Stop before routing: no streamed card, retry, fallback or outward request.
+    if (nextMode === 'reply') {
+      setNote(words.replyWithheld); setPhase('failed'); return;
+    }
     setNote(words.writing);
     setPhase('writing');
     // What the reply answers: the post block when the layout shows one, else the screen text the
     // writer drafts from; '' only when nothing was read. A new post has no parent to compare with.
     const shownPost = postOf.current = post ? null : feedRead(value.nodes, value.fieldTop).post || value.conversation.trim();
-    if (nextMode !== 'reply') {
-      const text = value.typed.trim();
-      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(text, platform, shownPost, rules) });
-    }
+    const text = value.typed.trim();
+    setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(text, platform, shownPost, rules) });
     void (async () => {
       let path: WriterRoute;
       try { path = writer ? { writer, note: null } : await select(value.app); }
@@ -232,7 +235,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           typed: value.typed.trim(),
           platform,
           guide: voiceGuide(rules, post),
-          dashes: dashesFor(rules, nextMode === 'reply' ? value.written : value.typed),
+          dashes: dashesFor(rules, value.typed),
           avoid,
         }, {
           sent: async () => { if (!sent) { await Native.markTapSent(value.id); sent = true; } },

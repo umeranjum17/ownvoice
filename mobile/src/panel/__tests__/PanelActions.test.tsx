@@ -17,7 +17,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
 const native = Native as jest.Mocked<typeof Native>;
 
 const renderPanel = async (app: string) => {
-  native.capture.mockResolvedValue({ conversation: 'Sam: Still on for Saturday?', written: 'Sam: Still on for Saturday?', nodes: [], fieldTop: null, typed: '', app, label: 'Chat', at: 0, id: 'tap-1', hasField: true });
+  native.capture.mockResolvedValue({ conversation: 'Sam: Still on for Saturday?', written: 'Sam: Still on for Saturday?', nodes: [], fieldTop: null, typed: 'Yes, still on for Saturday.', app, label: 'Chat', at: 0, id: 'tap-1', hasField: true });
   const screen = await render(
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
       <Panel writer={stubWriter({ delay: 10 })} />
@@ -26,13 +26,13 @@ const renderPanel = async (app: string) => {
   return screen;
 };
 
-test('every card offers Insert, a named copy and hand-off, and Why?', async () => {
+test('every card offers Use this, a named copy and hand-off, and Why?', async () => {
   const screen = await renderPanel('com.whatsapp');
-  await waitFor(() => expect(screen.getAllByRole('button', { name: words.why }).length).toBeGreaterThan(0));
-  const cards = screen.getAllByRole('button', { name: words.why }).length;
-  expect(screen.getAllByRole('button', { name: words.insert })).toHaveLength(cards);
-  expect(screen.getAllByRole('button', { name: words.copy })).toHaveLength(cards);
-  expect(screen.getAllByRole('button', { name: words.openInWhatsapp })).toHaveLength(cards);
+  await waitFor(() => expect(screen.getAllByRole('button', { name: words.useThis })).toHaveLength(3));
+  expect(screen.getAllByRole('button', { name: words.copy })).toHaveLength(3);
+  expect(screen.getAllByRole('button', { name: words.openInWhatsapp })).toHaveLength(3);
+  // Reply cards are withheld: no card offers the reply-mode Insert label.
+  expect(screen.queryByRole('button', { name: words.insert })).toBeNull();
   // The icons carry no visible words of their own.
   expect(screen.queryByText(words.openInWhatsapp)).toBeNull();
   expect(screen.queryByText(words.copy)).toBeNull();

@@ -241,7 +241,7 @@ class SetupActivity : Activity() {
         val done = "That’s it. In your apps, read it over and press Send yourself."
         val line = title(column, "Try it", when {
             inserted -> done
-            on -> "Tap the round bubble on the right, then Insert."
+            on -> "Write a reply first, then tap the bubble to polish it. Or tap Skip."
             else -> "Turn Ownvoice on first, then come back here to try it."
         })!!
         lateinit var field: EditText

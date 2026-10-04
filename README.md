@@ -9,8 +9,8 @@
 </p>
 
 <p align="center">
-  <strong>Replies that sound like you. Written on your phone.</strong><br/>
-  Ownvoice is a small bubble that sits over your chats. Tap it and it writes two or three short replies in your words, polishes what you already typed, or tidies any text you select. It writes on the phone itself, or with the ChatGPT plan you already pay for. It tells you plainly how each draft reads, and you always press Send yourself.
+  <strong>Polish your words. Written on your phone.</strong><br/>
+  Ownvoice is a small bubble that sits over your chats. Tap it to polish what you already typed, or tidy any text you select. Reply ideas are unavailable for now. It writes on the phone itself, or with the ChatGPT plan you already pay for. It tells you plainly how each draft reads, and you always press Send yourself.
 </p>
 
 <h3 align="center"><a href="#get-started"><ins>Get started</ins></a></h3>
@@ -37,7 +37,7 @@ Ownvoice lives where you already write. It reads the screen only when you tap it
 
 ### Reply ideas, one tap away
 
-Tap into a message box, then tap the bubble. Ownvoice reads the chat on screen and offers three short replies shaped to the place you are writing in: a feed post, a chat, or an email each gets its own three kinds of reply. With either writer, a finished reply can appear while the others are still being written. **Insert** puts one in your message box, even while the others load, **Copy** copies it, and **Write new ones** tries again. If the initial ChatGPT answer fails or is cut short, its reply cards are cleared; this phone writes instead when it can, otherwise Ownvoice shows a failure message. Each draft can also open your app's own compose screen with the text already filled in — you still press Send yourself.
+**Known limit in 1.0.3:** generic reply cards are withheld. Ownvoice cannot reliably check whether a new reply invents facts about you or someone else from the screen alone. An empty message box shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** No reply is generated, streamed, retried or offered to copy or insert, with either writer. Your voice notes describe style, not facts. No extra checker is used. The reply screenshots below show earlier behavior, not this release. Still open for 1.0.3: names in polished drafts keep their own check, which this release did not rerun, and the withheld path was only walked with no writer chosen, so the ChatGPT and phone writer routes are unrehearsed here.
 
 <p align="center">
   <img src="docs/readme/replies.webp" alt="Suggested replies to Sam's question about Saturday, each with Insert, Copy and Why?" width="300" />
@@ -135,7 +135,7 @@ Then setup takes about a minute:
 
    If your phone can't write on its own, Ownvoice says so and the button reads **Continue with ChatGPT**.
 3. **Let Ownvoice see your chats, only when you tap.** Tap **Turn on**. In the phone's settings, tap **Ownvoice**, switch on **Use Ownvoice**, and tap **Allow**. Ownvoice comes back by itself. If the switch is greyed out, tap **Switch greyed out?** in Ownvoice: on Android 13 and later, apps installed from a file need **Allow restricted settings** in App info first.
-4. **Try it.** A practice chat opens with the bubble at the right edge. Tap the bubble, then **Insert**. That's your first draft.
+4. **Try it.** A practice chat opens with the bubble at the right edge. Write your own reply first, then tap the bubble to polish it and choose **Use this**, or tap **Skip**. Empty-field reply ideas are unavailable.
 5. **Where should I help?** Switch on the apps you want and tap **Done**. (If none of X, LinkedIn, Reddit, Slack, WhatsApp or Gmail is on the phone, this step is skipped.)
 
 <p align="center">
@@ -145,7 +145,7 @@ Then setup takes about a minute:
   <img src="docs/readme/practice.webp" alt="Try it: the practice reply inserted, 'That's it. In your apps, read it over and press Send yourself.'" width="190" />
 </p>
 
-From then on: open a chat in one of your apps, tap into the message box, and tap the bubble. Tap **Insert**, read it over, and press Send.
+From then on: open a chat in one of your apps, write your reply in the message box, and tap the bubble. Read any version over before choosing **Use this**, and press Send yourself.
 
 ## Build it yourself
 
