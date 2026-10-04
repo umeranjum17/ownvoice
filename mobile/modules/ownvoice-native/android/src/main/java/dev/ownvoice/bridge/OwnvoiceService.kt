@@ -83,6 +83,7 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var onTyped: ((String, String) -> Unit)? = null
     @Volatile var pendingTyped: Pair<String, String>? = null
     const val PAUSE_MS = 700L
+    private const val HOLD_MS = 380L
     private val facts = mutableListOf<TapFact>()
     private const val FACTS = "tapFacts"
     private const val KEEP_MS = 30L * 24 * 60 * 60 * 1000
@@ -145,6 +146,11 @@ class OwnvoiceService : AccessibilityService() {
   private var insertCancellation: InsertCancellation? = null
   private var pendingInsert: (() -> Unit)? = null
   private var lastPrune = 0L
+  private val readCue by lazy { ReadCue(this) }
+  private val openPanel = Runnable {
+    readCue.stop()
+    if (capture != null) startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+  }
   private val prefs by lazy { getSharedPreferences("ownvoice-native", MODE_PRIVATE) }
   var panelOpen: Boolean
     get() = panelIsOpen
@@ -281,10 +287,12 @@ class OwnvoiceService : AccessibilityService() {
     onServiceChange?.invoke("off")
     main.removeCallbacksAndMessages(null)
     stopBubble()
+    readCue.close()
     super.onDestroy()
   }
 
   private fun stopBubble() {
+    readCue.stop()
     unwatch?.invoke()
     unwatch = null
     bubbles?.stop()
@@ -326,15 +334,22 @@ class OwnvoiceService : AccessibilityService() {
     ?: windows.firstOrNull { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }?.root
 
   fun readScreen() {
+    main.removeCallbacks(openPanel)
+    readCue.stop()
     forget()
     val app = currentApp()?.takeIf(::allowed) ?: run { restIdle(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     val nodes = mutableListOf<ScreenText>()
+    val boxes = mutableListOf<Rect>()
     val practiceField = app == packageName && field?.contentDescription?.toString() == "Practice message"
     // Only the chat containing the practice field is conversation; setup instructions live outside it.
-    (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written, nodes, practiceField) }
+    (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written, nodes, boxes, practiceField) }
     Log.d(TAG, "capture practice=$practiceField conversationLines=${lines.size} clickableNodes=${nodes.count { it.clickable }}")
+    // Show the reading right away; the rest of the read below can block this thread for a few hundred ms.
+    val drawable = drawableBoxes(boxes, resources.displayMetrics.heightPixels)
+    val cue = drawable.isNotEmpty() && !reducedMotion()
+    if (cue) readCue.play(bubbleBounds(), drawable)
     val fieldBounds = Rect()
     field?.getBoundsInScreen(fieldBounds)
     val typed = FocusedFields.read(this)?.takeIf { it.app == app }?.text.orEmpty()
@@ -348,11 +363,19 @@ class OwnvoiceService : AccessibilityService() {
       if (ok) facts += fact
       ok
     }
-    if (!saved) { Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show(); restIdle(); return }
+    if (!saved) { readCue.stop(); Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show(); restIdle(); return }
     if (lines.isEmpty() && field == null) return say("No text on this screen.")
     capture = reading
-    startActivity(Intent(this, PanelActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+    if (!cue) return openPanel.run()
+    // The panel waits out the rest of the cue's opening beat, counted from when the cue started.
+    main.postDelayed(openPanel, (HOLD_MS - (SystemClock.uptimeMillis() - readCue.startedAt)).coerceAtLeast(0))
   }
+
+  /** Where Dot sits on screen: the kit's small overlay window, if the system lists it. */
+  private fun bubbleBounds(): Rect? = windows.filter { it.type == AccessibilityWindowInfo.TYPE_ACCESSIBILITY_OVERLAY }
+    .map { Rect().also(it::getBoundsInScreen) }
+    .filter { it.width() in 1 until resources.displayMetrics.widthPixels / 2 }
+    .minByOrNull { it.width() * it.height() }
 
   private fun focusedField(): AccessibilityNodeInfo? {
     val focus = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
@@ -366,14 +389,17 @@ class OwnvoiceService : AccessibilityService() {
     }
     return find(focus)
   }
-  private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>, practice: Boolean) {
+  private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>, boxes: MutableList<Rect>, practice: Boolean) {
     fun walk(node: AccessibilityNodeInfo, buttonAncestor: Boolean) {
       if (node == skip || !node.isVisibleToUser) return
       val action = isControl(buttonAncestor, node.className?.toString())
       val label = accessibleText(node.text ?: node.contentDescription, node.isShowingHintText)?.trim()?.takeIf { it.isNotEmpty() }
       val text = if (includePracticeText(practice, action, node.viewIdResourceName)) label else null
       val conversation = if (text != null) conversationText(node.text ?: node.contentDescription, node.isShowingHintText, action) else null
-      if (conversation != null && lines.lastOrNull() != conversation) lines += conversation
+      if (conversation != null && lines.lastOrNull() != conversation) {
+        lines += conversation
+        if (!node.isEditable && node.viewIdResourceName != "com.android.chrome:id/url_bar") boxes += Rect().also(node::getBoundsInScreen)
+      }
       text?.let {
         if (includeScreenNode(node.text != null, node.contentDescription != null, action, node.isEditable, node.viewIdResourceName)) {
           if (conversation != null && node.viewIdResourceName != "com.android.chrome:id/url_bar") written += it
