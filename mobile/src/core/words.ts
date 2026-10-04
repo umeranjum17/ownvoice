@@ -24,4 +24,8 @@ const editWords = {
   editField:'Edit this draft',
 } as const;
 
-export const words = { ...engineWords, ...typingWords, ...editWords };
+export const words = {
+  ...engineWords, ...typingWords, ...editWords,
+  replyWithheld: "Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.",
+  tryInsert: 'Write a reply first, then tap the bubble to polish it. Or tap Skip.',
+};

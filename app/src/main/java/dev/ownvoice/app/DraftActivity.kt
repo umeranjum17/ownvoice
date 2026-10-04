@@ -80,6 +80,10 @@ class DraftActivity : Activity() {
             Judge.Mode.EMPTY -> "Nothing to reply to yet"
         }
         if (mode == Judge.Mode.EMPTY) return run { sheet.note.text = Judge.WRITE_FIRST }
+        // Screen text alone cannot ground a reply. Withhold before any draft or checker call.
+        if (mode == Judge.Mode.REPLY) return run {
+            sheet.note.text = "Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it."
+        }
         sheet.note.text = "Writing…"
         val waiting = List(if (mode == Judge.Mode.COMPOSE) 2 else 3) { sheet.body.add(placeholder(), bottom = 10f) }
         scope.launch {
