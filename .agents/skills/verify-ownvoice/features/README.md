@@ -11,7 +11,8 @@ The maintained source for verifying user-facing behavior. Read this index, then 
 ## Proof and skip reporting
 
 - Capture the action and the resulting state (command + stdout + exit code, or screenshot + driver log), not only a final screen.
-- Record the feature ID and entry point with every artifact under `verify-artifacts/`.
+- Review evidence for a user-visible change goes through the skill's own capture (see the skill's Review evidence): every changed screen before/after × light/dark, phone width (the only form factor this app has), one motion recording per changed interaction, all in the stable `verify-artifacts/<task>/` folder.
+- Record the feature ID and entry point with every artifact under `verify-artifacts/<task>/`.
 - The host engine surface is a consumer seam, not Android: say which surface a proof drove.
 - Report an unreachable path with the attempted command and unmet precondition; never report it verified through another path.
 
