@@ -60,9 +60,8 @@ const openPrefill = (platform: Platform, draft: Draft) => {
   else void Share.share({ message: text }).catch(() => {});
 };
 
-const modeOf = (typed: string, written: string, fallback = ''): Mode =>
-  typed.trim() ? (Judge.replying(written) ? 'polish' : 'compose')
-  : Judge.replying(written) || Judge.replying(fallback) ? 'reply' : 'empty';
+const modeOf = (typed: string, written: string): Mode =>
+  typed.trim() ? (Judge.replying(written) ? 'polish' : 'compose') : Judge.replying(written) ? 'reply' : 'empty';
 
 const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id === 'reddit';
 
@@ -187,11 +186,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const id = ++run.current;
     const rules = voice.current = loadVoice();
     const platform = platformForApp(value.app, value.nodes);
-    // A mail reply opens a fresh compose screen: the thread stays behind it and the
-    // editable subject line never reaches `written`, so an empty mail reply would
-    // dead-end on "write first". Fall back to the captured lines for mail only;
-    // feed title fields stay out so a new post still starts empty.
-    const nextMode = modeOf(value.typed, value.written, platform.kind === 'mail' ? value.conversation : '');
+    const nextMode = modeOf(value.typed, value.written);
     const post = nextMode === 'compose';
     const publicScreen = post || namesPlatform(platform);
     const person = Judge.who(value.written);
