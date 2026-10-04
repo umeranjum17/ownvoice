@@ -23,7 +23,11 @@ const STOP = new Set(('this that with have from they them their there what when 
 const content = (text: string) => (text.toLowerCase().replace(/['’]/g, '').match(/\p{L}{4,}/gu) ?? []).filter(w => !STOP.has(w));
 const HANDLE = /(?<![\w@])@[A-Za-z0-9_]{1,15}(?![A-Za-z0-9_])/g;
 const UHANDLE = /(?<![\w@])u\/[A-Za-z0-9_-]{1,20}(?![A-Za-z0-9_-])/gi;
-const handles = (text: string) => new Set([...text.matchAll(HANDLE), ...text.matchAll(UHANDLE)].map(m => m[0].toLowerCase()));
+const URL_SPAN = /https?:\/\/\S+|www\.\S+|\b[a-z0-9-]+\.(?:com|net|org|io|co|ly|dev|app)\b\/?\S*/gi;
+const handles = (text: string) => {
+  const bare = text.replace(URL_SPAN, ' ');
+  return new Set([...bare.matchAll(HANDLE), ...bare.matchAll(UHANDLE)].map(m => m[0].toLowerCase()));
+};
 const LINK = /https?:\/\/|www\.|\b[a-z0-9-]+\.(?:com|net|org|io|co|ly|dev|app)\b\/?/i;
 
 /** Ratings for one card on a known feed app; null for chats, mail and unknown apps, where neither applies.

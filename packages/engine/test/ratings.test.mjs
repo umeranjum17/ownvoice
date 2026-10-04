@@ -43,6 +43,15 @@ test('tags match whole handles only', () => {
   assert.equal(tags('u/alice agreed with this', 'Posted by u/alice\nThanks for the launch notes.'), false);
 });
 
+test('handles inside links are not tags, on either side', () => {
+  const signals = (draft, post) => Ratings.rate(draft, X, post).engagement.signals;
+  const tags = (draft, post) => signals(draft, post).some(s => /Tags people/.test(s.text));
+  assert.equal(tags('See https://youtube.com/@somechannel', POST), false);
+  assert.deepEqual(signals('See https://youtube.com/@somechannel', POST), [{ concern: true, text: 'Has a link' }]);
+  assert.equal(tags('See https://reddit.com/u/bob', POST), false);
+  assert.equal(tags('@somechannel agreed with this', 'See https://youtube.com/@somechannel'), true);
+});
+
 test("the overlap counts the draft's words found in the post, not the other way round", () => {
   const shares = (draft, post) => Ratings.rate(draft, X, post).stock.signals.some(s => /wording with the post/.test(s.text));
   // A short draft made of the post's words shares its wording, even though it covers little of a long post.
