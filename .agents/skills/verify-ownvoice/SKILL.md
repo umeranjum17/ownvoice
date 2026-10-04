@@ -36,14 +36,39 @@ Android: `adb devices` shows only emulators you own; drivers themselves refuse n
 
 Host: one JSON request on stdin, one response on stdout — see [features/engine-protocol.md](features/engine-protocol.md) for exact requests. Android: run the documented driver for the feature — see the other files in [features/](features/). Reuse these instruments; do not write a new harness when one exists.
 
+## Review evidence (fleet standard)
+
+The skill produces every proof a reviewer checks; nothing is hand-captured around it. For a user-visible change, capture into **one stable evidence folder** `verify-artifacts/<task>/` (gitignored, never committed): `<task>` is the task slug the caller names, and the same folder is reused by every run of that task, so before and after sit side by side — the path never changes between runs. The PR names the folder. The set:
+
+- every screen the change touches, **before** (base build) and **after** (candidate build);
+- in every theme the app has: light and dark — it has no others;
+- at every form factor the app has: **phone width only** — an Android phone app with no tablet or desktop layout (no width-adaptive layout in `mobile/src`); add the new width here if one ever ships, until then phone is the whole matrix, not a skip;
+- plus one motion recording (mp4) of each changed interaction.
+
+[evidence.sh](evidence.sh) (executable, run from the repo root) owns the capture:
+
+```sh
+.agents/skills/verify-ownvoice/evidence.sh pair <task> <screen> <label> -- \
+  adb shell am start -n dev.ownvoice.next/.MainActivity   # or a deep link / driver navigation
+.agents/skills/verify-ownvoice/evidence.sh motion-start <task> <interaction>
+# …perform the interaction (DPAD+ENTER on sheets, below)…
+.agents/skills/verify-ownvoice/evidence.sh motion-stop
+```
+
+`pair` force-stops the app, flips the theme, relaunches and settles before each shot — RN reads the colour scheme at process start, and the emulator's twilight schedule is disabled first (the sequence `mobile/e2e/first-run.mjs` uses). Run `pair` with label `before` on the base build and `after` on the candidate. `theme` and `shot` exist for screens a driver has already put on display. Screenshots stream host-side via `adb exec-out screencap -p` — never screencap to device storage such as `/sdcard/Download` (EACCES on real phones); recordings pull from `/data/local/tmp`.
+
+**DPAD+ENTER on sheets:** controls on the translucent drafts panel and rewrite sheet swallow `adb shell input tap` — the tap lands and nothing fires. Navigate with `input keyevent 19/20/21/22` and activate with `keyevent 66`. Taps work on setup and Home screens and on the bubble itself; tapping the dimmed area dismisses a sheet. Proven panel sequence (emulator, 2026-10-04): tap the bubble, `input keyevent 4` (clears the keyboard so focus can leave the field), `input keyevent 20`, `input keyevent 66` — inserts the first card. (Evidence: retro 2026-10-04 `state/ov-gmail-replies.status`; `mobile/reports/live-proof-p9.md`.)
+
+**Service after force-stops:** `pair` and any `am force-stop` unbind the accessibility service (Android rebinds only when `enabled_accessibility_services` changes), so later captures of bubble/panel screens need the documented off/on service toggle first; app screens like Home are unaffected.
+
 ## Evidence
 
-Save under `verify-artifacts/<feature>/<run>/` (gitignored; never committed). Capture the command, stdout, stderr and exit code for CLI proof; screenshots plus driver logs for Android. Use synthetic text only. State the feature ID and entry point with every artifact.
+One stable folder per task: `verify-artifacts/<task>/` (Review evidence above). Review captures sit at its top level; behavioral proofs, driver logs and CLI transcripts under `verify-artifacts/<task>/<feature>/`. Capture the command, stdout, stderr and exit code for CLI proof; screenshots plus driver logs for Android. Use synthetic text only. State the feature ID and entry point with every artifact. Never commit media — public repos link the private evidence page and the PR names the folder.
 
 ## Cleanup
 
-Host: remove scratch request files; `dist/` is regenerable build output. Android: the drivers restore what they change; kill only emulators this run started. Cleanup never touches `verify-artifacts/` — after cleanup, confirm the evidence still exists there.
+Host: remove scratch request files; `dist/` is regenerable build output. Android: the drivers restore what they change; kill only emulators this run started. Cleanup never touches `verify-artifacts/` — after cleanup, confirm the evidence still exists at `verify-artifacts/<task>/`.
 
 ## Helpers
 
-None shipped: every drive is a repo one-liner or an existing `mobile/e2e/*.mjs` driver named in the feature map.
+One shipped helper: [evidence.sh](evidence.sh) (executable) — theme flips, host-side screenshots, the before/after `pair` matrix and motion recordings into the stable evidence folder; invocations shown in Review evidence above. Every other drive is a repo one-liner or an existing `mobile/e2e/*.mjs` driver named in the feature map.
