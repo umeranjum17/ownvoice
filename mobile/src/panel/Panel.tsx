@@ -185,8 +185,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const start = useCallback((value: Capture, avoid?: string[]) => {
     const id = ++run.current;
     const rules = voice.current = loadVoice();
-    const nextMode = modeOf(value.typed, value.written);
     const platform = platformForApp(value.app, value.nodes);
+    const nextMode = modeOf(value.typed, value.written);
     const post = nextMode === 'compose';
     const publicScreen = post || namesPlatform(platform);
     const person = Judge.who(value.written);
