@@ -91,6 +91,20 @@ uses a new in-memory decision cache, so text is never cached across taps.
 The confidence floor is decide's 0.6; abstained best picks never affect order.
 This foundation does not yet wire the judge into the panel or change posting.
 
+### Card ratings
+
+On feed apps (X, Reddit and the other known platforms) each draft card carries two
+plain-code ratings from `packages/engine/src/ratings.ts`, with no model call: an
+engagement rating that only lists concerns the text shows on that platform (or
+"Nothing flagged") and always says text alone can't predict reach, and a separate
+stock-wording rating from the shared slop rules. A reply whose post couldn't be read
+says so instead of comparing. **Edit** opens a card's text; the ratings follow the
+edited text, **Insert** puts exactly that text in the box and nothing is posted.
+
+Known limit: the read-screen → rated card → edit → insert flow has not been proven
+on the native X app. No demo device with X installed and signed in exists, so the
+evidence is unit and panel tests only.
+
 ## Signed APK releases
 
 The [APK release workflow](../.github/workflows/apk-release.yml) builds the Expo app on tags such as `v1.0.0`, verifies its signature, and publishes `Ownvoice.apk` plus its SHA-256 alongside the GitHub Release. Before tagging, update `expo.version` and increase `android.versionCode` in `app.config.js`; the tag must match `expo.version`. Tag only reviewed commits on current `main`; the workflow rejects a tag that points elsewhere. Download links use `releases/latest/download/Ownvoice.apk` so they survive version updates. A manual workflow run on the version tag can retry a failed build before the release is published.
