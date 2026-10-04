@@ -1,0 +1,29 @@
+# Ownvoice verification map
+
+The maintained source for verifying user-facing behavior. Read this index, then use the feature file as the recipe. Keep the map honest as features change (`/maintain-verification-skill`).
+
+## Baseline preconditions
+
+- Host runs need only Node 18+ and a built `packages/engine/dist` (see the skill's Launch).
+- Android runs additionally need an explicit device allocation, a throwaway emulator (`emulator-NNNN`), `JAVA_HOME`, an Android SDK, and `adb`, `zip`, `tesseract`, `magick` on `PATH`.
+- Never drive the BYOKit-owned test phone, a personal app, or an emulator this run did not start.
+
+## Proof and skip reporting
+
+- Capture the action and the resulting state (command + stdout + exit code, or screenshot + driver log), not only a final screen.
+- Record the feature ID and entry point with every artifact under `verify-artifacts/`.
+- The host engine surface is a consumer seam, not Android: say which surface a proof drove.
+- Report an unreachable path with the attempted command and unmet precondition; never report it verified through another path.
+
+## Feature entry contract
+
+Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to get to it (user POV)`, `Driving it with <harness>` (starts with `Preconditions:`), `Gotchas`.
+
+## Features
+
+- [Engine protocol](./engine-protocol.md) — host CLI: `check`, `voice.parse`, error envelopes, bounded input.
+- [Reply drafts](./reply-drafts.md) — Android: bubble tap offers replies; Insert puts one in the field.
+- [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert.
+- [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
+
+Not yet mapped: Home/settings walk (`mobile/e2e/settings.mjs`), overlay behaviors (`overlay-proof.mjs`), prefill hand-off (`proof-prefill.mjs`).
