@@ -28,4 +28,5 @@ test('Slack empty-field reply withholds instead of tagging reply cards', async (
   expect(write).not.toHaveBeenCalled();
   for (const tag of [words.tagConfirm, words.tagBlocker, words.tagUnclear, words.replyYes]) expect(screen.queryByText(tag)).toBeNull();
   expect(screen.queryByText(words.tryAgain)).toBeNull();
+  expect(screen.queryByText(words.writeNew)).toBeNull();
 });

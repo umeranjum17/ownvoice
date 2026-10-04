@@ -31,6 +31,8 @@ test('every card offers Use this, a named copy and hand-off, and Why?', async ()
   await waitFor(() => expect(screen.getAllByRole('button', { name: words.useThis })).toHaveLength(3));
   expect(screen.getAllByRole('button', { name: words.copy })).toHaveLength(3);
   expect(screen.getAllByRole('button', { name: words.openInWhatsapp })).toHaveLength(3);
+  // Reply cards are withheld: no card offers the reply-mode Insert label.
+  expect(screen.queryByRole('button', { name: words.insert })).toBeNull();
   // The icons carry no visible words of their own.
   expect(screen.queryByText(words.openInWhatsapp)).toBeNull();
   expect(screen.queryByText(words.copy)).toBeNull();
