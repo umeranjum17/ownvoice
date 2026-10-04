@@ -44,7 +44,7 @@ const broken: Writer = { write: async (_request, on) => { await on?.sent?.(); on
 const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'> & Partial<Omit<Parameters<typeof routeWriters>[0], 'chatgpt'>>, capture?: Partial<Capture>, select?: (app: string) => Promise<ReturnType<typeof routeWriters>>) => {
   native.capture.mockResolvedValue({
     conversation: 'Sam: Are we still on for Saturday?', written: 'Sam: Are we still on for Saturday?',
-    nodes: [], fieldTop: null, typed: '', app: 'com.twitter.android', label: 'X', at: 0, id: 'tap-1', hasField: true,
+    nodes: [], fieldTop: null, typed: 'Yes, still on for Saturday.', app: 'com.twitter.android', label: 'X', at: 0, id: 'tap-1', hasField: true,
     ...capture,
   });
   const screen = await render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
@@ -182,7 +182,7 @@ test('ChatGPT failing on a phone that cannot write leaves Try again', async () =
 });
 
 test('a screen with nothing to help with is logged as nothing read', async () => {
-  const screen = await open({ chatgpt: () => writer('ChatGPT') }, { conversation: '', written: '' });
+  const screen = await open({ chatgpt: () => writer('ChatGPT') }, { conversation: '', written: '', typed: '' });
   await waitFor(() => expect(shown(screen)).toContain(words.writeFirst));
   expect(shown(screen)).not.toContain('ChatGPT one');
   expect(sentTap()).toEqual([]);

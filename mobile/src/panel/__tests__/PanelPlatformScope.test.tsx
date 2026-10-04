@@ -2,6 +2,7 @@ import React from 'react';
 import { fireEvent, render, waitFor } from '@testing-library/react-native';
 import Panel from '../Panel';
 import Native from '../../../modules/ownvoice-native';
+import { words } from '../../core/words';
 import type { DraftRequest, WriterEvents } from '../../core/writers';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
@@ -31,13 +32,13 @@ describe.each([
   ['com.reddit.frontpage', 'Reddit'],
 ])('%s heading and post scope', (app, label) => {
   test.each([
-    ['polish', 0], ['polish', 1], ['reply', 0], ['compose', 0], ['compose', 1],
+    ['polish', 0], ['polish', 1], ['compose', 0], ['compose', 1],
   ] as const)('%s card %s retains the intended rules and checks', async (mode, card) => {
     (Native.ask as jest.Mock).mockClear();
     const written = mode === 'compose' ? '' : 'Sam: Are we meeting on Saturday?';
     (Native.capture as jest.Mock).mockResolvedValue({
       conversation: written, written, nodes: [], fieldTop: null,
-      typed: mode === 'reply' ? '' : 'Can we meet on Saturday?',
+      typed: 'Can we meet on Saturday?',
       app, label, at: 0, id: `${app}-${mode}`, hasField: true,
     });
     (Native.ask as jest.Mock).mockImplementation(async (_id: string, prompt: string) => {
@@ -47,13 +48,13 @@ describe.each([
       return '';
     });
     const write = jest.fn(async (_request: DraftRequest, on: WriterEvents = {}) => {
-      on.landed?.('Shall we meet on Saturday morning?', 0, mode === 'reply' ? undefined : 'Shorter');
+      on.landed?.('Shall we meet on Saturday morning?', 0, 'Shorter');
       return { drafts: ['Shall we meet on Saturday morning?'] };
     });
     const screen = await render(<Panel writer={{ write }} />);
     const post = mode === 'compose';
     const publicScreen = post || !!label;
-    const title = mode === 'reply' ? 'Suggested replies' : publicScreen ? 'Polish your post' : 'Polish your message';
+    const title = publicScreen ? 'Polish your post' : 'Polish your message';
     await waitFor(() => expect(screen.getByText(label ? `${title} · ${label}` : title)).toBeTruthy());
     expect(write.mock.calls[0][0].guide).toBe(post ? 'End on a statement, not a question.' : '');
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Why?' }).length).toBeGreaterThan(card));
@@ -70,4 +71,19 @@ describe.each([
     if (label) expect(screen.getByText('Right length for a post')).toBeTruthy();
     await screen.unmount();
   });
+});
+
+test('empty-field reply withholds instead of drafting', async () => {
+  (Native.capture as jest.Mock).mockResolvedValue({
+    conversation: 'Sam: Are we meeting on Saturday?', written: 'Sam: Are we meeting on Saturday?',
+    nodes: [], fieldTop: null, typed: '', app: 'com.whatsapp', label: undefined, at: 0, id: 'withheld', hasField: true,
+  });
+  const write = jest.fn(async () => ({ drafts: [] as string[] }));
+  const screen = await render(<Panel writer={{ write }} />);
+  await waitFor(() => expect(screen.getByText(words.replyWithheld)).toBeTruthy());
+  expect(write).not.toHaveBeenCalled();
+  expect(screen.queryAllByRole('button', { name: 'Why?' })).toHaveLength(0);
+  expect(screen.queryByText(words.tryAgain)).toBeNull();
+  expect(screen.queryByText(words.writeNew)).toBeNull();
+  await screen.unmount();
 });

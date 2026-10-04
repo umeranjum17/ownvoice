@@ -100,8 +100,8 @@ describe('panel copy', () => {
     ['polish-failed', { empty: true }, { typed: LIST }],
     ['compose-ready', {}, { typed: 'i can bring the stove, super excited', written: '' }],
     ['empty', {}, { typed: '', written: '' }],
-    ['writing', { delay: 150 }, {}],
-    ['download-progress', { download: true, delay: 150 }, {}],
+    ['writing', { delay: 150 }, { typed: LIST }],
+    ['download-progress', { download: true, delay: 150 }, { typed: LIST }],
   ])('%s speaks plainly', async (_name, options, over) => {
     const screen = await renderPanel(stubWriter(options), over);
     const shown = visibleStrings(screen);
@@ -170,12 +170,18 @@ describe('panel copy', () => {
 
   test.each([['unclear kind', ['1: blunt', 'not sure'], 2], ['unreadable checks', ['1: flat', 'MESSAGE', 'looks fine'], 3]] as const)('%s keeps quick checks when the model cannot answer', async (_name, answers, calls) => {
     native.modelStatus.mockResolvedValue('available');
-    for (const answer of answers) native.ask.mockResolvedValueOnce(answer);
-    const screen = await renderPanel(stubWriter());
+    // The one batched tone call races the Why? checks, so route answers by prompt, not order.
+    native.ask.mockImplementation(async (_id: string, prompt: string) => {
+      if (prompt.startsWith('What tone')) return answers[0];
+      if (prompt.includes('Which kind of screen is it?')) return answers[1] ?? '';
+      return answers[2] ?? '';
+    });
+    const screen = await renderPanel(stubWriter(), { typed: LIST });
     const button = (await screen.findAllByRole('button', { name: words.why }))[0];
     await act(async () => { await fireEvent.press(button); await Promise.resolve(); });
     await waitFor(() => expect(visibleStrings(screen)).toContain(words.noChecks));
-    expect(native.ask).toHaveBeenCalledTimes(calls);
+    // The batched tone call lands on its own beat: wait for the full set, which then stays put.
+    await waitFor(() => expect(native.ask).toHaveBeenCalledTimes(calls));
   });
 
   test('no capture shows only its own line', async () => {
@@ -187,7 +193,7 @@ describe('panel copy', () => {
   });
 
   test('a phone that cannot write shows only the plain line, not the insert hint', async () => {
-    const screen = await renderPanel(stubWriter({ fail: true }), { hasField: false });
+    const screen = await renderPanel(stubWriter({ fail: true }), { typed: 'hello there', hasField: false });
     await act(async () => { await new Promise(resolve => setTimeout(resolve, 280)); });
     await waitFor(() => expect(JSON.stringify(screen.toJSON())).toContain(words.unsupported));
     const text = JSON.stringify(screen.toJSON());
@@ -205,8 +211,8 @@ describe('panel copy', () => {
   test('two rapid insert taps make one native request', async () => {
     let settle!: (value: 'on') => void;
     native.serviceState.mockImplementation(() => new Promise(resolve => { settle = resolve; }));
-    const screen = await renderPanel(stubWriter());
-    const button = (await screen.findAllByRole('button', { name: words.insert }))[0];
+    const screen = await renderPanel(stubWriter(), { typed: 'hello there' });
+    const button = (await screen.findAllByRole('button', { name: words.useThis }))[0];
     await fireEvent.press(button);
     await fireEvent.press(button);
     await act(async () => { settle('on'); await Promise.resolve(); });
@@ -215,10 +221,15 @@ describe('panel copy', () => {
   });
 
   test('a note every card shares is dropped', async () => {
-    const screen = await renderPanel(stubWriter({ drafts: ['Yes, still on.', 'Saturday works.', 'Works for me.'] }));
+    const shared = ['Yes, still on.', 'Saturday works.', 'Works for me.'];
+    const write = async (_request: DraftRequest, on: WriterEvents) => {
+      shared.forEach((text, slot) => on.landed?.(text, slot));
+      return { drafts: shared };
+    };
+    const screen = await renderPanel({ write }, { typed: 'Are we still on for Saturday?' });
     await waitFor(() => expect(visibleStrings(screen)).toContain('Works for me.'));
     expect(visibleStrings(screen)).not.toContain('Sounds natural');
-    expect(screen.getAllByRole('button', { name: words.why }).length).toBe(3);
+    expect(screen.getAllByRole('button', { name: words.why }).length).toBe(4);
   });
 });
 

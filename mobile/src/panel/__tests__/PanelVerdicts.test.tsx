@@ -50,13 +50,18 @@ test('automatic tones cannot approve original or generated stock phrases and sli
 });
 
 test('cards without deeper evidence have no verdict line', async () => {
-  native.capture.mockResolvedValue({ conversation: SAM, written: SAM, nodes: [], fieldTop: null, typed: '', app: 'dev.ownvoice.app', label: 'Ownvoice', at: 0, id: 'tap-1', hasField: true });
+  const nodata = ['Yes, still on.', 'Saturday works.', "Let's delve in; at the end of the day, moving forward."];
+  const writer: Writer = { write: async (_request, events) => {
+    nodata.forEach((text, slot) => events?.landed?.(text, slot));
+    return { drafts: nodata };
+  } };
+  native.capture.mockResolvedValue({ conversation: SAM, written: SAM, nodes: [], fieldTop: null, typed: 'Are we still on for Saturday?', app: 'dev.ownvoice.app', label: 'Ownvoice', at: 0, id: 'tap-1', hasField: true });
   const screen = await render(
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-      <Panel writer={stubWriter({ drafts: ['Yes, still on.', 'Saturday works.', "Let's delve in; at the end of the day, moving forward."] })} />
+      <Panel writer={writer} />
     </SafeAreaProvider>);
   await act(async () => { await Promise.resolve(); });
-  await waitFor(() => expect(screen.getAllByRole('button', {name:'Why?'})).toHaveLength(3));
+  await waitFor(() => expect(screen.getAllByRole('button', {name:'Why?'})).toHaveLength(4));
   const text = JSON.stringify(screen.toJSON());
   expect(text).not.toContain('Sounds natural');
   expect(text).not.toContain('you could say more simply');
@@ -82,10 +87,14 @@ test('original, generated and selection text stay unapproved without wording evi
     labels.push(screen.queryByText('Sounds natural', { exact: false }) ? 'Sounds natural' : null);
   };
   await check();
-  native.capture.mockResolvedValue({ ...capture, typed: '', id: 'wording-generated' });
-  await screen.rerender(wrap(<Panel writer={stubWriter({ drafts: [text, 'Great post!'] })} />));
-  await waitFor(() => expect(screen.queryByText('Yours')).toBeNull());
-  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Why?' })).toHaveLength(2));
+  const generated: Writer = { write: async (_request, events) => {
+    [text, 'Great post!'].forEach((draft, slot) => events?.landed?.(draft, slot));
+    return { drafts: [text, 'Great post!'] };
+  } };
+  native.capture.mockResolvedValue({ ...capture, typed: 'I can definately bring the stove!', id: 'wording-generated' });
+  await screen.rerender(wrap(<Panel writer={generated} />));
+  await waitFor(() => expect(screen.queryByText('Yours')).toBeTruthy());
+  await waitFor(() => expect(screen.getAllByRole('button', { name: 'Why?' })).toHaveLength(3));
   await check();
   native.rewriteInput.mockReturnValue({ text, editable: true });
   await screen.rerender(wrap(<Rewrite />));
