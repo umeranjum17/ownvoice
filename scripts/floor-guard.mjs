@@ -129,9 +129,22 @@ for (const f of deleted) {
   const why = excuse(f);
   if (why) flag('test-deleted', f, why);
 }
+// Assertion-replacement exception: a removed assertion line is excused when its file does not
+// lose assertion lines across this diff. The same check rewritten for new behaviour (a "Why?"
+// count going from one to two because the panel grew a card) holds or grows the count, and only
+// a real drop lowers the bar. Both numbers are read from this same diff, per file, with the
+// matcher the check already uses — never from a filename glob — and a file that cannot show
+// the numbers still has every removed assertion line flagged, exactly as before.
+const isAssertion = (text) => /\b(expect|assert|should)\b/.test(codeOnly(text));
+const excuseAssertion = (f) => {
+  const rem = removed.filter((l) => l.file === f && isAssertion(l.text)).length;
+  const add = added.filter((l) => l.file === f && isAssertion(l.text)).length;
+  return rem > add ? rem + ' assertion line(s) removed vs ' + add + ' added in this file' : null;
+};
 for (const { file, text } of removed) {
-  if (isTest(file) && !deleted.includes(file) && /\b(expect|assert|should)\b/.test(codeOnly(text))) {
-    flag('assertion-removed', file, text);
+  if (isTest(file) && !deleted.includes(file) && isAssertion(text)) {
+    const why = excuseAssertion(file);
+    if (why) flag('assertion-removed', file, why + ': ' + text);
   }
 }
 
