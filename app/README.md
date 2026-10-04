@@ -2,7 +2,7 @@
 
 This folder holds the original Ownvoice app, written in Kotlin (package `dev.ownvoice.app`). Its successor is the Expo app in [`mobile/`](../mobile/README.md), which the [main README](../README.md) shows; the successor is not yet a full replacement for everything described here. Run every command below from the repository root.
 
-Ownvoice is a local-first, open-source writing booster for Android. A small bubble sits over your apps. Tap it and Ownvoice reads the conversation on screen and drafts two or three short replies with the language model on your phone (Gemini Nano, through ML Kit GenAI). Tap Insert and the draft goes into the text field you were typing in. You read it over and you send it.
+Ownvoice is a local-first, open-source writing booster for Android. A small bubble sits over your apps. Tap it and Ownvoice reads the conversation on screen. **Known limit in 1.0.3:** generic reply cards are withheld — an empty field shows an unavailable note asking you to write your reply first, instead of drafts; see the [user-facing reply guide](../README.md#reply-ideas-one-tap-away). Reply screenshots and reply-generator descriptions below show earlier behavior, not this release. With text already typed, Ownvoice polishes it: tap Insert (or **Use this**) and the draft goes into the text field you were typing in. You read it over and you send it.
 
 If you've already written something in the field, Ownvoice improves it instead of drafting a reply: see [Compose boost](#compose-boost). Each draft gets one plain sentence about how it reads, and you can rewrite any text you select, in any app, without turning on accessibility.
 
@@ -24,7 +24,7 @@ The same on-device model (Gemini Nano) writes and judges the drafts, and models 
 
 Write your post, comment or message first, then tap the bubble. **Polish your message** shows your text with its sentence and its stock phrases highlighted. Below it are three versions of what you wrote: **Shorter**, **More like you**, and **Start with a detail**. Each version has a meaning check: "Same meaning", or "Check this: it leaves out “4”" when the version adds or drops a number, or when the model thinks it changes a claim. **Use this** replaces the text in the field with that version; **Copy** copies it. When there's nothing to change (the writer hands your text back as it was, give or take spacing), the panel shows it under **Looks good as it is** with **Copy**, rather than saying it couldn't polish it.
 
-Ownvoice never writes a post for you from nothing. If the field is empty and there's nothing on screen to reply to, it asks you to write a line or two first. If the field is empty and a conversation is on screen, it drafts replies as before.
+Ownvoice never writes a post for you from nothing. If the field is empty and there's nothing on screen to reply to, it asks you to write a line or two first. If the field is empty and a conversation is on screen, it withholds reply ideas for now and asks you to write your reply first, then tap the bubble to polish it.
 
 ## Rewrite selected text
 
@@ -58,12 +58,12 @@ Ownvoice reads the screen only when you tap its bubble, except for the one opt-i
 1. Install the app and open **Ownvoice**. Setup takes four taps and one stop in the phone's settings:
    - **Write replies that sound like you.** → **Continue**. Nothing downloads yet. Phones with Gemini Nano use it; phones without it (and with enough memory and room) are asked once, after picking **On this phone**, to **Get this phone ready to write** (about 2 GB, once, on Wi-Fi) before any download starts. The main screen's card says **Ready to help** once it's done, or what went wrong.
    - The accessibility permission and its three promises (reads only when you tap, stays on this phone, you always press Send). It is also the prominent disclosure Google Play asks for. **Turn on** opens the phone's accessibility list with Ownvoice's row highlighted where the phone supports it (Android lets only system apps open a service's own page), and a small copy of the row and its switch shows what to flip. Nothing is switched on until the user does it there. Once the service connects, setup comes back to the front by itself. **Switch greyed out?** covers apps installed from a download, where Android 13 and later grey the switch out until **Allow restricted settings** in App info.
-   - **Try it**: a practice chat with the bubble already there and the message box already focused. Tap the bubble, then **Insert**: that's the first inserted draft, 4 taps after opening the app (**Continue**, **Turn on**, the bubble, **Insert**) plus the phone's own settings (tap Ownvoice, flip the switch, **Allow**).
+   - **Try it**: a practice chat with the bubble already there and the message box already focused. Write a reply first, then tap the bubble to polish it, or tap **Skip**.
    - **Where should I help?** lists only the apps on the phone from X, LinkedIn, Reddit, Slack, WhatsApp and Gmail, all switched on to start. **Done** or Back saves them as shown. If none of them is on the phone, this step is skipped.
 
    Setup never asks anything else: the full app list, Your voice and What Ownvoice read live on the main screen.
 2. To add or remove apps later, use **Where the bubble shows** on the main screen.
-3. In one of those apps, tap into the message box, then tap the round bubble with a pen at the right edge of the screen, halfway down. The drafts panel opens over the app. If you've already written something in the box, the panel shows better versions of it instead.
+3. In one of those apps, tap into the message box, then tap the round bubble with a pen at the right edge of the screen, halfway down. The drafts panel opens over the app. If you've already written something in the box, the panel shows better versions of it instead; with an empty box it shows the reply-unavailable note.
 4. Tap **Insert** to put a draft in the message box, or **Copy** to copy it. Then send it yourself.
 
 The bubble is an accessibility overlay, so it needs no draw-over-other-apps permission. The drafts panel is a see-through activity instead of an overlay. ML Kit GenAI runs the model only for the app in front of the screen (`BACKGROUND_USE_BLOCKED`), and an accessibility overlay over another app doesn't count.
