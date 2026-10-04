@@ -24,7 +24,7 @@ function Row({ title, label, bad, lines }: { title: string; label: string; bad: 
   </View>;
 }
 
-const texts = (signals: Signal[]) => signals.slice(0, 2).map(s => s.text);
+const texts = (signals: Signal[]) => signals.map(s => s.text);
 const sentence = (title: string, label: string, lines: string[]) => [`${title}: ${label}`, ...lines].join('. ') + '.';
 
 /** A card's engagement rating and, apart from it, its stock-wording rating; read out as one label.

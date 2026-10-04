@@ -39,6 +39,8 @@ test('tags match whole handles only', () => {
   assert.equal(tags('@alice2 agreed with this', 'Thanks @alice2 for the launch notes.'), false);
   assert.equal(tags('@Alice2 agreed with this', 'Thanks @alice2 for the launch notes.'), false);
   assert.equal(tags('@alice2 agreed with this', 'Thanks @alice for the launch notes.'), true);
+  assert.equal(tags('u/bob agreed with this', 'Posted by u/alice\nThanks for the launch notes.'), true);
+  assert.equal(tags('u/alice agreed with this', 'Posted by u/alice\nThanks for the launch notes.'), false);
 });
 
 test("the overlap counts the draft's words found in the post, not the other way round", () => {

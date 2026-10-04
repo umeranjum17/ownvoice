@@ -85,6 +85,15 @@ test('a new post with nothing on screen makes no parent comparison and reports n
   for (const label of labels) expect(label).not.toMatch(/Couldn't read the post|Shares most of its wording with the post|Tags people/);
 });
 
+test('a card with four engagement signals reads all four aloud, concerns included', async () => {
+  const draft = `@stranger what do you think? See https://example.com ${'x'.repeat(300)}`;
+  const labels = ratingsOf(await open(capture(), [draft]));
+  expect(labels).toHaveLength(1);
+  for (const signal of ['Too long for X', 'Has a link', "Tags people who aren't in the post", 'Asks a question']) {
+    expect(labels[0]).toContain(signal);
+  }
+});
+
 test('Insert still puts the exact rated card text in the box and never posts', async () => {
   const screen = await open(capture());
   fireEvent.press(screen.getAllByRole('button', { name: 'Insert' })[0]);
