@@ -120,6 +120,7 @@ export default function Rewrite() {
     }
   };
 
+  const exportBlocked = result?.meaning?.ok === false;
   const enabled = !!input?.text.trim();
   return <Sheet title="Make it better" note={enabled ? note : undefined} mood={enabled ? (busy ? 'thinking' : result ? 'ready' : 'idle') : undefined} onClose={() => { void Native.finishRewrite(null, false); }}>
     {!enabled ? (input ? <Empty mood="check" text={note} /> : null) : <>
@@ -134,8 +135,8 @@ export default function Rewrite() {
           <MeaningLine check={result.meaning} same="Same meaning as yours" />
           <VerdictLine verdict={result.verdict} />
           <View style={{ flexDirection: 'row', gap: space.s, marginTop: space.m }}>
-            <Button kind="filled" label="Copy" onPress={() => { void Native.finishRewrite(result.text, false); }} />
-            <Button kind="text" label={words.shareText} onPress={() => { void Share.share({ message: result.text }).catch(() => {}); }} />
+            <Button kind="filled" label="Copy" disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Native.finishRewrite(result.text, false); }} />
+            <Button kind="text" label={words.shareText} disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Share.share({ message: result.text }).catch(() => {}); }} />
           </View>
         </Card>
       </> : null}

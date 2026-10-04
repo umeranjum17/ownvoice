@@ -49,7 +49,9 @@ const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {})
 
 /** Prefill hand-off: the app's own compose opens with this text, or the share
  *  sheet when it has no compose link; either way the person presses Send. */
-const openPrefill = (platform: Platform, text: string) => {
+const openPrefill = (platform: Platform, draft: Draft) => {
+  if (draft.meaning?.ok === false) return;
+  const text = draft.text;
   const url = prefillUrl(prefillFor(platform).dest, text);
   if (url) void Linking.openURL(url).catch(() => { void Share.share({ message: text }).catch(() => {}); });
   else void Share.share({ message: text }).catch(() => {});
@@ -137,7 +139,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [copied, setCopied] = useState<string | null>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (copiedTimer.current) clearTimeout(copiedTimer.current); }, []);
-  const copy = (text: string) => {
+  const copy = (draft: Draft) => {
+    if (draft.meaning?.ok === false) return;
+    const text = draft.text;
     void Native.copy(text).then(() => {
       setCopied(text);
       if (copiedTimer.current) clearTimeout(copiedTimer.current);
@@ -389,7 +393,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
         <View style={styles.actions}>
-          {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours.text)} /> : null}
+          {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
           <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
         </View>
       </Card>
@@ -397,6 +401,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     {cards.map((card, slot) => {
       if (!card) return phase === 'writing' ? <View key={slot} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
       const verdict = card.label ? null : distinctVerdict(card, shown);
+      const exportBlocked = card.meaning?.ok === false;
       return <View key={slot} style={{ marginBottom: space.m }}>
         <Card variant="outlined" label={card.label ?? (mode === 'reply' ? (TAGS[platform.id] ?? CHAT_TAGS)[card.slot] : undefined)}>
           <Marked text={card.text} hits={card.scores.hits} />
@@ -405,8 +410,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
-            <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} onPress={() => copy(card.text)} />
-            <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} onPress={() => openPrefill(platform, card.text)} />
+            <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
+            <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />
             <View style={{ flex: 1 }} />
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>
