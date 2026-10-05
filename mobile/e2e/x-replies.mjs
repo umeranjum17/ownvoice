@@ -179,9 +179,14 @@ const field = async () => {
   throw new Error('Could not find the composer field.');
 };
 const panelButton = async (name) => {
-  for (let attempt = 0; attempt < 20; attempt++) { // ~10s polling
+  const start = Date.now();
+  for (let attempt = 0; attempt < 120; attempt++) { // ~60s polling for cloud model round-trip
     const node = nodes().find(node => node.clickable && (node.text === name || node.label === name));
-    if (node) return node;
+    if (node) {
+      const elapsed = Date.now() - start;
+      if (elapsed > 1000) log(`${name} button found after ${Math.round(elapsed / 1000)}s`);
+      return node;
+    }
     await wait(500);
   }
   return null; // panelButton may not exist (e.g., withhold note has no Edit button)
