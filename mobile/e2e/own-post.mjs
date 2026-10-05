@@ -183,10 +183,21 @@ shot('one-line');
 // that lands while the composer is still settling can re-read the field as empty, which shows the ask
 // again. Close it and tap once more before calling the journey a failure.
 const useThis = list => list.some(node => /^Use this$/.test(node.text ?? ''));
+const retypeLine = async () => {
+  // Opening the panel can recreate the fixture activity, which loses the line it was holding, so a
+  // retry starts from a fresh composer with the line typed again.
+  adb('shell', 'am', 'force-stop', fixturePkg);
+  await wait(1500);
+  adb('shell', 'monkey', '-p', fixturePkg, '-c', 'android.intent.category.LAUNCHER', '1');
+  await withNodes('the composer', list => !!list.find(node => node.className === 'android.widget.EditText' && node.editable), 15);
+  type(LINE);
+  await wait(1500);
+  if (composerText() !== LINE) throw new Error(`The composer did not take the line again (saw "${composerText() || 'nothing'}").`);
+  key(4); // Drop the keyboard so the bubble tap cannot land on it.
+  await wait(1500);
+};
 for (let attempt = 0; attempt < 3; attempt++) {
-  // Back with no panel open only drops the keyboard; a tap while the keyboard covers the lower half
-  // can land on it instead of the bubble, and the bubble moves up when the keyboard opens.
-  if (attempt) { key(4); await wait(1500); }
+  if (attempt) await retypeLine();
   bubble();
   await wait(2500);
   try { await withNodes('the drafts', useThis, 10); break; } catch { if (attempt === 2) { await ensureConnected(); await withNodes('the drafts', useThis, 20); } }
