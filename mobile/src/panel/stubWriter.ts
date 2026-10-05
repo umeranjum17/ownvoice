@@ -10,6 +10,13 @@ export const STUB_REPLIES = [
   'Count me in for Saturday! Should I bring anything besides the stove?',
 ];
 
+/** Fixed honest openings for a blank composer: each asks what the post is about. */
+export const STUB_OWN = [
+  'What is this post about?',
+  'What is the one thing worth saying here?',
+  'What should a reader take from it?',
+];
+
 export const STUB_VERSIONS = [
   'Cleaned up',
   'Shorter',
@@ -36,6 +43,11 @@ export const stubWriter = (options: StubOptions = {}): Writer => ({
     if (options.declined) return { drafts: [], declined: true };
     if (options.unchanged) return { drafts: [], unchanged: true };
     const typed = request.typed.trim();
+    if (!typed && request.own) {
+      const own = options.drafts ?? STUB_OWN;
+      own.forEach((text, slot) => on.landed?.(text, slot));
+      return { drafts: [...own] };
+    }
     if (!typed && options.drafts) {
       options.drafts.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts: [...options.drafts] };

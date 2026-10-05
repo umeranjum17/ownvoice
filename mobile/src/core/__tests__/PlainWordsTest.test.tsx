@@ -101,7 +101,8 @@ describe('panel copy', () => {
     ['polish-failed', { empty: true }, { typed: LIST }],
     ['polish-declined', { declined: true }, { typed: 'purple toaster clouds ate the database backwards banana banana' }],
     ['compose-ready', {}, { typed: 'i can bring the stove, super excited', written: '' }],
-    ['empty', {}, { typed: '', written: '' }],
+    ['own-post', {}, { typed: '', written: '' }],
+    ['empty', {}, { typed: '', written: '', hasField: false }],
     ['writing', { delay: 150 }, { typed: LIST }],
     ['download-progress', { download: true, delay: 150 }, { typed: LIST }],
   ])('%s speaks plainly', async (_name, options, over) => {

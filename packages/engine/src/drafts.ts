@@ -371,3 +371,81 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
     },
   };
 }
+
+// ---- Own post from a blank composer: nothing on the screen to ground on ----
+
+/** The three shapes an honest opening takes when no topic was given. Each asks, none assert. */
+export const OWN_SLOTS: [string, string, string] = [
+  'Ask, in one short question, what this post is about.',
+  'Ask what the one thing worth saying here is.',
+  'Ask what they want a reader to take from it.',
+];
+
+export type OwnInput = { guide?: string; dashes: 'keep' | 'remove'; avoid?: string[]; platform?: Platform };
+
+/**
+ * The prompt for a composer they left empty. There is no screen text to read and no topic in the
+ * request, so the one honest draft is a question asking what the post is about: naming a topic,
+ * claim or urgency would invent everything the empty screen cannot support.
+ */
+export function ownPrompt(input: OwnInput & { slots?: string[] }): string {
+  const slots = input.slots ?? OWN_SLOTS;
+  return [
+    'You write opening lines for one person\'s own post, in a composer they left empty.',
+    'Nothing on their screen says what the post is about and they have not told you. Never state a topic, claim, result, number, time, name, product or experience for them: an empty screen supports none, so anything specific would be made up.',
+    'So every draft asks them what the post should say instead, in their own voice:',
+    slotList(slots),
+    slots.length === 1 ? 'The draft is one short question that ends with a question mark. They edit it and write the post themselves.'
+      : 'Each draft is one short question that ends with a question mark. They edit it and write the post themselves.',
+    'No hooks, no "here are 3 openers", no urgency, no flattery, no hashtags, no emoji, no lists of three.',
+    platformLine(input.platform),
+    dashLine(input.dashes),
+    'Follow their own rules and note.',
+    input.guide ? `Their rules and note: ${input.guide}` : '',
+    avoidLine(input.avoid),
+    'Output only JSON: {"drafts":["..."]}',
+  ].filter(Boolean).join('\n');
+}
+
+// The phone model gets the same rules condensed (≤ 700 characters of instructions), one call, three drafts.
+const phoneOwnInstructions = [
+  'Write 3 opening lines for a post one person left blank in their composer.',
+  'Nothing on screen says what it is about and they have not said: never state a topic, claim, number, time, name or experience for them.',
+  'Each asks them instead, in their voice:',
+  slotList(OWN_SLOTS),
+  'One short question each, ending with a question mark. No hooks, no urgency, no flattery, hashtags, emoji or long dashes.',
+].join('\n');
+
+export function phoneOwnPrompt(input: { platform?: Platform }): string {
+  const line = platformLine(input.platform);
+  return `${phoneOwnInstructions}${line ? `\n${line}` : ''}`;
+}
+
+/** One extra call for one empty opening, with everything already shown as off-limits. */
+export function phoneOwnSlotPrompt(slot: string, avoid?: string[]): string {
+  return [
+    'You write one opening line for a post one person left blank in their composer.',
+    `The line: ${slot}`,
+    'Nothing on screen says what the post is about: never state a topic, claim, number, time or name.',
+    avoidLine(avoid),
+    'One short question that ends with a question mark, in their voice. Output only that line.',
+  ].filter(Boolean).join('\n');
+}
+
+/** ChatGPT's one-slot retry: the same prompt narrowed to a single opening plus the avoid list. */
+export function ownSlotPrompt(slot: string, input: OwnInput): string {
+  return ownPrompt({ ...input, slots: [slot] });
+}
+
+/**
+ * The blank-composer acceptance, checked without a model: an empty screen supports no number,
+ * time or "we", so the only usable draft is one that asks, and asks within the place's cap.
+ * Anything else is dropped rather than shown as an honest opening.
+ */
+export function cleanOwn(draft: string, platform?: Platform | null): string | null {
+  const text = draft.trim();
+  if (!text || !/\?$/.test(text)) return null;
+  if (addedNumbers('', text).length || inventedTimes('', text).length) return null;
+  if (/\b(?:we|our|ours)\b/i.test(text)) return null;
+  return platform?.limit != null && text.length > platform.limit ? null : text;
+}
