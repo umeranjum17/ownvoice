@@ -30,8 +30,9 @@ const theme = process.env.OWNVOICE_THEME ?? 'light';
 const out = resolve(process.argv[3] ?? 'mobile/.own-post');
 mkdirSync(out, { recursive: true });
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
+// evidence.sh writes verify-artifacts/<task>/ relative to the repo root, so it runs from there.
 const evidence = (...args) => execFileSync('bash', [resolve(repoRoot, '.agents/skills/verify-ownvoice/evidence.sh'), ...args],
-  { env: { ...process.env, ANDROID_SERIAL: serial }, encoding: 'utf8' });
+  { env: { ...process.env, ANDROID_SERIAL: serial }, encoding: 'utf8', cwd: repoRoot });
 const shot = screen => evidence('shot', 'ov-own-posts', screen, label, theme);
 
 const pkg = 'dev.ownvoice.next';
@@ -105,7 +106,8 @@ function buildFixture(scratch) {
 //    so the documented off/on toggle follows; e2e/first-run.mjs restored its own settings.
 evidence('theme', theme);
 const fixtureApk = buildFixture(out);
-adb('shell', 'pm', 'uninstall', fixturePkg);
+// A leftover fixture from an earlier run is fine; the install below replaces it.
+try { adb('shell', 'pm', 'uninstall', fixturePkg); } catch { /* nothing installed yet */ }
 execFileSync('adb', ['-s', serial, 'install', '-r', fixtureApk], { stdio: 'inherit' });
 // Install the app only when it is missing: reinstalling kills the process, and the offline
 // sign-in stand-in (e2e/first-run.mjs) keeps its connected state in memory, not on disk.

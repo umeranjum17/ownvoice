@@ -26,5 +26,6 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [Reply drafts](./reply-drafts.md) — Android: bubble tap offers replies; Insert puts one in the field.
 - [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert.
 - [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
+- [Own posts](./own-posts.md) — Android: a blank feed composer offers honest openings; edit one and insert it.
 
 Not yet mapped: Home/settings walk (`mobile/e2e/settings.mjs`), overlay behaviors (`overlay-proof.mjs`), prefill hand-off (`proof-prefill.mjs`).
