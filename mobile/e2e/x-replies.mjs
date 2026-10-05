@@ -194,10 +194,21 @@ const openFixture = async (query, need = 'shipped') => { // the post body sits b
 
 const EDIT_SUFFIX = 'Typed by me, in my own words';
 const TYPED = 'This shipped so well';
-const journey = async (screen, theme, { motion = false, typed = false } = {}) => {
+// Verify fixture server is live and page has composer before each journey
+const verifyFixtureLive = async () => {
+  if (!page.address()) throw new Error('Fixture server not listening (dead server).');
   await openFixture('');
   const composer = field();
-  if (!composer) throw new Error('Could not find the fixture reply composer.');
+  if (!composer) {
+    const text = screenText();
+    if (text.includes('not secure') || text.includes('connection')) {
+      throw new Error('Chrome loaded error page (fixture server dead or unreachable).');
+    }
+    throw new Error('Could not find fixture reply composer (check page content).');
+  }
+};
+const journey = async (screen, theme, { motion = false, typed = false } = {}) => {
+  await verifyFixtureLive();
   tap(...center(composer));
   await wait(2200);
   if (typed) { type(TYPED); await wait(1500); }
@@ -249,9 +260,16 @@ const journey = async (screen, theme, { motion = false, typed = false } = {}) =>
 
 // ---- the no-text post: the plain withhold note, never invented replies ----
 const withhold = async (screen, theme) => {
+  if (!page.address()) throw new Error('Fixture server not listening (dead server).');
   await openFixture('?case=notext', 'hours ago'); // the bar author rides above the composer, below any banner
   const composer = field();
-  if (!composer) throw new Error('Could not find the fixture reply composer (notext).');
+  if (!composer) {
+    const text = screenText();
+    if (text.includes('not secure') || text.includes('connection')) {
+      throw new Error('Chrome loaded error page (fixture server dead or unreachable).');
+    }
+    throw new Error('Could not find the fixture reply composer (notext).');
+  }
   tap(...center(composer));
   await wait(2200);
   tap(...center(bubble()));
