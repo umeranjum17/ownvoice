@@ -154,7 +154,7 @@ const ensureConnected = async () => {
 bubble();
 await wait(2000);
 await ensureConnected();
-await withNodes('the ask', list => !!panelTitle(list), 25);
+await withNodes('the ask', list => !!panelTitle(list), 30);
 shot('ask');
 const asked = nodes().map(node => node.text).filter(Boolean);
 
@@ -200,7 +200,7 @@ for (let attempt = 0; attempt < 3; attempt++) {
   if (attempt) await retypeLine();
   bubble();
   await wait(2500);
-  try { await withNodes('the drafts', useThis, 10); break; } catch { if (attempt === 2) { await ensureConnected(); await withNodes('the drafts', useThis, 20); } }
+  try { await withNodes('the drafts', useThis, 60); break; } catch { if (attempt === 2) { await ensureConnected(); await withNodes('the drafts', useThis, 90); } }
 }
 await wait(2500);
 const cards = nodes().map(node => node.text).filter(Boolean);
