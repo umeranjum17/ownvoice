@@ -26,7 +26,7 @@ test.each([
   ['busy', 'ready'],
   ['not-installed', 'needsDownload'],
   ['installing', 'preparing'],
-  ['installed', 'preparing'],
+  ['installed', 'ready'],
   ['loading', 'preparing'],
   ['unsupported', 'cant'],
   ['failed', 'cant'],

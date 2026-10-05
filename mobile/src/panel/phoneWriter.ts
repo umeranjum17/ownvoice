@@ -141,7 +141,7 @@ export const phoneWriter = {
     if ((status.phase === 'not-installed' || status.phase === 'failed') && !agreed()) throw new Error(words.readyPanel);
     try {
       const started = Date.now();
-      if (status.phase !== 'ready' && status.phase !== 'busy') {
+      if (status.phase !== 'ready' && status.phase !== 'busy' && status.phase !== 'installed') {
         on.state?.('downloading');
         const stop = watch(fraction => { if (fraction != null) on.fraction?.(fraction); });
         try { await (status.phase === 'not-installed' || status.phase === 'failed' ? getReady() : settle()); } finally { stop(); }

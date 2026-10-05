@@ -38,9 +38,12 @@ export async function getReady(allowMobileData?: boolean): Promise<void> {
   const mobile = allowMobileData ?? !!store.get<boolean>(MOBILE_KEY);
   if (running) {
     if (mobile && !runningMobile) {
+      const prev = running;
       abortController?.abort();
       running = null;
       runningMobile = false;
+      try { await prev; } catch {}
+      if (running) return running;
     } else return running;
   }
   store.set(AGREED_KEY, true);

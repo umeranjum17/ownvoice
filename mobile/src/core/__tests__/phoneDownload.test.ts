@@ -61,14 +61,31 @@ test('asking for mobile data mid-run restarts the download with mobile data allo
   const first = getReady();
   expect(mockInstall).toHaveBeenLastCalledWith(false, expect.any(Function), expect.any(AbortSignal));
   const second = getReady(true);
+  // The replacement waits out the aborted run instead of racing it.
+  expect(mockInstall).toHaveBeenCalledTimes(1);
+  wifi.reject(new Error('aborted'));
+  await first.catch(() => {});
+  mobile.resolve();
+  await second;
   expect(mockInstall).toHaveBeenCalledTimes(2);
   expect(mockInstall).toHaveBeenLastCalledWith(true, expect.any(Function), expect.any(AbortSignal));
   expect(kv.get(MOBILE_KEY)).toBe('true');
-  wifi.resolve();
-  mobile.resolve();
-  await first.catch(() => {});
-  await second;
   expect((mockInstall.mock.calls[0][2] as AbortSignal).aborted).toBe(true);
+});
+
+test('a restart asked twice joins the one replacement instead of starting two', async () => {
+  const wifi = deferred();
+  const mobile = deferred();
+  mockInstall.mockReturnValueOnce(wifi.promise).mockReturnValueOnce(mobile.promise);
+  const first = getReady();
+  const second = getReady(true);
+  const third = getReady(true);
+  wifi.reject(new Error('aborted'));
+  await first.catch(() => {});
+  mobile.resolve();
+  await second;
+  await third;
+  expect(mockInstall).toHaveBeenCalledTimes(2);
 });
 
 test('a second ask without mobile data joins the running download', async () => {

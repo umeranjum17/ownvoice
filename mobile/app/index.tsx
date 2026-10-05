@@ -141,7 +141,7 @@ export default function Home() {
     ? apps.filter(({ app }) => !isOwnApp(app) && showsBubble(rules, app) && phoneListed(app)).map(({ label }) => label) : [];
   const keptLine = kept.length ? words.cantWriteIn.replace('{apps}', appsLine(kept)) : null;
   const phoneNeeded = viaPhone || !!keptLine;
-  const getting = phoneNeeded && (model?.phase === 'installing' || model?.phase === 'installed' || model?.phase === 'loading' || fetching);
+  const getting = phoneNeeded && (model?.phase === 'installing' || model?.phase === 'loading' || fetching);
   // Ask for the download only where this phone writes: picked, or kept for some apps under ChatGPT.
   const ask = phoneNeeded && (model?.phase === 'not-installed' || model?.phase === 'failed') && !yes && !getting;
   const stopped = phoneNeeded && (model?.phase === 'not-installed' || model?.phase === 'failed') && yes && !getting;

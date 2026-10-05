@@ -32,10 +32,10 @@ export function PhoneWriter() {
   const remove = () => { setConfirming(false); setRemoveFailed(false); void removeDownload().catch(() => setRemoveFailed(true)).finally(refresh); };
 
   const yes = agreed();
-  const getting = model?.phase === 'installing' || model?.phase === 'installed' || model?.phase === 'loading' || downloading();
+  const getting = model?.phase === 'installing' || model?.phase === 'loading' || downloading();
   const stopped = (model?.phase === 'not-installed' || model?.phase === 'failed') && yes && !getting;
   const ask = (model?.phase === 'not-installed' || model?.phase === 'failed') && !yes;
-  const removable = model?.phase === 'ready' && yes;
+  const removable = (model?.phase === 'ready' || model?.phase === 'installed') && yes;
   const line = (text: string, color = t.text) => <Text style={[type.note, styles.words, { color }]}>{text}</Text>;
 
   if (model == null || model.phase === 'unsupported') return null;

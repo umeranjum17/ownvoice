@@ -7,10 +7,10 @@ export async function phoneCanWrite(): Promise<PhoneCanWrite> {
   try {
     switch ((await localModelState()).phase) {
       case 'ready':
-      case 'busy': return 'ready';
+      case 'busy':
+      case 'installed': return 'ready';
       case 'not-installed': return agreedToDownload() ? 'preparing' : 'needsDownload';
       case 'installing':
-      case 'installed':
       case 'loading': return 'preparing';
       default: return 'cant';
     }
