@@ -148,8 +148,8 @@ const chooseApp = async label => {
   }
   throw new Error(`Could not enable the ${label} bubble.`);
 };
-// await chooseApp('Chrome'); // Chrome already enabled via ownvoice://apps + swipe + manual check
-log('Chrome bubble enabled (pre-verified).');
+await chooseApp('Chrome');
+log('Chrome bubble enabled.');
 
 // ---- Chrome first-run walk (the settle loop above owns every sheet Chrome shows) ----
 adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://x.com/x.html');
