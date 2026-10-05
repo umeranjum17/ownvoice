@@ -64,13 +64,6 @@ export async function removeLocalModel(): Promise<void> {
   instance = null;
 }
 
-/** Release the model context (call when backgrounded). */
-export async function releaseLocalModel(): Promise<void> {
-  if (instance) {
-    await instance.release();
-  }
-}
-
 /** Whether the person agreed to download the model. */
 export function agreedToDownload(): boolean {
   return !!store.get<boolean>(AGREED_KEY);

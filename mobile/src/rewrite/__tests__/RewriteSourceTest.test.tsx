@@ -14,10 +14,13 @@ import { wipeVoice } from '../../core/voiceStore';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
-  rewriteInput: jest.fn(), finishRewrite: jest.fn(async () => {}), ask: jest.fn(),
-  modelStatus: jest.fn(async () => 'available'),
+  rewriteInput: jest.fn(), finishRewrite: jest.fn(async () => {}),
   bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: [] })),
 } }));
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
+import { askLocal, localModelState } from '../../core/localModel';
+const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 jest.mock('../../chatgpt/accounts', () => {
   const actual = jest.requireActual('../../chatgpt/accounts');
   actual.accounts.runtime = jest.fn(async () => ({
@@ -35,7 +38,7 @@ jest.mock('../../chatgpt/session', () => ({
   session: { current: jest.fn(async () => ({ signedIn: true })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
 }));
 
-const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock; ask: jest.Mock; modelStatus: jest.Mock; bubbleRules: jest.Mock };
+const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock; bubbleRules: jest.Mock };
 
 const renderRewrite = async (input: { text: string; editable: boolean } | null) => {
   native.rewriteInput.mockReturnValue(input);
@@ -63,7 +66,7 @@ const visibleStrings = (screen: { toJSON: () => unknown }): string[] => {
 
 const SELECTION = 'I think we should move the call to Tuesday. Really.';
 
-beforeEach(() => { jest.clearAllMocks(); wipeVoice(); store.set(SOURCE_KEY, null); native.modelStatus.mockResolvedValue('available'); native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: [] }); });
+beforeEach(() => { jest.clearAllMocks(); wipeVoice(); store.set(SOURCE_KEY, null); mockState.mockResolvedValue({ phase: 'ready' }); native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: [] }); });
 
 const sse = (text: string) => new ReadableStream<Uint8Array>({ start(controller) {
   const enc = new TextEncoder();
@@ -76,7 +79,7 @@ const chatgptFetch = (body: ReadableStream<Uint8Array>) => jest.fn(async () => (
 test('ChatGPT chosen rewrites in one call while the phone still checks the meaning', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
   (global as unknown as { fetch: unknown }).fetch = chatgptFetch(sse('Move the call to Tuesday.'));
-  native.ask.mockImplementation(async (_id: string, prompt: string) =>
+  mockAsk.mockImplementation(async (prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'GENERIC: 2\nSPECIFICITY: 8\nMEANING: pass' : '');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
@@ -87,15 +90,15 @@ test('ChatGPT chosen rewrites in one call while the phone still checks the meani
   expect(String(fetch.mock.calls[0][1].body)).not.toContain('json_object');
   expect(session.current).toHaveBeenCalled();
   // The phone did only the meaning check, never the rewrite itself.
-  expect(native.ask).toHaveBeenCalledTimes(1);
-  expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-check-/), expect.stringContaining('Compare a rewrite'), { maxTokens: 80 });
+  expect(mockAsk).toHaveBeenCalledTimes(1);
+  expect(mockAsk).toHaveBeenCalledWith(expect.stringContaining('Compare a rewrite'), 80);
   expect(visibleStrings(screen)).toContain('Same meaning as yours');
 });
 
 test.each(['chatgpt', 'phone'] as const)('%s selection rewrite also cases the actual newly split boundary', async source => {
   store.set(SOURCE_KEY, source);
   (global as unknown as { fetch: unknown }).fetch = chatgptFetch(sse('autosave locally. make export easy.'));
-  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite')
+  mockAsk.mockImplementation(async (prompt: string) => prompt.startsWith('Compare a rewrite')
     ? 'GENERIC: 2\nSPECIFICITY: 8\nMEANING: pass' : 'autosave locally. make export easy.');
   const screen = await renderRewrite({ text: 'autosave locally and make export easy.', editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
@@ -105,20 +108,20 @@ test.each(['chatgpt', 'phone'] as const)('%s selection rewrite also cases the ac
 
 test('ChatGPT chosen without a phone writer still rewrites, with only the number check', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   (global as unknown as { fetch: unknown }).fetch = chatgptFetch(sse('We should move the call to Friday at 7:30.'));
   const screen = await renderRewrite({ text: 'Can we move the call?', editable: false });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   await waitFor(() => expect(visibleStrings(screen).some(s => s.startsWith('Check this:'))).toBe(true));
   expect(visibleStrings(screen).join(' ')).toContain('7:30');
-  expect(native.ask).not.toHaveBeenCalled();
+  expect(mockAsk).not.toHaveBeenCalled();
 });
 
 test('a paused bubble keeps the rewrite on the phone, saying the phone wrote it', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
   native.bubbleRules.mockResolvedValue({ paused: true, on: [], off: [] });
   (global as unknown as { fetch: unknown }).fetch = jest.fn();
-  native.ask.mockImplementation(async (_id: string, prompt: string) =>
+  mockAsk.mockImplementation(async (prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Tuesday works.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
@@ -130,7 +133,7 @@ test('a paused bubble keeps the rewrite on the phone, saying the phone wrote it'
 test('a switched-off ChatGPT keeps the rewrite on the phone under the switch line', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
   (global as unknown as { fetch: unknown }).fetch = jest.fn();
-  native.ask.mockImplementation(async (_id: string, prompt: string) =>
+  mockAsk.mockImplementation(async (prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Tuesday works.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
@@ -144,7 +147,7 @@ test('a switched-off ChatGPT keeps the rewrite on the phone under the switch lin
 
 test('a paused bubble with no phone writer says ChatGPT is off, not that the phone wrote', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
-  native.modelStatus.mockResolvedValue('cant');
+  mockState.mockResolvedValue({ phase: 'failed' });
   native.bubbleRules.mockResolvedValue({ paused: true, on: [], off: [] });
   (global as unknown as { fetch: unknown }).fetch = jest.fn();
   const screen = await renderRewrite({ text: SELECTION, editable: true });
@@ -152,13 +155,13 @@ test('a paused bubble with no phone writer says ChatGPT is off, not that the pho
   await waitFor(() => expect(visibleStrings(screen)).toContain(words.gptOffNoPhone));
   expect(visibleStrings(screen)).not.toContain(words.phoneWrote);
   expect(global.fetch).not.toHaveBeenCalled();
-  expect(native.ask).not.toHaveBeenCalled();
+  expect(mockAsk).not.toHaveBeenCalled();
 });
 
 test('a ChatGPT failure falls back to the phone with its plain line', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
   (global as unknown as { fetch: unknown }).fetch = jest.fn(async () => ({ ok: false, status: 500, text: async () => '', body: null } as unknown as Response));
-  native.ask.mockImplementation(async (_id: string, prompt: string) =>
+  mockAsk.mockImplementation(async (prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Tuesday works.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
@@ -168,18 +171,18 @@ test('a ChatGPT failure falls back to the phone with its plain line', async () =
 
 test('no connection and no phone writer says to connect first', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   (global as unknown as { fetch: unknown }).fetch = jest.fn(async () => { throw new Error('fetch failed'); });
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain(words.offlineNoPhone));
-  expect(native.ask).not.toHaveBeenCalled();
+  expect(mockAsk).not.toHaveBeenCalled();
 });
 
 test('no connection with a phone writer falls back to the phone with the offline line', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
   (global as unknown as { fetch: unknown }).fetch = jest.fn(async () => { throw new Error('fetch failed'); });
-  native.ask.mockImplementation(async (_id: string, prompt: string) =>
+  mockAsk.mockImplementation(async (prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Tuesday works.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
