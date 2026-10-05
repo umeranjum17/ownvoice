@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Share, View } from 'react-native';
 import { classify } from '@byokit/accounts';
 import Native from '../../modules/ownvoice-native';
+import { askLocal } from '../core/localModel';
 import { streamSelectionRewrite } from '../chatgpt/responses';
 import { chatgptConsent } from '../chatgpt/settings';
 import * as Judge from '../core/judge';
@@ -78,7 +79,7 @@ export default function Rewrite() {
       const text = fixedSentenceSplits(input.text, cleanSelection(input.text, Judge.clean(raw)), spell);
       return how === Judge.Rewrite.GRAMMAR ? preserveFragment(input.text, text) : text;
     };
-    const phoneRewrite = async () => finish(stub ?? await Native.ask(`rewrite-${Date.now()}`, Judge.selectionRewritePrompt(input.text, how, guide), { maxTokens: 256 }));
+    const phoneRewrite = async () => finish(stub ?? await askLocal(Judge.selectionRewritePrompt(input.text, how, guide), 256));
     // The meaning check stays on the phone when it can write; otherwise only the number check runs.
     const showResult = async (text: string, canWrite: boolean) => {
       if (id !== run.current) return false;
@@ -86,7 +87,7 @@ export default function Rewrite() {
       setNote('Copy it, then paste it where you like.');
       setResult({ text, meaning: Judge.meaning(input.text, text, null), scores: Judge.scoreDraft(text, null, true, rules), verdict: null });
       setBusy(false);
-      const answer = stub === null && canWrite ? await Native.ask(`rewrite-check-${Date.now()}`, Judge.rewriteCheckPrompt(input.text, text), { maxTokens: 80 }).catch(() => null) : null;
+      const answer = stub === null && canWrite ? await askLocal(Judge.rewriteCheckPrompt(input.text, text), 80).catch(() => null) : null;
       if (id !== run.current) return false;
       const scores = Judge.scoreDraft(text, answer, true, rules);
       setResult({ text, meaning: Judge.meaning(input.text, text, answer), scores, verdict: answer && scores.generic !== null && scores.specific !== null ? Judge.verdict(scores) : null });

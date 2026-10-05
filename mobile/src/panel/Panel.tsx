@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Linking, Share, StyleSheet, Text, TextInput, View } from 'react-native';
 import Native, { type Capture } from '../../modules/ownvoice-native';
+import { askLocal } from '../core/localModel';
 import * as Judge from '../core/judge';
 import * as Typing from '../core/typing';
 import { speller } from '../core/speller';
@@ -310,7 +311,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     void (async () => {
       if (await phoneCanWrite() === 'cant') return;
       let answer: string | null = null;
-      try { answer = await Native.ask(`tone-${Date.now()}`, Judge.tonePrompt(texts), { maxTokens: 80 }); }
+      try { answer = await askLocal(Judge.tonePrompt(texts), 80); }
       catch { return; }
       if (run.current !== id) return;
       const found = Judge.parseTones(answer);
@@ -356,7 +357,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (whys.has(draft.text)) return;
     setWhys(prev => new Map(prev).set(draft.text, { state: 'running', meaning: draft.meaning }));
     const ask = async (prompt: string, maxTokens: number): Promise<string | null> => {
-      try { return await Native.ask(`why-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, prompt, { maxTokens }); } catch { return null; }
+      try { return await askLocal(prompt, maxTokens); } catch { return null; }
     };
     void (async () => {
       const post = mode === 'compose';
