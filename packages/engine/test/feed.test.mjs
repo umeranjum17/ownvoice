@@ -83,6 +83,8 @@ test('unknown and empty layouts yield only the existing post fallback and never 
   assert.deepEqual(Feed.feedRead(x, null), { post: '' });
   assert.deepEqual(Feed.feedRead(x), { post: '' });
   assert.deepEqual(Feed.feedRead([button('@demo_maker', 0), node('Far from the header.', 200)], 250), { post: 'Far from the header.' });
+  // Headers with no readable body (an image-only post): the author line is not a post.
+  assert.deepEqual(Feed.feedRead([node('Umer @umer · 2h', 40), button('18 replies', 80)], 250), { post: '' });
 });
 
 test('prompt-injection text in a post is returned verbatim as data', () => {

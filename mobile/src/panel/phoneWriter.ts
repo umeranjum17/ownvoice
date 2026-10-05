@@ -14,6 +14,12 @@ import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers
 
 const FILL_MS = 8000;
 
+/** The stance a slot's own words ask for, so a stub card's text always matches its label. */
+const stanceDraft = (slot: string): string =>
+  /push back|disagree|decline|counter|blocker|different answer/i.test(slot) ? 'I see it differently, and here is why.'
+  : /ask|not sure|unclear/i.test(slot) ? 'Which part matters most to you?'
+  : 'Agreed, and it holds up end to end.';
+
 let calls = 0;
 async function ask(prompt: string, maxTokens: number): Promise<string> {
   return Native.ask(`phone-${Date.now()}-${calls++}`, prompt, { maxTokens });
@@ -110,7 +116,7 @@ export const phoneWriter = {
       }
       // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).
-      const drafts = request.typed.includes('multiline draft')
+      const polishDrafts = request.typed.includes('multiline draft')
         ? ["Saturday works.\nI'll bring the stove.", 'Sure, Saturday works. See you then.', 'What time should I arrive?']
         : request.typed.includes('stock')
         ? ['Yes, still on.', 'Saturday works.', "Let's delve in; at the end of the day, moving forward."]
@@ -118,13 +124,16 @@ export const phoneWriter = {
       if (request.typed.trim()) {
         const acceptor = await polishAcceptor(request.typed, request.dashes ?? 'remove', request.avoid ?? []);
         if (acceptor.local != null) on.landed?.(acceptor.local, 0, versionsList[0].label);
-        drafts.slice(1).forEach((text, index) => {
+        polishDrafts.slice(1).forEach((text, index) => {
           const slot = index + 1;
           const accepted = acceptor.accept(text, slot, versionsList[slot].label);
           if (accepted != null) on.landed?.(accepted, slot, versionsList[slot].label);
         });
         return { drafts: acceptor.results.map(result => result.text), unchanged: acceptor.unchanged };
       }
+      // Reply cards keep each slot honest: the draft derives from the slot the panel labels
+      // (agree / push back / ask), so a card's text can never disagree with its label.
+      const drafts = slotsFor(request.platform).map(stanceDraft);
       drafts.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts };
     }

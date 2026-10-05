@@ -61,7 +61,9 @@ export function feedRead(nodes: ScreenText[] = [], fieldTop?: number | null): Fe
   }
   const bodies = visible.filter(n => !n.clickable && !authorOf(n.text) && !ageOnly(n.text) && !ruleNodes.has(n));
   const nearest = bodies.at(-1);
-  if (!nearest) return fallback;
+  // Headers but no readable body: an image-only post. Its author line is not a post to ground
+  // on, so there is nothing to answer — never fall back to the header text as the post.
+  if (!nearest) return { post: '' };
   const header = headers.filter(n => n.bottom <= nearest.top).at(-1);
   if (!header) return fallback;
   const body = bodies.filter(n => n.top >= header.bottom);

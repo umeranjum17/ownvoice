@@ -13,6 +13,7 @@ jest.mock('../../core/speller', () => {
 });
 import Native from '../../../modules/ownvoice-native';
 import { words } from '../../core/words';
+import type { Platform } from '../../core/platforms';
 import { phoneWriter } from '../phoneWriter';
 import { AGREED_KEY } from '../../core/phoneDownload';
 
@@ -25,7 +26,7 @@ const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>
 
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 const LIST = 'I can bring the stove.\n1. I will bring the stove.\n2. You can bring the tent.';
-const request = (over: { conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; nodes?: { text: string; left: number; top: number; bottom: number; clickable: boolean }[]; fieldTop?: number } = {}) => ({
+const request = (over: { conversation?: string; written?: string; typed?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; nodes?: { text: string; left: number; top: number; bottom: number; clickable: boolean }[]; fieldTop?: number; platform?: Platform } = {}) => ({
   conversation: over.conversation ?? SAM,
   written: over.written ?? SAM,
   nodes: over.nodes ?? [{ text: over.written ?? SAM, left: 0, top: 100, bottom: 180, clickable: false }],
@@ -33,6 +34,7 @@ const request = (over: { conversation?: string; written?: string; typed?: string
   typed: over.typed ?? '',
   dashes: over.dashes ?? ('remove' as const),
   avoid: over.avoid,
+  platform: over.platform,
 });
 
 let clock = 1000;
@@ -60,6 +62,31 @@ test('emulator stub delivers insertable drafts without a phone model', async () 
     expect(result.drafts).toHaveLength(3);
     expect(landed).toEqual(result.drafts.map((text, slot) => [text, slot]));
     expect(native.modelStatus).not.toHaveBeenCalled();
+  } finally {
+    if (previous === undefined) delete process.env.EXPO_PUBLIC_E2E_STUB;
+    else process.env.EXPO_PUBLIC_E2E_STUB = previous;
+  }
+});
+
+// The stub's reply cards must match the stance the panel labels for each slot: an Agree card
+// agrees, a Push back card pushes back, an Ask card asks. Pinned across three platforms so the
+// class stays fixed, not one X instance (firstmate 005).
+test('emulator stub reply drafts match each slot stance on X, Slack and chat', async () => {
+  const previous = process.env.EXPO_PUBLIC_E2E_STUB;
+  process.env.EXPO_PUBLIC_E2E_STUB = '1';
+  const platforms = require('../../core/platforms');
+  try {
+    for (const platform of [platforms.platformForApp('com.twitter.android'), platforms.platformForApp('com.Slack'), platforms.platformForApp('com.whatsapp')]) {
+      const { drafts } = await phoneWriter.write(request({ platform }));
+      expect(drafts).toHaveLength(3);
+      const [agree, push, ask] = platform.slots;
+      expect(/agree|yes|confirm|accept|answer/i.test(agree)).toBe(true);
+      expect(drafts[0]).toBe('Agreed, and it holds up end to end.');
+      expect(/push back|disagree|decline|counter|blocker|different answer/i.test(push)).toBe(true);
+      expect(drafts[1]).toBe('I see it differently, and here is why.');
+      expect(/ask|not sure|unclear/i.test(ask)).toBe(true);
+      expect(drafts[2]).toBe('Which part matters most to you?');
+    }
   } finally {
     if (previous === undefined) delete process.env.EXPO_PUBLIC_E2E_STUB;
     else process.env.EXPO_PUBLIC_E2E_STUB = previous;

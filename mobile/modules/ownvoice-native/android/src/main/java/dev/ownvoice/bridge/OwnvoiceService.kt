@@ -422,7 +422,7 @@ class OwnvoiceService : AccessibilityService() {
   }
   fun clearTapFacts() = clearSavedFacts(this)
 
-  fun insert(text: String, done: (Boolean, Boolean) -> Unit) {
+  fun insert(text: String, swap: Boolean = false, done: (Boolean, Boolean) -> Unit) {
     if (pendingInsert != null) {
       copyDraft(text)
       say("Couldn't insert. Copied, paste it.")
@@ -435,8 +435,15 @@ class OwnvoiceService : AccessibilityService() {
     pendingInsert = { finishInsert(cancellation, reading, text, "cancelled", done) }
     val node = reading?.insertField ?: return finishInsert(cancellation, reading, text, "failed", done)
     thread {
-      val result = FocusedFields.insert(node, text, "all",
-        InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, ::copyDraft,
+      // A draft never merges into or wipes what the person already typed in the box: an empty
+      // box takes it outright; a non-empty one keeps its text and adds the draft after a clean
+      // line break. The box is read at insert time, so text typed while the panel was open
+      // survives too. `swap` is the designed replacement: an improved version of the very text
+      // in the box (polish versions, a typed-slip fix) takes the box's place. (Main660)
+      val current = runCatching { node.shown().orEmpty() }.getOrDefault("")
+      val whole = if (swap || current.isBlank()) text else "$current\n$text"
+      val result = FocusedFields.insert(node, whole, "all",
+        InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, { copyDraft(text) },
         cancellation = cancellation, service = this)
       main.post { finishInsert(cancellation, reading, text, result, done) }
     }

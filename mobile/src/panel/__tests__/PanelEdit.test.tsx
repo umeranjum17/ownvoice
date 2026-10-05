@@ -56,7 +56,7 @@ test('an edited card inserts exactly the edited text and is rated as edited', as
   expect(firstRating(screen)).toMatch(/^Engagement on X: Worth a second look\. Has a link\./);
   await fireEvent.press(screen.getAllByRole('button', { name: words.useThis })[0]);
   await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(1));
-  expect(native.insert).toHaveBeenCalledWith(edited);
+  expect(native.insert).toHaveBeenCalledWith(edited, true); // a polish version swaps their text for the improved one
 });
 
 test('Cancel inserts nothing and brings back the original card and its rating', async () => {

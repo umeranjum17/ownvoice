@@ -10,7 +10,7 @@
 
 <p align="center">
   <strong>Polish your words. Written on your phone.</strong><br/>
-  Ownvoice is a small bubble that sits over your chats. Tap it to polish what you already typed, or tidy any text you select. Reply ideas are unavailable for now. It writes on the phone itself, or with the ChatGPT plan you already pay for. It tells you plainly how each draft reads, and you always press Send yourself.
+  Ownvoice is a small bubble that sits over your chats. Tap it to polish what you already typed, get reply ideas for a post you can read on screen, or tidy any text you select. It writes on the phone itself, or with the ChatGPT plan you already pay for. It tells you plainly how each draft reads, and you always press Send yourself.
 </p>
 
 <h3 align="center"><a href="#get-started"><ins>Get started</ins></a></h3>
@@ -37,7 +37,7 @@ Ownvoice lives where you already write. It reads the screen only when you tap it
 
 ### Reply ideas, one tap away
 
-**Known limit in 1.0.3:** generic reply cards are withheld. Ownvoice cannot reliably check whether a new reply invents facts about you or someone else from the screen alone. An empty message box shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** No reply is generated, streamed, retried or offered to copy or insert, with either writer. Your voice notes describe style, not facts. No extra checker is used. The reply screenshots below show earlier behavior, not this release. Still open for 1.0.3: names in polished drafts keep their own check, which this release did not rerun, and the withheld path was only walked with no writer chosen, so the ChatGPT and phone writer routes are unrehearsed here.
+**When the post can be read:** an empty message box over a readable post or message offers reply cards. The panel grounds them on the post block the screen layout shows above the box (on X, LinkedIn, Reddit, Threads and Bluesky, including in Chrome when its address bar identifies the site); the cards, their ratings and the length checks follow that platform. A post with **no text to ground on** — for example an image-only post, or a screen with nothing readable above the box — shows the plain note **This post has no text to build a reply on. Write your reply first, then tap the bubble to polish it.** instead: no reply is invented, streamed, retried or offered to copy or insert. Names in polished drafts keep their own check, which this release did not rerun.
 
 <p align="center">
   <img src="docs/readme/replies.webp" alt="Suggested replies to Sam's question about Saturday, each with Insert, Copy and Why?" width="300" />
@@ -135,7 +135,7 @@ Then setup takes about a minute:
 
    If your phone can't write on its own, Ownvoice says so and the button reads **Continue with ChatGPT**.
 3. **Let Ownvoice see your chats, only when you tap.** Tap **Turn on**. In the phone's settings, tap **Ownvoice**, switch on **Use Ownvoice**, and tap **Allow**. Ownvoice comes back by itself. If the switch is greyed out, tap **Switch greyed out?** in Ownvoice: on Android 13 and later, apps installed from a file need **Allow restricted settings** in App info first.
-4. **Try it.** A practice chat opens with the bubble at the right edge. Write your own reply first, then tap the bubble to polish it and choose **Use this**, or tap **Skip**. Empty-field reply ideas are unavailable.
+4. **Try it.** A practice chat opens with the bubble at the right edge. Tap the bubble to see reply ideas for Sam's message and **Insert** one, or write your own reply first and polish it. The first inserted draft ends the step, or tap **Skip**.
 5. **Where should I help?** Switch on the apps you want and tap **Done**. (If none of X, LinkedIn, Reddit, Slack, WhatsApp or Gmail is on the phone, this step is skipped.)
 
 <p align="center">

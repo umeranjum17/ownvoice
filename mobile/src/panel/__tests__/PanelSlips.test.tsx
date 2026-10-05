@@ -46,7 +46,7 @@ test('each slip gets its own Fix, which inserts their text with only that slip f
   expect(fixes).toHaveLength(3);
   expect(native.insert).not.toHaveBeenCalled();
   fireEvent.press(fixes[1]);
-  await waitFor(() => expect(native.insert).toHaveBeenCalledWith('Its a good plan, I should be there by the the evening.'));
+  await waitFor(() => expect(native.insert).toHaveBeenCalledWith('Its a good plan, I should be there by the the evening.', true)); // a slip fix swaps in their fixed text
 });
 
 test('the slips speak plainly', async () => {
@@ -99,7 +99,7 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
     const insertions = native.insert.mock.calls.length;
     await fireEvent.press(screen.getByRole('button', { name: words.fix }));
     await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(insertions + 1));
-    await waitFor(() => expect(native.insert).toHaveBeenLastCalledWith('I can definitely bring the stove.'));
+    await waitFor(() => expect(native.insert).toHaveBeenLastCalledWith('I can definitely bring the stove.', true));
   };
   await screen.findByText(words.slipsTitle);
   await screen.findByRole('button', { name: words.writeNew });

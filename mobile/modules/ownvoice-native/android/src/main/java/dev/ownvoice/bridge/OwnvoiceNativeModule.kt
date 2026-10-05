@@ -113,7 +113,7 @@ class OwnvoiceNativeModule : Module() {
       OwnvoiceService.instance?.say("Copied.")
       PanelActivity.current?.finish()
     }.runOnQueue(Queues.MAIN)
-    AsyncFunction("insert") { text: String, promise: Promise ->
+    AsyncFunction("insert") { text: String, swap: Boolean?, promise: Promise ->
       val service = OwnvoiceService.instance
       PanelActivity.current?.finish()
       if (service == null) {
@@ -121,7 +121,7 @@ class OwnvoiceNativeModule : Module() {
         sendEvent("onInserted", mapOf("ok" to false, "newlinesLost" to false, "practice" to false))
         return@AsyncFunction promise.resolve(mapOf("ok" to false, "newlinesLost" to false))
       }
-      service.insert(text) { ok, newlinesLost -> promise.resolve(mapOf("ok" to ok, "newlinesLost" to newlinesLost)) }
+      service.insert(text, swap == true) { ok, newlinesLost -> promise.resolve(mapOf("ok" to ok, "newlinesLost" to newlinesLost)) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("sharedMarkdown") { RewriteActivity.current?.sharedMarkdown() }
     Function("rewriteInput") {

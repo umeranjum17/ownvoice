@@ -1,0 +1,76 @@
+<!doctype html>
+<!-- X-style reply-screen fixture for the e2e drivers: no login, synthetic posts, demo data
+     named Umer. Served by mobile/e2e/x-replies.mjs behind an emulator hosts entry for x.com so
+     Ownvoice's Chrome platform detection reads a real X host from the URL bar. ?case=notext
+     renders the image-only post whose reply tap must show the no-grounding withhold note. -->
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>@umer</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { margin: 0; font: 15px/1.35 system-ui, sans-serif; background: #fff; color: #0f1419; }
+  @media (prefers-color-scheme: dark) { body { background: #000; color: #e7e9ea; } }
+  header { display: flex; align-items: center; gap: 16px; padding: 10px 12px; position: sticky; top: 0;
+           background: rgba(255,255,255,.85); backdrop-filter: blur(8px); font-weight: 700; }
+  @media (prefers-color-scheme: dark) { header { background: rgba(0,0,0,.85); } }
+  article { padding: 10px 12px 90px; }
+  .author { margin: 0 0 6px; font-size: 15px; font-weight: 700; }
+  .quote .author { color: #536471; font-weight: 400; }
+  .body { margin: 0 0 8px; white-space: pre-wrap; }
+  .quote { border: 1px solid #cfd9de; border-radius: 14px; padding: 10px; margin: 4px 0 10px; }
+  @media (prefers-color-scheme: dark) { .quote { border-color: #536471; } }
+  .quote .author { font-size: 14px; }
+  .quote .body { font-size: 14px; }
+  .counts { color: #536471; font-size: 13px; margin: 6px 0 0; }
+  .counts a { color: inherit; }
+  .composer { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start;
+              padding: 10px 12px; border-top: 1px solid #cfd9de; background: #fff; }
+  .composer .bar-author { flex-basis: 100%; margin: 0 0 4px; }
+  @media (prefers-color-scheme: dark) { .composer { background: #000; border-color: #2f3336; } }
+  [contenteditable] { flex: 1; min-height: 44px; outline: none; padding-top: 12px; }
+  .composer .avatar { width: 28px; height: 28px; border-radius: 50%; background: #1d9bf0; flex: none; }
+  img.post-image { display: block; width: 100%; max-height: 300px; object-fit: cover;
+                   border-radius: 14px; margin: 4px 0 10px; }
+</style>
+<header><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M20 11H7.8l5.6-5.6L12 4l-8 8 8 8 1.4-1.4L7.8 13H20v-2z" fill="currentColor"/></svg></header>
+<article>
+  <p class="author">Umer @umer · 2h</p>
+  <p class="body" id="post-body">Shipped the reply flow end to end today. Read the post on screen, tap the
+    bubble, get three rated reply cards, edit one until it sounds like me, insert it, press Post myself.
+    Nothing leaves the phone until I press Post. The quoted post below was the plan I set out on Monday,
+    and every line of it landed: the reading, the ratings, the edit, the insert, and the honest
+    no-inventing rule when a post has no text to read.</p>
+  <div class="quote">
+    <p class="author">Spec @spec · 4h</p>
+    <p class="body">The plan: the bubble reads the focused screen once per tap. Reply cards carry an
+      engagement rating from what the draft shows on that platform and a stock-wording rating from the
+      shared slop rules, plus restating the post. Every card says text alone can't predict reach. Edit
+      rewrites a card in place; Insert puts exactly the edited text in the box; Cancel inserts nothing.
+      A post with no text to ground on shows the plain note instead of inventing replies.</p>
+  </div>
+  <img class="post-image" id="post-image" alt="" hidden
+       src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='300'%3E%3Crect width='600' height='300' fill='%231d9bf0'/%3E%3C/svg%3E">
+  <p class="counts"><a href="#">18 replies</a> · <a href="#">231 likes</a></p>
+</article>
+<div class="composer">
+  <div class="avatar"></div>
+  <div id="composer-field" contenteditable="true" role="textbox" aria-label="Post your reply"></div>
+</div>
+<script>
+  // ?case=notext swaps the post body for the image: the only text left above the composer is the
+  // author link and the counts, so there is no text to ground a reply on.
+  if (new URLSearchParams(location.search).get('case') === 'notext') {
+    document.getElementById('post-body').hidden = true;
+    document.querySelector('.quote').hidden = true;
+    document.querySelector('.counts').hidden = true;
+    document.getElementById('post-image').hidden = false;
+    // Glue the author line to the composer so the open keyboard never pans it out of the
+    // accessibility tree; it reads as the reply context while the post itself has no text.
+    const bar = document.querySelector('.composer');
+    bar.insertAdjacentHTML('afterbegin', '<p class="author bar-author">Umer @umer · 2 hours ago</p>');
+    document.querySelector('article .author').hidden = true;
+    // A scrollable page keeps Chrome scrolling (not panning) to the focused composer, so the
+    // text above the keyboard stays exposed to accessibility instead of being pruned.
+    document.querySelector('article').style.minHeight = '1900px';
+  }
+  document.title = 'Post / X';
+</script>

@@ -221,9 +221,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (nextMode === 'empty') {
       setNote(null); setPhase('ready'); return;
     }
-    // Neither writer has a qualified grounding check for replies from screen text.
-    // Stop before routing: no streamed card, retry, fallback or outward request.
-    if (nextMode === 'reply') {
+    // Replies need something real to answer: the post the layout shows above the field. With no
+    // text to ground on the panel withholds before any writer runs — it never invents one.
+    if (nextMode === 'reply' && !feedRead(value.nodes, value.fieldTop).post.trim()) {
       setNote(words.replyWithheld); setPhase('failed'); return;
     }
     setNote(words.writing);
@@ -231,7 +231,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     // What the reply answers: the post block when the layout shows one, else the screen text the
     // writer drafts from; '' only when nothing was read. A new post has no parent to compare with.
     const shownPost = postOf.current = post ? null : feedRead(value.nodes, value.fieldTop).post || value.conversation.trim();
-    setYours({ text: typed, slot: -1, scores: Judge.scoreDraft(typed, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(typed, platform, shownPost, rules) });
+    // Reply mode has nothing of theirs to show above the cards; polish and compose do.
+    if (nextMode !== 'reply') {
+      const text = value.typed.trim();
+      setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(text, platform, shownPost, rules) });
+    }
     void (async () => {
       let path: WriterRoute;
       try { path = writer ? { writer, note: null } : await select(value.app); }
@@ -338,13 +342,16 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   });
 
   // Puts [text] in their message box, only on their tap, through the same way as a draft.
-  const put = (text: string) => {
+  // `swap` marks the designed replacement: an improved version of the very text in the box
+  // (polish versions, a typed-slip fix). Everything else is a draft: an empty box takes it
+  // outright, a non-empty one keeps what they typed and separates. (Main660)
+  const put = (text: string, swap = false) => {
     if (inserting.current) return;
     inserting.current = true;
     setInsertBusy(true);
     void Native.serviceState().then(state => {
       if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return; }
-      return Native.insert(text);
+      return Native.insert(text, swap);
     }).catch(() => { setNote(words.serviceOff); setPhase('failed'); })
       .finally(() => { inserting.current = false; setInsertBusy(false); });
   };
@@ -438,7 +445,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
               <Text style={[type.body, { color: t.text, fontWeight: '600' }]}>{slip.fix}</Text>
             </> : <Text style={[type.note, { color: t.muted }]}>{slip.fix === '' ? words.slipRepeat : words.slipUnknown}</Text>}
           </View>
-          {slip.fix !== undefined ? <Button kind="tonal" label={words.fix} disabled={!hasField || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip))} /> : null}
+          {slip.fix !== undefined ? <Button kind="tonal" label={words.fix} disabled={!hasField || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip), true)} /> : null}
         </View>)}
       </Card>
     </View> : null}
@@ -471,10 +478,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           {/* While editing, the ratings follow the edited text, never the original. */}
           <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={editing ? undefined : fits.get(card.text)} />
           {editing ? <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy || !editing.text.trim()} onPress={() => put(editing.text, mode !== 'reply')} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
           </View> : <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text, mode !== 'reply')} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />

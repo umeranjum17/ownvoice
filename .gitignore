@@ -32,3 +32,4 @@ packages/engine/dist/
 *.jks
 *.keystore
 *.p12
+.accessibility-probe/

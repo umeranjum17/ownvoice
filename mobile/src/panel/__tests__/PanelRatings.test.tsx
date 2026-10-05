@@ -109,7 +109,7 @@ test('a card with four engagement signals reads all four aloud, concerns include
 test('Insert still puts the exact rated card text in the box and never posts', async () => {
   const screen = await open(capture());
   fireEvent.press(screen.getAllByRole('button', { name: words.useThis })[0]);
-  await waitFor(() => expect(native.insert).toHaveBeenCalledWith(DRAFTS[0]));
+  await waitFor(() => expect(native.insert).toHaveBeenCalledWith(DRAFTS[0], true)); // polish versions swap
 });
 
 test.each([['com.whatsapp', 'WhatsApp'], ['dev.ownvoice.app', 'Ownvoice']])('%s cards carry no engagement rating', async (app, label) => {
