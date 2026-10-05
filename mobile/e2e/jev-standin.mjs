@@ -52,7 +52,7 @@ if (mode === 'serve') {
       try {
         const body = JSON.parse(raw);
         const out = await systemone(body);
-        console.log(JSON.stringify({ at: new Date().toISOString(), auth: req.headers.authorization ? 'bearer' : 'none', candidates: body.state?.candidates, answers: out.answers }));
+        console.log(JSON.stringify({ at: new Date().toISOString(), auth: req.headers.authorization ? 'bearer' : 'none', post: body.state?.post, candidates: body.state?.candidates, answers: out.answers }));
         res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(out));
       } catch (e) {
         console.error(e);

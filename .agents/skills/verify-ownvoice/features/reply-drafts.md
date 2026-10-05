@@ -11,6 +11,7 @@ Tap the bubble over a chat with an empty message field and Ownvoice offers short
 - `reply-copy`: Copy places the draft on the clipboard; Copy and the compose hand-off stay disabled while a missing-fact warning shows.
 - `reply-extras`: per-card tone line, **Why?** checks display and ratings.
 - `reply-paused`: paused/off states show no bubble.
+- `reply-fit`: on X and Reddit replies the engagement rating is Jev's fit level; with no key it says it can't rate the fit. Drive it with `mobile/e2e/jev-proof.mjs` (Chrome shows a lab X post at x.com; levels and probabilities come from the `ownvoice-fit` log line) against `mobile/e2e/jev-standin.mjs serve` until a real key exists; see `mobile/README.md` (Reply fit).
 
 ## How to get to it (user POV)
 
