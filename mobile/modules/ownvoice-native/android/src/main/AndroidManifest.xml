@@ -26,6 +26,7 @@
     <!-- Selected-text rewrite: "Ownvoice" in the text-selection menu, or Share of a piece of text. -->
     <activity
         android:name="dev.ownvoice.bridge.RewriteActivity"
+        android:label="Ownvoice"
         android:excludeFromRecents="true"
         android:exported="true"
         android:taskAffinity="dev.ownvoice.rewrite"

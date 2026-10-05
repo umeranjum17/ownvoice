@@ -85,7 +85,7 @@ test('editable offers Replace and Copy; Replace hands back (R4)', async () => {
   const shown = visibleStrings(screen);
   expect(shown).toContain('Same meaning as yours');
   expect(shown).not.toContain('Sounds natural');
-  expect(shown).toContain('Copy it, then paste it where you like.');
+  expect(shown).toContain("If the app doesn't take it, it's copied too. Just paste.");
   expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy();
   fireEvent.press(screen.getByRole('button', { name: 'Replace' }));

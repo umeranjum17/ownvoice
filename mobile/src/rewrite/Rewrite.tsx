@@ -83,7 +83,7 @@ export default function Rewrite() {
     const showResult = async (text: string, canWrite: boolean) => {
       if (id !== run.current) return false;
       if (!text) { setNote("Couldn't rewrite that. Try again."); return false; }
-      setNote('Copy it, then paste it where you like.');
+      setNote(input!.editable ? "If the app doesn't take it, it's copied too. Just paste." : 'Copy it, then paste it where you like.');
       setResult({ text, meaning: Judge.meaning(input.text, text, null), scores: Judge.scoreDraft(text, null, true, rules), verdict: null });
       setBusy(false);
       const answer = stub === null && canWrite ? await Native.ask(`rewrite-check-${Date.now()}`, Judge.rewriteCheckPrompt(input.text, text), { maxTokens: 80 }).catch(() => null) : null;
