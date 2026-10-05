@@ -612,3 +612,34 @@ test('fit retains an original pre-dispatch error as the veto cause', async () =>
   const backend = fitBackend({ beforeSend: async () => true, beforeFetch: () => true });
   await expect(backend.ask({}, { fit_0: { kind: 'score', levels: ['Weak', 'Strong'] } }, new AbortController().signal)).rejects.toMatchObject({ message: words.phoneWrote, cause });
 });
+
+// A blank composer: the journey where nothing on screen can support a topic, so the writer
+// may only ask for one. Model-free acceptance, driven through the real ChatGPT writer.
+const blankComposer: DraftRequest = { conversation: '', written: '', typed: '', own: true, platform: platformForApp('com.twitter.android') };
+// A fresh stream per call, so the one-slot retries read their own answer.
+const answers = (...drafts: string[]) => jest.fn(async () => ({ ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ drafts }) })}\n\n${event({ type: 'response.completed' })}`) } as Response));
+
+test('a blank composer shows the openings that ask for the post, and nothing else', async () => {
+  const originalFetch = global.fetch;
+  const openings = ['What is this post about?', 'What is the one thing worth saying here?', 'What should a reader take from it?'];
+  global.fetch = answers(...openings);
+  const landed = jest.fn();
+  try {
+    await expect(chatgptWriter.write(blankComposer, { landed })).resolves.toEqual({ drafts: openings });
+    expect(landed.mock.calls.map(([text, slot]) => [text, slot])).toEqual([[openings[0], 0], [openings[1], 1], [openings[2], 2]]);
+  } finally { global.fetch = originalFetch; }
+});
+
+test('a blank composer drops every opening that invents a topic, number or "we"', async () => {
+  const originalFetch = global.fetch;
+  const invented = ['Here are 3 ways to grow your audience in 2024.', 'Ship the fix before Friday.', 'We should talk about our roadmap.'];
+  // The first call asks for three, each one-slot retry for one; all of them invent.
+  let calls = 0;
+  global.fetch = jest.fn(async () => { const answer = calls++ === 0 ? invented : ['Great post!']; return { ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: JSON.stringify({ drafts: answer }) })}\n\n${event({ type: 'response.completed' })}`) } as Response; });
+  const landed = jest.fn();
+  try {
+    await expect(chatgptWriter.write(blankComposer, { landed })).resolves.toEqual({ drafts: [] });
+    expect(global.fetch).toHaveBeenCalledTimes(4);
+    expect(landed).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});

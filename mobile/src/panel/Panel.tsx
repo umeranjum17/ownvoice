@@ -31,7 +31,7 @@ import { shape, space, type, useReducedMotion, useTheme } from '../ui/theme';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { phoneWriter } from './phoneWriter';
 
-type Mode = 'reply' | 'polish' | 'compose' | 'empty';
+type Mode = 'reply' | 'polish' | 'compose' | 'own' | 'empty';
 
 /** What each reply card is for, in the order the writers fill that app's slots (platforms.ts). */
 const TAGS: Record<string, [string, string, string]> = {
@@ -60,8 +60,13 @@ const openPrefill = (platform: Platform, draft: Draft) => {
   else void Share.share({ message: text }).catch(() => {});
 };
 
-const modeOf = (typed: string, written: string): Mode =>
-  typed.trim() ? (Judge.replying(written) ? 'polish' : 'compose') : Judge.replying(written) ? 'reply' : 'empty';
+/** An empty composer in a feed app is his own post with nothing to write from; an empty box
+ *  anywhere else stays the empty state, and a chat or mail reply stays withheld. */
+const modeOf = (typed: string, written: string, hasField: boolean, feed: boolean): Mode => {
+  if (typed.trim()) return Judge.replying(written) ? 'polish' : 'compose';
+  if (Judge.replying(written)) return 'reply';
+  return hasField && feed ? 'own' : 'empty';
+};
 
 const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id === 'reddit';
 
@@ -186,8 +191,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const id = ++run.current;
     const rules = voice.current = loadVoice();
     const platform = platformForApp(value.app, value.nodes);
-    const nextMode = modeOf(value.typed, value.written);
-    const post = nextMode === 'compose';
+    const nextMode = modeOf(value.typed, value.written, value.hasField, platform.kind === 'feed');
+    const post = nextMode === 'compose' || nextMode === 'own';
     const publicScreen = post || namesPlatform(platform);
     const person = Judge.who(value.written);
     platformOf.current = platform;
@@ -218,7 +223,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     // writer drafts from; '' only when nothing was read. A new post has no parent to compare with.
     const shownPost = postOf.current = post ? null : feedRead(value.nodes, value.fieldTop).post || value.conversation.trim();
     const text = value.typed.trim();
-    setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(text, platform, shownPost, rules) });
+    // Nothing was typed, so there is no Yours card to offer: a blank composer has only the drafts.
+    if (text) setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(text, platform, shownPost, rules) });
     void (async () => {
       let path: WriterRoute;
       try { path = writer ? { writer, note: null } : await select(value.app); }
@@ -237,6 +243,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           guide: voiceGuide(rules, post),
           dashes: dashesFor(rules, value.typed),
           avoid,
+          own: nextMode === 'own',
         }, {
           sent: async () => { if (!sent) { await Native.markTapSent(value.id); sent = true; } },
           unsent: async () => { if (sent && startedTap.current !== value.id) { await Native.unmarkTapSent(value.id); sent = false; } },
@@ -323,7 +330,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       try { return await Native.ask(`why-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, prompt, { maxTokens }); } catch { return null; }
     };
     void (async () => {
-      const post = mode === 'compose';
+      const post = mode === 'compose' || mode === 'own';
       const publicScreen = post || namesPlatform(platformOf.current);
       const rules = voice.current;
       const conversation = capture?.conversation ?? '';
@@ -352,6 +359,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const title = mode == null ? words.writing
     : mode === 'polish' ? (namesPlatform(platform) ? words.postTitle : words.polishTitle)
     : mode === 'compose' ? words.postTitle
+    : mode === 'own' ? words.ownTitle
     : mode === 'reply' ? (who ? `Reply to ${who}` : words.replyTitle)
     : words.nothingYet;
   const placeTitle = namesPlatform(platform) && mode !== 'empty' && mode != null ? `${title} · ${platform.label}` : title;
@@ -359,8 +367,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const hasField = !!capture?.hasField;
   const mainNote = phase === 'failed' || phase === 'loading' ? note
     : phase === 'ready' && unchanged ? words.looksGoodNote
-    : phase === 'ready' && !shown.length ? (mode === 'reply' ? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
-    : phase === 'ready' ? (mode === 'reply' ? (hasField ? words.readyReply : words.noField) : words.readyPolish)
+    : phase === 'ready' && !shown.length ? (mode === 'reply' ? words.noReplies : mode === 'own' ? words.noOpeners : mode === 'empty' ? words.writeFirst : words.noVersions)
+    : phase === 'ready' ? (mode === 'own' ? words.ownNote : mode === 'reply' ? (hasField ? words.readyReply : words.noField) : words.readyPolish)
     : fraction != null ? words.gettingReady
     : words.writing;
 

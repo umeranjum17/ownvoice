@@ -10,6 +10,7 @@ mobile/android/
 .home/
 .avd/
 .gradle-home/
+.avd-home/
 .npmcache/
 .fm-logs/
 .fm-env.sh

@@ -181,10 +181,22 @@ test('ChatGPT failing on a phone that cannot write leaves Try again', async () =
   expect(shown(screen)).toContain(words.tryAgain);
 });
 
+// A blank composer in a feed app is now his own post to start (see the own-post journey test).
+// "Nothing to help with" is a screen with no focused field to write into at all.
 test('a screen with nothing to help with is logged as nothing read', async () => {
-  const screen = await open({ chatgpt: () => writer('ChatGPT') }, { conversation: '', written: '', typed: '' });
+  const screen = await open({ chatgpt: () => writer('ChatGPT') }, { conversation: '', written: '', typed: '', hasField: false });
   await waitFor(() => expect(shown(screen)).toContain(words.writeFirst));
   expect(shown(screen)).not.toContain('ChatGPT one');
+  expect(shown(screen)).not.toContain(words.ownTitle);
   expect(sentTap()).toEqual([]);
   expect(kv.has('reads')).toBe(false);
+});
+
+test('a blank composer asks what the post is about and never invents a topic', async () => {
+  const screen = await open({ chatgpt: () => writer('ChatGPT') }, { conversation: '', written: '', typed: '' });
+  await waitFor(() => expect(shown(screen)).toContain(words.ownNote));
+  expect(shown(screen)).toContain(`${words.ownTitle} · X`);
+  expect(shown(screen)).not.toContain(words.writeFirst);
+  expect(shown(screen)).not.toContain(words.replyWithheld);
+  expect(sentTap()).toEqual(['tap-1']);
 });

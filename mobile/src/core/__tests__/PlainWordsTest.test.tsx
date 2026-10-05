@@ -99,7 +99,8 @@ describe('panel copy', () => {
     ['polish-unchanged', { unchanged: true }, { typed: LIST }],
     ['polish-failed', { empty: true }, { typed: LIST }],
     ['compose-ready', {}, { typed: 'i can bring the stove, super excited', written: '' }],
-    ['empty', {}, { typed: '', written: '' }],
+    ['own-post', {}, { typed: '', written: '' }],
+    ['empty', {}, { typed: '', written: '', hasField: false }],
     ['writing', { delay: 150 }, { typed: LIST }],
     ['download-progress', { download: true, delay: 150 }, { typed: LIST }],
   ])('%s speaks plainly', async (_name, options, over) => {
