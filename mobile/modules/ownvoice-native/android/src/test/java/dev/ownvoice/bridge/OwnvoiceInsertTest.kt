@@ -96,7 +96,8 @@ class OwnvoiceInsertTest {
           service.insert("first\nsecond") { ok, lost -> completions += ok to lost }
           ready.awaitWorker()
           ready.joinWorker()
-          assertEquals("first\nsecond", ready.text)
+          // A draft into a box that already holds text keeps it and separates (Main660).
+          assertEquals("before\nfirst\nsecond", ready.text)
           assertEquals(listOf(false to false, true to false), completions)
           assertEquals(listOf(Triple(false, false, false), Triple(true, false, false)), events)
           assertNull(service.captured())
@@ -107,5 +108,14 @@ class OwnvoiceInsertTest {
         OwnvoiceService.onInserted = null
       }
     }
+  }
+
+  // Main660: insertion composes at the service, where the box's text meets the draft.
+  @Test fun aDraftNeverMergesIntoTypedTextAndASwapReplaces() {
+    assertEquals("Draft", OwnvoiceService.insertWhole(null, "Draft", false))
+    assertEquals("Draft", OwnvoiceService.insertWhole("", "Draft", false))
+    assertEquals("Draft", OwnvoiceService.insertWhole("   ", "Draft", false))
+    assertEquals("My own words\nDraft", OwnvoiceService.insertWhole("My own words", "Draft", false))
+    assertEquals("Better version", OwnvoiceService.insertWhole("My own words", "Better version", true))
   }
 }

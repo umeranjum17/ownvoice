@@ -14,13 +14,9 @@ import org.json.JSONObject;
 public class Probe extends Instrumentation {
   private final JSONArray nodes = new JSONArray();
   private String click;
-  private String setLabel;
-  private String setValue;
   private AccessibilityNodeInfo target;
-  private AccessibilityNodeInfo setTarget;
 
-  @Override public void onCreate(Bundle args) { super.onCreate(args); click = args == null ? null : args.getString("click");
-    setLabel = args == null ? null : args.getString("settext"); setValue = args == null ? null : args.getString("value"); start(); }
+  @Override public void onCreate(Bundle args) { super.onCreate(args); click = args == null ? null : args.getString("click"); start(); }
 
   private JSONArray bounds(Rect r) {
     return new JSONArray().put(r.left).put(r.top).put(r.right).put(r.bottom);
@@ -31,11 +27,6 @@ public class Probe extends Instrumentation {
     if (click != null && target == null && node.isVisibleToUser() && node.isClickable()
         && (click.contentEquals(node.getContentDescription() == null ? "" : node.getContentDescription())
           || click.contentEquals(node.getText() == null ? "" : node.getText()))) target = node;
-    if (setLabel != null && setTarget == null && node.isVisibleToUser() && node.isEditable() && !node.isPassword()
-        && !"com.android.chrome:id/url_bar".contentEquals(node.getViewIdResourceName())
-        && (setLabel.isEmpty()
-          || setLabel.contentEquals(node.getContentDescription() == null ? "" : node.getContentDescription())
-          || setLabel.contentEquals(node.getText() == null ? "" : node.getText()))) setTarget = node;
     Rect rect = new Rect(); node.getBoundsInScreen(rect);
     Rect frame = new Rect(); window.getBoundsInScreen(frame);
     nodes.put(new JSONObject()
@@ -59,11 +50,6 @@ public class Probe extends Instrumentation {
       ui.setServiceInfo(info);
       for (AccessibilityWindowInfo window : ui.getWindows()) walk(window.getRoot(), window);
       if (click != null) result.putBoolean("clicked", target != null && target.performAction(AccessibilityNodeInfo.ACTION_CLICK));
-      if (setLabel != null) {
-        final Bundle arguments = new Bundle();
-        arguments.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE, setValue == null ? "" : setValue);
-        result.putBoolean("set", setTarget != null && setTarget.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments));
-      }
       result.putString("nodes", nodes.toString());
       finish(0, result);
     } catch (Throwable error) {

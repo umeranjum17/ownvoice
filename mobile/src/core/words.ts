@@ -36,7 +36,6 @@ const homeWords = {
 } as const;
 
 export const words = {
-export const words = {
   ...engineWords, ...typingWords, ...editWords, ...homeWords,
   replyWithheld: "This post has no text to build a reply on. Write your reply first, then tap the bubble to polish it.",
   tryInsert: 'Write a reply first, then tap the bubble to polish it. Or tap Skip.',

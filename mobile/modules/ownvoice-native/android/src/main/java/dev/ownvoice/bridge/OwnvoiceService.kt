@@ -74,6 +74,13 @@ class OwnvoiceService : AccessibilityService() {
     @Volatile var paused = false
     /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. Never saved. */
     @Volatile var practice = false
+
+    /** The box's whole next text: a draft takes an empty box outright; with text already in the
+     *  box it keeps what the person typed and separates with a clean line break, so a reply can
+     *  never merge into or wipe their words. A swap is the designed replacement: an improved
+     *  version of the very text in the box (polish versions, a typed-slip fix). (Main660) */
+    internal fun insertWhole(current: String?, draft: String, swap: Boolean): String =
+      if (swap || current.isNullOrBlank()) draft else "$current\n$draft"
     @Volatile var panelIsOpen = false
     @Volatile var onInserted: ((Boolean, Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
@@ -435,13 +442,10 @@ class OwnvoiceService : AccessibilityService() {
     pendingInsert = { finishInsert(cancellation, reading, text, "cancelled", done) }
     val node = reading?.insertField ?: return finishInsert(cancellation, reading, text, "failed", done)
     thread {
-      // A draft never merges into or wipes what the person already typed in the box: an empty
-      // box takes it outright; a non-empty one keeps its text and adds the draft after a clean
-      // line break. The box is read at insert time, so text typed while the panel was open
-      // survives too. `swap` is the designed replacement: an improved version of the very text
-      // in the box (polish versions, a typed-slip fix) takes the box's place. (Main660)
+      // A draft never merges into or wipes what the person already typed in the box; the box
+      // is read at insert time, so text typed while the panel was open survives too. (Main660)
       val current = runCatching { node.shown().orEmpty() }.getOrDefault("")
-      val whole = if (swap || current.isBlank()) text else "$current\n$text"
+      val whole = insertWhole(current, text, swap)
       val result = FocusedFields.insert(node, whole, "all",
         InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, { copyDraft(text) },
         cancellation = cancellation, service = this)

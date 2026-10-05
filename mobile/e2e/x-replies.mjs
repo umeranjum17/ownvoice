@@ -54,11 +54,18 @@ const settleChrome = async (need = 'x.com') => {
       await wait(3000);
       continue;
     }
+    if (text.includes('enhanced ad privacy')) { // a Chrome update wedges this sheet over the flow; a clear restarts the known walk
+      adb('shell', 'pm', 'clear', 'com.android.chrome');
+      await wait(1000);
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://x.com/x.html');
+      await wait(3500);
+      continue;
+    }
     if (text.includes('zoom in or out')) { // Chrome's banner after a system font-scale change
       const row = ocrLine('zoom in or out');
       const sizeOut = adb('shell', 'wm', 'size');
       const wide = Number((sizeOut.match(/Override size: (\d+)x\d+/) ?? sizeOut.match(/Physical size: (\d+)x\d+/))[1]);
-      if (row) tap(wide - 25, Number(row[7]) + Number(row[9]) / 2);
+      if (row) for (const dy of [-10, 0, 12]) tap(wide - 25, Number(row[7]) + Number(row[9]) / 2 + dy);
       await wait(1200);
       continue;
     }
@@ -124,26 +131,8 @@ const chooseApp = async label => {
 await chooseApp('Chrome');
 log('Chrome bubble enabled.');
 
-// ---- Chrome first-run walk ----
+// ---- Chrome first-run walk (the settle loop above owns every sheet Chrome shows) ----
 adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://x.com/x.html');
-for (let round = 0; round < 6; round++) {
-  const text = await settleChrome('umer');
-  if (text.includes('enhanced ad privacy')) { // a background Chrome update can wedge this sheet over the flow; a clear restarts the known walk
-    adb('shell', 'pm', 'clear', 'com.android.chrome');
-    await wait(1000);
-    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://x.com/x.html');
-    await wait(3500);
-    continue;
-  }
-  if (text.includes('make chrome your own')) {
-    const row = ocrLine('without an account');
-    if (row) tap(Number(row[6]) + Number(row[8]) / 2, Number(row[7]) + Number(row[9]) / 2);
-    await wait(2500);
-    continue;
-  }
-  if (text.includes('notifications make things')) { tap(643, 1751); await wait(2000); continue; } // 'No thanks' on the dimmed sheet, per driver.mjs
-  break;
-}
 await settleChrome('shipped the reply flow');
 log('fixture loaded in Chrome.');
 const urlBar = nodes().find(node => node.text?.includes('x.com'));
@@ -162,59 +151,81 @@ const field = () => nodes().find(node => node.editable && !node.password && !/x\
 const panelButton = name => nodes().find(node => node.clickable && (node.text === name || node.label === name));
 const panelText = phrase => nodes().some(node => `${node.text} ${node.label}`.includes(phrase));
 const shot = (screen, label, theme) => evidence('shot', task, screen, label, theme);
-const openFixture = async query => {
+// The size right now: the extreme leg changes it after the driver started.
+const sizeNow = () => {
+  const out = adb('shell', 'wm', 'size');
+  const match = out.match(/Override size: (\d+)x(\d+)/) ?? out.match(/Physical size: (\d+)x(\d+)/);
+  return [Number(match[1]), Number(match[2])];
+};
+// Click the edit row's action — the one sharing its line with the edit row's Cancel, never
+// another card's. The sheet scrolls its buttons above the open keyboard first, because a
+// covered button can take neither a coordinate tap nor an accessibility click.
+const insertViaProbe = async label => {
+  let hidKeyboard = false;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    // A deep card's action row can sit under the keyboard with no scroll room left; the text is
+    // already typed, so past the first tries the keyboard goes (the edit itself stays open).
+    if (attempt === 2 && !hidKeyboard) { adb('shell', 'input', 'keyevent', '111'); hidKeyboard = true; await wait(800); }
+    const all = nodes();
+    const ime = all.filter(n => n.windowType === 2);
+    const imeTop = ime.length ? Math.min(...ime.map(n => n.windowBounds[1])) : sizeNow()[1];
+    const actions = all.filter(n => n.clickable && (n.text === label || n.label === label) && n.bounds[1] >= 0 && n.bounds[3] < imeTop - 8);
+    const cancel = all.find(n => n.clickable && (n.text === 'Cancel' || n.label === 'Cancel'));
+    if (!cancel) { // the edit row is still under the keyboard; another card's action must not stand in
+      const [wide] = sizeNow();
+      adb('shell', 'input', 'swipe', String(Math.round(wide / 2)), String(Math.round(imeTop - 60)), String(Math.round(wide / 2)), String(Math.round(Math.max(imeTop - 260, 60))), '300');
+      await wait(700);
+      continue;
+    }
+    const button = actions.filter(i => Math.abs(i.bounds[1] - cancel.bounds[1]) < 40).sort((a, b) => a.bounds[0] - b.bounds[0])[0];
+    if (button) { nodes(label); return; }
+    const [wide] = sizeNow();
+    adb('shell', 'input', 'swipe', String(Math.round(wide / 2)), String(Math.round(imeTop - 60)), String(Math.round(wide / 2)), String(Math.round(Math.max(imeTop - 260, 60))), '300');
+    await wait(700);
+  }
+  throw new Error(`Could not bring the edit row's ${label} above the keyboard to click it.`);
+};
+const openFixture = async (query, need = 'shipped') => { // the post body sits below Chrome's banners
   adb('reverse', 'tcp:80', `tcp:${port}`); // a restarted adb server drops reverse mappings; re-assert it
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://x.com/x.html${query ?? ''}`);
   await wait(2500);
-  await settleChrome('umer');
+  await settleChrome(need);
 };
 
 const EDIT_SUFFIX = 'Typed by me, in my own words';
-const SEED = 'Nice work Umer!';
-const journey = async (screen, theme, { motion = false, seeded = false } = {}) => {
+const TYPED = 'This shipped so well';
+const journey = async (screen, theme, { motion = false, typed = false } = {}) => {
   await openFixture('');
   const composer = field();
   if (!composer) throw new Error('Could not find the fixture reply composer.');
   tap(...center(composer));
   await wait(2200);
+  if (typed) { type(TYPED); await wait(1500); }
   if (motion) evidence('motion-start', task, `${screen}-tap-to-inserted`);
   tap(...center(bubble()));
-  await wait(1600);
-  if (!panelButton('Edit')) throw new Error('No reply card with an Edit button appeared.');
+  await wait(1800);
+  // Typed text gets the polish panel (Use this swaps in the improved version); an empty box
+  // gets the reply cards. Both are the insert path: nothing may merge or wipe the box.
+  const useThis = typed;
+  if (!panelButton('Edit')) throw new Error('No card with an Edit button appeared.');
   if (!panelText('X')) throw new Error('The panel does not name the X platform.');
   if (panelText('no text to build a reply on')) throw new Error('The withhold note showed on a grounded post.');
   shot(screen, 'cards', theme);
   const firstCard = nodes().find(node => (node.text || '').includes('Agreed, and it holds up end to end.'));
-  // The non-empty-box case: text lands in the composer while the panel is already open — the
-  // same race as typing between the tap and Insert — so insertion must keep it and separate.
-  if (seeded) {
-    // Chrome can refuse SET_TEXT while the panel is on top (same as its insert refusals): retry a few times.
-    let seededOk = false;
-    for (let attempt = 0; attempt < 6 && !seededOk; attempt++) {
-      try { nodes(null, { label: '', value: SEED }); seededOk = true; } catch { await wait(400); }
-    }
-    if (!seededOk) throw new Error('Could not put text into the composer while the panel was open.');
-    await wait(800);
-  }
   nodes('Edit'); // accessibility click into the first card's edit field
   await wait(1600);
   adb('shell', 'input', 'text', EDIT_SUFFIX.replaceAll(' ', '%s'));
   await wait(800);
   shot(screen, 'editing', theme);
-  // Activate the edit row's Insert with DPAD + ENTER (the skill's proven panel sequence):
-  // it scrolls the button into view under the keyboard at large font scales, where a
-  // coordinate- or accessibility-click on the covered button cannot land.
-  adb('shell', 'input', 'keyevent', '20');
-  await wait(700);
-  adb('shell', 'input', 'keyevent', '66');
+  await insertViaProbe(useThis ? 'Use this' : 'Insert');
   await wait(2600);
   shot(screen, 'inserted-panel', theme);
   // The pill lives on the bubble for four seconds from the insert; the translucent panel shows it
   // above the composer that now carries the edited text. The pixel shot is timely even when the
   // probe is slow, and OCR reads the file after the fact.
-  const pillNow = nodes().some(node => `${node.text} ${node.label}`.includes('Send it yourself'));
+  const pillNow = nodes().some(node => /Send it yourself|Check it looks right/.test(`${node.text} ${node.label}`));
   const ocrPill = () => { try { return execFileSync('tesseract', [`${root}/verify-artifacts/${task}/${screen}-inserted-panel-${theme}.png`, 'stdout'], { encoding: 'utf8' }); } catch { return ''; } };
-  if (!pillNow && !/send.it yourself/i.test(ocrPill())) throw new Error('The "Inserted. Send it yourself." confirmation is not visible.');
+  if (!pillNow && !/send.{0,4}yourself|check it looks right/i.test(ocrPill())) throw new Error('The insert confirmation is not visible.');
   adb('shell', 'input', 'keyevent', '111'); // hides the keyboard (and the sheet) without leaving the page
   await wait(800);
   if (panelButton('Insert') || panelButton('Edit')) { nodes('Close'); await wait(900); } // the panel's own X, if ESC only hid the keyboard
@@ -226,18 +237,17 @@ const journey = async (screen, theme, { motion = false, seeded = false } = {}) =
   const boxText = `${back?.text ?? ''}`;
   if (!boxText.includes('Typed by me')) throw new Error(`Field read-back missing the edited text (${boxText || 'no field'}).`);
   if (firstCard && boxText.trim() === (firstCard.text ?? '').trim()) throw new Error('The inserted text equals the unedited card text: the edit did not change it.');
-  // Seeded box: the person's own text survives, separated from the draft (never merged, never wiped).
-  if (seeded) {
-    if (!boxText.includes(SEED)) throw new Error(`The text already in the box was wiped (${boxText}).`);
-    if (boxText.includes(`${SEED}Typed`)) throw new Error(`The draft merged into the box's text without a separator (${boxText}).`);
-    if (boxText.indexOf(SEED) > boxText.indexOf('Typed by me')) throw new Error(`The box's own text no longer comes first (${boxText}).`);
+  // Typed box: the improved version swaps in by design — the typed text never glues onto it.
+  if (typed) {
+    if (boxText.includes(TYPED)) throw new Error(`The typed text was not swapped for the version (${boxText}).`);
+    if (boxText.trim() === TYPED) throw new Error('The box still holds only the typed text: no version landed.');
   }
-  log(`${screen}/${theme}: cards + edit + insert + confirmation + read-back OK${seeded ? ' (seeded box kept, separated)' : ''}.`);
+  log(`${screen}/${theme}: cards + edit + insert + confirmation + read-back OK${typed ? ' (typed box swapped cleanly)' : ''}.`);
 };
 
 // ---- the no-text post: the plain withhold note, never invented replies ----
 const withhold = async (screen, theme) => {
-  await openFixture('?case=notext');
+  await openFixture('?case=notext', 'hours ago'); // the bar author rides above the composer, below any banner
   const composer = field();
   if (!composer) throw new Error('Could not find the fixture reply composer (notext).');
   tap(...center(composer));
@@ -253,7 +263,7 @@ const withhold = async (screen, theme) => {
 };
 
 await journey('x-reply', 'light', { motion: true });
-await journey('x-nonempty', 'light', { seeded: true });
+await journey('x-typed', 'light', { typed: true });
 await withhold('x-notext', 'light');
 
 // ---- dark theme: force-stop Chrome so prefers-color-scheme re-reads ----
@@ -261,7 +271,7 @@ evidence('theme', 'dark');
 adb('shell', 'am', 'force-stop', 'com.android.chrome');
 await wait(1000);
 await journey('x-reply', 'dark');
-await journey('x-nonempty', 'dark', { seeded: true });
+await journey('x-typed', 'dark', { typed: true });
 await withhold('x-notext', 'dark');
 
 // ---- extreme: narrowest supported screen + font scale 1.3 over the long post + quote ----
