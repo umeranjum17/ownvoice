@@ -53,6 +53,12 @@ Already typed something? The same tap shows your text with the stock phrases mar
   <img src="docs/readme/polish.webp" alt="Polish your message: the typed text with 'at the end of the day' marked, and three versions, one flagged 'A bit stock: 3 phrases you could say more simply'" width="300" />
 </p>
 
+### Start a post from a blank composer
+
+On X, LinkedIn, Reddit and the other feed apps, tapping the bubble in an **empty** composer shows **Start your post** with three openings, and says plainly **Nothing on screen to work from, so these ask what the post is about. Edit one, then post it yourself.**
+
+Nothing in an empty composer says what you want to write, so Ownvoice does not guess. Each opening asks you instead — what the post is about, what the one thing worth saying is, what a reader should take from it — in your own voice and your writing rules. Any opening that named a topic, a number, a time or a “we” is dropped before you see it, and if none survives you get **Couldn't write any openers this time** with **Try again**. From there it is the same panel as anywhere else: **Edit** changes the text, the ratings follow your edit, and **Use this** puts exactly your text in the composer. You write the post and press Post yourself. Chat and mail composers are unaffected: they keep the empty state and the withheld reply above.
+
 ### Honest about every draft
 
 A draft shows no verdict until all the deeper checks have run. Even then, Ownvoice leaves approval blank because the wording has not been fully checked; it does not call a draft “Sounds natural”. Concerns can still appear, such as “Check the wording” or “A bit stock: 3 phrases you could say more simply”. When every suggested draft has the same verdict, the repeated sentence is left off.

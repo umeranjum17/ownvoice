@@ -20,7 +20,7 @@ public class Composer extends Activity {
     LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setBackgroundColor(Color.WHITE);
-    root.setPadding(32, 48, 32, 32);
+    root.setPadding(32, 190, 32, 32);
 
     TextView bar = new TextView(this);
     bar.setText("X");
