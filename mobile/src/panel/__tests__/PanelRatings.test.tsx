@@ -63,11 +63,12 @@ test('each X reply card shows its own engagement and stock-wording rating, and n
   expect(labels).toHaveLength(3);
   const [question, linked, repeat] = labels;
   // A question mark is reported as a plain fact, never as a reason the reply will do well.
-  expect(question).toBe("Engagement on X: Nothing flagged. Asks a question. Text alone can't predict reach. Stock wording: None found.");
+  // With no Jev key the card keeps the text checks and says it can't rate the fit, never a made-up level.
+  expect(question).toBe("Engagement on X: Nothing flagged. Asks a question. Can't rate the fit right now. Text alone can't predict reach. Stock wording: None found.");
   expect(linked).toMatch(/^Engagement on X: Worth a second look\. Has a link\./);
   expect(linked).toMatch(/Stock wording: Some\. “Great post!”: starts with flattery/);
   // The repeat is a literal word-overlap fact under stock wording, not an engagement judgement.
-  expect(repeat).toMatch(/^Engagement on X: Nothing flagged\. Text alone can't predict reach\./);
+  expect(repeat).toMatch(/^Engagement on X: Nothing flagged\. Can't rate the fit right now\. Text alone can't predict reach\./);
   expect(repeat).toContain("Stock wording: Some. Shares most of its wording with the post.");
   for (const label of labels) {
     expect(label).not.toMatch(/Helps|Adds something|until you post|viral|will get|\d/i);

@@ -1,3 +1,4 @@
+import { jev, type Backend } from '@byokit/decide';
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
 import { getSource, isOwnApp, phoneListed, SOURCE_KEY, type Source } from '../core/source';
@@ -162,13 +163,23 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   return route;
 }
 
-/** Fit is an optional outward call: unknown switch state leaves rules only. */
-export function fitBackends(app: string, on: WriterEvents = {}, fetcher?: typeof fetch): import('@byokit/decide').Backend[] {
+const JEV_KEY = process.env.EXPO_PUBLIC_JEV_KEY ?? '';
+// Emulator acceptance only (EXPO_PUBLIC_E2E_JEV_BASE): Jev's requests go to a host stand-in instead.
+const JEV_BASE = process.env.EXPO_PUBLIC_E2E_JEV_BASE;
+
+/** Fit ratings run on Jev, and only under the same consent as a ChatGPT send for this app: the
+ *  post and drafts leave the phone only when the writer's would. No key, no backend: the cards say
+ *  the fit can't be rated. Checked before sending and again at dispatch. */
+export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch } = {}): Backend[] {
+  const key = o.key ?? JEV_KEY;
+  if (!key) return [];
+  const send = o.fetch ?? globalThis.fetch;
   const bubble = chatgptConsent(app);
   const remote = agentChatgptConsent();
-  const beforeSend = async () => (await getSource()) === 'chatgpt'
-    && await bubble.beforeSend() && await remote.beforeSend();
-  const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === 'chatgpt'
-    && bubble.beforeFetch() && remote.beforeFetch();
-  return [require('./responses').fitBackend({ ...on, beforeSend, beforeFetch }, fetcher)];
+  const allowed = async () => (await getSource()) === 'chatgpt' && await bubble.beforeSend() && await remote.beforeSend()
+    && store.peek<Source>(SOURCE_KEY) === 'chatgpt' && bubble.beforeFetch() && remote.beforeFetch();
+  return [jev({ key, fetch: async (url, init) => {
+    if (!(await allowed())) throw new SendVeto(words.phoneWrote);
+    return send(JEV_BASE ? String(url).replace('https://api.typesafe.ai', JEV_BASE) : url, init);
+  } })];
 }

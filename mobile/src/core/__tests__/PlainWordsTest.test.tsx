@@ -1,4 +1,4 @@
-import { LEVELS, UNSURE, judgeFit } from '../../grow/fit';
+import { LEVELS, UNAVAILABLE, UNSURE } from '../../grow/fit';
 import { ERROR_CODES, message } from '../nano';
 import { words, CHATGPT_TERMS, technicalWords } from '../words';
 import { offeredApps } from '../onboarding';
@@ -237,7 +237,6 @@ describe('panel copy', () => {
 });
 
 
-test('fit levels and rule explanations use plain words', async () => {
-  const fits = await judgeFit({ post: 'Umer made a timer.', candidates: ['Game changer!', 'A — B', 'x'.repeat(281), 'https://example.com'], platform: Platform.platformForApp('com.twitter.android'), voice: { ...Slop.NO_RULES, never: ['game changer'], noDashes: true } });
-  assertPlain([...LEVELS, UNSURE, ...fits.flatMap(f => f.flags)]);
+test('fit levels use plain words', () => {
+  assertPlain([...LEVELS, UNSURE, UNAVAILABLE]);
 });

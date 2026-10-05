@@ -52,60 +52,44 @@ Live proofs run through the app on the signed-in test emulator, using its byokit
 
 To produce a switch flag offline, keep a 32-byte private signing key as hex outside this repository and, from `mobile/`, run `SWITCH_SEQ=1 node --experimental-strip-types scripts/sign-switch.ts /path/to/private-key off` (increment the sequence for later flags). This prints the signed JSON; it does not publish it. Never commit the private key.
 
-### Reply fit judge (growth foundation)
+### Reply fit (Jev)
 
-`src/grow/fit.ts` judges a draft and its alternatives for X or Reddit in one
-`@byokit/decide` call, through a pluggable ordered backend list. The platform
-rubrics estimate text fit, not reach or calibrated engagement probabilities.
-Never-say phrases, long dashes (regardless of the saved no-dashes rule),
-platform limits and links, including bare domains and Markdown destinations,
-are checked first; flagged candidates and their questions are omitted from
-the outward request. Ordinary sentence dots, decimals and abbreviations such
-as "e.g." are not links. Bare domains must end in a registered suffix from
-`src/grow/domainEndings.json`, bundled from [IANA’s root list](https://data.iana.org/TLD/tlds-alpha-by-domain.txt)
-(2026-10-02), so non-domain endings such as `.json` and `.keys` stay eligible.
-Domain labels and suffixes include Unicode combining marks; suffix lookup
-uses NFC normalization. Email addresses remain eligible unless explicitly
-linked.
-The statement-ending preference applies to posts,
-so reply questions remain eligible. X replies lose one level for two or more
-hashtags, including punctuation-separated tags, and another for a trailing
-request for thoughts or agreement. An earlier ask followed by another
-sentence does not trigger that drop. The bounded English rule recognizes
-`Thoughts?`, `Any thoughts?`, `What do you think?`, `Agree?`, `What about you?`,
-`What are your thoughts`, `Share your thoughts`, and `Let me/us know` followed
-by `your thoughts` or `what you think`. `Please` is optional. The first five
-forms require a question mark; the remaining forms also allow a period,
-exclamation mark or no ending. Requests begin at the reply start or a
-sentence/clause separator. Optional topics begin with `on`,
-`about` or `of` and may contain commas; sentence punctuation, semicolons,
-colons and newlines end topics. It does not infer unlisted paraphrases or
-quote-bearing replies. Matches with question or reporting prefixes, and comma
-clauses beginning with explicit question words, are excluded conservatively.
-Blank lines retain preceding question/reporting context; only sentence
-punctuation resets that context. Question openings at each retained line or
-clause start are excluded. Ambiguous multiline requests may receive no drop.
-Unknown platforms use rules only.
+`src/grow/fit.ts` asks Jev, through the published `@byokit/decide` `jev()`, one
+score question per shown text on X and Reddit replies: the platform rubric is the
+question and Jev's most probable level (`LEVELS`) becomes the card's engagement
+level. Below decide's 0.6 floor the card says it isn't sure; when nothing answered
+(no key, no consent, offline, the 20 second deadline) it says it can't rate the fit
+and keeps the text checks below. The level is never adjusted by hand rules. The
+panel asks once per tap after the cards land, never per keystroke, and never for
+an edited text; each call uses a fresh in-memory cache.
 
-`fitBackends(app, events)` in `src/chatgpt/settings.ts` supplies the ChatGPT
-answerer through the existing `responses.ts` ask path and accounts response
-transport. It rechecks source, app visibility, pause, phone-only routing,
-sign-out epoch and a known-on remote switch before sending and at dispatch.
-Pass `sent` with the tap's read-log hook, as with the writer. A veto, timeout or
-malformed answer yields rules only. The deadline is 20 seconds; each invocation
-uses a new in-memory decision cache, so text is never cached across taps.
-The confidence floor is decide's 0.6; abstained best picks never affect order.
-This foundation does not yet wire the judge into the panel or change posting.
+`fitBackends(app)` in `src/chatgpt/settings.ts` builds the Jev backend from the
+build's `EXPO_PUBLIC_JEV_KEY` (no key: no backend) and sends only under the same
+consent as a ChatGPT send for that app (source, visibility, pause, phone-only,
+sign-out epoch, remote switch), checked again at dispatch. Drafts the phone wrote
+are never sent. Jev is billed per use to that key.
+
+Proof without a key: `node e2e/jev-standin.mjs serve` answers Jev's wire format
+from a local model's token probabilities (ollama, `OLLAMA`/`MODEL`), and
+`node e2e/jev-standin.mjs rate e2e/jev-cases.json` runs the 10 posts x 3 replies
+through `judgeFit` and `jev()`. On an emulator, build with `EXPO_PUBLIC_E2E_GPT=1
+EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_JEV_KEY=stand-in
+EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18610` and run `node e2e/jev-proof.mjs
+e2e/jev-cases.json [out]` after setup with ChatGPT and Chrome switched on: Chrome
+maps x.com to the script's lab page, and each panel's levels and probabilities
+are read from the `ownvoice-fit` log line (no text is logged). Load the model first: a
+cold load outlasts the 20 second deadline and the cards then say they can't rate.
 
 ### Card ratings
 
 On feed apps (X, Reddit and the other known platforms) each draft card carries two
-plain-code ratings from `packages/engine/src/ratings.ts`, with no model call: an
-engagement rating that only lists concerns the text shows on that platform (or
-"Nothing flagged") and always says text alone can't predict reach, and a separate
+ratings: an engagement rating, which on X and Reddit replies is Jev's fit level
+(above), and otherwise lists only the concerns the text shows on that platform (or
+"Nothing flagged") from `packages/engine/src/ratings.ts`; it always says text alone
+can't predict reach. Apart from it sits a separate
 stock-wording rating from the shared slop rules. A reply whose post couldn't be read
 says so instead of comparing. **Edit** opens a card's text; the ratings follow the
-edited text, **Insert** puts exactly that text in the box and nothing is posted.
+edited text (text checks only; Jev isn't asked again), **Insert** puts exactly that text in the box and nothing is posted.
 
 Known limit: the read-screen → rated card → edit → insert flow has not been proven
 on the native X app. No demo device with X installed and signed in exists, so the

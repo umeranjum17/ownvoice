@@ -3,6 +3,7 @@
 // Adapted from constraint-driven-development references/floor-guard.md (same contract).
 // Usage: node scripts/floor-guard.mjs [--base <ref>]   (default base: origin/main)
 import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 
 const baseArg = (() => {
   const i = process.argv.indexOf('--base');
@@ -49,10 +50,13 @@ const diff = tracked + '\n' + untracked;
 // (`+++ /dev/null`) keeps its name.
 const added = [], removed = [], deleted = [];
 const pathOf = (s) => s.replace(/^[a-zA-Z0-9]\//, '');
-let file = '', oldFile = '', inHeader = false;
+let file = '', oldFile = '', inHeader = false, oldLine = 0;
 for (const line of diff.split('\n')) {
   if (line.startsWith('diff ')) inHeader = true;
-  else if (line.startsWith('@@')) inHeader = false;
+  else if (line.startsWith('@@')) {
+    inHeader = false;
+    oldLine = Number((line.match(/^@@ -(\d+)/) ?? [])[1]) || 0;
+  }
   else if (inHeader) {
     if (line.startsWith('--- ')) oldFile = pathOf(line.slice(4));
     else if (line.startsWith('+++ ')) {
@@ -62,7 +66,7 @@ for (const line of diff.split('\n')) {
     }
   }
   else if (line.startsWith('+')) added.push({ file, text: line.slice(1) });
-  else if (line.startsWith('-')) removed.push({ file, text: line.slice(1) });
+  else if (line.startsWith('-')) removed.push({ file, text: line.slice(1), at: oldLine++ });
 }
 
 const findings = [];
@@ -163,10 +167,97 @@ const excuseAssertion = (f) => {
   const add = added.filter((l) => l.file === f && isAssertion(l.text)).length;
   return rem > add ? rem + ' assertion line(s) removed vs ' + add + ' added in this file' : null;
 };
-for (const { file, text } of removed) {
-  if (isTest(file) && !deleted.includes(file) && isAssertion(text)) {
-    const why = excuseAssertion(file);
-    if (why) flag('assertion-removed', file, why + ': ' + text);
+// 2d. An assertion removed together with the code it exercised: a removed assertion line is
+// excused only when its test exercised an imported symbol that no longer exists anywhere in the
+// tree at the diff's head. Identifiers are read from the assertion line itself and from its
+// enclosing test block in the file's base version, then intersected with the symbols that file
+// imports or requires — the module-under-test surface, never host builtins or jest matchers —
+// and each survivor is searched exactly: whole word, fixed string, in file contents, across every
+// source or test file of the HEAD tree plus untracked code files. Never a filename glob (a file
+// named for the symbol is not the symbol existing), never a fuzzy or partial match (fitBackend
+// does not match fitBackends). A mention inside a comment is not the symbol existing either:
+// hit lines that are wholly comments are ignored, so a code file's prose about a symbol does not
+// keep it alive (a partial-line comment after code still counts, erring toward the finding).
+// Prose files (reports, docs) are outside the search: a report mentioning a symbol is not the
+// symbol existing. If every imported identifier still exists in
+// code the excuse is refused and the finding stands exactly as before; a tree or file that cannot
+// be read also refuses the excuse.
+const identRe = /[A-Za-z_$][A-Za-z0-9_$]*/g;
+const identsOf = (s) => new Set(codeOnly(s).match(identRe) ?? []);
+const PROSE = /\.(?:md|txt|rst|adoc|pdf)$/i;
+const baseCache = new Map();
+const baseFile = (f) => {
+  if (!baseCache.has(f)) baseCache.set(f, git(['show', mergeBase + ':' + f]) ?? '');
+  return baseCache.get(f);
+};
+const enclosingTest = (f, at) => {
+  const lines = baseFile(f).split('\n');
+  let start = -1;
+  for (let i = Math.min(at || 1, lines.length) - 1; i >= 0; i--) {
+    if (/^\s*(?:test|it)\s*\(/.test(lines[i])) { start = i; break; }
+  }
+  if (start < 0) return '';
+  let end = lines.length;
+  for (let j = start + 1; j < lines.length; j++) {
+    if (/^\s*(?:test|it|describe)\s*\(/.test(lines[j])) { end = j; break; }
+  }
+  return lines.slice(start, end).join('\n');
+};
+const liveness = new Map();
+const stillInCode = (id) => {
+  if (liveness.has(id)) return liveness.get(id);
+  const out = git(['grep', '-I', '-w', '-F', '-e', id, 'HEAD'], { diffExit: true });
+  let alive = out === null; // a search that cannot run refuses the excuse
+  if (!alive) {
+    alive = out.split('\n').filter(Boolean).some((hit) => {
+      const colon = hit.indexOf(':', 5); // strip the leading 'HEAD:'
+      const path = hit.slice(5, colon);
+      if (PROSE.test(path)) return false;
+      return !/^\s*(?:\/\/|\*|\/\*|#)/.test(hit.slice(colon + 1)); // comment-only lines are prose
+    });
+  }
+  if (!alive) {
+    alive = untrackedFiles.split('\n').filter(Boolean).some((u) => {
+      if (PROSE.test(u)) return false;
+      try { return new RegExp('(?<![\\w$])' + id.replace(/[$]/g, '\\$') + '(?![\\w$])').test(readFileSync(u, 'utf8')); }
+      catch { return true; } // an unreadable file refuses the excuse
+    });
+  }
+  liveness.set(id, alive);
+  return alive;
+};
+const importCache = new Map();
+const importedIdents = (f) => {
+  if (importCache.has(f)) return importCache.get(f);
+  const src = baseFile(f);
+  const names = new Set();
+  const add = (list) => {
+    for (const part of list.split(',')) {
+      const n = part.split(/\s+as\s+/).pop().trim().replace(/^type\s+/, '');
+      if (n && /[A-Za-z_$][A-Za-z0-9_$]*/.test(n) && !n.includes(' ')) names.add(n);
+    }
+  };
+  for (const m of src.matchAll(/^import\s+[^\n]*?\{([^}]+)\}/gm)) add(m[1]);
+  for (const m of src.matchAll(/^import\s+([\w$]+)/gm)) names.add(m[1]);
+  for (const m of src.matchAll(/\{([^}]+)\}\s*=\s*(?:jest\.)?require(?:\.\w+)?\s*\(/g)) add(m[1]);
+  importCache.set(f, names);
+  return names;
+};
+const assertionsDiedWithCode = [];
+const exercisedGone = (entry) => {
+  const ids = identsOf(entry.text);
+  for (const id of identsOf(enclosingTest(entry.file, entry.at))) ids.add(id);
+  const imports = importedIdents(entry.file);
+  for (const id of ids) if (imports.has(id) && !stillInCode(id)) return id;
+  return null;
+};
+for (const entry of removed) {
+  if (isTest(entry.file) && !deleted.includes(entry.file) && isAssertion(entry.text)) {
+    const why = excuseAssertion(entry.file);
+    if (!why) continue;
+    const gone = exercisedGone(entry);
+    if (gone) assertionsDiedWithCode.push(entry.file + ' (' + gone + ' is gone from the tree)');
+    else flag('assertion-removed', entry.file, why + ': ' + entry.text);
   }
 }
 
@@ -230,6 +321,10 @@ for (const r of removedRules) {
 if (removedWithModule.length) {
   console.log('floor-guard: removed with its module (code and test deleted together, not a lowered bar):');
   for (const f of removedWithModule) console.log('  ' + f);
+}
+if (assertionsDiedWithCode.length) {
+  console.log('floor-guard: assertions removed with the code they exercised (the imported symbol their test exercised is gone from the source tree at this head):');
+  for (const s of assertionsDiedWithCode) console.log('  ' + s);
 }
 if (findings.length === 0) { console.log('floor-guard: clean'); process.exit(0); }
 console.error('floor-guard: ' + findings.length + ' floor violation(s):');

@@ -1,12 +1,13 @@
 import { Text, View } from 'react-native';
 import type { Ratings as Value, Signal } from '../core/ratings';
+import type { Fit } from '../grow/fit';
 import { WarnIcon } from './icons';
 import { space, type, useTheme } from './theme';
 
 const ICON = 18;
 
 /** One rating: a warning or a neutral dot that never carries the meaning alone, its name, its level in words, then the reasons.
- *  Nothing here rates a draft up, so there is no tick. */
+ *  Only Jev's fit level can rate a draft up, and even then there is no tick. */
 function Row({ title, label, bad, lines }: { title: string; label: string; bad: boolean; lines: string[] }) {
   const t = useTheme();
   const tint = bad ? t.attention : t.muted;
@@ -28,15 +29,19 @@ const texts = (signals: Signal[]) => signals.map(s => s.text);
 const sentence = (title: string, label: string, lines: string[]) => [`${title}: ${label}`, ...lines].join('. ') + '.';
 
 /** A card's engagement rating and, apart from it, its stock-wording rating; read out as one label.
- *  No stock phrasing found stays neutral: it doesn't mean the draft sounds like you. */
-export function Ratings({ ratings }: { ratings: Value | null }) {
+ *  With Jev's fit level the engagement rating is that level; without one it stays the text checks and
+ *  says why there's no level. No stock phrasing found stays neutral: it doesn't mean the draft sounds like you. */
+export function Ratings({ ratings, fit }: { ratings: Value | null; fit?: Fit }) {
   if (!ratings) return null;
   const { engagement: e, stock: s } = ratings;
-  const engagementLines = [...texts(e.signals), e.unknown.join(' · ')];
+  const judged = fit?.level != null;
+  const engagementLabel = judged ? fit.words : e.label;
+  const notes = [...texts(e.signals), ...(fit && !judged ? [fit.words] : [])];
+  const engagementLines = [...notes, e.unknown.join(' · ')];
   const stockLines = texts(s.signals);
-  const label = `${sentence(e.title, e.label, [...texts(e.signals), ...e.unknown])} ${sentence(s.title, s.label, stockLines)}`;
+  const label = `${sentence(e.title, engagementLabel, [...notes, ...e.unknown])} ${sentence(s.title, s.label, stockLines)}`;
   return <View accessible accessibilityLabel={label} style={{ marginTop: space.xs }}>
-    <Row title={e.title} label={e.label} bad={e.level === 'concerns'} lines={engagementLines} />
+    <Row title={e.title} label={engagementLabel} bad={judged ? fit.level === 0 : e.level === 'concerns'} lines={engagementLines} />
     <Row title={s.title} label={s.label} bad={s.level !== 'none'} lines={stockLines} />
   </View>;
 }
