@@ -9,7 +9,8 @@ import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platfor
 import { prefillFor, prefillUrl } from '../core/prefill';
 import { feedRead } from '../core/feed';
 import { rate, type Ratings as CardRatings } from '../core/ratings';
-import { gptRoute } from '../chatgpt/settings';
+import { fitBackends, gptRoute } from '../chatgpt/settings';
+import { judgeFit, rated, UNAVAILABLE, type Fit } from '../grow/fit';
 import { guide as voiceGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
@@ -137,6 +138,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const [tones, setTones] = useState<Map<string, string>>(new Map());
   const toneFor = useRef(0);
+  // Jev's fit per shown text, asked once per tap after the cards land; only when the writer's text left the phone.
+  const [fits, setFits] = useState<Map<string, Fit>>(new Map());
+  const fitFor = useRef(0);
+  const leaves = useRef(false);
   const [spelling, setSpelling] = useState<{ text: string; slips: Typing.Slip[] }>({ text: '', slips: [] });
   const slips = yours?.text === spelling.text ? spelling.slips : [];
   // The text just copied: its card's copy button shows a tick for a moment.
@@ -197,6 +202,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setYours(null);
     setTones(new Map());
     toneFor.current = 0;
+    setFits(new Map());
+    fitFor.current = 0;
+    leaves.current = false;
     setUnchanged(false);
     setDeclined(false);
     setReason(null);
@@ -226,6 +234,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       try { path = writer ? { writer, note: null } : await select(value.app); }
       catch { path = { writer: phoneWriter, note: words.phoneWrote }; }
       if (run.current !== id) return;
+      leaves.current = path.writer !== phoneWriter;
       let sent = false;
 
       try {
@@ -302,6 +311,25 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       const found = Judge.parseTones(answer);
       if (found.length) setTones(new Map(texts.map((text, i) => [text, found[i]] as [string, string]).filter(([, tone]) => !!tone)));
     })();
+  });
+
+  // ---- Fit: one Jev call per tap rates every shown reply on X and Reddit; never per keystroke ----
+  useEffect(() => {
+    if (phase !== 'ready' || mode !== 'polish' || !capture || !rated(platformOf.current)) return;
+    const id = run.current;
+    if (fitFor.current === id) return;
+    const texts = [...(yours?.text ? [yours.text] : []), ...shown.map(draft => draft.text)];
+    if (!texts.length) return;
+    fitFor.current = id;
+    const backends = leaves.current ? fitBackends(capture.app) : [];
+    void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, backends })
+      .catch(() => texts.map(() => ({ level: null, words: UNAVAILABLE, probability: null })))
+      .then(found => {
+        if (run.current !== id) return;
+        // Levels and probabilities only, never the text: what the proof reads from the device log.
+        console.log(`ownvoice-fit ${JSON.stringify(found)}`);
+        setFits(new Map(texts.map((text, i) => [text, found[i]])));
+      });
   });
 
   // Puts [text] in their message box, only on their tap, through the same way as a draft.
@@ -410,7 +438,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <Marked text={yours.text} hits={[...yours.scores.hits, ...slips]} />
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
-        <Ratings ratings={yours.ratings} />
+        <Ratings ratings={yours.ratings} fit={fits.get(yours.text)} />
         <View style={styles.actions}>
           {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
           <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
@@ -431,7 +459,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           {editing ? null : <ToneLine text={card.text} tones={tones} />}
           {editing ? null : card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           {/* While editing, the ratings follow the edited text, never the original. */}
-          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} />
+          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={editing ? undefined : fits.get(card.text)} />
           {editing ? <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />

@@ -24,7 +24,7 @@ module.exports = {
           android: {
             minSdkVersion: 26,
             // Proof builds only (see above): plain HTTP to the host stand-in.
-            ...(process.env.EXPO_PUBLIC_E2E_AUTH_BASE ? { usesCleartextTraffic: true } : {}),
+            ...(process.env.EXPO_PUBLIC_E2E_AUTH_BASE || process.env.EXPO_PUBLIC_E2E_JEV_BASE ? { usesCleartextTraffic: true } : {}),
           },
         },
       ],

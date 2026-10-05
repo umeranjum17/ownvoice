@@ -1,0 +1,42 @@
+[
+  { "post": "Shipped a focus timer that only counts minutes you actually spend in the editor. Week 12 of building one small app a week.", "replies": [
+    { "kind": "specific", "text": "Does it stop counting when you alt-tab to docs? My worst lost hours are in the browser while I tell myself it's research." },
+    { "kind": "vague", "text": "Nice, timers are always useful for this kind of thing." },
+    { "kind": "praise", "text": "Great post! Love this 🔥" } ] },
+  { "post": "Hot take: most startups should not have a staging environment until they have paying customers.", "replies": [
+    { "kind": "specific", "text": "We dropped staging at 3 people and used feature flags plus a Postgres branch per PR. The one thing we missed was testing migrations against prod-sized data." },
+    { "kind": "vague", "text": "Depends on the team I guess, there are tradeoffs either way." },
+    { "kind": "praise", "text": "So true!! 💯" } ] },
+  { "post": "We cut our CI time from 22 minutes to 6 by caching node_modules and splitting the test suite into 4 shards.", "replies": [
+    { "kind": "specific", "text": "Did sharding by file count or by past runtime? We split by file and one shard still took 3x the others because of the e2e folder." },
+    { "kind": "vague", "text": "CI speed matters a lot, good to see people working on it." },
+    { "kind": "praise", "text": "Amazing work, this is awesome!" } ] },
+  { "post": "I've interviewed 40 founders this year. The ones who ship fastest all write a one-page spec before they code.", "replies": [
+    { "kind": "specific", "text": "What goes on the page? I've seen one-pagers that are just a wish list. The useful ones I've used name what we will not build." },
+    { "kind": "vague", "text": "Planning is important, makes sense." },
+    { "kind": "praise", "text": "Incredible insight! Thanks for sharing 🙏" } ] },
+  { "post": "Our app's day-30 retention went from 8% to 19% after we removed the signup wall and let people try it first.", "replies": [
+    { "kind": "specific", "text": "Did the share of people who eventually signed up drop, or did it hold? Ours fell by a third and we still came out ahead." },
+    { "kind": "vague", "text": "Interesting result, onboarding is tricky." },
+    { "kind": "praise", "text": "Wow, this is huge! Congrats! 🎉" } ] },
+  { "post": "Rewrote our Python data pipeline in Rust. Runtime went from 4 hours to 11 minutes. Memory use dropped 90%.", "replies": [
+    { "kind": "specific", "text": "How much of that came from the language versus fixing the pipeline while rewriting it? Our 'Rust win' turned out to be mostly removing a pandas copy in a loop." },
+    { "kind": "vague", "text": "Rust is fast, not surprised it helped." },
+    { "kind": "praise", "text": "Game changer! Rust is the best 🚀" } ] },
+  { "post": "Unpopular opinion: daily standups are a waste of time for teams under 5 people.", "replies": [
+    { "kind": "specific", "text": "We replaced ours with a written note at 10am in Slack and a 15 minute call only on Mondays. Blockers now surface faster because people post them when they hit them." },
+    { "kind": "vague", "text": "Meetings in general can be a lot sometimes." },
+    { "kind": "praise", "text": "Couldn't agree more! 👏👏" } ] },
+  { "post": "Spent the weekend building a Raspberry Pi sensor that texts me when my plants need water.", "replies": [
+    { "kind": "specific", "text": "Which moisture sensor? The cheap resistive ones corroded in a month for me; the capacitive v1.2 has lasted a year in the same pot." },
+    { "kind": "vague", "text": "Fun weekend project, plants are hard to keep alive." },
+    { "kind": "praise", "text": "This is so cool!! Love it" } ] },
+  { "post": "Pricing lesson: we raised our price from $9 to $29 a month and churn went down.", "replies": [
+    { "kind": "specific", "text": "Did you grandfather existing users at $9? We didn't, lost 12% of them in the first month, and still made more because the new signups stayed longer." },
+    { "kind": "vague", "text": "Pricing is always a big question for any business." },
+    { "kind": "praise", "text": "Brilliant! Great thread 🔥🔥" } ] },
+  { "post": "Our open source library just passed 10k GitHub stars. Three years, two maintainers, zero funding.", "replies": [
+    { "kind": "specific", "text": "How do the two of you split issue triage? At 5k stars we were drowning until we added a template that asks for a failing test before anyone looks." },
+    { "kind": "vague", "text": "Open source is hard work, congrats on the milestone." },
+    { "kind": "praise", "text": "Congrats!! Huge milestone 🎉🎉" } ] }
+]
