@@ -5,17 +5,21 @@ import android.content.ClipboardManager
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.widget.Toast
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
 import com.facebook.react.defaults.DefaultReactActivityDelegate
+import io.github.umeranjum17.byokit.overlay.FocusedFields
 import java.security.MessageDigest
 
 /** React Native surface launched from Android's selection and share actions (R1). */
 class RewriteActivity : ReactActivity() {
   override fun getMainComponentName() = "rewrite"
   override fun createReactActivityDelegate(): ReactActivityDelegate = DefaultReactActivityDelegate(this, mainComponentName, true)
+  private var pendingVerify: String? = null
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -37,6 +41,8 @@ class RewriteActivity : ReactActivity() {
   override fun onStop() {
     if (current === this) current = null
     OwnvoiceService.sheetShown(this, false)
+    pendingVerify?.let { text -> verifyHandback(text) }
+    pendingVerify = null
     super.onStop()
   }
 
@@ -59,10 +65,10 @@ class RewriteActivity : ReactActivity() {
     get() = intent.action == Intent.ACTION_PROCESS_TEXT && !intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)
 
   /**
-   * Copy-only everywhere: the sheet never hands text back to a field. Chrome drops the page's
-   * selection when another activity comes to the front, so a handback may be ignored or
-   * inserted at the caret next to the original - doubling the user's text while claiming success.
-   * The rewrite is copied and the notice says plainly where to put it.
+   * Replace hands the text back to the field via ACTION_PROCESS_TEXT result; Copy puts it on the
+   * clipboard. Replace is verified after the sheet closes: the accessibility service reads the
+   * focused field and confirms the exact draft landed, or falls back to copying with an honest
+   * notice. The draft is always copied first as the fallback.
    */
   fun finishRewrite(text: String?, replace: Boolean) {
     if (text == null) {
@@ -71,15 +77,40 @@ class RewriteActivity : ReactActivity() {
       return
     }
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", text))
-    // `replace` is kept for the bridge signature; the policy below is always copy-only.
     if (shouldHandBack(replace)) {
       setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text))
-      Log.i(OwnvoiceService.TAG, "rewrite returned sha=${sha(text)}")
+      pendingVerify = text
+      Log.i(OwnvoiceService.TAG, "rewrite handback pending sha=${sha(text)}")
     } else {
       Toast.makeText(this, "Copied, paste it in", Toast.LENGTH_LONG).show()
       Log.i(OwnvoiceService.TAG, "rewrite copied sha=${sha(text)}")
     }
     finish()
+  }
+
+  /** After the sheet closes, verify the handback landed through the accessibility service. */
+  private fun verifyHandback(text: String) {
+    val service = OwnvoiceService.instance ?: return fallbackCopy("no service")
+    Handler(Looper.getMainLooper()).postDelayed({
+      verifyWithRetries(service, text, remaining = 10)
+    }, 150)
+  }
+
+  private fun verifyWithRetries(service: OwnvoiceService, text: String, remaining: Int) {
+    val field = FocusedFields.read(service)
+    val ok = field != null && field.text == text && field.selection?.start == text.length && field.selection?.end == text.length
+    if (ok) {
+      Log.i(OwnvoiceService.TAG, "rewrite verified sha=${sha(text)}")
+      service.say("Replaced")
+      return
+    }
+    if (remaining <= 1) return fallbackCopy("verify failed field=${field?.text?.take(20)}")
+    Handler(Looper.getMainLooper()).postDelayed({ verifyWithRetries(service, text, remaining - 1) }, 150)
+  }
+
+  private fun fallbackCopy(reason: String) {
+    Log.i(OwnvoiceService.TAG, "rewrite fallback to copy: $reason")
+    OwnvoiceService.instance?.say("Copied, paste it in")
   }
 
   companion object {
@@ -88,10 +119,10 @@ class RewriteActivity : ReactActivity() {
     var current: RewriteActivity? = null
 
     /** Whether the sheet may hand the rewrite back to the field instead of copying.
-     * Always false: no field - own or another app's - gets a handback, so the sheet can never
-     * double or lose the user's text. Pinned by CopyOnlyTest. */
+     * True when the caller requests replace (the field was editable); the handback is verified
+     * after the sheet closes, falling back to copy if it cannot be confirmed. */
     @JvmStatic
-    fun shouldHandBack(@Suppress("UNUSED_PARAMETER") replace: Boolean) = false
+    fun shouldHandBack(replace: Boolean) = replace
 
     /** A stable fingerprint for the on-device test; the text itself never goes to the log. */
     fun sha(text: String) = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }.take(12)

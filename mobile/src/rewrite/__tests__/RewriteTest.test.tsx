@@ -74,7 +74,7 @@ test('its own rewrite is never called "A bit general" (ov-pm-15)', async () => {
   expect(shown).not.toContain('Sounds natural');
 });
 
-test('Copy returns the chosen version and copies it (R4)', async () => {
+test('editable offers Replace and Copy; Replace hands back (R4)', async () => {
   native.ask.mockImplementation(async (_id: string, prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'GENERIC: 2\nSPECIFICITY: 8\nMEANING: pass' : 'Move the call to Tuesday.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
@@ -86,9 +86,10 @@ test('Copy returns the chosen version and copies it (R4)', async () => {
   expect(shown).toContain('Same meaning as yours');
   expect(shown).not.toContain('Sounds natural');
   expect(shown).toContain('Copy it, then paste it where you like.');
-  expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull();
-  fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
-  expect(native.finishRewrite).toHaveBeenCalledWith('Move the call to Tuesday.', false);
+  expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Replace' }));
+  expect(native.finishRewrite).toHaveBeenCalledWith('Move the call to Tuesday.', true);
   expect(shown.filter(x => technicalWords.test(x))).toEqual([]);
 });
 

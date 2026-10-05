@@ -140,7 +140,8 @@ export default function Rewrite() {
           <MeaningLine check={result.meaning} same="Same meaning as yours" />
           <VerdictLine verdict={result.verdict} />
           <View style={{ flexDirection: 'row', gap: space.s, marginTop: space.m }}>
-            <Button kind="filled" label="Copy" disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Native.finishRewrite(result.text, false); }} />
+            {input!.editable && <Button kind="filled" label="Replace" disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Native.finishRewrite(result.text, true); }} />}
+            <Button kind={input!.editable ? 'text' : 'filled'} label="Copy" disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Native.finishRewrite(result.text, false); }} />
             <Button kind="text" label={words.shareText} disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Share.share({ message: result.text }).catch(() => {}); }} />
           </View>
         </Card>
