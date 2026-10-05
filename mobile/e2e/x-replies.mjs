@@ -229,6 +229,7 @@ const verifyFixtureLive = async () => {
 };
 const journey = async (screen, theme, { motion = false, typed = false } = {}) => {
   await verifyFixtureLive();
+  const composer = field();
   tap(...center(composer));
   await wait(2200);
   if (typed) { type(TYPED); await wait(1500); }
