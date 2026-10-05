@@ -14,6 +14,7 @@ import { resolve } from 'node:path';
 import { createServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { accessibilityProbe, center } from './accessibility.mjs';
+import { mockOpenAI } from '@byokit/accounts/testing';
 
 const serial = process.env.ANDROID_SERIAL;
 if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (owner phones are refused).');
@@ -106,7 +107,13 @@ const { port } = page.address();
 adb('reverse', 'tcp:80', `tcp:${port}`);
 log(`fixture serving on host :${port}, device http://x.com/`);
 
-// ---- app install, service bind, setup-by-Back (writer source: phone real model) ----
+// ---- mock OAuth for cloud writer setup ----
+const mockPort = Number(process.env.MOCK_PORT ?? 21455);
+const mock = await mockOpenAI({ port: mockPort, host: '0.0.0.0' });
+const deviceMockBase = `http://10.0.2.2:${mockPort}`;
+log(`mockOpenAI on ${mock.base} (device: ${deviceMockBase})`);
+
+// ---- app install, service bind, setup walk (writer source: Claude via BYOKit) ----
 execFileSync('adb', ['-s', serial, 'logcat', '-c']);
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'pm', 'clear', pkg);
@@ -122,14 +129,43 @@ const rebind = async () => { setServices(without.length ? without : off); await 
 setServices([...services]);
 adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
 await rebind();
+
+// Setup walk: welcome -> choose writer -> sign in -> permission -> turn on service
 adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 await wait(6000);
-// Fresh install opens setup; hardware Back on the welcome screen finishes it with the phone writer.
-for (let round = 0; round < 10; round++) {
-  if (screenText().includes('sound like you')) { adb('shell', 'input', 'keyevent', '4'); await wait(1500); break; }
-  await wait(1500);
+const tapButton = async (text) => {
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const button = nodes().find(n => n.clickable && (n.text?.toLowerCase().includes(text.toLowerCase()) || n.label?.toLowerCase().includes(text.toLowerCase())));
+    if (button) { tap(...center(button)); return true; }
+    await wait(1000);
+  }
+  return false;
+};
+// 1. Welcome - tap Continue
+if (!await tapButton('continue')) throw new Error('Could not find Continue on welcome screen');
+await wait(2000);
+// 2. Choose writer - tap Continue with (ChatGPT/Claude option)
+if (!await tapButton('continue with')) throw new Error('Could not find Continue with on choose screen');
+await wait(2000);
+// 3. Wait for connected (mock OAuth completes automatically)
+for (let attempt = 0; attempt < 30; attempt++) {
+  if (screenText().includes('connected')) break;
+  await wait(1000);
 }
-log('setup finished (phone writer, real model).');
+if (!await tapButton('continue')) throw new Error('Could not find Continue on connected screen');
+await wait(2000);
+// 4. Permission - tap Turn on
+if (!await tapButton('turn on')) throw new Error('Could not find Turn on button');
+await wait(3000);
+// Phone's accessibility settings opens - enable service
+const settingsSwitch = nodes().find(n => n.checkable && n.label?.toLowerCase().includes('ownvoice'));
+if (settingsSwitch && !settingsSwitch.checked) { tap(...center(settingsSwitch)); await wait(2000); }
+// Tap Allow in confirmation dialog
+if (await tapButton('allow')) await wait(1500);
+// Back to app
+adb('shell', 'input', 'keyevent', '4');
+await wait(3000);
+log('setup finished (cloud writer: Claude via BYOKit).');
 
 // ---- enable Chrome's bubble through the app's own UI ----
 const appRow = label => nodes().find(node => node.checkable && node.label === label);
