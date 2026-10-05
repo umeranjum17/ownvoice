@@ -44,6 +44,7 @@ public class Composer extends Activity {
     field.setGravity(Gravity.TOP | Gravity.START);
     field.setBackgroundColor(Color.WHITE);
     field.setContentDescription("Post text");
+    field.setFreezesText(true);
     LinearLayout.LayoutParams fieldParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
     fieldParams.topMargin = 24;
     root.addView(field, fieldParams);
@@ -65,6 +66,8 @@ public class Composer extends Activity {
     root.addView(post, postParams);
 
     setContentView(root);
+    // The panel coming to the front can recreate this activity; keeping the typed line across a
+    // recreation is what a real composer does, and the proof needs the line to still be there.
     getWindow().getDecorView().post(() -> field.requestFocus());
   }
 }
