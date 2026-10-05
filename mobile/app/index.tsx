@@ -13,7 +13,7 @@ import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { store } from '../src/core/store';
-import { getSource, setSource, storedSource, type Source } from '../src/core/source';
+import { getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
 import { NAME, session, type GptState } from '../src/chatgpt/session';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
@@ -47,13 +47,14 @@ export default function Home() {
   const inset = useSafeAreaInsets().top;
   const [rules, setRules] = useState<Rules | null>(null);
   const [service, setService] = useState<ServiceState>('off');
-  const [model, setModel] = useState<ModelStatus>('available');
+  const [model, setModel] = useState<ModelStatus | null>(null);
   const [fraction, setFraction] = useState(0);
   const [fetching, setFetching] = useState(downloading);
-  const [apps, setApps] = useState<App[]>([]);
+  const [apps, setApps] = useState<App[] | null>(null);
   const [phrases, setPhrases] = useState(0);
   const [week, setWeek] = useState(0);
-  const [settingsFailed, setSettingsFailed] = useState(false);
+  // A change that didn't save: what Try again repeats.
+  const [retry, setRetry] = useState<(() => void) | null>(null);
   const [typing, setTyping] = useState<boolean | null>(null);
   const [source, setShownSource] = useState<Source | undefined>(storedSource);
   const [gpt, setGpt] = useState<GptState | null>(null);
@@ -102,24 +103,25 @@ export default function Home() {
     try { setSource(null); setShownSource(null); } catch {}
   }, [source, model]);
 
+  // Callers fix the value they want at the tap, so Try again asks for the same value, never a second toggle.
   const changeRules = (update: (current: Rules) => Rules) => {
     busy.current = busy.current.then(async () => {
       const next = update(await Native.bubbleRules());
       await saveBubbleRules(next);
       setRules(next);
-      setSettingsFailed(false);
-    }).catch(() => setSettingsFailed(true));
+      setRetry(null);
+    }).catch(() => setRetry(() => () => changeRules(update)));
   };
   // The switch is the phone's own: turning it on goes to the permission screen, off stops the service.
   const power = (want: boolean) => {
-    setSettingsFailed(false);
+    setRetry(null);
     if (want) router.push('/setup');
-    else { void Native.turnOff().then(reload).catch(() => { reload(); setSettingsFailed(true); }); }
+    else { void Native.turnOff().then(reload).catch(() => { reload(); setRetry(() => () => power(false)); }); }
   };
   // Off unless the person switches it on: then the bubble counts slips after each typing pause, on this phone.
   const changeTyping = (on: boolean) => {
-    setSettingsFailed(false);
-    void Native.setTypingCheck(on).then(() => setTyping(on)).catch(() => setSettingsFailed(true));
+    setRetry(null);
+    void Native.setTypingCheck(on).then(() => setTyping(on)).catch(() => setRetry(() => () => changeTyping(on)));
   };
   // The person's yes starts the one-time download (on Wi-Fi unless they pick mobile data).
   const start = (mobileData = false) => { void getReady(mobileData).catch(() => {}); };
@@ -132,22 +134,31 @@ export default function Home() {
   const needs = source === null;
   const viaGpt = source === 'chatgpt';
   const viaPhone = source === 'phone';
-  const getting = viaPhone && (model === 'downloading' || fetching);
-  // Ask for the download only where the person picked this phone, never under ChatGPT.
-  const ask = viaPhone && model === 'downloadable' && !yes && !getting;
-  const stopped = viaPhone && model === 'downloadable' && yes && !getting;
   // ChatGPT chosen but not writing right now: signed out, or resting (in byokit's own words).
   const gptLine = viaGpt && gpt ? (!gpt.signedIn ? say('status.needsAgain', { name: NAME }) : gpt.resting) : null;
+  // Apps the bubble shows in that stay on this phone while ChatGPT writes: they need this phone's writer.
+  const kept = viaGpt && !gptLine && !paused && rules && apps
+    ? apps.filter(({ app }) => !isOwnApp(app) && showsBubble(rules, app) && phoneListed(app)).map(({ label }) => label) : [];
+  const keptLine = kept.length ? words.cantWriteIn.replace('{apps}', appsLine(kept)) : null;
+  const phoneNeeded = viaPhone || !!keptLine;
+  const getting = phoneNeeded && (model === 'downloading' || fetching);
+  // Ask for the download only where this phone writes: picked, or kept for some apps under ChatGPT.
+  const ask = phoneNeeded && model === 'downloadable' && !yes && !getting;
+  const stopped = phoneNeeded && model === 'downloadable' && yes && !getting;
   const problem = stopped ? words.readyStopped : null;
-  const green = !needs && on && !paused && problem === null && !ask && !gptLine;
-  const headline = needs ? words.needWriter : !on ? words.statusOff : ask ? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : words.statusReady);
-  const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : !on ? words.statusOffNote : ask ? words.readyNote : problem
-    ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : words.statusReadyNote);
-  const mood = needs ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (gpt?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : 'ready';
+  // No writer at all for those apps: this phone really can't write (the panel says phoneOnlyCant there). Unknown is not can't.
+  const cantWrite = model === 'unavailable' ? keptLine : null;
+  // Never ready from missing data: wait until the writer, its apps and this phone's answer are known.
+  const checking = source === undefined || rules === null || viaPhone && model === null || viaGpt && (gpt === null || apps === null || model === null);
+  const green = !needs && on && !paused && problem === null && !ask && !gptLine && !cantWrite && !checking;
+  const headline = needs ? words.needWriter : !on ? words.statusOff : ask ? keptLine ?? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : cantWrite ?? (checking ? words.statusChecking : words.statusReady));
+  const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : !on ? words.statusOffNote : ask ? (keptLine ? words.cantWriteReadyNote : words.readyNote) : problem
+    ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : cantWrite ? words.cantWriteNote : checking ? null : words.statusReadyNote);
+  const mood = needs ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (gpt?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : cantWrite ? 'check' : checking ? 'idle' : 'ready';
   const signIn = needs && !phoneCan || on && viaGpt && !!gpt && !gpt.signedIn;
   const onCard = green ? t.onPrimaryContainer : t.text;
   const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
-  const shown = apps.filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
+  const shown = (apps ?? []).filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };
 
   return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={[styles.page, { paddingTop: inset + space.xl }]}>
@@ -162,14 +173,18 @@ export default function Home() {
       <Text style={[type.heading, { color: onCard, marginTop: space.l }]}>{headline}</Text>
       {detail && <Text style={[type.body, { color: green ? t.onPrimaryContainer : t.muted, marginTop: space.xs }]}>{detail}</Text>}
       {on && getting && <View style={{ marginTop: space.l }}><Progress fraction={fraction} /></View>}
-      {settingsFailed && <Text style={[type.body, { color: t.text, paddingTop: space.m }]}>{words.failed}</Text>}
-      {(needs || signIn || on && (problem !== null || ask) || service !== 'on') && <View style={styles.statusActions}>
+      {retry && <View style={{ paddingTop: space.m, gap: space.s, alignItems: 'flex-start' }}>
+        <Text style={[type.body, { color: t.text }]}>{words.changeFailed}</Text>
+        <Button kind="text" label={words.tryAgain} onPress={() => { const again = retry; setRetry(null); again(); }} />
+      </View>}
+      {(needs || signIn || on && (problem !== null || ask || !!cantWrite) || service !== 'on') && <View style={styles.statusActions}>
         {service === 'off' && !needs && !signIn && <Button kind="filled" label={words.turnOn} onPress={() => power(true)} />}
         {signIn && <Button kind="filled" label={words.gptButton} onPress={() => router.push('/source?start=chatgpt')} />}
         {needs && phoneCan && <Button kind="filled" label={words.continueLabel} onPress={() => router.push('/source')} />}
         {!needs && on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="filled" label={words.tryAgain} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="text" label={words.useMobileData} onPress={() => start(true)} />}
+        {!needs && on && (cantWrite || ask && keptLine) && <Button kind={cantWrite ? 'filled' : 'text'} label={words.cantWriteFix} onPress={() => router.push('/phone-apps')} />}
         {service === 'stuck' && <Button kind="filled" label={words.turnBackOn} onPress={() => router.push('/setup')} />}
       </View>}
     </View>
@@ -184,7 +199,7 @@ export default function Home() {
     <View style={group}>
       <Row lead={icon(PauseIcon)} title={words.rowPause} subtitle={words.rowPauseNote}
         end={<View pointerEvents="none"><Switch value={paused} disabled={!rules} onValueChange={v => changeRules(r => ({ ...r, paused: v }))} /></View>}
-        onPress={() => { if (rules) changeRules(r => ({ ...r, paused: !r.paused })); }} />
+        onPress={() => { if (rules) { const want = !rules.paused; changeRules(r => ({ ...r, paused: want })); } }} />
       <Row lead={icon(CheckIcon)} title={words.rowTyping} subtitle={words.rowTypingNote}
         end={<View pointerEvents="none"><Switch value={!!typing} disabled={typing === null} onValueChange={changeTyping} /></View>}
         onPress={() => { if (typing !== null) changeTyping(!typing); }} />
