@@ -115,10 +115,32 @@ const journeyRetains = (module) => [...namedJourneys].some((j) => {
   const body = git(['show', mergeBase + ':' + j]) ?? git(['cat-file', 'blob', 'HEAD:' + j]) ?? '';
   return body.includes(module);
 });
+// Removed-with-its-module: a deleted test whose module is gone from the whole tree at the
+// diff's head took its code with it, so nothing was hidden. Whether the module survives is
+// read from the real tree (tracked plus untracked files, minus what this diff deletes) using
+// the same module name the journey rule derives — never a glob or a hand-kept list. Any file
+// of that module (another test, a source or config file module.ts/.tsx/.json) or any directory
+// named for it keeps the module alive and the deletion under the diet rule below; names match
+// exactly, like the journey rule's body check. A tree that cannot be listed refuses the
+// excuse, exactly like a journey that cannot be read.
+const treeFiles = git(['ls-files']);
+const moduleOf = (f) => f.replace(/^\.?\//, '').replace(/(_test|\.test|\.spec)\.[^.]+$/, '').replace(/^.*\//, '');
+const moduleAlive = (module) => {
+  if (treeFiles === null) return true;
+  return treeFiles.split('\n').filter(Boolean)
+    .concat(untrackedFiles.split('\n').filter(Boolean))
+    .filter((p) => !deleted.includes(p))
+    .some((p) => {
+      const n = moduleOf(p);
+      return n === module || n.startsWith(module + '.') || p.split('/').includes(module);
+    });
+};
+const removedWithModule = [];
 const excuse = (f) => {
   if (GUARDED.test(f)) return 'security/crypto/data-loss guard';
+  const module = moduleOf(f);
+  if (!moduleAlive(module)) { removedWithModule.push(f); return null; }
   if (!namedDiet) return 'commit does not name a test-diet task';
-  const module = f.replace(/^\.?\//, '').replace(/(_test|\.test|\.spec)\.[^.]+$/, '').replace(/^.*\//, '');
   if (!namedJourneys.size) return 'no Journey-Coverage path named in the commit';
   if (!journeyRetains(module)) return 'no named pre-existing journey covers ' + module;
   return null;
@@ -205,12 +227,17 @@ for (const r of removedRules) {
   if (verdict) flag(verdict, r.file, r.text + '  ->  ' + a.text);
 }
 
+if (removedWithModule.length) {
+  console.log('floor-guard: removed with its module (code and test deleted together, not a lowered bar):');
+  for (const f of removedWithModule) console.log('  ' + f);
+}
 if (findings.length === 0) { console.log('floor-guard: clean'); process.exit(0); }
 console.error('floor-guard: ' + findings.length + ' floor violation(s):');
 for (const f of findings) console.error(`  [${f.rule}] ${f.file}: ${f.text}`);
 if (findings.some((f) => f.rule === 'test-deleted')) {
   console.error('\nA test deletion is excused only when its commit names the test-diet task and a');
-  console.error('Journey-Coverage path that already existed and still exercises that module.');
+  console.error('Journey-Coverage path that already existed and still exercises that module, or when');
+  console.error('the module it covered is gone from the tree (removed with its module).');
 }
 if (findings.some((f) => f.rule === 'rule-removed')) {
   console.error('\nA rule-removed finding can also mean the rule\'s label changed: rename a rule in one commit and change its thresholds in another.');
