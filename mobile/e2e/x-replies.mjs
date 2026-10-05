@@ -147,13 +147,8 @@ await wait(2000);
 // 2. Choose writer - tap Continue with (ChatGPT/Claude option)
 if (!await tapButton('continue with')) throw new Error('Could not find Continue with on choose screen');
 await wait(2000);
-// 3. Wait for connected (mock OAuth completes automatically)
-for (let attempt = 0; attempt < 30; attempt++) {
-  if (screenText().includes('connected')) break;
-  await wait(1000);
-}
-if (!await tapButton('continue')) throw new Error('Could not find Continue on connected screen');
-await wait(2000);
+// 3. Wait for OAuth to complete (screen moves forward automatically)
+await wait(15000); // OAuth flow completes and moves to next screen
 // 4. Permission - tap Turn on
 if (!await tapButton('turn on')) throw new Error('Could not find Turn on button');
 await wait(3000);
