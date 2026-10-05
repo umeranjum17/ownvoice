@@ -20,7 +20,8 @@ import { agreed, downloading, getReady, modelStatus, resume, watch } from '../sr
 import { readLog, syncReadLog } from '../src/core/readLog';
 import { loadVoice } from '../src/core/voiceStore';
 import { saveBubbleRules } from '../src/chatgpt/settings';
-import Native, { type ModelStatus, type ServiceState } from '../modules/ownvoice-native';
+import Native, { type ServiceState } from '../modules/ownvoice-native';
+import type { InferState } from '@byokit/infer';
 
 type Rules = { paused: boolean; on: string[]; off: string[] };
 type App = { app: string; label: string; icon: string | null };
@@ -47,7 +48,7 @@ export default function Home() {
   const inset = useSafeAreaInsets().top;
   const [rules, setRules] = useState<Rules | null>(null);
   const [service, setService] = useState<ServiceState>('off');
-  const [model, setModel] = useState<ModelStatus | null>(null);
+  const [model, setModel] = useState<InferState | null>(null);
   const [fraction, setFraction] = useState(0);
   const [fetching, setFetching] = useState(downloading);
   const [apps, setApps] = useState<App[] | null>(null);

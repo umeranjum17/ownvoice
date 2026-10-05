@@ -11,7 +11,7 @@ export const agreed = agreedToDownload;
 
 // Emulator acceptance only (EXPO_PUBLIC_E2E_DOWNLOAD=1): pretend flow for walking the UI.
 const pretend = () => process.env.EXPO_PUBLIC_E2E_DOWNLOAD === '1';
-let pretendState: InferState = 'not-installed';
+let pretendState: InferState = 'not-installed' as InferState;
 
 let running: Promise<void> | null = null;
 let runningMobile = false;
@@ -28,7 +28,7 @@ export function watch(on: (fraction: number | null) => void): () => void {
 export const downloading = () => running !== null;
 
 export async function modelStatus(): Promise<InferState> {
-  if (pretend()) return running ? 'installing' : pretendState;
+  if (pretend()) return running ? ('installing' as InferState) : pretendState;
   return localModelState();
 }
 
@@ -63,7 +63,7 @@ export async function getReady(allowMobileData?: boolean): Promise<void> {
 export async function settle(): Promise<void> {
   if (running) return running;
   for (let i = 0; i < 120; i++) {
-    try { if (await modelStatus() !== 'installing') return; } catch { return; }
+    try { if (await modelStatus() !== ('installing' as InferState)) return; } catch { return; }
     await new Promise(done => setTimeout(done, 1000));
   }
 }
@@ -71,12 +71,12 @@ export async function settle(): Promise<void> {
 /** Resumes an agreed install that stopped (app closed, network returned). */
 export async function resume(): Promise<void> {
   if (!agreed() || running) return;
-  try { if (await modelStatus() === 'not-installed') await getReady(!!store.get<boolean>(MOBILE_KEY)); } catch {}
+  try { if (await modelStatus() === ('not-installed' as InferState)) await getReady(!!store.get<boolean>(MOBILE_KEY)); } catch {}
 }
 
 /** Removes the model and forgets consent and data choice. */
 export async function removeDownload(): Promise<void> {
-  if (pretend()) { pretendState = 'not-installed'; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
+  if (pretend()) { pretendState = 'not-installed' as InferState; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
   abortController?.abort();
   await removeLocalModel();
 }
@@ -89,7 +89,7 @@ function pretendDownload(): Promise<void> {
       tell(fraction);
       if (fraction < 1) return;
       clearInterval(id);
-      pretendState = 'ready';
+      pretendState = 'ready' as InferState;
       done();
     }, 300);
   });

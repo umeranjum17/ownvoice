@@ -181,7 +181,7 @@ test('while it works: the draft streams in and the line says it is checking, nev
   setSource('chatgpt');
   let release!: (turn: Turn) => void;
   const steps: Turn[] = [{ text: FIRST, calls: [call('c1', 'check_voice', { draft: FIRST })] }];
-  const chatgpt: Brain = { step: jest.fn(async (_i, _items, _t, onText) => {
+  const plan: Brain = { step: jest.fn(async (_i, _items, _t, onText) => {
     const next = steps.shift();
     if (next) { onText?.(next.text); return next; }
     onText?.('Hi Sam, ');
@@ -199,7 +199,7 @@ test('while it works: the draft streams in and the line says it is checking, nev
 
 test('the lab stand-in speaks plainly all the way through', async () => {
   setSource('chatgpt');
-  await open({ chatgpt: labBrain(0) });
+  await open({ plan: labBrain(0) });
   await ask('Write my landlord a note that the heater’s broken since Monday, then make it firmer.');
   expect(await screen.findByText(words.agentShareTitle)).toBeTruthy();
   plain();
