@@ -133,7 +133,7 @@ log('Chrome bubble enabled (pre-verified).');
 
 // ---- Chrome first-run walk (the settle loop above owns every sheet Chrome shows) ----
 adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://x.com/x.html');
-await settleChrome('shipped the reply flow');
+await settleChrome('reply flow end to end today');
 log('fixture loaded in Chrome.');
 const urlBar = nodes().find(node => node.text?.includes('x.com'));
 if (!urlBar) throw new Error('The URL bar does not read x.com: platform detection would not see X.');
