@@ -75,7 +75,7 @@ score question per shown text on X and Reddit replies: the platform rubric is th
 question and Jev's most probable level (`LEVELS`) becomes the card's engagement
 level. Below decide's 0.6 floor the card says it isn't sure; when nothing answered
 (no key, no consent, offline, the 20 second deadline) it says it can't rate the fit
-and keeps the text checks below. The level is never adjusted by hand rules. The
+and keeps the text checks below, unless the card has no other finding and nothing to disclose, when no row appears at all. The level is never adjusted by hand rules. The
 panel asks once per tap after the cards land, never per keystroke, and never for
 an edited text; each call uses a fresh in-memory cache.
 
@@ -113,7 +113,7 @@ can't predict reach. Apart from it sits a separate stock-wording rating from the
 shared slop rules, shown only when there is stock wording to name. The same four
 rows on every card, mostly reading "Nothing flagged" and "None found", was noise
 and said nothing about the draft. A reply whose post couldn't be read
-says so instead of comparing. **Edit** opens a card's text; the ratings follow the
+says so instead of comparing, even on an otherwise clean card with no other rows. **Edit** opens a card's text; the ratings follow the
 edited text (text checks only; Jev isn't asked again), **Insert** puts exactly that text in the box and nothing is posted.
 
 Known limit: the read-screen → rated card → edit → insert flow has not been proven

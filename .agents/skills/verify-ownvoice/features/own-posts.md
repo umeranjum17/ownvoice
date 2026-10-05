@@ -8,7 +8,7 @@ Tap the bubble over an empty composer in a feed app (X, Reddit) and Ownvoice ask
 - `own-draft`: that one line is what the post is drafted from, through the ordinary new-post path.
 - `own-edit-insert`: **Edit** rewrites one draft and **Use this** puts exactly that text in the composer; the native module confirms the insertion.
 - `own-elsewhere`: a chat or mail composer, or a screen with no field at all, keeps the empty state; an empty field never produces a withheld reply card.
-- `quiet-checks`: a card shows an engagement or stock-wording row only when that check found something; a card with nothing to flag carries no rows.
+- `quiet-checks`: a card shows an engagement or stock-wording row only when that check found something; a card with nothing to flag carries no rows, except the unread-post disclosure (see Card ratings in mobile/README.md).
 
 ## How to get to it (user POV)
 
