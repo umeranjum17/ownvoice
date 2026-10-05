@@ -1,18 +1,19 @@
 # Own posts from a blank composer
 
-Tap the bubble over an empty composer in a feed app (X, Reddit) and Ownvoice offers three openings for a post of his own, each asking what the post should be about, because nothing on an empty screen can support a topic, claim or number. Each card keeps the shared card behaviour — ratings, **Why?**, **Edit**, then **Use this** — and the panel says plainly that it had nothing to work from. Nothing is posted: the person presses Post themselves.
+Tap the bubble over an empty composer in a feed app (X, Reddit) and Ownvoice asks for the one line the post is about, writing nothing: an empty screen can support no topic, and a question offered as his post is something he would have to delete. Type that line and the ordinary new-post path drafts from it in his voice, with the shared cards, checks, **Edit**, then **Use this**. Nothing is posted: the person presses Post themselves.
 
 ## Sub-features
 
-- `own-openings`: a blank focused field in a feed app shows **Start your post** and three openings that ask; the note says nothing on screen was there to work from.
-- `own-honest`: an opening that states a topic, a number, a time or "we" is dropped instead of shown (model-free `cleanOwn` in the shared engine).
-- `own-edit-insert`: **Edit** rewrites one opening and **Use this** puts exactly that text in the composer; the native module confirms the insertion.
+- `own-ask`: a blank focused field in a feed app shows **Start your post** and asks for the one line, with no card, no **Try again** and no writer call.
+- `own-draft`: that one line is what the post is drafted from, through the ordinary new-post path.
+- `own-edit-insert`: **Edit** rewrites one draft and **Use this** puts exactly that text in the composer; the native module confirms the insertion.
 - `own-elsewhere`: a chat or mail composer, or a screen with no field at all, keeps the empty state; an empty field never produces a withheld reply card.
+- `quiet-checks`: a card shows an engagement or stock-wording row only when that check found something; a card with nothing to flag carries no rows.
 
 ## How to get to it (user POV)
 
 - Open a blank composer in an app switched on under **Where the bubble shows** and tap the Dot bubble.
-- **Edit** an opening until it says what he means, then **Use this**; the text lands in the composer, unposted.
+- Write the one line about what the post is, tap the bubble again, **Edit** a draft until it says what he means, then **Use this**; the text lands in the composer, unposted.
 
 ## Driving it with mobile/e2e/own-post.mjs
 
@@ -21,7 +22,7 @@ Preconditions:
 - Explicit emulator allocation; a release APK built with `EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_GPT=1` (fixed openings and the offline sign-in stand-in), `ANDROID_SERIAL=emulator-NNNN`, `OWNVOICE_AVD_NAME=<its AVD>`, `JAVA_HOME` (a real JDK, not `/usr`), `ANDROID_HOME`, and `adb`/`zip`/`tesseract`/`magick` on `PATH`.
 - `node e2e/first-run.mjs <apk>` once on the emulator, so setup is finished and the ChatGPT stand-in is connected.
 
-- **Drive.** `ANDROID_SERIAL=… OWNVOICE_AVD_NAME=… node e2e/own-post.mjs <release-apk> [outdir]` installs a blank X-style composer fixture (`com.twitter.android`, "Posting as Umer"), taps the bubble, asserts the three openings and the plain note, edits the first one, inserts it and reads the composer back; `insert result ok=true` in logcat proves the native insert. `OWNVOICE_THEME=dark` runs the same journey in dark; `OWNVOICE_BEFORE=1` captures the same screens on the base build without the own-post assertions.
+- **Drive.** `ANDROID_SERIAL=… OWNVOICE_AVD_NAME=… node e2e/own-post.mjs <release-apk> [outdir]` installs a blank X-style composer fixture (`com.twitter.android`, "Posting as Umer"), taps the bubble, asserts it asks for the one line and offers no draft, types that line, asserts drafts land, edits the first one, inserts it and reads the composer back; `insert result ok=true` in logcat proves the native insert. `OWNVOICE_THEME=dark` runs the same journey in dark; `OWNVOICE_BEFORE=1` captures the same screens on the base build without the own-post assertions.
 - **Proof.** Screenshots and the edit-and-insert recording land in `verify-artifacts/ov-own-posts/` (stable per-task folder — see the skill's Review evidence). Extreme case: `settings put system font_scale 1.3` and re-toggle the service; all three openings stay readable and the longest wraps.
 
 ## Gotchas

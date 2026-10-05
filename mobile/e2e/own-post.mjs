@@ -1,5 +1,6 @@
-// ov-own-posts emulator proof: a blank X-style composer gets honest openings, one is
-// edited, and the edited text lands in the composer (read back from the fixture itself).
+// ov-own-posts emulator proof: a blank X-style composer asks for the one line the post is
+// about, drafts from that line, one draft is edited, and the edited text lands in the
+// composer (read back from the fixture itself).
 // Own lane AVD only; refuses to run on any other emulator or on a phone.
 //
 //   ANDROID_SERIAL=emulator-XXXX OWNVOICE_AVD_NAME=fm-ownposts1 \
@@ -129,7 +130,7 @@ await withNodes('the blank composer', list => !!list.find(node => node.className
 if (composerText()) throw new Error('The fixture composer did not start empty.');
 shot('blank-composer');
 
-// 3. The bubble: the plain line that says there is nothing to work from, and the drafts.
+// 3. The bubble over a blank composer: it asks for the one line the post is about.
 if (nodes().some(node => (node.text ?? '').startsWith('Start your post') || (node.text ?? '').startsWith('Nothing to reply'))) { key(4); await wait(2000); }
 bubble();
 await wait(2000);
@@ -148,22 +149,40 @@ if (nodes().some(node => (node.text ?? '').includes("can't write drafts on its o
   bubble();
   await wait(2000);
 }
-await withNodes('the drafts panel', list => !!panelTitle(list), 25);
-shot('panel');
-const texts = nodes().map(node => node.text).filter(Boolean);
+await withNodes('the ask', list => !!panelTitle(list), 25);
+shot('ask');
+const asked = nodes().map(node => node.text).filter(Boolean);
 
 if (before) {
-  console.log(`Base build: a blank X-style composer shows "${texts.filter(t => /write|nothing|polish/i.test(t)).join(' | ') || 'an empty state'}" — no openings. Shots in ${out}.`);
+  console.log(`Base build: a blank X-style composer shows "${asked.filter(t => /write|nothing|polish/i.test(t)).join(' | ') || 'an empty state'}" - no ask for a line, no drafts. Shots in ${out}.`);
   process.exit(0);
 }
 
-const EDITED = 'What did I learn shipping offline notes?';
-const OPENINGS = ['What is this post about?', 'What is the one thing worth saying here?', 'What should a reader take from it?'];
-for (const opening of OPENINGS) if (!texts.includes(opening)) throw new Error(`The panel is missing an opening: ${opening}\n${texts.join(' | ')}`);
-if (!texts.some(text => text.includes('Nothing on screen to work from'))) throw new Error('The panel did not say plainly that it had nothing to work from.');
-if (texts.join(' ').match(/here are 3|viral|hook/i)) throw new Error('The panel sold hooks instead of asking for a topic.');
+const LINE = 'shipping offline notes';
+const EDITED = 'What I learned shipping offline notes.';
 
-// 4. Edit the first opening and insert exactly that text.
+// A blank post must give him something to work from, never a question he would have to post as his own:
+// the panel asks for the one line the post is about, and drafts nothing until it has it.
+if (!asked.some(text => /one line about what your post is about/i.test(text))) throw new Error(`The panel did not ask for the one line.\n${asked.join(' | ')}`);
+if (asked.some(text => /^Use this$/.test(text))) throw new Error('The panel offered a draft from an empty composer.');
+if (asked.join(' ').match(/\?|here are 3|viral|hook/i)) throw new Error(`The panel asked him a question instead of for a line.\n${asked.join(' | ')}`);
+
+// 4. The one line, then the drafts: the post is written from what he actually said.
+key(4); // Back closes the panel so the composer takes the line.
+await wait(1500);
+type(LINE);
+await wait(1500);
+if (composerText() !== LINE) throw new Error(`The composer did not take the line (saw "${composerText() || 'nothing'}").`);
+shot('one-line');
+bubble();
+await withNodes('the drafts', list => list.some(node => /^Use this$/.test(node.text ?? '')), 25);
+await wait(2500);
+const cards = nodes().map(node => node.text).filter(Boolean);
+if (!cards.some(text => text.trim() && text !== LINE && !/Use this|Copy|Edit|Why\?|Start your post|X/.test(text))) throw new Error(`The panel drafted nothing from his line.\n${cards.join(' | ')}`);
+if (cards.some(text => /^\?$/.test(text.trim()))) throw new Error('A question was offered as his post.');
+shot('drafts');
+
+// 5. Edit one draft and insert exactly that text.
 evidence('motion-start', 'ov-own-posts', 'edit-and-insert');
 try {
 // The sheet swallows coordinate taps, so its controls are driven through the probe's own
@@ -171,9 +190,9 @@ try {
 nodes('Edit'); // The first card in the tree is the one being edited.
 await withNodes('the opened editor', list => list.some(node => node.editable && node.windowType !== 4), 15);
 shot('editing');
-key(123); // MOVE_END, so the edit replaces the opening instead of appending to it.
+key(123); // MOVE_END, so the edit replaces the draft instead of appending to it.
 await wait(400);
-key(67, 45); // DEL back past the start.
+key(67, 80); // DEL back past the start.
 await wait(400);
 
 type(EDITED);
@@ -190,4 +209,4 @@ if (panelTitle(nodes())) { key(4); await wait(2000); }
 if (composerText() !== EDITED) throw new Error(`The composer does not hold the edited text (saw "${composerText() || 'nothing'}").`);
 if (!/insert result ok=true/.test(adb('logcat', '-d', '-s', 'OwnvoiceNative:I'))) throw new Error('The native module did not confirm the insertion.');
 shot('read-back');
-console.log(`Own-post proof on ${serial} (${avd}): blank composer -> three honest openings -> edited -> inserted and read back ("${composerText()}"). Shots in ${out}.`);
+console.log(`Own-post proof on ${serial} (${avd}): blank composer -> asked for the one line -> drafts from it -> edited -> inserted and read back ("${composerText()}"). Shots in ${out}.`);

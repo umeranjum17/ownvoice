@@ -55,9 +55,9 @@ Already typed something? The same tap shows your text with the stock phrases mar
 
 ### Start a post from a blank composer
 
-On X, LinkedIn, Reddit and the other feed apps, tapping the bubble in an **empty** composer shows **Start your post** with three openings, and says plainly **Nothing on screen to work from, so these ask what the post is about. Edit one, then post it yourself.**
+On X, LinkedIn, Reddit and the other feed apps, tapping the bubble in an **empty** composer shows **Start your post** and asks for one line: write what the post is about, then tap the bubble again.
 
-Nothing in an empty composer says what you want to write, so Ownvoice does not guess. Each opening asks you instead — what the post is about, what the one thing worth saying is, what a reader should take from it — in your own voice and your writing rules. Any opening that named a topic, a number, a time or a “we” is dropped before you see it, and if none survives you get **Couldn't write any openers this time** with **Try again**. From there it is the same panel as anywhere else: **Edit** changes the text, the ratings follow your edit, and **Use this** puts exactly your text in the composer. You write the post and press Post yourself. Chat and mail composers are unaffected: they keep the empty state and the withheld reply above.
+Nothing in an empty composer says what you want to write, so Ownvoice does not guess a topic and does not hand you a question to post in your place. Write one line — a note, a result, a thing you changed — and it drafts the post from that line in your own voice and your writing rules. From there it is the same panel as anywhere else: **Edit** changes the text, the checks follow your edit, and **Use this** puts exactly your text in the composer. You write the post and press Post yourself. Chat and mail composers are unaffected: they keep the empty state and the withheld reply above.
 
 ### Honest about every draft
 

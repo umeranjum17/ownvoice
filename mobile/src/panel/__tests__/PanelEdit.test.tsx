@@ -42,14 +42,14 @@ const open = async () => {
   await waitFor(() => expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(3));
   return screen;
 };
-// Index 0 is the Yours card for the typed text; index 1 is the first landed draft.
-const firstRating = (screen: Awaited<ReturnType<typeof open>>) => screen.getAllByLabelText(/^Engagement on /)[1].props.accessibilityLabel as string;
+// The typed text carries no rating row, so the first row on screen is the first landed draft's.
+const firstRating = (screen: Awaited<ReturnType<typeof open>>) => screen.getAllByLabelText(/^Engagement on /)[0].props.accessibilityLabel as string;
 
 beforeEach(() => native.insert.mockClear());
 
 test('an edited card inserts exactly the edited text and is rated as edited', async () => {
   const screen = await open();
-  expect(firstRating(screen)).toMatch(/^Engagement on X: Nothing flagged\./);
+  expect(firstRating(screen)).toMatch(/^Engagement on X: Nothing flagged\. Asks a question\./);
   await fireEvent.press(screen.getAllByRole('button', { name: 'Edit' })[0]);
   const edited = 'Week twelve, for us. More at https://example.com';
   await fireEvent.changeText(screen.getByLabelText('Edit this draft'), edited);

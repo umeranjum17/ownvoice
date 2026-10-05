@@ -2,7 +2,7 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { classify, IncompleteError, ResponseError } from '@byokit/accounts';
 import { accounts, codexAuth, reportFailure } from './accounts';
 import { withResponseFetch } from './responseFetch';
-import { acceptReplies, avoidLine, cleanOwn, latestMessage, ownPrompt, ownSlotPrompt, rebuildLines, replyPrompt, replySlotPrompt, OWN_SLOTS, slotsFor } from '../core/drafts';
+import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, writerVersions, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
 import { canPolish, polishAcceptor } from '../core/polish';
@@ -107,30 +107,26 @@ function finishedReplies(text: string): string[] {
   return drafts;
 }
 
-/** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt).
- *  A blank composer takes the same stream, slots and acceptance from the own-post prompt, with no
- *  screen text in it: nothing behind an empty composer says what the post is about. */
+/** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt). */
 async function replies(request: DraftRequest, on: WriterEvents): Promise<string[]> {
   const dashes = request.dashes ?? 'remove' as const;
-  const own = !!request.own;
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, dashes, platform: request.platform };
-  const slots = own ? OWN_SLOTS : slotsFor(request.platform);
+  const slots = slotsFor(request.platform);
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
   const made: (string | null)[] = [null, null, null];
   const take = (raw: string[]) => {
     acceptReplies(raw, request.avoid ?? [], 3, dashes, controls).forEach((text, slot) => {
-      const honest = text && (own ? cleanOwn(text, request.platform) : text);
-      if (!honest || made[slot]) return;
-      made[slot] = honest;
-      exclude.push(honest);
-      landed(honest, slot);
+      if (!text || made[slot]) return;
+      made[slot] = text;
+      exclude.push(text);
+      landed(text, slot);
     });
   };
   let partial = '';
   try {
-    take(await ask(own ? ownPrompt(input) : replyPrompt(input), REPLY_INSTRUCTIONS, 'drafts', 3, on, delta => {
+    take(await ask(replyPrompt(input), REPLY_INSTRUCTIONS, 'drafts', 3, on, delta => {
       partial += delta;
       take(finishedReplies(partial));
     }));
@@ -142,9 +138,8 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
   for (let slot = 0; slot < slots.length; slot++) {
     if (made[slot]) continue;
     try {
-      const [draft] = acceptReplies(await ask(own ? ownSlotPrompt(slots[slot], { ...input, avoid: exclude }) : replySlotPrompt(slots[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes, controls);
-      const honest = draft && (own ? cleanOwn(draft, request.platform) : draft);
-      if (honest) { exclude.push(honest); made[slot] = honest; landed(honest, slot); }
+      const [draft] = acceptReplies(await ask(replySlotPrompt(slots[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes, controls);
+      if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; }
   }
   return made.filter((text): text is string => !!text);

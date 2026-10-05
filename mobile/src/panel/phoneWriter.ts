@@ -3,8 +3,7 @@ import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
 import { canPolish, polishAcceptor } from '../core/polish';
-import { STUB_OWN } from './stubWriter';
-import { acceptReplies, avoidLine, cleanOwn, latestMessage, ownPrompt, ownSlotPrompt, phoneOwnPrompt, phoneOwnSlotPrompt, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, OWN_SLOTS, slotsFor } from '../core/drafts';
+import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
@@ -50,14 +49,11 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: acceptor.unchanged };
 }
 
-/** Replies: one numbered call, then one retry per empty slot within 8 s of its answer.
- *  A blank composer takes the same three slots and the same cleanDrafts cleanup, from the own-post
- *  prompts: the screen behind it says nothing about the post, so it is never sent. */
+/** Replies: one numbered call, then one retry per empty slot within 8 s of its answer. */
 async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
-  const own = !!request.own;
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, platform: request.platform };
-  const slots = own ? OWN_SLOTS : slotsFor(request.platform);
+  const slots = slotsFor(request.platform);
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
@@ -78,9 +74,8 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     if (complete && !markers.length) closed.push(source);
     for (const card of closed) {
       acceptReplies([card], exclude, 3, dashes, controls).forEach((text, slot) => {
-        const honest = text && (own ? cleanOwn(text, request.platform) : text);
-        if (!honest || made[slot]) return;
-        made[slot] = honest; exclude.push(honest); landed(honest, slot);
+        if (!text || made[slot]) return;
+        made[slot] = text; exclude.push(text); landed(text, slot);
         if (exclude.length === (request.avoid?.length ?? 0) + 1) console.log(`Ownvoice first draft ms=${Date.now() - started}`);
       });
     }
@@ -89,17 +84,16 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     if (event.id === id) { partial += event.text; take(partial, false); }
   });
   try {
-    const answer = await Native.draftStream(id, own ? phoneOwnPrompt({ platform: request.platform }) : phoneReplyPrompt(input), 220);
+    const answer = await Native.draftStream(id, phoneReplyPrompt(input), 220);
     take(answer, true);
   } finally { subscription.remove(); }
   const fillStarted = Date.now();
   for (let slot = 0; slot < slots.length && Date.now() - fillStarted <= FILL_MS; slot++) {
     if (made[slot]) continue;
     try {
-      const asked = own ? phoneOwnSlotPrompt(slots[slot], exclude) : phoneSlotPrompt(slots[slot], input, exclude);
+      const asked = phoneSlotPrompt(slots[slot], input, exclude);
       const [draft] = acceptReplies([await ask(asked, 120)], exclude, 1, dashes, controls);
-      const honest = draft && (own ? cleanOwn(draft, request.platform) : draft);
-      if (honest) { exclude.push(honest); made[slot] = honest; landed(honest, slot); }
+      if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }
   return made.filter((text): text is string => !!text);
@@ -117,12 +111,8 @@ export const phoneWriter = {
       }
       // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).
-      const drafts = request.own
-        ? STUB_OWN
-        : request.typed.includes('multiline draft')
+      const drafts = request.typed.includes('multiline draft')
         ? ["Saturday works.\nI'll bring the stove.", 'Sure, Saturday works. See you then.', 'What time should I arrive?']
-        : request.typed.includes('stock')
-        ? ['Yes, still on.', 'Saturday works.', "Let's delve in; at the end of the day, moving forward."]
         : ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
       if (request.typed.trim()) {
         const acceptor = await polishAcceptor(request.typed, request.dashes ?? 'remove', request.avoid ?? []);

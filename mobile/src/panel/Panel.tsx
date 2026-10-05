@@ -65,7 +65,8 @@ const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id
 
 /** Their reply typed under a post on X or Reddit (the places the fit can rate) grows: their own text stays as Yours
  *  and the replies, started from their point, are ranked for that place. With nothing typed the reply stays withheld.
- *  An empty composer in a feed app is his own post with nothing to write from; an empty box anywhere else stays empty. */
+ *  A blank composer in a feed app is his own post with nothing to write from, so it asks for the one line it
+ *  needs; an empty box anywhere else stays the empty state, and a chat or mail reply is withheld. */
 const modeOf = (typed: string, written: string, hasField: boolean, feed: boolean, platform: Platform): Mode => {
   if (typed.trim()) return Judge.replying(written) ? (namesPlatform(platform) ? 'grow' : 'polish') : 'compose';
   if (Judge.replying(written)) return 'reply';
@@ -201,7 +202,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const nextMode = modeOf(value.typed, value.written, value.hasField, platform.kind === 'feed', platform);
     const typed = value.typed.trim();
     const grow = nextMode === 'grow';
-    const post = nextMode === 'compose' || nextMode === 'own';
+    const post = nextMode === 'compose';
     const publicScreen = post || namesPlatform(platform);
     const person = Judge.who(value.written);
     platformOf.current = platform;
@@ -223,6 +224,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     kind.current = null;
     void findSlips(typed, id);
     if (nextMode === 'empty') {
+      setNote(null); setPhase('ready'); return;
+    }
+    // An empty feed composer has no line to write from, so ask for that line instead of writing a
+    // question he would have to post as if it were his post.
+    if (nextMode === 'own') {
       setNote(null); setPhase('ready'); return;
     }
     // Neither writer has a qualified grounding check for replies from screen text.
@@ -258,7 +264,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           guide: voiceGuide(rules, post),
           dashes: dashesFor(rules, value.typed),
           avoid,
-          own: nextMode === 'own',
         }, {
           sent: async () => { if (!sent) { await Native.markTapSent(value.id); sent = true; } },
           unsent: async () => { if (sent && startedTap.current !== value.id) { await Native.unmarkTapSent(value.id); sent = false; } },
@@ -365,7 +370,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       try { return await Native.ask(`why-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, prompt, { maxTokens }); } catch { return null; }
     };
     void (async () => {
-      const post = mode === 'compose' || mode === 'own';
+      const post = mode === 'compose';
       const publicScreen = post || namesPlatform(platformOf.current);
       const rules = voice.current;
       const conversation = capture?.conversation ?? '';
@@ -403,8 +408,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const mainNote = phase === 'failed' || phase === 'loading' ? note
     : phase === 'ready' && declined ? words.unclearPolish
     : phase === 'ready' && unchanged ? words.looksGoodNote
-    : phase === 'ready' && !shown.length ? (mode === 'reply' || mode === 'grow' ? words.noReplies : mode === 'own' ? words.noOpeners : mode === 'empty' ? words.writeFirst : words.noVersions)
-    : phase === 'ready' ? (mode === 'own' ? words.ownNote : mode === 'reply' || mode === 'grow' ? (hasField ? words.readyReply : words.noField) : words.readyPolish)
+    : mode === 'own' ? words.ownNote
+    : phase === 'ready' && !shown.length ? (mode === 'reply' || mode === 'grow' ? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
+    : phase === 'ready' ? (mode === 'reply' || mode === 'grow' ? (hasField ? words.readyReply : words.noField) : words.readyPolish)
     : fraction != null ? words.gettingReady
     : words.writing;
 
@@ -499,7 +505,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       : null}
     {empty && mainNote
       ? <Empty text={mainNote}>
-        {phase === 'ready' && !declined && mode !== 'empty' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
+        {phase === 'ready' && !declined && mode !== 'empty' && mode !== 'own' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
         {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
       </Empty>
       : null}

@@ -29,19 +29,22 @@ const texts = (signals: Signal[]) => signals.map(s => s.text);
 const sentence = (title: string, label: string, lines: string[]) => [`${title}: ${label}`, ...lines].join('. ') + '.';
 
 /** A card's engagement rating and, apart from it, its stock-wording rating; read out as one label.
- *  With Jev's fit level the engagement rating is that level; without one it stays the text checks and
- *  says why there's no level. No stock phrasing found stays neutral: it doesn't mean the draft sounds like you. */
+ *  With Jev's fit level the engagement rating is that level; without one it stays the text checks.
+ *  A row appears only when it found something, and nothing appears when it found nothing. */
 export function Ratings({ ratings, fit }: { ratings: Value | null; fit?: Fit }) {
   if (!ratings) return null;
   const { engagement: e, stock: s } = ratings;
   const judged = fit?.level != null;
-  const engagementLabel = judged ? fit.words : e.label;
-  const notes = [...texts(e.signals), ...(fit && !judged ? [fit.words] : [])];
-  const engagementLines = [...notes, e.unknown.join(' · ')];
+  const notes = texts(e.signals);
   const stockLines = texts(s.signals);
-  const label = `${sentence(e.title, engagementLabel, [...notes, ...e.unknown])} ${sentence(s.title, s.label, stockLines)}`;
+  // Nothing found means nothing shown: a row of "Nothing flagged" and "can't rate the fit" on every
+  // card is noise, and it says nothing about the draft. A real level or a real finding earns the row.
+  if (!judged && !notes.length && !stockLines.length) return null;
+  const engagement = notes.length || judged ? sentence(e.title, judged ? fit.words : e.label, [...notes, ...e.unknown]) : '';
+  const stock = stockLines.length ? sentence(s.title, s.label, stockLines) : '';
+  const label = [engagement, stock].filter(Boolean).join(' ');
   return <View accessible accessibilityLabel={label} style={{ marginTop: space.xs }}>
-    <Row title={e.title} label={engagementLabel} bad={judged ? fit.level === 0 : e.level === 'concerns'} lines={engagementLines} />
-    <Row title={s.title} label={s.label} bad={s.level !== 'none'} lines={stockLines} />
+    {engagement ? <Row title={e.title} label={judged ? fit.words : e.label} bad={judged ? fit.level === 0 : e.level === 'concerns'} lines={[...notes, ...e.unknown]} /> : null}
+    {stock ? <Row title={s.title} label={s.label} bad={s.level !== 'none'} lines={stockLines} /> : null}
   </View>;
 }

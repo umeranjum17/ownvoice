@@ -6,8 +6,8 @@ import type { Platform } from './platforms';
 import type { PhoneCanWrite } from './phoneStatus';
 import type { Source } from './source';
 
-/** `point`: in grow mode, what they typed; replies start from it while `typed` stays empty. `own`: a composer left empty in a feed app: his own post, with nothing on screen to write from. */
-export type DraftRequest = { conversation: string; written: string; nodes?: ScreenText[]; fieldTop?: number; typed: string; point?: string; guide?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; platform?: Platform; own?: boolean };
+/** `point`: in grow mode, what they typed; replies start from it while `typed` stays empty. */
+export type DraftRequest = { conversation: string; written: string; nodes?: ScreenText[]; fieldTop?: number; typed: string; point?: string; guide?: string; dashes?: 'keep' | 'remove'; avoid?: string[]; platform?: Platform };
 export type WriterState = 'downloading' | 'writing';
 export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
 /** `unchanged`: no drafts because the writer gave their text back as it was, so it already reads well. */

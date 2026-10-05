@@ -192,11 +192,16 @@ test('a screen with nothing to help with is logged as nothing read', async () =>
   expect(kv.has('reads')).toBe(false);
 });
 
-test('a blank composer asks what the post is about and never invents a topic', async () => {
-  const screen = await open({ chatgpt: () => writer('ChatGPT') }, { conversation: '', written: '', typed: '' });
+// A blank feed composer has no line to write from, so it asks for that one line and writes
+// nothing: a question he would have to post as his own post is not a draft.
+test('a blank composer asks for the one line and shows no draft', async () => {
+  const ask = jest.fn();
+  const screen = await open({ chatgpt: () => { ask(); return writer('ChatGPT'); } }, { conversation: '', written: '', typed: '' });
   await waitFor(() => expect(shown(screen)).toContain(words.ownNote));
   expect(shown(screen)).toContain(`${words.ownTitle} · X`);
   expect(shown(screen)).not.toContain(words.writeFirst);
   expect(shown(screen)).not.toContain(words.replyWithheld);
-  expect(sentTap()).toEqual(['tap-1']);
+  expect(screen.queryByRole('button', { name: words.useThis })).toBeNull();
+  expect(ask).not.toHaveBeenCalled();
+  expect(sentTap()).toEqual([]);
 });
