@@ -27,7 +27,7 @@ if (!apk) throw new Error('Pass the release APK path.');
 const before = process.env.OWNVOICE_BEFORE === '1';
 const label = before ? 'before' : 'after';
 const theme = process.env.OWNVOICE_THEME ?? 'light';
-const out = resolve(process.argv[3] ?? 'e2e/artifacts/own-post');
+const out = resolve(process.argv[3] ?? 'mobile/.own-post');
 mkdirSync(out, { recursive: true });
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const evidence = (...args) => execFileSync('bash', [resolve(repoRoot, '.agents/skills/verify-ownvoice/evidence.sh'), ...args],
@@ -40,6 +40,16 @@ const fixturePkg = 'com.twitter.android';
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const nodes = accessibilityProbe(serial, out);
+// The first instrument run after the probe installs comes back empty; warm it up once.
+if (!nodes().length) await wait(1500);
+const withNodes = async (what, read, tries = 20) => {
+  for (let attempt = 0; attempt < tries; attempt++) {
+    if (read(nodes())) return;
+    await wait(1000);
+  }
+  throw new Error(`Never saw ${what}.`);
+};
+
 const tap = (...point) => adb('shell', 'input', 'tap', String(Math.round(point[0])), String(Math.round(point[1])));
 const key = (code, times = 1) => { for (let i = 0; i < times; i++) adb('shell', 'input', 'keyevent', String(code)); };
 const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
@@ -53,8 +63,11 @@ const waitFor = async (what, read, tries = 30) => {
   throw new Error(`Never saw ${what}.`);
 };
 const visible = async (what, read, tries) => waitFor(`"${what}"`, read, tries);
+// Android reports the hint as the field's text while it is empty, so the hint is "blank".
+const HINT = "What's happening?";
 const composer = () => nodes().find(node => node.className === 'android.widget.EditText' && node.editable);
-const panel = () => nodes().find(node => /^Ownvoice/.test(node.label ?? '') && node.windowType !== 4);
+const composerText = () => { const text = composer()?.text; return !text || text === HINT ? '' : text; };
+const panelTitle = list => list.find(node => (node.text ?? '').startsWith(before ? 'Nothing to reply' : 'Start your post'));
 const bubble = () => {
   const node = nodes().find(item => item.windowType === 4 && /^Ownvoice(?:,|$)/.test(item.label));
   if (!node) throw new Error('Could not locate the accessible Ownvoice bubble.');
@@ -94,7 +107,9 @@ evidence('theme', theme);
 const fixtureApk = buildFixture(out);
 adb('shell', 'pm', 'uninstall', fixturePkg);
 execFileSync('adb', ['-s', serial, 'install', '-r', fixtureApk], { stdio: 'inherit' });
-execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
+// Install the app only when it is missing: reinstalling kills the process, and the offline
+// sign-in stand-in (e2e/first-run.mjs) keeps its connected state in memory, not on disk.
+if (!adb('shell', 'pm', 'path', pkg).includes('package:')) execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'logcat', '-c');
 const toggleService = async on => {
   const list = on ? [component] : ['com.example.disabled/NoService', component];
@@ -108,15 +123,30 @@ await wait(2500);
 
 // 2. The blank X-style composer: focused, empty, nothing on it about the post.
 adb('shell', 'monkey', '-p', fixturePkg, '-c', 'android.intent.category.LAUNCHER', '1');
-await visible('the blank composer', () => !!composer(), 20);
-if (composer().text) throw new Error('The fixture composer did not start empty.');
+await withNodes('the blank composer', list => !!list.find(node => node.className === 'android.widget.EditText' && node.editable), 20);
+if (composerText()) throw new Error('The fixture composer did not start empty.');
 shot('blank-composer');
 
 // 3. The bubble: the plain line that says there is nothing to work from, and the drafts.
+if (nodes().some(node => (node.text ?? '').startsWith('Start your post') || (node.text ?? '').startsWith('Nothing to reply'))) { key(4); await wait(2000); }
 bubble();
 await wait(2000);
-if (!before) await visible('the drafts panel', () => !!panel(), 20);
-else await visible('the panel', () => !!screenText().includes('write') , 20);
+// The offline sign-in stand-in keeps its connected state in memory, so restarting the app (a theme
+// flip does) ends it. Reconnect once through the app's own screen, then tap the bubble again.
+if (nodes().some(node => (node.text ?? '').includes("can't write drafts on its own"))) {
+  key(4);
+  await wait(1500);
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source');
+  await wait(6000);
+  nodes('Continue with ChatGPT');
+  for (let attempt = 0; attempt < 40 && !screenText().includes('is connected'); attempt++) await wait(1000);
+  if (!screenText().includes('is connected')) throw new Error('The offline sign-in did not reconnect.');
+  adb('shell', 'am', 'start', '-n', `${fixturePkg}/com.twitter.android.Composer`);
+  await wait(2500);
+  bubble();
+  await wait(2000);
+}
+await withNodes('the drafts panel', list => !!panelTitle(list), 25);
 shot('panel');
 const texts = nodes().map(node => node.text).filter(Boolean);
 
@@ -125,42 +155,37 @@ if (before) {
   process.exit(0);
 }
 
+const EDITED = 'What did I learn shipping offline notes?';
 const OPENINGS = ['What is this post about?', 'What is the one thing worth saying here?', 'What should a reader take from it?'];
 for (const opening of OPENINGS) if (!texts.includes(opening)) throw new Error(`The panel is missing an opening: ${opening}\n${texts.join(' | ')}`);
 if (!texts.some(text => text.includes('Nothing on screen to work from'))) throw new Error('The panel did not say plainly that it had nothing to work from.');
 if (texts.join(' ').match(/here are 3|viral|hook/i)) throw new Error('The panel sold hooks instead of asking for a topic.');
 
-// 4. Edit the first opening and insert exactly that text. The sheet swallows taps, so the
-//    controls are driven with DPAD + ENTER (the panel sequence in the verify-ownvoice skill).
+// 4. Edit the first opening and insert exactly that text.
 evidence('motion-start', 'ov-own-posts', 'edit-and-insert');
-key(4); // Back closes the keyboard so focus can leave the field.
-await wait(600);
-for (let attempt = 0; attempt < 14 && !nodes().some(node => node.text === 'Edit'); attempt++) { key(20); await wait(400); }
-const edit = nodes().find(node => node.text === 'Edit');
-if (!edit) throw new Error('Could not reach the first card\'s Edit.');
-key(66);
-await visible('the edit field', () => nodes().some(node => node.editable && node.windowType !== 4), 15);
+try {
+// The sheet swallows coordinate taps, so its controls are driven through the probe's own
+// ACTION_CLICK (the panel sequence in the verify-ownvoice skill uses DPAD where taps die).
+nodes('Edit'); // The first card in the tree is the one being edited.
+await withNodes('the opened editor', list => list.some(node => node.editable && node.windowType !== 4), 15);
 shot('editing');
 key(123); // MOVE_END, so the edit replaces the opening instead of appending to it.
-await wait(300);
+await wait(400);
 key(67, 45); // DEL back past the start.
-await wait(300);
-const EDITED = 'What did I learn shipping offline notes?';
+await wait(400);
+
 type(EDITED);
-await wait(1000);
+await wait(1200);
 shot('edited');
-const edited = nodes().find(node => node.editable && node.windowType !== 4);
-if (edited?.text !== EDITED) throw new Error(`The edit did not take (saw "${edited?.text ?? ''}").`);
-for (let attempt = 0; attempt < 14 && !nodes().some(node => node.text === 'Use this'); attempt++) { key(20); await wait(400); }
-key(66); // ENTER inserts the edited text.
-await wait(3000);
-evidence('motion-stop');
+if (nodes().find(node => node.editable && node.windowType !== 4)?.text !== EDITED) throw new Error('The edit did not take.');
+nodes('Use this'); // The edited card's own Use this: it is the first one in the tree.
+await wait(3500);
+} finally { evidence('motion-stop'); }
 shot('inserted');
 
 // 5. The read-back: the composer holds exactly the edited text, and nothing was posted.
-if (panel()) { key(4); await wait(1500); }
-const field = composer();
-if (field?.text !== EDITED) throw new Error(`The composer does not hold the edited text (saw "${field?.text ?? 'nothing'}").`);
+if (panelTitle(nodes())) { key(4); await wait(2000); }
+if (composerText() !== EDITED) throw new Error(`The composer does not hold the edited text (saw "${composerText() || 'nothing'}").`);
 if (!/insert result ok=true/.test(adb('logcat', '-d', '-s', 'OwnvoiceNative:I'))) throw new Error('The native module did not confirm the insertion.');
 shot('read-back');
-console.log(`Own-post proof on ${serial} (${avd}): blank composer -> three honest openings -> edited -> inserted and read back ("${field.text}"). Shots in ${out}.`);
+console.log(`Own-post proof on ${serial} (${avd}): blank composer -> three honest openings -> edited -> inserted and read back ("${composerText()}"). Shots in ${out}.`);

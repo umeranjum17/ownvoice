@@ -80,6 +80,27 @@ owner approval of npm trusted publishing/2FA remains a separate release hold.
 Do not repeat bootstrap publication or change working authentication settings.
 See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
 
+### Own post from a blank composer
+
+`Drafts.ownPrompt` / `ownSlotPrompt` (ChatGPT) and `phoneOwnPrompt` /
+`phoneOwnSlotPrompt` (phone writer) ask for three openings when the composer was
+left empty in a feed app. The screen behind it is not sent: nothing on an empty
+composer says what the post is about, so a draft that names a topic, claim,
+result, number, time, name or experience would be invented. The three slots in
+`OWN_SLOTS` all ask instead — what the post is about, what the one thing worth
+saying is, what a reader should take from it — and the prompt forbids hooks,
+urgency and "here are 3 openers". `own` carries the person's voice rules and the
+platform's length line, like the reply prompt.
+
+`Drafts.cleanOwn(draft, platform)` is the model-free acceptance every writer runs
+before a card reaches the screen: an opening is usable only when it ends with a
+question mark, adds no number or time (nothing on the empty screen can support
+one) and carries no `we`/`our`/`ours`, and fits the place's cap. An inventing or
+non-asking answer is dropped, leaving the panel's **Couldn't write any openers
+this time** with **Try again** rather than a made-up post. The same cards,
+ratings, tone line, **Why?**, edit-before-insert and Insert apply as elsewhere;
+Ownvoice still never posts.
+
 ### Reply samples (0.2.0 / protocol 2)
 
 Only replies explicitly pasted by the person belong in `Rules.samples`. Import
