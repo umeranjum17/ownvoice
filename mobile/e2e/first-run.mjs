@@ -104,21 +104,21 @@ const tapText = async (label, state = '') => {
   throw new Error(`Could not find visible ${label} ${state}.`);
 };
 
-// The first Insert pill defeats OCR in both modes (white on a filled pill), but its Why? sits on the same row
-// in plain text at the right. Read one 150 px band at a time from the panel's top down, cropped to that right
-// side (a full-width band with the pill in it reads as nothing), and tap Insert at the start of the first Why?'s row.
+// The first card's Insert pill defeats OCR in some modes (white on a filled pill), but the row still
+// reads its label next to Edit, so tap the centre of the first "Use this"/"Insert" label on screen.
 const tapInsert = async () => {
   for (let attempt = 0; attempt < 10; attempt++) {
     const image = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
-    for (let top = Math.round(height * .3); top < height - 150; top += 75) {
-      const input = execFileSync('magick', ['png:', '-crop', `${Math.round(width * .3)}x150+${Math.round(width * .62)}+${top}`, '+repage', 'png:-'], { input: image });
-      const tsv = execFileSync('tesseract', ['stdin', 'stdout', '--psm', '7', 'tsv'], { input, encoding: 'utf8' });
-      const why = tsv.split('\n').slice(1).map(row => row.split('\t')).find(c => c.length >= 12 && c[11].trim().toLowerCase().startsWith('why'));
-      if (why) { tap(Math.round(width * .18), Math.round(top + Number(why[7]) + Number(why[9]) / 2)); return; }
+    const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: image, encoding: 'utf8' });
+    for (const row of tsv.split('\n').slice(1)) {
+      const c = row.split('\t');
+      if (c.length < 12 || !/^(use|insert)/.test(c[11].trim().toLowerCase())) continue;
+      tap(Math.round(Number(c[6]) + Number(c[8]) / 2), Math.round(Number(c[7]) + Number(c[9]) / 2));
+      return;
     }
     await wait(1000);
   }
-  throw new Error('Could not find the first draft\'s Why?, so not its Insert either.');
+  throw new Error('Could not find the first draft\'s Insert.');
 };
 
 const bubbleVisible = () => {
@@ -211,7 +211,7 @@ const run = async mode => {
   await wait(2500);
 
   // 6. Setup comes back by itself once the service connects (B10), straight at the practice step.
-  await waitForLine('tap the round bubble');
+  await waitForLine('tap the bubble to polish it');
   await wait(800);
   expectPlain('try');
   snap(tag('06-try'));
@@ -220,12 +220,19 @@ const run = async mode => {
   if (/mInputShown=true/.test(ime)) throw new Error('The practice field opened the keyboard.');
   if (!bubbleVisible()) throw new Error('The bubble is not visible on the practice chat (practice allowance missing).');
 
-  // 7. The bubble, then Insert.
+  // 7. A typed reply, then the bubble: an empty box has nothing to polish, so the practice step
+  //    asks for a reply first and the panel polishes it.
+  const REPLY = 'yes saturday, I can bring the tent';
+  adb('shell', 'input', 'text', REPLY.replaceAll(' ', '%s'));
+  await wait(1200);
   bubble();
-  await waitForLine('pick one to put in your message'); // The drafts panel over the practice chat.
+  await waitForLine('pick one to use instead of what you wrote'); // The drafts panel over the practice chat.
   await wait(2500); // The drafts land before Insert can take one.
   await tapInsert();
   await wait(2500);
+  // The panel stays open over the practice step after an insert, so close it before the done copy.
+  adb('shell', 'input', 'keyevent', '4');
+  await wait(1500);
   await waitForLine('press send yourself');
   const doneText = screenText();
   // Full-screen OCR misses white-on-pill labels; the band-cropped tapText('Continue') below proves the button shows.

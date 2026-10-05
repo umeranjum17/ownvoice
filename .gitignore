@@ -10,6 +10,7 @@ mobile/android/
 .home/
 .avd/
 .gradle-home/
+.avd-home/
 .npmcache/
 .fm-logs/
 .fm-env.sh
@@ -19,6 +20,7 @@ mobile/android/
 .lab-*/
 mobile/.avd/
 mobile/.emu-home/
+mobile/.own-post/
 mobile/.build-*.log
 mobile/.rn08.log
 mobile/.rn08.pid

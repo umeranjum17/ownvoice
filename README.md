@@ -37,7 +37,7 @@ Ownvoice lives where you already write. It reads the screen only when you tap it
 
 ### Reply ideas, one tap away
 
-**Known limit in 1.0.3:** generic reply cards are withheld. Ownvoice cannot reliably check whether a new reply invents facts about you or someone else from the screen alone. An empty message box shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** No reply is generated, streamed, retried or offered to copy or insert, with either writer. Your voice notes describe style, not facts. No extra checker is used. The reply screenshots below show earlier behavior, not this release. Still open for 1.0.3: names in polished drafts keep their own check, which this release did not rerun, and the withheld path was only walked with no writer chosen, so the ChatGPT and phone writer routes are unrehearsed here.
+**Known limit in 1.0.3:** generic reply cards are withheld. Ownvoice cannot reliably check whether a new reply invents facts about you or someone else from the screen alone. An empty message box where there is something to reply to shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** A blank composer with nothing to answer asks for the one line instead (see [Start a post from a blank composer](#start-a-post-from-a-blank-composer)). No reply is generated, streamed, retried or offered to copy or insert, with either writer. Your voice notes describe style, not facts. No extra checker is used. The reply screenshots below show earlier behavior, not this release. Still open for 1.0.3: names in polished drafts keep their own check, which this release did not rerun, and the withheld path was only walked with no writer chosen, so the ChatGPT and phone writer routes are unrehearsed here.
 
 <p align="center">
   <img src="docs/readme/replies.webp" alt="Suggested replies to Sam's question about Saturday, each with Insert, Copy and Why?" width="300" />
@@ -52,6 +52,12 @@ Already typed something? The same tap shows your text with the stock phrases mar
 <p align="center">
   <img src="docs/readme/polish.webp" alt="Polish your message: the typed text with 'at the end of the day' marked, and three versions, one flagged 'A bit stock: 3 phrases you could say more simply'" width="300" />
 </p>
+
+### Start a post from a blank composer
+
+On X, LinkedIn, Reddit and the other feed apps, tapping the bubble in an **empty** composer shows **Start your post** and asks for one line: write what the post is about, then tap the bubble again.
+
+Nothing in an empty composer says what you want to write, so Ownvoice does not guess a topic and does not hand you a question to post in your place. Write one line — a note, a result, a thing you changed — and it drafts the post from that line in your own voice and your writing rules. From there it is the same panel as anywhere else: **Edit** changes the text, the checks follow your edit, and **Use this** puts exactly your text in the composer. You write the post and press Post yourself. Chat and mail composers are unaffected: they keep the empty state and the withheld reply above.
 
 ### Honest about every draft
 

@@ -639,5 +639,3 @@ test('an unreadable point check remains a transient failure, allowing fallback r
     expect(global.fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
-
-

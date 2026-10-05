@@ -56,39 +56,49 @@ const open = async (value: Capture, drafts = DRAFTS) => {
   return screen;
 };
 // Index 0 is the Yours card for the typed text; the rest are the landed drafts.
-const ratingsOf = (screen: Awaited<ReturnType<typeof open>>) => screen.queryAllByLabelText(/^Engagement on /).slice(1).map(node => node.props.accessibilityLabel as string);
-// A reply typed on X grows, and grow ranks the cards, so each card's rating is found by what it says, not where it sits.
-const ratingWith = (labels: string[], fact: string) => labels.find(label => label.includes(fact)) ?? '';
+const ratingsOf = (screen: Awaited<ReturnType<typeof open>>) => screen.queryAllByLabelText(/^(Engagement on |Stock wording)/).slice(1).map(node => node.props.accessibilityLabel as string);
 
-test('each X reply card shows its own engagement and stock-wording rating, and none rates a draft up', async () => {
+test('each X reply card shows only the checks that found something, and none rates a draft up', async () => {
   const labels = ratingsOf(await open(capture()));
+  // The question card asks a question, so it carries the engagement row and no stock row; the link
+  // card carries both (a link and flattery); the repeat carries only stock wording, not engagement.
   expect(labels).toHaveLength(3);
-  const [question, linked, repeat] = ['Asks a question', 'Has a link', 'Shares most of its wording with the post'].map(fact => ratingWith(labels, fact));
-  // A question mark is reported as a plain fact, never as a reason the reply will do well.
-  // With no Jev key the card keeps the text checks and says it can't rate the fit, never a made-up level.
-  expect(question).toBe("Engagement on X: Nothing flagged. Asks a question. Can't rate the fit right now. Text alone can't predict reach. Stock wording: None found.");
+  const [question, linked, repeat] = labels;
+  expect(question).toBe("Engagement on X: Nothing flagged. Asks a question. Text alone can't predict reach.");
   expect(linked).toMatch(/^Engagement on X: Worth a second look\. Has a link\./);
   expect(linked).toMatch(/Stock wording: Some\. “Great post!”: starts with flattery/);
-  // The repeat is a literal word-overlap fact under stock wording, not an engagement judgement.
-  expect(repeat).toMatch(/^Engagement on X: Nothing flagged\. Can't rate the fit right now\. Text alone can't predict reach\./);
-  expect(repeat).toContain("Stock wording: Some. Shares most of its wording with the post.");
+  // The repeat is a literal word-overlap fact under stock wording, not an engagement judgement, so it
+  // gets a stock row only.
+  expect(repeat).toMatch(/^Stock wording: Some\. Shares most of its wording with the post\.$/);
   for (const label of labels) {
-    expect(label).not.toMatch(/Helps|Adds something|until you post|viral|will get|\d/i);
+    expect(label).not.toMatch(/None found|rate the fit|Helps|Adds something|until you post|viral|will get/);
     expect(technicalWords.test(label)).toBe(false);
   }
 });
 
+test('a card with nothing to flag carries no rating rows at all', async () => {
+  const clean = await open(capture(), ['Purple turbines whisper banana logistics.']);
+  expect(ratingsOf(clean)).toEqual([]);
+});
+
+test('a clean card that could not read the post still says so', async () => {
+  const labels = ratingsOf(await open(capture({ conversation: '', nodes: [], fieldTop: null }), ['Purple turbines whisper banana logistics.']));
+  expect(labels).toHaveLength(1);
+  expect(labels[0]).toContain("Couldn't read the post to compare");
+  expect(labels[0]).not.toMatch(/None found|rate the fit/);
+});
+
 test('flattery with words the post never used is not rated up', async () => {
-  const label = ratingWith(ratingsOf(await open(capture(), [NONSENSE, DRAFTS[0], DRAFTS[2]])), 'Great post!');
-  expect(label).toMatch(/^Engagement on X: Nothing flagged\./);
-  expect(label).toMatch(/Stock wording: Some\. “Great post!”: starts with flattery/);
+  const [label] = ratingsOf(await open(capture(), [NONSENSE, DRAFTS[0], DRAFTS[2]]));
+  expect(label).toMatch(/^Stock wording: Some\. “Great post!”: starts with flattery/);
+  expect(label).not.toMatch(/Engagement on X/);
 });
 
 test('the post the writer drafted from counts as read even when the layout shows no post block', async () => {
   const labels = ratingsOf(await open(capture({ nodes: [], fieldTop: null })));
   expect(labels).toHaveLength(3);
   for (const label of labels) expect(label).not.toContain("Couldn't read the post");
-  expect(ratingWith(labels, 'Shares most of its wording with the post')).not.toBe('');
+  expect(labels[2]).toContain("Shares most of its wording with the post");
 });
 
 test('a new post with nothing on screen makes no parent comparison and reports no missing post', async () => {

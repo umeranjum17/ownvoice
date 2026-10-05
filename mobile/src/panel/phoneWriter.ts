@@ -26,7 +26,9 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const note = avoidLine(avoid);
   const engine = { ask: (prompt: string, maxTokens: number) => ask(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
   const landed = on.landed ?? (() => {});
-  if (!await canPolish(request.typed, prompt => ask(prompt, 8))) return { drafts: [], declined: true };
+  // A new post of his own starts from a line about the post, which is an instruction rather than a
+  // message waiting to be polished, so the clarity question does not apply there.
+  if (!request.newPost && !await canPolish(request.typed, prompt => ask(prompt, 8))) return { drafts: [], declined: true };
   const acceptor = await polishAcceptor(request.typed, dashes, avoid);
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   await rewrite(engine, request.typed, request.conversation, request.guide ?? '', (version, text) => {
@@ -53,6 +55,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
 async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, platform: request.platform };
+  const slots = slotsFor(request.platform);
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
@@ -87,11 +90,11 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     take(answer, true);
   } finally { subscription.remove(); }
   const fillStarted = Date.now();
-  const slots = slotsFor(request.platform);
   for (let slot = 0; slot < slots.length && Date.now() - fillStarted <= FILL_MS; slot++) {
     if (made[slot]) continue;
     try {
-      const [draft] = acceptReplies([await ask(phoneSlotPrompt(slots[slot], input, exclude), 120)], exclude, 1, dashes, controls);
+      const asked = phoneSlotPrompt(slots[slot], input, exclude);
+      const [draft] = acceptReplies([await ask(asked, 120)], exclude, 1, dashes, controls);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }
@@ -112,8 +115,6 @@ export const phoneWriter = {
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).
       const drafts = request.typed.includes('multiline draft')
         ? ["Saturday works.\nI'll bring the stove.", 'Sure, Saturday works. See you then.', 'What time should I arrive?']
-        : request.typed.includes('stock')
-        ? ['Yes, still on.', 'Saturday works.', "Let's delve in; at the end of the day, moving forward."]
         : ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
       if (request.typed.trim()) {
         const acceptor = await polishAcceptor(request.typed, request.dashes ?? 'remove', request.avoid ?? []);

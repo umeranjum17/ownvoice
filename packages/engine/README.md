@@ -80,6 +80,18 @@ owner approval of npm trusted publishing/2FA remains a separate release hold.
 Do not repeat bootstrap publication or change working authentication settings.
 See [npm trusted publishing](https://docs.npmjs.com/trusted-publishers/).
 
+### Own post from a blank composer
+
+A blank composer in a feed app is a new post with nothing to write from, so the
+engine offers no draft at all there: `words.ownNote` asks the person for the one
+line the post is about, and nothing else. Drafting starts from that line through
+the ordinary new-post path (`versionsList`, `polishAcceptor`, `rewrite`), so the
+post is written from what he actually said. A question offered as his post would
+be something he had to delete before posting, so no question prompt, slot or
+acceptance exists in this engine, and `DraftRequest` carries no own-post flag.
+`Panel.modeOf` in `mobile/` owns the decision to ask rather than draft; this
+engine only holds the words and the checks.
+
 ### Reply samples (0.2.0 / protocol 2)
 
 Only replies explicitly pasted by the person belong in `Rules.samples`. Import

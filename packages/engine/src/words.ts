@@ -11,6 +11,8 @@ export const words = {
   polishTitle:'Polish your message',
   toneSounds:'Sounds',
   postTitle:'Polish your post',
+  ownTitle:'Start your post',
+  ownNote:'Write one line about what your post is about, then tap the bubble again.',
   readyReply:'Pick one to put in your message box. You send it yourself.',
   readyPolish:'Pick one to use instead of what you wrote. You send it yourself.',
   noField:'Tap into the message box first to use Insert, or copy one.',
