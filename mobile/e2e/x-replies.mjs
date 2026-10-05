@@ -7,7 +7,7 @@
 // post shows the no-grounding withhold note instead of cards. Captures into
 // verify-artifacts/<task>/ through the skill's evidence.sh (theme/shot/motion helpers).
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned avd>, JAVA_HOME, SDK via
-// ANDROID_HOME. Args: <release-apk built with EXPO_PUBLIC_E2E_STUB=1> [task-slug].
+// ANDROID_HOME. Args: <release-apk (real-model build, no stub flags)> [task-slug].
 import { execFileSync } from 'node:child_process';
 import { readFileSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -18,7 +18,7 @@ import { accessibilityProbe, center } from './accessibility.mjs';
 const serial = process.env.ANDROID_SERIAL;
 if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (owner phones are refused).');
 const apk = process.argv[2];
-if (!apk) throw new Error('Pass the release APK path (EXPO_PUBLIC_E2E_STUB=1 build).');
+if (!apk) throw new Error('Pass the release APK path (real-model build, no stub flags).');
 const task = process.argv[3] ?? 'ov-x-replies';
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
 const evidence = (...args) => execFileSync('bash', [`${root}/.agents/skills/verify-ownvoice/evidence.sh`, ...args], { cwd: root, encoding: 'utf8' });
@@ -86,7 +86,7 @@ const { port } = page.address();
 adb('reverse', 'tcp:80', `tcp:${port}`);
 log(`fixture serving on host :${port}, device http://x.com/`);
 
-// ---- app install, service bind, setup-by-Back (writer source: phone stub) ----
+// ---- app install, service bind, setup-by-Back (writer source: phone real model) ----
 execFileSync('adb', ['-s', serial, 'logcat', '-c']);
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'pm', 'clear', pkg);
@@ -109,7 +109,7 @@ for (let round = 0; round < 10; round++) {
   if (screenText().includes('sound like you')) { adb('shell', 'input', 'keyevent', '4'); await wait(1500); break; }
   await wait(1500);
 }
-log('setup finished (phone writer, stubbed).');
+log('setup finished (phone writer, real model).');
 
 // ---- enable Chrome's bubble through the app's own UI ----
 const appRow = label => nodes().find(node => node.checkable && node.label === label);
