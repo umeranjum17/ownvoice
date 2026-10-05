@@ -6,13 +6,9 @@ export type PhoneCanWrite = 'ready' | 'needsDownload' | 'preparing' | 'cant';
 export async function phoneCanWrite(): Promise<PhoneCanWrite> {
   try {
     const state = await localModelState();
-    switch (state) {
-      case 'ready': return 'ready';
-      case 'not-installed': return agreedToDownload() ? 'preparing' : 'needsDownload';
-      case 'installing':
-      case 'installed':
-      case 'loading': return 'preparing';
-      default: return 'cant';
-    }
+    if (state === ('ready' as any)) return 'ready';
+    if (state === ('not-installed' as any)) return agreedToDownload() ? 'preparing' : 'needsDownload';
+    if (state === ('installing' as any) || state === ('installed' as any) || state === ('loading' as any)) return 'preparing';
+    return 'cant';
   } catch { return 'cant'; }
 }

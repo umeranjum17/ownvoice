@@ -43,7 +43,11 @@ export function createLocalStore(): InferModelStore {
       });
 
       if (o.signal) {
-        o.signal.addEventListener('abort', () => job.stop());
+        o.signal.addEventListener('abort', () => {
+          // react-native-fs downloadFile doesn't have a stop() method on the promise
+          // The promise cancels when we abort the signal, or we can use:
+          FS.stopDownload(job.jobId);
+        });
       }
 
       const result = await job.promise;

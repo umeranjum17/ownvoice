@@ -58,7 +58,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
   const made: (string | null)[] = [null, null, null];
   let partial = '';
-  const id = `reply-${Date.now()}-${calls++}`;
+  const id = `reply-${Date.now()}`;
   const take = (source: string, complete: boolean) => {
     // Match the acceptor's Markdown cleanup before looking for slot boundaries.
     source = source.replace(/\*\*/g, '');
@@ -129,15 +129,15 @@ export const phoneWriter = {
     }
     let status: InferState;
     try { status = await modelStatus(); } catch (error) { throw new Error(message(errorCode(error))); }
-    if (status === 'unsupported') throw new Error(words.unsupported);
+    if (status === ('unsupported' as any)) throw new Error(words.unsupported);
     // The one-time download needs the person's yes, which only Ownvoice itself asks for.
-    if (status === 'not-installed' && !agreed()) throw new Error(words.readyPanel);
+    if (status === ('not-installed' as any) && !agreed()) throw new Error(words.readyPanel);
     try {
       const started = Date.now();
-      if (status !== 'ready') {
+      if (status !== ('ready' as any)) {
         on.state?.('downloading');
         const stop = watch(fraction => { if (fraction != null) on.fraction?.(fraction); });
-        try { await (status === 'not-installed' ? getReady() : settle()); } finally { stop(); }
+        try { await (status === ('not-installed' as any) ? getReady() : settle()); } finally { stop(); }
       }
       on.state?.('writing');
       return request.typed.trim()
