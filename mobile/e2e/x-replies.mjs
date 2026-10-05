@@ -160,15 +160,32 @@ if (!urlBar) throw new Error('The URL bar does not read x.com: platform detectio
 log(`URL bar: ${urlBar.text}`);
 
 // ---- the reply journey: focus composer, tap bubble, cards, edit, insert ----
-const bubble = () => {
-  const node = nodes().find(node => node.windowType === 4 && /^Ownvoice(?:,|$)/.test(node.label));
-  if (!node) throw new Error('Could not locate the accessible Ownvoice bubble.');
-  return node;
+const bubble = async () => {
+  for (let attempt = 0; attempt < 30; attempt++) { // ~15s polling
+    const node = nodes().find(node => node.windowType === 4 && /^Ownvoice(?:,|$)/.test(node.label));
+    if (node) return node;
+    await wait(500);
+  }
+  throw new Error('Could not locate the accessible Ownvoice bubble.');
 };
 // Chrome exposes the contenteditable composer as an unlabeled editable EditText; the URL bar is
-// the other editable node and always carries the x.com URL in its text.
-const field = () => nodes().find(node => node.editable && !node.password && !/x\.com|https?:/i.test(node.text ?? ''));
-const panelButton = name => nodes().find(node => node.clickable && (node.text === name || node.label === name));
+// the other editable node and always carries the x.com URL in its text. Poll to handle state windows.
+const field = async () => {
+  for (let attempt = 0; attempt < 20; attempt++) { // ~10s polling
+    const node = nodes().find(node => node.editable && !node.password && !/x\.com|https?:|secure/i.test(node.text ?? ''));
+    if (node) return node;
+    await wait(500);
+  }
+  throw new Error('Could not find the composer field.');
+};
+const panelButton = async (name) => {
+  for (let attempt = 0; attempt < 20; attempt++) { // ~10s polling
+    const node = nodes().find(node => node.clickable && (node.text === name || node.label === name));
+    if (node) return node;
+    await wait(500);
+  }
+  return null; // panelButton may not exist (e.g., withhold note has no Edit button)
+};
 const panelText = phrase => nodes().some(node => `${node.text} ${node.label}`.includes(phrase));
 const shot = (screen, label, theme) => evidence('shot', task, screen, label, theme);
 // The size right now: the extreme leg changes it after the driver started.
@@ -218,7 +235,7 @@ const TYPED = 'This shipped so well';
 const verifyFixtureLive = async () => {
   if (!page.address()) throw new Error('Fixture server not listening (dead server).');
   await openFixture('');
-  const composer = field();
+  const composer = await field();
   if (!composer) {
     const text = screenText();
     if (text.includes('not secure') || text.includes('connection')) {
@@ -229,17 +246,17 @@ const verifyFixtureLive = async () => {
 };
 const journey = async (screen, theme, { motion = false, typed = false } = {}) => {
   await verifyFixtureLive();
-  const composer = field();
+  const composer = await field();
   tap(...center(composer));
   await wait(2200);
   if (typed) { type(TYPED); await wait(1500); }
   if (motion) evidence('motion-start', task, `${screen}-tap-to-inserted`);
-  tap(...center(bubble()));
+  tap(...center(await bubble()));
   await wait(1800);
   // Typed text gets the polish panel (Use this swaps in the improved version); an empty box
   // gets the reply cards. Both are the insert path: nothing may merge or wipe the box.
   const useThis = typed;
-  if (!panelButton('Edit')) throw new Error('No card with an Edit button appeared.');
+  if (!(await panelButton('Edit'))) throw new Error('No card with an Edit button appeared.');
   if (!panelText('X')) throw new Error('The panel does not name the X platform.');
   if (panelText('no text to build a reply on')) throw new Error('The withhold note showed on a grounded post.');
   shot(screen, 'cards', theme);
@@ -262,7 +279,7 @@ const journey = async (screen, theme, { motion = false, typed = false } = {}) =>
   if (!pillNow && !/send.{0,4}yourself|check it looks right/i.test(ocrPill())) throw new Error('The insert confirmation is not visible.');
   adb('shell', 'input', 'keyevent', '111'); // hides the keyboard (and the sheet) without leaving the page
   await wait(800);
-  if (panelButton('Insert') || panelButton('Edit')) { nodes('Close'); await wait(900); } // the panel's own X, if ESC only hid the keyboard
+  if ((await panelButton('Insert')) || (await panelButton('Edit'))) { nodes('Close'); await wait(900); } // the panel's own X, if ESC only hid the keyboard
   shot(screen, 'inserted', theme);
   if (motion) evidence('motion-stop');
   const logcat = adb('logcat', '-d', '-s', 'OwnvoiceNative:I', 'OwnvoiceService:I');
@@ -283,7 +300,7 @@ const journey = async (screen, theme, { motion = false, typed = false } = {}) =>
 const withhold = async (screen, theme) => {
   if (!page.address()) throw new Error('Fixture server not listening (dead server).');
   await openFixture('?case=notext', 'hours ago'); // the bar author rides above the composer, below any banner
-  const composer = field();
+  const composer = await field();
   if (!composer) {
     const text = screenText();
     if (text.includes('not secure') || text.includes('connection')) {
@@ -293,10 +310,10 @@ const withhold = async (screen, theme) => {
   }
   tap(...center(composer));
   await wait(2200);
-  tap(...center(bubble()));
+  tap(...center(await bubble()));
   await wait(1600);
   if (!panelText('no text to build a reply on')) throw new Error('The withhold note did not show on the no-text post.');
-  if (panelButton('Edit')) throw new Error('A card appeared for a post with no text to ground on.');
+  if (await panelButton('Edit')) throw new Error('A card appeared for a post with no text to ground on.');
   shot(screen, 'withheld', theme);
   nodes('Close');
   await wait(600);
