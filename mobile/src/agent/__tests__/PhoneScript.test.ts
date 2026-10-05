@@ -25,6 +25,7 @@ test('draft, check, revise with the problems, check, then the share card', async
   const out = await runAgent({ instructions: 'i', task: 'meet at 3', brain: localBrain(), approve, tools: tools(shared) });
   expect(mockAskLocal).toHaveBeenCalledTimes(2);
   expect(mockAskLocal.mock.calls[0][1]).toBe(256);
+  expect(mockAskLocal.mock.calls[1][1]).toBe(256);
   expect(mockAskLocal.mock.calls[0][0]).toMatch(/Write the note/);
   expect(mockAskLocal.mock.calls[1][0]).toMatch(/circle back/);
   expect(out.stop).toBe('done');

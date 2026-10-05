@@ -42,7 +42,7 @@ export async function getReady(allowMobileData?: boolean): Promise<void> {
       abortController?.abort();
       running = null;
       runningMobile = false;
-      try { await prev; } catch {}
+      try { await prev; } catch (e: any) { if (e?.name !== 'AbortError') throw e; }
       if (running) return running;
     } else return running;
   }
@@ -75,7 +75,8 @@ export async function settle(): Promise<void> {
 /** Resumes an agreed install that stopped (app closed, network returned). */
 export async function resume(): Promise<void> {
   if (!agreed() || running) return;
-  try { if ((await modelStatus()).phase === 'not-installed') await getReady(!!store.get<boolean>(MOBILE_KEY)); } catch {}
+  const state = await modelStatus();
+  if (state.phase === 'not-installed') await getReady(!!store.get<boolean>(MOBILE_KEY));
 }
 
 /** Removes the model and forgets consent and data choice. */

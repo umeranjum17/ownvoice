@@ -118,10 +118,17 @@ test('exact duplicate replies are dropped and their slots refilled with the show
     'What time were you thinking for Saturday?',
   ]);
   expect(mockAsk).toHaveBeenCalledTimes(3);
+  expect(mockAsk.mock.calls[0][1]).toBe(220);
+  expect(mockAsk.mock.calls[1][1]).toBe(220);
+  expect(mockAsk.mock.calls[2][1]).toBe(220);
   const retry = mockAsk.mock.calls[1][0];
   expect(retry).toContain("Don't repeat these: Yep, still on for Saturday. 👍.");
   expect(retry).toContain('Give a different answer: decline or suggest a change, kindly, still answering each point.');
+  expect(mockAsk.mock.calls[2][0]).toContain('Not sure yet');
   expect(landed.map(([, slot]) => slot)).toEqual([0, 1, 2]);
+  expect(drafts[0]).toContain('Saturday');
+  expect(drafts[1]).toContain('Sunday');
+  expect(drafts[2]).toContain('Saturday');
 });
 
 test('a rejected middle reply refills the decline slot without shifting the unsure slot', async () => {
@@ -130,9 +137,15 @@ test('a rejected middle reply refills the decline slot without shifting the unsu
   const landed: number[] = [];
   const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });
   expect(mockAsk).toHaveBeenCalledTimes(2);
+  expect(mockAsk.mock.calls[0][1]).toBe(220);
+  expect(mockAsk.mock.calls[1][1]).toBe(220);
   expect(mockAsk.mock.calls[1][0]).toContain('Give a different answer');
+  expect(mockAsk.mock.calls[1][0]).toContain('decline or suggest a change');
   expect(landed).toEqual([0, 2, 1]);
   expect(drafts).toEqual(['Yes, Saturday works; I can bring the stove.', 'No, Saturday works; I can bring the stove.', 'Not sure yet, what time?']);
+  expect(drafts[0]).toContain('Yes');
+  expect(drafts[1]).toContain('No');
+  expect(drafts[2]).toContain('Not sure');
 });
 
 test('one streamed response retains all labelled slots without retries', async () => {
@@ -142,6 +155,13 @@ test('one streamed response retains all labelled slots without retries', async (
   expect(drafts).toEqual(['Yes, I can bring it.', 'No, could we change the day?', 'Not sure; what time?']);
   expect(landed).toEqual([0, 1, 2]);
   expect(mockAsk).toHaveBeenCalledTimes(1);
+  expect(mockAsk.mock.calls[0][1]).toBe(220);
+  expect(mockAsk.mock.calls[0][0]).toContain('Draft 1:');
+  expect(mockAsk.mock.calls[0][0]).toContain('Draft 2:');
+  expect(mockAsk.mock.calls[0][0]).toContain('Draft 3:');
+  expect(drafts[0]).toContain('bring it');
+  expect(drafts[1]).toContain('change');
+  expect(drafts[2]).toContain('what time');
 });
 
 test('unlabelled continuation lines stay with their explicit draft', async () => {
@@ -153,6 +173,10 @@ test('unlabelled continuation lines stay with their explicit draft', async () =>
   const { drafts } = await phoneWriter.write(request());
   expect(drafts).toEqual(['Saturday works.\nI can bring the stove.\nSee you there.']);
   expect(mockAsk).toHaveBeenCalledTimes(3);
+  expect(mockAsk.mock.calls[0][1]).toBe(220);
+  expect(drafts[0]).toContain('Saturday');
+  expect(drafts[0]).toContain('stove');
+  expect(drafts[0]).toContain('See you');
 });
 
 test('inline labels fill their numbered slots after the time limit', async () => {
@@ -164,8 +188,15 @@ test('a late single labelled reply retries both missing slots', async () => {
   mockAsk.mockImplementationOnce(async () => { setClock(24000); return 'Draft 1: Yes, Saturday works.'; });
   mockAsk.mockImplementation(async (prompt: string) => prompt.includes('Give a different answer')
     ? 'No, could we meet Sunday?' : 'What time on Saturday?');
-  await expect(phoneWriter.write(request())).resolves.toEqual({ drafts: ['Yes, Saturday works.', 'No, could we meet Sunday?', 'What time on Saturday?'] });
+  const result = await phoneWriter.write(request());
+  expect(result).toEqual({ drafts: ['Yes, Saturday works.', 'No, could we meet Sunday?', 'What time on Saturday?'] });
   expect(mockAsk).toHaveBeenCalledTimes(3);
+  expect(mockAsk.mock.calls[0][1]).toBe(220);
+  expect(mockAsk.mock.calls[1][0]).toContain('Give a different answer');
+  expect(mockAsk.mock.calls[2][0]).toContain('Not sure yet');
+  expect(result.drafts[0]).toContain('Yes');
+  expect(result.drafts[1]).toContain('No');
+  expect(result.drafts[2]).toContain('What time');
 });
 
 test('an unlabelled line after two labels continues the second draft', async () => {
@@ -188,6 +219,7 @@ test('missing labelled first slot is retried without moving the other replies', 
   const landed: number[] = [];
   const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });
   expect(mockAsk).toHaveBeenCalledTimes(2);
+  expect(mockAsk.mock.calls[0][1]).toBe(220);
   expect(mockAsk.mock.calls[1][0]).toContain('Say yes or agree');
   expect(landed).toEqual([1, 2, 0]);
   expect(drafts).toEqual(['Yes, Saturday works.', 'No, Saturday is out.', 'Not sure yet, what time?']);
@@ -244,6 +276,7 @@ test('the shown avoid list never comes back (Write new ones)', async () => {
   const { drafts } = await phoneWriter.write(request({ avoid: ['Yep, still on for Saturday.'] }));
   expect(drafts).toEqual(['Fresh plan, happy to bring the stove.']);
   expect(mockAsk).toHaveBeenCalledTimes(3);
+  expect(mockAsk.mock.calls[0][1]).toBe(220);
   expect(mockAsk.mock.calls[1][0]).toContain("Don't repeat these: Yep, still on for Saturday.");
 });
 
