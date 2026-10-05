@@ -53,8 +53,10 @@ describe.each([
     });
     const screen = await render(<Panel writer={{ write }} />);
     const post = mode === 'compose';
+    // A reply typed under a post on X or Reddit grows into suggested replies.
+    const grow = !post && !!label;
     const publicScreen = post || !!label;
-    const title = publicScreen ? 'Polish your post' : 'Polish your message';
+    const title = grow ? 'Suggested replies' : publicScreen ? 'Polish your post' : 'Polish your message';
     await waitFor(() => expect(screen.getByText(label ? `${title} · ${label}` : title)).toBeTruthy());
     expect(write.mock.calls[0][0].guide).toBe(post ? 'End on a statement, not a question.' : '');
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Why?' }).length).toBeGreaterThan(card));

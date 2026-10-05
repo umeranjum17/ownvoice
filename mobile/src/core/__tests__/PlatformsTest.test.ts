@@ -109,8 +109,11 @@ test('reply prompts use the platforms slots', () => {
 
 test('the phone reply prompt stays under 700 characters of instructions on every platform', () => {
   for (const app of ['com.twitter.android', 'com.linkedin.android', 'com.reddit.frontpage', 'com.Slack', 'com.whatsapp', 'com.google.android.gm', 'com.example.other']) {
-    const prompt = phoneReplyPrompt({ latest: 'Sam: Saturday?', conversation: 'Sam: Saturday?', platform: platformForApp(app) });
-    expect(prompt.split('\n\nLatest message:')[0].length).toBeLessThanOrEqual(700);
+    // Grow adds their reply so far (`point`) on X and Reddit; the budget holds with it too.
+    for (const point of app === 'com.twitter.android' || app === 'com.reddit.frontpage' ? [undefined, 'Saturday works for me'] : [undefined]) {
+      const prompt = phoneReplyPrompt({ latest: 'Sam: Saturday?', conversation: 'Sam: Saturday?', point, platform: platformForApp(app) });
+      expect(prompt.split('\n\nLatest message:')[0].length).toBeLessThanOrEqual(700);
+    }
   }
 });
 

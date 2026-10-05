@@ -32,7 +32,7 @@ import { shape, space, type, useReducedMotion, useTheme } from '../ui/theme';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { phoneWriter } from './phoneWriter';
 
-type Mode = 'reply' | 'polish' | 'compose' | 'empty';
+type Mode = 'reply' | 'polish' | 'compose' | 'empty' | 'grow';
 
 /** What each reply card is for, in the order the writers fill that app's slots (platforms.ts). */
 const TAGS: Record<string, [string, string, string]> = {
@@ -61,10 +61,12 @@ const openPrefill = (platform: Platform, draft: Draft) => {
   else void Share.share({ message: text }).catch(() => {});
 };
 
-const modeOf = (typed: string, written: string): Mode =>
-  typed.trim() ? (Judge.replying(written) ? 'polish' : 'compose') : Judge.replying(written) ? 'reply' : 'empty';
-
 const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id === 'reddit';
+
+/** Their reply typed under a post on X or Reddit (the places the fit can rate) grows: their own text stays as Yours
+ *  and the replies, started from their point, are ranked for that place. With nothing typed the reply stays withheld. */
+const modeOf = (typed: string, written: string, platform: Platform): Mode =>
+  typed.trim() ? (Judge.replying(written) ? (namesPlatform(platform) ? 'grow' : 'polish') : 'compose') : Judge.replying(written) ? 'reply' : 'empty';
 
 /** The pulsing "Checking…" row while the model checks run; still when motion is reduced. */
 function Checking() {
@@ -192,7 +194,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const id = ++run.current;
     const rules = voice.current = loadVoice();
     const platform = platformForApp(value.app, value.nodes);
-    const nextMode = modeOf(value.typed, value.written);
+    const nextMode = modeOf(value.typed, value.written, platform);
+    const typed = value.typed.trim();
+    const grow = nextMode === 'grow';
     const post = nextMode === 'compose';
     const publicScreen = post || namesPlatform(platform);
     const person = Judge.who(value.written);
@@ -213,7 +217,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setWhys(new Map());
     setEdit(null);
     kind.current = null;
-    void findSlips(value.typed.trim(), id);
+    void findSlips(typed, id);
     if (nextMode === 'empty') {
       setNote(null); setPhase('ready'); return;
     }
@@ -227,8 +231,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     // What the reply answers: the post block when the layout shows one, else the screen text the
     // writer drafts from; '' only when nothing was read. A new post has no parent to compare with.
     const shownPost = postOf.current = post ? null : feedRead(value.nodes, value.fieldTop).post || value.conversation.trim();
-    const text = value.typed.trim();
-    setYours({ text, slot: -1, scores: Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(text, platform, shownPost, rules) });
+    setYours({ text: typed, slot: -1, scores: Judge.scoreDraft(typed, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(typed, platform, shownPost, rules) });
     void (async () => {
       let path: WriterRoute;
       try { path = writer ? { writer, note: null } : await select(value.app); }
@@ -243,7 +246,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           written: value.written,
           nodes: value.nodes,
           fieldTop: value.fieldTop ?? undefined,
-          typed: value.typed.trim(),
+          // Grow writes replies that start from their point; polish rewrites what they typed.
+          typed: grow ? '' : typed,
+          point: grow ? typed : undefined,
           platform,
           guide: voiceGuide(rules, post),
           dashes: dashesFor(rules, value.typed),
@@ -315,7 +320,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   // ---- Fit: one Jev call per tap rates every shown reply on X and Reddit; never per keystroke ----
   useEffect(() => {
-    if (phase !== 'ready' || mode !== 'polish' || !capture || !rated(platformOf.current)) return;
+    if (phase !== 'ready' || mode !== 'grow' || !capture || !rated(platformOf.current)) return;
     const id = run.current;
     if (fitFor.current === id) return;
     const texts = [...(yours?.text ? [yours.text] : []), ...shown.map(draft => draft.text)];
@@ -383,7 +388,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const title = mode == null ? words.writing
     : mode === 'polish' ? (namesPlatform(platform) ? words.postTitle : words.polishTitle)
     : mode === 'compose' ? words.postTitle
-    : mode === 'reply' ? (who ? `Reply to ${who}` : words.replyTitle)
+    : mode === 'reply' || mode === 'grow' ? (who ? `Reply to ${who}` : words.replyTitle)
     : words.nothingYet;
   const placeTitle = namesPlatform(platform) && mode !== 'empty' && mode != null ? `${title} · ${platform.label}` : title;
 
@@ -391,8 +396,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const mainNote = phase === 'failed' || phase === 'loading' ? note
     : phase === 'ready' && declined ? words.unclearPolish
     : phase === 'ready' && unchanged ? words.looksGoodNote
-    : phase === 'ready' && !shown.length ? (mode === 'reply' ? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
-    : phase === 'ready' ? (mode === 'reply' ? (hasField ? words.readyReply : words.noField) : words.readyPolish)
+    : phase === 'ready' && !shown.length ? (mode === 'reply' || mode === 'grow' ? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
+    : phase === 'ready' ? (mode === 'reply' || mode === 'grow' ? (hasField ? words.readyReply : words.noField) : words.readyPolish)
     : fraction != null ? words.gettingReady
     : words.writing;
 
@@ -401,7 +406,12 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const done = phase === 'ready' && unchanged;
   const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
+  const replies = mode === 'reply' || mode === 'grow';
+  // With their own text in the box (polish, grow) a card replaces it: Use this. An empty box takes a reply: Insert.
   const insertLabel = mode === 'reply' ? words.insert : words.useThis;
+  // Grow ranks the cards strongest first by their fit; each card keeps its slot, so its tag still names what it is for.
+  // Unrated cards sit below rated ones; ties keep slot order (sort is stable).
+  const listed = mode === 'grow' && fits.size ? [...shown].sort((a, b) => (fits.get(b.text)?.level ?? -1) - (fits.get(a.text)?.level ?? -1)) : cards;
   const prefill = prefillFor(platform);
   const coverDraft = why != null ? [...(yours ? [yours] : []), ...shown].find(draft => draft.slot === why) : undefined;
   const check = coverDraft ? whys.get(coverDraft.text) : undefined;
@@ -412,7 +422,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     mood={mood}
     onClose={() => { void Native.closePanel().catch(() => {}); }}
     cover={coverDraft ? {
-      title: mode === 'reply' ? words.whyReply : words.whyVersion,
+      title: replies ? words.whyReply : words.whyVersion,
       children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} />,
     } : undefined}
     onCloseCover={() => setWhy(null)}>
@@ -445,15 +455,15 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         </View>
       </Card>
     </View> : null}
-    {cards.map((card, slot) => {
-      if (!card) return phase === 'writing' ? <View key={slot} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
+    {listed.map((card, i) => {
+      if (!card) return phase === 'writing' ? <View key={`empty-${i}`} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
       const verdict = card.label ? null : distinctVerdict(card, shown);
       const exportBlocked = card.meaning?.ok === false;
-      const editing = edit?.slot === slot ? edit : null;
-      return <View key={slot} style={{ marginBottom: space.m }}>
-        <Card variant="outlined" label={card.label ?? (mode === 'reply' ? (TAGS[platform.id] ?? CHAT_TAGS)[card.slot] : undefined)}>
+      const editing = edit?.slot === card.slot ? edit : null;
+      return <View key={card.slot} style={{ marginBottom: space.m }}>
+        <Card variant="outlined" label={card.label ?? (replies ? (TAGS[platform.id] ?? CHAT_TAGS)[card.slot] : undefined)}>
           {editing
-            ? <TextInput accessibilityLabel={words.editField} multiline autoFocus value={editing.text} onChangeText={text => setEdit({ slot, text })}
+            ? <TextInput accessibilityLabel={words.editField} multiline autoFocus value={editing.text} onChangeText={text => setEdit({ slot: card.slot, text })}
               style={[type.body, { color: t.text, backgroundColor: t.raised, borderRadius: shape.card, paddingHorizontal: space.l, paddingVertical: space.m, minHeight: 88, textAlignVertical: 'top' }]} />
             : <Marked text={card.text} hits={card.scores.hits} />}
           {editing ? null : <ToneLine text={card.text} tones={tones} />}
@@ -469,7 +479,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />
             <View style={{ flex: 1 }} />
-            <Button kind="text" label={words.edit} onPress={() => setEdit({ slot, text: card.text })} />
+            <Button kind="text" label={words.edit} onPress={() => setEdit({ slot: card.slot, text: card.text })} />
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>}
         </Card>
