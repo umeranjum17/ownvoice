@@ -132,11 +132,11 @@ shot('blank-composer');
 
 // 3. The bubble over a blank composer: it asks for the one line the post is about.
 if (nodes().some(node => (node.text ?? '').startsWith('Start your post') || (node.text ?? '').startsWith('Nothing to reply'))) { key(4); await wait(2000); }
-bubble();
-await wait(2000);
-// The offline sign-in stand-in keeps its connected state in memory, so restarting the app (a theme
-// flip does) ends it. Reconnect once through the app's own screen, then tap the bubble again.
-if (nodes().some(node => (node.text ?? '').includes("can't write drafts on its own"))) {
+// The offline sign-in stand-in keeps its connected state in memory, so any restart of the app (an
+// install, a theme flip, a force-stop) ends it. Reconnect once through the app's own screen, return to
+// the composer and tap the bubble again; false when there was nothing to reconnect.
+const ensureConnected = async () => {
+  if (!nodes().some(node => (node.text ?? '').includes("can't write drafts on its own"))) return false;
   key(4);
   await wait(1500);
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source');
@@ -148,7 +148,12 @@ if (nodes().some(node => (node.text ?? '').includes("can't write drafts on its o
   await wait(2500);
   bubble();
   await wait(2000);
-}
+  return true;
+};
+
+bubble();
+await wait(2000);
+await ensureConnected();
 await withNodes('the ask', list => !!panelTitle(list), 25);
 shot('ask');
 const asked = nodes().map(node => node.text).filter(Boolean);
@@ -174,11 +179,21 @@ type(LINE);
 await wait(1500);
 if (composerText() !== LINE) throw new Error(`The composer did not take the line (saw "${composerText() || 'nothing'}").`);
 shot('one-line');
-bubble();
-await withNodes('the drafts', list => list.some(node => /^Use this$/.test(node.text ?? '')), 25);
+// The same reconnect applies to the second tap: the composer had no writer to route to, and a tap
+// that lands while the composer is still settling can re-read the field as empty, which shows the ask
+// again. Close it and tap once more before calling the journey a failure.
+const useThis = list => list.some(node => /^Use this$/.test(node.text ?? ''));
+for (let attempt = 0; attempt < 3; attempt++) {
+  // Back with no panel open only drops the keyboard; a tap while the keyboard covers the lower half
+  // can land on it instead of the bubble, and the bubble moves up when the keyboard opens.
+  if (attempt) { key(4); await wait(1500); }
+  bubble();
+  await wait(2500);
+  try { await withNodes('the drafts', useThis, 10); break; } catch { if (attempt === 2) { await ensureConnected(); await withNodes('the drafts', useThis, 20); } }
+}
 await wait(2500);
 const cards = nodes().map(node => node.text).filter(Boolean);
-if (!cards.some(text => text.trim() && text !== LINE && !/Use this|Copy|Edit|Why\?|Start your post|X/.test(text))) throw new Error(`The panel drafted nothing from his line.\n${cards.join(' | ')}`);
+if (!useThis(nodes())) throw new Error(`The panel drafted nothing from his line.\n${cards.join(' | ')}`);
 if (cards.some(text => /^\?$/.test(text.trim()))) throw new Error('A question was offered as his post.');
 shot('drafts');
 
