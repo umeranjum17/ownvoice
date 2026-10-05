@@ -15,11 +15,10 @@ const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested rewrite versions as JSON.';
 
 /** Draft/version arrays must have exactly `count` nonblank strings. `text` returns trimmed plain text. */
-async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch, signal?: AbortSignal): Promise<string[]> {
+async function ask(prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch): Promise<string[]> {
   let started = false;
   let marked = false;
   try {
-    if (signal?.aborted) throw signal.reason ?? new Error("aborted");
     await codexAuth();
     if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
     // The kit resolves credentials before calling its configured fetch. Associate this
@@ -39,7 +38,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
     }, signal => accounts.respond('owner', {
       instructions, input: prompt, model: CHATGPT_MODEL, signal, onText,
       text: key === 'text' ? { verbosity: 'low' } : { verbosity: 'low', format: { type: 'json_object' } },
-    }), signal);
+    }));
     if (key === 'text') {
       const line = text.trim();
       if (!line) throw new Error('ChatGPT could not answer.');

@@ -77,7 +77,8 @@ EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_JEV_KEY=stand-in
 EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18610` and run `node e2e/jev-proof.mjs
 e2e/jev-cases.json [out]` after setup with ChatGPT and Chrome switched on: Chrome
 maps x.com to the script's lab page, and each panel's levels and probabilities
-are read from the `ownvoice-fit` log line (no text is logged).
+are read from the `ownvoice-fit` log line (no text is logged). Load the model first: a
+cold load outlasts the 20 second deadline and the cards then say they can't rate.
 
 ### Card ratings
 
