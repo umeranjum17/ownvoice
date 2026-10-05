@@ -24,7 +24,6 @@ class RewriteActivity : ReactActivity() {
 
   override fun onDestroy() {
     if (current === this) current = null
-    PhoneModel.release()
     super.onDestroy()
   }
 

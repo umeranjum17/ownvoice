@@ -9,13 +9,13 @@ import { setSource } from '../../core/source';
 import { words, technicalWords } from '../../core/words';
 import { SendVeto } from '../../core/writers';
 import { CHATGPT_OFF } from '../../core/switch';
-import Native from '../../../modules/ownvoice-native';
-
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   modelStatus: jest.fn(async () => 'available'), bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: [] })),
 } }));
 
-const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
+import { localModelState } from '../../core/localModel';
+const mockLocalState = localModelState as jest.MockedFunction<typeof localModelState>;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 const call = (id: string, name: string, args: object): Call => ({ id, name, args: JSON.stringify(args) });
 const FIRST = 'Hi Sam, Saturday is out for me.';
@@ -67,15 +67,15 @@ let share: jest.SpyInstance;
 beforeEach(() => {
   kv.clear();
   jest.clearAllMocks();
-  native.modelStatus.mockResolvedValue('available');
+  mockLocalState.mockResolvedValue({ phase: 'ready' });
   share = jest.spyOn(Share, 'share').mockResolvedValue({ action: Share.sharedAction });
 });
 
 describe('without a paired computer (plan §7)', () => {
   test('ChatGPT chosen: the full loop, one plain line per step, a share card, then done', async () => {
     setSource('chatgpt');
-    const chatgpt = loop(), local = scripted();
-    await open({ plan,local });
+    const plan = loop(), local = scripted();
+    await open({ plan, local });
     await ask('Reply to Sam: can’t make Saturday, offer Sunday after 2.');
     expect(await screen.findByText(words.agentShareTitle)).toBeTruthy();
     // The card shows exactly the text that would leave the app, and nothing has gone yet.
@@ -94,8 +94,8 @@ describe('without a paired computer (plan §7)', () => {
 
   test('phone chosen and ready: the phone writes, and ChatGPT is never asked', async () => {
     setSource('phone');
-    const chatgpt = scripted(), local = loop();
-    await open({ plan,local });
+    const plan = scripted(), local = loop();
+    await open({ plan, local });
     await ask('Reply to Sam');
     expect(await screen.findByText(words.agentShareTitle)).toBeTruthy();
     expect(local.step).toHaveBeenCalledTimes(3);
@@ -103,12 +103,12 @@ describe('without a paired computer (plan §7)', () => {
   });
 
   test.each([
-    ['phone chosen but it can\'t write', () => { setSource('phone'); native.modelStatus.mockResolvedValue('unavailable'); }],
+    ['phone chosen but it can\'t write', () => { setSource('phone'); mockLocalState.mockResolvedValue({ phase: 'unsupported' }); }],
     ['nothing chosen', () => { setSource(null); }],
   ])('%s: choose how Ownvoice writes first, nothing is asked', async (_name, arrange) => {
     arrange();
-    const chatgpt = loop(), local = loop();
-    await open({ plan,local });
+    const plan = loop(), local = loop();
+    await open({ plan, local });
     expect(await screen.findByText(words.needWriterPanel)).toBeTruthy();
     expect(screen.queryByLabelText(words.agentAsk)).toBeNull();
     await fireEvent.press(screen.getByRole('button', { name: words.openOwnvoice }));
@@ -120,7 +120,7 @@ describe('without a paired computer (plan §7)', () => {
 
   test('a task that needs email or a calendar: one plain sentence, then the share card', async () => {
     setSource('chatgpt');
-    const chatgpt = scripted(
+    const plan = scripted(
       { text: '', calls: [call('c1', 'check_voice', { draft: LAST })] },
       { text: words.agentCant, calls: [call('c2', 'share_note', { title: 'Sam', body: LAST })] },
     );
@@ -138,8 +138,8 @@ describe('without a paired computer (plan §7)', () => {
     ['ChatGPT failing', new Error('HTTP 500 upstream'), words.gptFailedNoPhone],
   ])('%s with ChatGPT chosen: its plain line and Try again, never the phone instead', async (_name, error, line) => {
     setSource('chatgpt');
-    const chatgpt = scripted(error, ...[1, 2, 3].map(() => ({ text: FIRST, calls: [] }))), local = loop();
-    await open({ plan,local });
+    const plan = scripted(error, ...[1, 2, 3].map(() => ({ text: FIRST, calls: [] }))), local = loop();
+    await open({ plan, local });
     await ask('Reply to Sam');
     expect(await screen.findByText(line)).toBeTruthy();
     expect(local.step).not.toHaveBeenCalled();
@@ -153,7 +153,7 @@ describe('without a paired computer (plan §7)', () => {
 
 test('Not now: nothing is shared, nothing more is asked, and the draft stays', async () => {
   setSource('chatgpt');
-  const chatgpt = loop();
+  const plan = loop();
   await open({ plan });
   await ask('Reply to Sam');
   expect(await screen.findByText(words.agentShareTitle)).toBeTruthy();
@@ -168,7 +168,7 @@ test('Not now: nothing is shared, nothing more is asked, and the draft stays', a
 test('the step cap: one plain line and the latest draft, never a spinner', async () => {
   setSource('chatgpt');
   const again = (n: number) => ({ text: '', calls: [call(`c${n}`, 'check_voice', { draft: `Draft ${'x'.repeat(n)}` })] });
-  const chatgpt = scripted(...[1, 2, 3, 4, 5, 6, 7].map(again));
+  const plan = scripted(...[1, 2, 3, 4, 5, 6, 7].map(again));
   await open({ plan });
   await ask('Reply to Sam');
   expect(await screen.findByText(words.agentStopped)).toBeTruthy();

@@ -12,7 +12,7 @@ import Native from '../../../modules/ownvoice-native';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(async () => ({ ok: true, newlinesLost: false })), copy: jest.fn(),
-  modelStatus: jest.fn(async () => 'unavailable'), ask: jest.fn(), closePanel: jest.fn(), typingCheck: jest.fn(),
+  closePanel: jest.fn(), typingCheck: jest.fn(),
 } }));
 jest.mock('../../core/speller', () => ({
   speller: async () => {
@@ -23,6 +23,10 @@ jest.mock('../../core/speller', () => ({
 }));
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
+import { askLocal, localModelState } from '../../core/localModel';
+const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const TYPED = 'Its a good plan, I shoud be there by the the evening.';
 
 const renderPanel = async (typingOn: boolean) => {
@@ -75,8 +79,8 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
   const capture = { conversation, written: conversation, nodes: [], fieldTop: null, typed: 'I can definately bring the stove.', app: 'com.whatsapp', label: 'WhatsApp', at: 0, id: 'tap-regen', hasField: true };
   native.capture.mockResolvedValue(capture);
   native.typingCheck.mockResolvedValue(true);
-  native.modelStatus.mockResolvedValue('available');
-  native.ask.mockImplementation(async (_id, prompt) => prompt.startsWith('Below is the text') ? 'MESSAGE' :
+  mockState.mockResolvedValue({ phase: 'ready' });
+  mockAsk.mockImplementation(async (prompt) => prompt.startsWith('Below is the text') ? 'MESSAGE' :
     'GENERIC: 0\nSPECIFICITY: 10\nSPECIFIC: pass - names the stove\nCLEAR: pass - one clear point\nVOICE: pass - sounds like you\nFITS: pass - fits this chat\nCLAIMS: pass - makes nothing up\nANSWERS: pass - answers the question\nNEXT_STEP: pass - the time is clear');
   let writes = 0;
   const writer: Writer = { write: async (_request, events) => {

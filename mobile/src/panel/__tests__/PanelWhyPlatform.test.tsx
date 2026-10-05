@@ -11,10 +11,16 @@ import Native from '../../../modules/ownvoice-native';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(),
-  modelStatus: jest.fn(async () => 'available'), ask: jest.fn(), closePanel: jest.fn(),
+  closePanel: jest.fn(),
 } }));
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
+import { askLocal, localModelState } from '../../core/localModel';
+const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
+
+beforeEach(() => { mockState.mockResolvedValue({ phase: 'ready' }); });
 
 // 2900 characters: over X's 280 cap but inside LinkedIn's 3000.
 const LONG = `${'x'.repeat(2899)}.`;
@@ -33,7 +39,7 @@ const PASS_ANSWER = [
 
 test('Why? on a 2900-character LinkedIn draft keeps Right length for a post', async () => {
   native.capture.mockResolvedValue({ conversation: 'Sam: new role!', written: '', nodes: [], fieldTop: null, typed: LONG, app: 'com.linkedin.android', label: 'LinkedIn', at: 0, id: 'why-linkedin', hasField: true });
-  native.ask.mockImplementation(async (_id: string, prompt: string) => {
+  mockAsk.mockImplementation(async (prompt: string) => {
     if (prompt.includes('You check a reply draft')) return PASS_ANSWER;
     if (prompt.includes('Compare a rewrite')) return 'MEANING: pass';
     return 'POST';

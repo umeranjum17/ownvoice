@@ -12,7 +12,7 @@ import { words } from '../../core/words';
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
-  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}), modelStatus: jest.fn(async () => 'available') },
+  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}) },
 }));
 jest.mock('../accounts', () => {
   const actual = jest.requireActual('../accounts');
@@ -31,6 +31,9 @@ jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(asyn
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
+import { localModelState } from '../../core/localModel';
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const ready = status as jest.Mock;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 const offline = async () => { throw new Error('no network'); };
@@ -39,7 +42,7 @@ beforeEach(() => {
   kv.clear();
   jest.clearAllMocks();
   native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: ['com.reddit.frontpage'] });
-  native.modelStatus.mockResolvedValue('available');
+  mockState.mockResolvedValue({ phase: 'ready' });
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
   store.set(SOURCE_KEY, 'chatgpt');
 });
@@ -60,7 +63,7 @@ test('phone chosen means never ChatGPT, even when signed in', async () => {
 
 test('phone chosen on a phone that can no longer write says to choose first', async () => {
   store.set(SOURCE_KEY, 'phone');
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   const route = await gptRoute('com.twitter.android', jest.fn(offline));
   await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.needWriterPanel);
   expect(phoneWriter.write).not.toHaveBeenCalled();
@@ -279,7 +282,7 @@ test('an unreadable switch without a verified off choice uses a neutral phone re
 });
 
 test('an unreadable switch on a phone that cannot write says it did not answer', async () => {
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
   const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
     if (key === 'chatgpt-switch') throw new Error('unavailable');
@@ -406,7 +409,7 @@ test('an offline send falls back to the phone with the offline line', async () =
 });
 
 test('offline on a phone that cannot write says to connect instead', async () => {
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   const route = await gptRoute('com.twitter.android', offline);
   const originalFetch = global.fetch;
   global.fetch = jest.fn(async () => { throw new Error('fetch failed'); });

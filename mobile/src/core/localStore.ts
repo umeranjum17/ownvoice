@@ -30,6 +30,8 @@ export function createLocalStore(): InferModelStore {
       await FS.mkdir(dir, { NSURLIsExcludedFromBackupKey: true }).catch(() => {});
       const path = this.path(m);
 
+      // Android keeps the partial file but cannot resume it (resumeDownload is iOS-only), so an
+      // interrupted install downloads fresh; the kit still skips the download once the full file is there.
       const job = FS.downloadFile({
         fromUrl: m.url,
         toFile: path,
@@ -42,17 +44,15 @@ export function createLocalStore(): InferModelStore {
         },
       });
 
-      if (o.signal) {
-        o.signal.addEventListener('abort', () => {
-          // react-native-fs downloadFile doesn't have a stop() method on the promise
-          // The promise cancels when we abort the signal, or we can use:
-          FS.stopDownload(job.jobId);
-        });
-      }
-
-      const result = await job.promise;
-      if (result.statusCode !== 200) {
-        throw new Error(`Download failed: ${result.statusCode}`);
+      const onAbort = () => { FS.stopDownload(job.jobId); };
+      o.signal?.addEventListener('abort', onAbort);
+      try {
+        const result = await job.promise;
+        if (result.statusCode !== 200) {
+          throw new Error(`Download failed: ${result.statusCode}`);
+        }
+      } finally {
+        o.signal?.removeEventListener('abort', onAbort);
       }
     },
 

@@ -1,7 +1,9 @@
-import { LocalModel, model, stateWords, type InferState } from '@byokit/infer';
+import { LocalModel, model, type InferState } from '@byokit/infer';
 import { initLlama } from 'llama.rn';
+import Native from '../../modules/ownvoice-native';
 import { createLocalStore } from './localStore';
 import { store } from './store';
+import { words } from './words';
 
 /**
  * Singleton local model manager for @byokit/infer.
@@ -33,12 +35,15 @@ export async function localModelState(): Promise<InferState> {
   return local.check();
 }
 
-/** Install the local model with progress tracking. */
+/** Install the local model with progress tracking. Wi-Fi-only unless mobile data was chosen. */
 export async function installLocalModel(
   allowMobileData: boolean,
   onProgress: (fraction: number) => void,
   signal?: AbortSignal
 ): Promise<void> {
+  if (!allowMobileData && await Native.networkType().catch(() => 'other' as const) === 'cellular') {
+    throw new Error(words.readyStopped);
+  }
   const local = getLocalModel();
   await local.install({
     signal,

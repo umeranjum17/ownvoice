@@ -4,11 +4,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, render, waitFor } from '@testing-library/react-native';
 import Panel from '../Panel';
 import Native, { type Capture } from '../../../modules/ownvoice-native';
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
 import { words } from '../../core/words';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })), capture: jest.fn(),
-  modelStatus: jest.fn(async () => 'unavailable'), closePanel: jest.fn(),
+  closePanel: jest.fn(),
   typingCheck: jest.fn(async () => false),
 } }));
 

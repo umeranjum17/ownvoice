@@ -21,7 +21,7 @@ export function PhoneWriter() {
 
   const refresh = () => {
     setTick(n => n + 1);
-    void modelStatus().then(setModel).catch(() => setModel('unsupported' as InferState));
+    void modelStatus().then(setModel).catch(() => setModel({ phase: 'unsupported' }));
   };
   useEffect(() => {
     refresh();
@@ -32,13 +32,13 @@ export function PhoneWriter() {
   const remove = () => { setConfirming(false); setRemoveFailed(false); void removeDownload().catch(() => setRemoveFailed(true)).finally(refresh); };
 
   const yes = agreed();
-  const getting = model === ('installing' as any) || downloading();
-  const stopped = model === ('not-installed' as any) && yes && !getting;
-  const ask = model === ('not-installed' as any) && !yes;
-  const removable = model === ('ready' as any) && yes;
+  const getting = model?.phase === 'installing' || model?.phase === 'installed' || model?.phase === 'loading' || downloading();
+  const stopped = (model?.phase === 'not-installed' || model?.phase === 'failed') && yes && !getting;
+  const ask = (model?.phase === 'not-installed' || model?.phase === 'failed') && !yes;
+  const removable = model?.phase === 'ready' && yes;
   const line = (text: string, color = t.text) => <Text style={[type.note, styles.words, { color }]}>{text}</Text>;
 
-  if (model == null || model === ('unsupported' as any)) return null;
+  if (model == null || model.phase === 'unsupported') return null;
   if (ask) return <View style={styles.indent}>
     <Text style={[type.label, { color: t.text }]}>{words.readyTitle}</Text>
     {line(words.readyNote, t.muted)}

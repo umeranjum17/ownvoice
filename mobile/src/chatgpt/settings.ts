@@ -109,7 +109,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   const source = await getSource();
   // This phone was chosen but can no longer write: the panel says to choose again, as Home does
   // (stub builds pretend the phone writes).
-  if (source === 'phone') return !stubbed && await modelStatus().catch(() => null) === 'unavailable' ? { writer: needWriter, note: null } : { writer: phoneWriter, note: null };
+  if (source === 'phone') return !stubbed && (await modelStatus().catch(() => null))?.phase === 'unsupported' ? { writer: needWriter, note: null } : { writer: phoneWriter, note: null };
   const practice = isOwnApp(app);
   if (source == null) return practice ? { writer: phoneWriter, note: null } : { writer: needWriter, note: null };
   const state = await session.current();

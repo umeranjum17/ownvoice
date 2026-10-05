@@ -1,5 +1,5 @@
 import { askLocal } from '../core/localModel';
-import type { InferState } from '@byokit/infer';
+import { InferError, type InferState } from '@byokit/infer';
 import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
@@ -60,8 +60,6 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
   const made: (string | null)[] = [null, null, null];
-  let partial = '';
-  const id = `reply-${Date.now()}`;
   const take = (source: string, complete: boolean) => {
     // Match the acceptor's Markdown cleanup before looking for slot boundaries.
     source = source.replace(/\*\*/g, '');
@@ -82,12 +80,8 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
       });
     }
   };
-  try {
-    const answer = await ask(phoneReplyPrompt(input), 220);
-    take(answer, true);
-  } catch (error) {
-    throw error;
-  }
+  const answer = await ask(phoneReplyPrompt(input), 220);
+  take(answer, true);
   const fillStarted = Date.now();
   for (let slot = 0; slot < slots.length && Date.now() - fillStarted <= FILL_MS; slot++) {
     if (made[slot]) continue;
@@ -98,6 +92,18 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }
   return made.filter((text): text is string => !!text);
+}
+
+function failure(error: unknown): Error {
+  if (error instanceof Error && error.message === words.readyStopped) return error;
+  if (error instanceof InferError) {
+    if (error.code === 'busy') return new Error(words.busy);
+    if (error.code === 'no-space') return new Error(words.noSpace);
+    if (error.code === 'unsupported') return new Error(words.unsupported);
+    if (error.code === 'network') return new Error(words.offlineNoPhone);
+    if (error.code === 'not-installed') return new Error(words.readyPanel);
+  }
+  return new Error(message(errorCode(error)));
 }
 
 export const phoneWriter = {
@@ -129,23 +135,23 @@ export const phoneWriter = {
       return { drafts };
     }
     let status: InferState;
-    try { status = await modelStatus(); } catch (error) { throw new Error(message(errorCode(error))); }
-    if (status === ('unsupported' as any)) throw new Error(words.unsupported);
+    try { status = await modelStatus(); } catch (error) { throw failure(error); }
+    if (status.phase === 'unsupported') throw new Error(words.unsupported);
     // The one-time download needs the person's yes, which only Ownvoice itself asks for.
-    if (status === ('not-installed' as any) && !agreed()) throw new Error(words.readyPanel);
+    if ((status.phase === 'not-installed' || status.phase === 'failed') && !agreed()) throw new Error(words.readyPanel);
     try {
       const started = Date.now();
-      if (status !== ('ready' as any)) {
+      if (status.phase !== 'ready' && status.phase !== 'busy') {
         on.state?.('downloading');
         const stop = watch(fraction => { if (fraction != null) on.fraction?.(fraction); });
-        try { await (status === ('not-installed' as any) ? getReady() : settle()); } finally { stop(); }
+        try { await (status.phase === 'not-installed' || status.phase === 'failed' ? getReady() : settle()); } finally { stop(); }
       }
       on.state?.('writing');
       return request.typed.trim()
         ? await polish(request, on)
         : { drafts: await replies(request, on, started) };
     } catch (error) {
-      throw new Error(message(errorCode(error)));
+      throw failure(error);
     }
   },
 } satisfies Writer;

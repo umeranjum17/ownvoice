@@ -13,10 +13,11 @@ import Native, { type Capture } from '../../../modules/ownvoice-native';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(async () => {}), copy: jest.fn(),
-  modelStatus: jest.fn(async () => 'unavailable'), ask: jest.fn(), closePanel: jest.fn(),
+  closePanel: jest.fn(),
 } }));
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
 
 // Fictional X reply screen: the parent post's header, its body, the action row, then Umer's reply box at 900.
 const POST = 'Shipping one small fix beats another week polishing the launch page.';

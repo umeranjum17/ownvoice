@@ -24,6 +24,7 @@ jest.mock('../../chatgpt/accounts', () => ({
   reportFailure: jest.fn(),
 }));
 jest.mock('expo/fetch', () => ({ fetch: jest.fn() }));
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'ready' })), agreedToDownload: jest.fn(() => false) }));
 
 beforeEach(() => { jest.resetModules(); });
 

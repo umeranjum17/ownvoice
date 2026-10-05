@@ -1,4 +1,4 @@
-import { localModelState, installLocalModel, removeLocalModel, agreedToDownload, AGREED_KEY, MOBILE_KEY } from './localModel';
+import { getLocalModel, localModelState, installLocalModel, removeLocalModel, agreedToDownload, AGREED_KEY, MOBILE_KEY } from './localModel';
 import { store } from './store';
 import type { InferState } from '@byokit/infer';
 
@@ -11,7 +11,7 @@ export const agreed = agreedToDownload;
 
 // Emulator acceptance only (EXPO_PUBLIC_E2E_DOWNLOAD=1): pretend flow for walking the UI.
 const pretend = () => process.env.EXPO_PUBLIC_E2E_DOWNLOAD === '1';
-let pretendState: InferState = 'not-installed' as unknown as InferState;
+let pretendState: InferState = { phase: 'not-installed' };
 
 let running: Promise<void> | null = null;
 let runningMobile = false;
@@ -28,7 +28,8 @@ export function watch(on: (fraction: number | null) => void): () => void {
 export const downloading = () => running !== null;
 
 export async function modelStatus(): Promise<InferState> {
-  if (pretend()) return running ? ('installing' as unknown as InferState) : pretendState;
+  if (pretend()) return running ? { phase: 'installing' } : pretendState;
+  if (running) return getLocalModel().state;
   return localModelState();
 }
 
@@ -63,7 +64,7 @@ export async function getReady(allowMobileData?: boolean): Promise<void> {
 export async function settle(): Promise<void> {
   if (running) return running;
   for (let i = 0; i < 120; i++) {
-    try { if (await modelStatus() !== ('installing' as unknown as InferState)) return; } catch { return; }
+    try { if ((await modelStatus()).phase !== 'installing') return; } catch { return; }
     await new Promise(done => setTimeout(done, 1000));
   }
 }
@@ -71,12 +72,12 @@ export async function settle(): Promise<void> {
 /** Resumes an agreed install that stopped (app closed, network returned). */
 export async function resume(): Promise<void> {
   if (!agreed() || running) return;
-  try { if (await modelStatus() === ('not-installed' as unknown as InferState)) await getReady(!!store.get<boolean>(MOBILE_KEY)); } catch {}
+  try { if ((await modelStatus()).phase === 'not-installed') await getReady(!!store.get<boolean>(MOBILE_KEY)); } catch {}
 }
 
 /** Removes the model and forgets consent and data choice. */
 export async function removeDownload(): Promise<void> {
-  if (pretend()) { pretendState = 'not-installed' as unknown as InferState; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
+  if (pretend()) { pretendState = { phase: 'not-installed' }; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
   abortController?.abort();
   await removeLocalModel();
 }
@@ -89,7 +90,7 @@ function pretendDownload(): Promise<void> {
       tell(fraction);
       if (fraction < 1) return;
       clearInterval(id);
-      pretendState = 'ready' as unknown as InferState;
+      pretendState = { phase: 'ready' };
       done();
     }, 300);
   });

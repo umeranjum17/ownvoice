@@ -9,7 +9,7 @@ import { IncompleteError, ResponseError } from '@byokit/accounts';
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
-  default: { bubbleRules: jest.fn(async () => null), setBubbleRules: jest.fn(async () => {}), modelStatus: jest.fn(async () => 'available') },
+  default: { bubbleRules: jest.fn(async () => null), setBubbleRules: jest.fn(async () => {}) },
 }));
 jest.mock('../../chatgpt/accounts', () => {
   const actual = jest.requireActual('../../chatgpt/accounts');
@@ -26,6 +26,7 @@ jest.mock('../../chatgpt/accounts', () => {
   };
 });
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'ready' })), agreedToDownload: jest.fn(() => false) }));
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['a', 'b', 'c'] })) } }));
 jest.mock('../../core/source', () => ({ getSource: jest.fn(async () => 'chatgpt') }));
 jest.mock('../../chatgpt/session', () => ({

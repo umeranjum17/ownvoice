@@ -302,14 +302,13 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   }, [writer, select, findSlips]);
 
   useEffect(() => {
-    const progress = Native.addListener('onModelProgress', ({ fraction: value }) => setFraction(value));
     void Native.capture().then(value => {
       setCapture(value);
       if (!value) { setPhase('failed'); setNote(words.noCapture); return; }
       setWho(Judge.who(value.written));
       start(value);
     }).catch(() => { setPhase('failed'); setNote(words.noCapture); });
-    return () => { ++run.current; progress.remove(); };
+    return () => { ++run.current; };
   }, [start]);
 
   // ---- Tone line (package 4): one batched writer call per tap names every shown text's tone; never per keystroke ----

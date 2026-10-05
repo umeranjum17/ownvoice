@@ -13,10 +13,11 @@ import { words } from '../../core/words';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(),
-  modelStatus: jest.fn(async () => 'unavailable'), ask: jest.fn(), closePanel: jest.fn(),
+  closePanel: jest.fn(),
 } }));
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
 // What the service captures in a Gmail reply compose: the long subject lives in an
 // editable field off focus, so `written` holds only the short header labels while
 // `conversation` still carries the subject line.

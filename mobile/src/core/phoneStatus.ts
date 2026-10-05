@@ -5,10 +5,14 @@ export type PhoneCanWrite = 'ready' | 'needsDownload' | 'preparing' | 'cant';
 /** Whether the local on-device writer can draft: ready, waiting for download consent, installing, or unavailable. */
 export async function phoneCanWrite(): Promise<PhoneCanWrite> {
   try {
-    const state = await localModelState();
-    if (state === ('ready' as any)) return 'ready';
-    if (state === ('not-installed' as any)) return agreedToDownload() ? 'preparing' : 'needsDownload';
-    if (state === ('installing' as any) || state === ('installed' as any) || state === ('loading' as any)) return 'preparing';
-    return 'cant';
+    switch ((await localModelState()).phase) {
+      case 'ready':
+      case 'busy': return 'ready';
+      case 'not-installed': return agreedToDownload() ? 'preparing' : 'needsDownload';
+      case 'installing':
+      case 'installed':
+      case 'loading': return 'preparing';
+      default: return 'cant';
+    }
   } catch { return 'cant'; }
 }

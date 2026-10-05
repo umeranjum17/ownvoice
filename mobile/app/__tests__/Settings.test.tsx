@@ -19,7 +19,7 @@ import { loadVoice } from '../../src/core/voiceStore';
 jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: {
-    serviceState: jest.fn(), turnOff: jest.fn(), modelStatus: jest.fn(), downloadModel: jest.fn(), deleteModel: jest.fn(), cancelModelDownload: jest.fn(),
+    serviceState: jest.fn(), turnOff: jest.fn(),
     bubbleRules: jest.fn(), setBubbleRules: jest.fn(), launcherApps: jest.fn(), takeTapFacts: jest.fn(),
     clearTapFacts: jest.fn(), forget: jest.fn(), addListener: jest.fn(), sharedMarkdown: jest.fn(), finishRewrite: jest.fn(),
     typingCheck: jest.fn(), setTypingCheck: jest.fn(),
@@ -40,6 +40,20 @@ const gpt = session as jest.Mocked<typeof session>;
 const connected: GptState = { ...nothing, signedIn: true, note: 'ChatGPT is connected.' };
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../src/core/localModel', () => ({
+  AGREED_KEY: 'local-model-agreed',
+  MOBILE_KEY: 'local-model-mobile-data',
+  getLocalModel: jest.fn(() => ({ state: { phase: 'installing' } })),
+  localModelState: jest.fn(),
+  agreedToDownload: jest.fn(),
+  installLocalModel: jest.fn(),
+  removeLocalModel: jest.fn(),
+}));
+import { agreedToDownload, installLocalModel, localModelState, removeLocalModel } from '../../src/core/localModel';
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
+const mockAgreed = agreedToDownload as jest.MockedFunction<typeof agreedToDownload>;
+const mockInstall = installLocalModel as jest.MockedFunction<typeof installLocalModel>;
+const mockRemove = removeLocalModel as jest.MockedFunction<typeof removeLocalModel>;
 const picker = jest.requireMock('expo-file-system').File as { pickFileAsync: jest.Mock };
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 const show = async (element: React.ReactElement) => render(element);
@@ -62,7 +76,10 @@ beforeEach(() => {
   for (const method of Object.values(native)) if (jest.isMockFunction(method)) method.mockReset();
   picker.pickFileAsync.mockReset();
   native.serviceState.mockResolvedValue('on');
-  native.modelStatus.mockResolvedValue('available');
+  mockState.mockResolvedValue({ phase: 'ready' });
+  mockAgreed.mockImplementation(() => kv.get(AGREED_KEY) === 'true');
+  mockInstall.mockResolvedValue(undefined);
+  mockRemove.mockImplementation(async () => { kv.delete(AGREED_KEY); });
   native.bubbleRules.mockResolvedValue(rules);
   native.setBubbleRules.mockResolvedValue(undefined);
   native.launcherApps.mockResolvedValue(apps);
@@ -70,8 +87,6 @@ beforeEach(() => {
   native.clearTapFacts.mockResolvedValue(undefined);
   native.forget.mockResolvedValue(undefined);
   native.turnOff.mockResolvedValue(undefined);
-  native.downloadModel.mockResolvedValue(undefined);
-  native.deleteModel.mockResolvedValue(undefined);
   native.typingCheck.mockResolvedValue(false);
   native.setTypingCheck.mockResolvedValue(undefined);
   (native.addListener as jest.Mock).mockReturnValue({ remove: () => {} });
@@ -124,7 +139,7 @@ test('off shows a Turn on button that opens the permission screen', async () => 
 });
 
 test('the card gets ready with a bar, never a number', async () => {
-  native.modelStatus.mockResolvedValue('downloading');
+  mockState.mockResolvedValue({ phase: 'installing' });
   const screen = await show(<Home />);
   expect(await screen.findByText(words.statusGettingReady)).toBeTruthy();
   expect(screen.getByText(words.gettingReady)).toBeTruthy();
@@ -133,15 +148,15 @@ test('the card gets ready with a bar, never a number', async () => {
 
 test('off hides Try again even when the model is not ready', async () => {
   native.serviceState.mockResolvedValue('off');
-  native.modelStatus.mockResolvedValue('downloadable');
+  mockState.mockResolvedValue({ phase: 'not-installed' });
   const screen = await show(<Home />);
   expect(await screen.findByText(words.statusOff)).toBeTruthy();
   expect(screen.queryByText(words.tryAgain)).toBeNull();
-  expect(native.downloadModel).not.toHaveBeenCalled();
+  expect(mockInstall).not.toHaveBeenCalled();
 });
 
 test('a phone that cannot write asks how Ownvoice should write, never a dead end', async () => {
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   kv.set(SOURCE_KEY, '"phone"');
   const screen = await show(<Home />);
   expect(await screen.findByText(words.needWriter)).toBeTruthy();
@@ -153,7 +168,7 @@ test('a phone that cannot write asks how Ownvoice should write, never a dead end
   expect(storedSource()).toBeNull();
   await fireEvent.press(screen.getByText(words.gptButton));
   expect(router.push).toHaveBeenCalledWith('/source?start=chatgpt');
-  expect(native.downloadModel).not.toHaveBeenCalled();
+  expect(mockInstall).not.toHaveBeenCalled();
 });
 
 test('nothing chosen on a phone that can write offers the choice', async () => {
@@ -182,7 +197,7 @@ test('Home says who writes, and one row leads to How Ownvoice writes', async () 
 });
 
 test('ChatGPT chosen and connected on a phone that cannot write reads ready, never the old dead end', async () => {
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   kv.set(SOURCE_KEY, '"chatgpt"');
   gpt.current.mockResolvedValue(connected);
   const screen = await show(<Home />);
@@ -196,7 +211,7 @@ test('ChatGPT chosen and connected on a phone that cannot write reads ready, nev
 });
 
 test('bubble only in Gmail, Gmail kept on a phone that cannot write: Home says it can\'t write in Gmail and offers the fix', async () => {
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.google.android.gm'], off: ['com.whatsapp', 'com.netflix.netflix', 'com.android.chrome'] });
   kv.set(SOURCE_KEY, '"chatgpt"');
   kv.set(PHONE_ONLY_KEY, '["com.google.android.gm"]');
@@ -220,7 +235,7 @@ test('an app kept on the phone only blocks readiness when this phone really can\
 });
 
 test('Gmail kept on a phone that still needs its one-time download: Home asks first, with the size, and never says ready', async () => {
-  native.modelStatus.mockResolvedValue('downloadable');
+  mockState.mockResolvedValue({ phase: 'not-installed' });
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.google.android.gm'], off: ['com.whatsapp', 'com.netflix.netflix', 'com.android.chrome'] });
   kv.set(SOURCE_KEY, '"chatgpt"');
   kv.set(PHONE_ONLY_KEY, '["com.google.android.gm"]');
@@ -230,17 +245,17 @@ test('Gmail kept on a phone that still needs its one-time download: Home asks fi
   expect(screen.getByText(words.cantWriteReadyNote)).toBeTruthy();
   expect(screen.queryByText(words.statusReady)).toBeNull();
   await act(async () => { await Promise.resolve(); });
-  expect(native.downloadModel).not.toHaveBeenCalled();
+  expect(mockInstall).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByText(words.cantWriteFix));
   expect(router.push).toHaveBeenCalledWith('/phone-apps');
   // Get it ready is the yes, given right where the size shows.
   await fireEvent.press(screen.getByText(words.getReady));
-  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+  await waitFor(() => expect(mockInstall).toHaveBeenCalledWith(false, expect.any(Function), expect.any(AbortSignal)));
   expect(kv.get(AGREED_KEY)).toBe('true');
 });
 
 test('Home never says ready before it knows whether this phone can write', async () => {
-  native.modelStatus.mockReturnValue(new Promise(() => {}));
+  mockState.mockReturnValue(new Promise(() => {}) as Promise<{ phase: 'ready' }>);
   const screen = await show(<Home />);
   expect(await screen.findByText(words.statusChecking)).toBeTruthy();
   await act(async () => { await Promise.resolve(); });
@@ -271,7 +286,7 @@ test.each([['writing'], ['chatgpt']])('the old %s page lands on How Ownvoice wri
 });
 
 test('a phone that needs its download asks first, with the size, and downloads nothing on its own', async () => {
-  native.modelStatus.mockResolvedValue('downloadable');
+  mockState.mockResolvedValue({ phase: 'not-installed' });
   const screen = await show(<Home />);
   expect(await screen.findByText(words.readyTitle)).toBeTruthy();
   expect(screen.getByText(words.readyNote)).toBeTruthy();
@@ -279,27 +294,27 @@ test('a phone that needs its download asks first, with the size, and downloads n
   expect(screen.queryByText(words.gettingReady)).toBeNull();
   expect(screen.queryByText(words.tryAgain)).toBeNull();
   await act(async () => { await Promise.resolve(); });
-  expect(native.downloadModel).not.toHaveBeenCalled();
+  expect(mockInstall).not.toHaveBeenCalled();
   expect(kv.has(AGREED_KEY)).toBe(false);
 });
 
 test('with ChatGPT chosen, Home never asks for the phone download', async () => {
   kv.set(SOURCE_KEY, '"chatgpt"');
   gpt.current.mockResolvedValue(connected);
-  native.modelStatus.mockResolvedValue('downloadable');
+  mockState.mockResolvedValue({ phase: 'not-installed' });
   const screen = await show(<Home />);
   expect(await screen.findByText(words.statusReady)).toBeTruthy();
   expect(screen.queryByText(words.getReady)).toBeNull();
 });
 
 test('Get it ready is the yes: it downloads on Wi-Fi with a bar, and Home is ready after', async () => {
-  native.modelStatus.mockResolvedValueOnce('downloadable').mockResolvedValue('available');
+  mockState.mockResolvedValueOnce({ phase: 'not-installed' }).mockResolvedValue({ phase: 'ready' });
   let finish!: () => void;
   let progress!: (fraction: number) => void;
-  native.downloadModel.mockImplementation((_opts, onProgress) => new Promise(resolve => { finish = resolve; progress = onProgress; }));
+  mockInstall.mockImplementation((_mobile, onProgress) => new Promise<void>(resolve => { finish = resolve; progress = onProgress; }));
   const screen = await show(<Home />);
   await fireEvent.press(await screen.findByText(words.getReady));
-  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+  await waitFor(() => expect(mockInstall).toHaveBeenCalledWith(false, expect.any(Function), expect.any(AbortSignal)));
   expect(kv.get(AGREED_KEY)).toBe('true');
   expect(await screen.findByText(words.statusGettingReady)).toBeTruthy();
   await act(async () => { progress(0.4); });
@@ -310,19 +325,19 @@ test('Get it ready is the yes: it downloads on Wi-Fi with a bar, and Home is rea
 
 test('a stopped download says what to do, and can use mobile data instead', async () => {
   kv.set(AGREED_KEY, 'true');
-  native.modelStatus.mockResolvedValue('downloadable');
-  native.downloadModel.mockRejectedValueOnce(new Error('not on Wi-Fi'));
+  mockState.mockResolvedValue({ phase: 'not-installed' });
+  mockInstall.mockRejectedValueOnce(new Error('not on Wi-Fi'));
   const screen = await show(<Home />);
   // The agreed download picks up by itself on the way in, and stops without Wi-Fi.
-  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+  await waitFor(() => expect(mockInstall).toHaveBeenCalledWith(false, expect.any(Function), expect.any(AbortSignal)));
   expect(await screen.findByText(words.readyStopped)).toBeTruthy();
   expect(screen.getByText(words.tryAgain)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.useMobileData));
-  await waitFor(() => expect(native.downloadModel).toHaveBeenLastCalledWith({ allowMobileData: true }, expect.any(Function)));
+  await waitFor(() => expect(mockInstall).toHaveBeenLastCalledWith(true, expect.any(Function), expect.any(AbortSignal)));
 });
 
 test('Settings asks for the download only where this phone is the chosen writer', async () => {
-  native.modelStatus.mockResolvedValue('downloadable');
+  mockState.mockResolvedValue({ phase: 'not-installed' });
   kv.set(SOURCE_KEY, '"chatgpt"');
   const chatgpt = await show(<Source />);
   await act(async () => { await Promise.resolve(); });
@@ -333,23 +348,23 @@ test('Settings asks for the download only where this phone is the chosen writer'
   expect(await screen.findByText(words.readyTitle)).toBeTruthy();
   expect(screen.getByText(words.readyNote)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.getReady));
-  await waitFor(() => expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function)));
+  await waitFor(() => expect(mockInstall).toHaveBeenCalledWith(false, expect.any(Function), expect.any(AbortSignal)));
   expect(kv.get(AGREED_KEY)).toBe('true');
 });
 
 test('Free up space removes the download after a second tap, and the phone asks again', async () => {
   kv.set(AGREED_KEY, 'true');
   kv.set(SOURCE_KEY, '"phone"');
-  native.modelStatus.mockResolvedValue('available');
+  mockState.mockResolvedValue({ phase: 'ready' });
   const screen = await show(<Source />);
   await fireEvent.press(await screen.findByText(words.removeRow));
   expect(screen.getByText(words.removeAsk)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.removeNo));
-  expect(native.deleteModel).not.toHaveBeenCalled();
-  native.modelStatus.mockResolvedValue('downloadable');
+  expect(mockRemove).not.toHaveBeenCalled();
+  mockState.mockResolvedValue({ phase: 'not-installed' });
   await fireEvent.press(screen.getByText(words.removeRow));
   await fireEvent.press(screen.getByText(words.removeYes));
-  await waitFor(() => expect(native.deleteModel).toHaveBeenCalled());
+  await waitFor(() => expect(mockRemove).toHaveBeenCalled());
   expect(kv.has(AGREED_KEY)).toBe(false);
   expect(await screen.findByText(words.readyTitle)).toBeTruthy();
 });
@@ -357,8 +372,8 @@ test('Free up space removes the download after a second tap, and the phone asks 
 test('a failed Free up space keeps the card and says so plainly', async () => {
   kv.set(AGREED_KEY, 'true');
   kv.set(SOURCE_KEY, '"phone"');
-  native.modelStatus.mockResolvedValue('available');
-  native.deleteModel.mockRejectedValueOnce(new Error('locked'));
+  mockState.mockResolvedValue({ phase: 'ready' });
+  mockRemove.mockRejectedValueOnce(new Error('locked'));
   const screen = await show(<Source />);
   await fireEvent.press(await screen.findByText(words.removeRow));
   await fireEvent.press(screen.getByText(words.removeYes));
@@ -368,22 +383,21 @@ test('a failed Free up space keeps the card and says so plainly', async () => {
 });
 
 test('a writer the phone came with has nothing to remove', async () => {
-  native.modelStatus.mockResolvedValue('available');
+  mockState.mockResolvedValue({ phase: 'ready' });
   const screen = await show(<Source />);
   await act(async () => { await Promise.resolve(); });
   expect(screen.queryByText(words.removeRow)).toBeNull();
 });
 
 test('a setup download finishing refreshes Home without a foreground change', async () => {
-  let settled!: () => void;
-  (native.addListener as jest.Mock).mockImplementation((name, callback) => {
-    if (name === 'onModelSettled') settled = callback;
-    return { remove: () => {} };
-  });
-  native.modelStatus.mockResolvedValueOnce('downloading').mockResolvedValue('available');
+  let finish!: () => void;
+  mockInstall.mockImplementation(() => new Promise<void>(resolve => { finish = resolve; }));
+  mockState.mockResolvedValue({ phase: 'not-installed' });
   const screen = await show(<Home />);
+  await fireEvent.press(await screen.findByText(words.getReady));
   expect(await screen.findByText(words.statusGettingReady)).toBeTruthy();
-  await act(async () => { settled(); });
+  mockState.mockResolvedValue({ phase: 'ready' });
+  await act(async () => { finish(); });
   expect(await screen.findByText(words.statusReady)).toBeTruthy();
 });
 
