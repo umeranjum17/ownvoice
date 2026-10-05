@@ -44,9 +44,14 @@ const ocrLine = phrase => {
   return tsv.split('\n').slice(1).map(r => r.split('\t')).find(c => c.length >= 12 && c[11].toLowerCase().includes(phrase.toLowerCase()));
 };
 
-// Dismiss Chrome's ANR dialog and first-run sheets under host load until the wanted text shows.
+// Dismiss Chrome's ANR dialog and first-run sheets under host load until URL bar shows x.com.
 const settleChrome = async (need = 'x.com') => {
   for (let attempt = 0; attempt < 40; attempt++) {
+    // Check accessibility tree for URL bar (reliable indicator page loaded)
+    const urlBar = nodes().find(node => node.text?.includes('x.com'));
+    if (urlBar) return; // Page loaded successfully
+
+    // Handle Chrome dialogs/sheets that block the page via OCR
     const text = screenText();
     if (text.includes("isn't responding") || text.includes('not responding')) {
       const row = ocrLine('wait');
@@ -69,11 +74,26 @@ const settleChrome = async (need = 'x.com') => {
       await wait(1200);
       continue;
     }
+    if (text.includes('welcome to chrome') || text.includes('use without an account')) { // Chrome first-run screen
+      const skipButton = nodes().find(node =>
+        node.text && (node.text.toLowerCase().includes('use without') ||
+                      node.text.toLowerCase().includes('no thanks') ||
+                      node.text.toLowerCase().includes('skip'))
+      );
+      if (skipButton && skipButton.centerX && skipButton.centerY) {
+        tap(skipButton.centerX, skipButton.centerY);
+        await wait(2000);
+        continue;
+      }
+      // Fallback: if no button found, try hardcoded coordinates
+      tap(473, 1458);
+      await wait(2000);
+      continue;
+    }
     if (text.includes('notifications make things')) { tap(643, 1751); await wait(2000); continue; } // 'No thanks' on the dimmed sheet, per driver.mjs
-    if (text.includes(need)) return text;
     await wait(1500);
   }
-  throw new Error(`Chrome never showed ${need}.`);
+  throw new Error(`Chrome never showed ${need} (URL bar not found in accessibility tree).`);
 };
 
 // ---- device prep: hosts bind + reverse so the fixture answers at http://x.com/ ----
