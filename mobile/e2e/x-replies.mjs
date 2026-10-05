@@ -211,7 +211,9 @@ const journey = async (screen, theme, { motion = false, typed = false } = {}) =>
   if (!panelText('X')) throw new Error('The panel does not name the X platform.');
   if (panelText('no text to build a reply on')) throw new Error('The withhold note showed on a grounded post.');
   shot(screen, 'cards', theme);
-  const firstCard = nodes().find(node => (node.text || '').includes('Agreed, and it holds up end to end.'));
+  // Real model: card text varies; capture first card's actual text for edit verification
+  const firstCard = nodes().find(node => node.clickable && node.text && node.text.length > 10);
+  const originalCardText = firstCard?.text?.trim() || '';
   nodes('Edit'); // accessibility click into the first card's edit field
   await wait(1600);
   adb('shell', 'input', 'text', EDIT_SUFFIX.replaceAll(' ', '%s'));
@@ -235,8 +237,8 @@ const journey = async (screen, theme, { motion = false, typed = false } = {}) =>
   if (!/insert result ok=true/.test(logcat)) throw new Error('The insert read-back check did not pass.');
   const back = nodes().find(node => node.editable && !node.password && !/x\.com|https?:|find an app/i.test(`${node.text ?? ''} ${node.label ?? ''}`));
   const boxText = `${back?.text ?? ''}`;
-  if (!boxText.includes('Typed by me')) throw new Error(`Field read-back missing the edited text (${boxText || 'no field'}).`);
-  if (firstCard && boxText.trim() === (firstCard.text ?? '').trim()) throw new Error('The inserted text equals the unedited card text: the edit did not change it.');
+  if (!boxText.includes(EDIT_SUFFIX)) throw new Error(`Field read-back missing the edit suffix "${EDIT_SUFFIX}" (got: ${boxText || 'no field'}).`);
+  if (originalCardText && boxText.trim() === originalCardText) throw new Error('The inserted text equals the unedited card text: the edit did not change it.');
   // Typed box: the improved version swaps in by design — the typed text never glues onto it.
   if (typed) {
     if (boxText.includes(TYPED)) throw new Error(`The typed text was not swapped for the version (${boxText}).`);
