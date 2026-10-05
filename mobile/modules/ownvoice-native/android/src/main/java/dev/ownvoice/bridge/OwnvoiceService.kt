@@ -16,6 +16,7 @@ import android.graphics.drawable.Drawable
 import android.graphics.drawable.LayerDrawable
 import android.net.Uri
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
@@ -29,7 +30,9 @@ import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.Toast
 import com.facebook.react.ReactApplication
 import io.github.umeranjum17.byokit.overlay.ByokitAccessibility
+import io.github.umeranjum17.byokit.overlay.FieldIdentity
 import io.github.umeranjum17.byokit.overlay.FieldNode
+import io.github.umeranjum17.byokit.overlay.FieldSelection
 import io.github.umeranjum17.byokit.overlay.FocusedFields
 import io.github.umeranjum17.byokit.overlay.InsertCancellation
 import io.github.umeranjum17.byokit.overlay.InsertOpts
@@ -62,6 +65,15 @@ internal fun worthChecking(text: String): Boolean = text.trim().let { it.length 
 
 internal fun includePracticeText(practice: Boolean, action: Boolean, viewId: String?): Boolean =
   !practice || action || viewId?.startsWith("practice-line-") == true
+
+internal fun sameInsertField(expected: FieldIdentity?, actual: FieldIdentity?): Boolean =
+  expected != null && actual == expected
+
+internal fun insertTextMatches(app: String, text: String, readingApp: String, expected: String): Boolean =
+  app == readingApp && text == expected
+
+internal fun insertSelectionSettled(selection: FieldSelection?, expected: String): Boolean =
+  selection?.start == expected.length && selection?.end == expected.length
 
 class OwnvoiceService : AccessibilityService() {
   companion object {
@@ -163,10 +175,10 @@ class OwnvoiceService : AccessibilityService() {
     rules (on top of on/off, but never over pause, the way [allowed] reads it). */
   private fun effectiveRules() = kitRules().copy(
     paused = paused || panelIsOpen,
-    on = (if (practice) onApps + packageName else onApps).toList(),
-    off = (if (practice) offApps - packageName else offApps).toList(),
+    on = (if (practice) onApps + packageName else onApps - packageName).toList(),
+    off = (if (practice) offApps - packageName else offApps + packageName).toList(),
   )
-  private fun allowed(app: String?) = !paused && (kitRules().shows(app) || (practice && app == packageName))
+  private fun allowed(app: String?) = !paused && if (app == packageName) practice else kitRules().shows(app)
   private fun reducedMotion() = Settings.Global.getFloat(contentResolver, Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
 
   override fun onServiceConnected() {
@@ -425,7 +437,7 @@ class OwnvoiceService : AccessibilityService() {
   fun insert(text: String, done: (Boolean, Boolean) -> Unit) {
     if (pendingInsert != null) {
       copyDraft(text)
-      say("Couldn't insert. Copied, paste it.")
+      say("Copied, paste it in")
       onInserted?.invoke(false, false, false)
       return done(false, false)
     }
@@ -436,11 +448,22 @@ class OwnvoiceService : AccessibilityService() {
     val node = reading?.insertField ?: return finishInsert(cancellation, reading, text, "failed", done)
     thread {
       val result = FocusedFields.insert(node, text, "all",
-        InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = true), Thread::sleep, ::copyDraft,
+        InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = false), Thread::sleep, ::copyDraft,
         cancellation = cancellation, service = this)
-      main.post { finishInsert(cancellation, reading, text, result, done) }
+      main.post { confirmInsert(cancellation, reading, text, result, done) }
     }
   }
+  /** Closing the panel restores focus asynchronously. Retry the read, never the write,
+   * so a confirmation cannot race the activity transition or write to a new field. */
+  private fun confirmInsert(cancellation: InsertCancellation, reading: Capture?, text: String, result: String, done: (Boolean, Boolean) -> Unit, remaining: Int = 13) {
+    if (insertCancellation !== cancellation) return
+    if (result != "inserted") return finishInsert(cancellation, reading, text, result, done)
+    if (capture !== reading) return finishInsert(cancellation, reading, text, "cancelled", done)
+    if (verifyInsert(reading, text)) return finishInsert(cancellation, reading, text, "verified", done)
+    if (remaining <= 1) return finishInsert(cancellation, reading, text, "failed", done)
+    main.postDelayed({ confirmInsert(cancellation, reading, text, result, done, remaining - 1) }, 150)
+  }
+
   /** The insert's fallback: the draft on the clipboard for the person to paste. True when it stuck. */
   private fun copyDraft(text: String): Boolean = runCatching {
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice draft", text))
@@ -449,8 +472,8 @@ class OwnvoiceService : AccessibilityService() {
   private fun finishInsert(cancellation: InsertCancellation, reading: Capture?, text: String, result: String, done: (Boolean, Boolean) -> Unit) {
     if (insertCancellation !== cancellation) return
     val cancelled = result == "cancelled" || capture !== reading
-    val ok = !cancelled && (result == "inserted" || result == "landedWithoutNewlines")
-    val newlinesLost = ok && result == "landedWithoutNewlines"
+    val ok = !cancelled && result == "verified"
+    val newlinesLost = false
     val practice = ok && reading?.app == packageName && reading?.input?.contentDescription?.toString() == "Practice message"
     insertCancellation = null
     pendingInsert = null
@@ -458,18 +481,57 @@ class OwnvoiceService : AccessibilityService() {
     Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost")
     if (!cancelled) {
       if (practice) restIdle()
-      else if (ok) say(if (newlinesLost) "Inserted. Check it looks right before sending." else "Inserted. Send it yourself.")
+      else if (ok) {
+        val root = appRoot()
+        val canSend = try { hasSendAction(root) } finally { root?.recycle() }
+        say(if (canSend) "Inserted. Send it yourself." else "Inserted")
+      }
       else {
         if (result != "copied") copyDraft(text)
-        say("Couldn't insert. Copied, paste it.")
+        say("Copied, paste it in")
       }
     }
     onInserted?.invoke(ok, newlinesLost, practice)
     done(ok, newlinesLost)
   }
 
+  /** Verify through the same focused-field reader as capture, after the panel has closed.
+   * A cached node accepting SET_TEXT is not proof that the app kept the draft. */
+  private fun verifyInsert(reading: Capture?, text: String): Boolean {
+    if (reading == null || currentApp() != reading.app || !allowed(reading.app)) return false
+    val field = focusedField() ?: return false
+    val current = FieldNode.of(field, this)
+    try {
+      if (!sameInsertField(reading.insertField?.identity, current.identity)) return false
+      val before = FocusedFields.read(this) ?: return false
+      if (!insertTextMatches(before.app, before.text, reading.app, text)) return false
+      field.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
+        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, text.length)
+        putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, text.length)
+      })
+      val actual = FocusedFields.read(this) ?: return false
+      return insertTextMatches(actual.app, actual.text, reading.app, text) &&
+        insertSelectionSettled(actual.selection, text)
+    } finally { current.recycle() }
+  }
+
+  private fun hasSendAction(root: AccessibilityNodeInfo?): Boolean {
+    if (root == null || !root.isVisibleToUser) return false
+    val label = (root.text?.takeIf { it.isNotBlank() } ?: root.contentDescription)?.toString()?.trim()?.lowercase()
+    if (root.isClickable && root.isEnabled && label in setOf("send", "send message", "send sms", "post", "reply", "publish", "tweet")) return true
+    for (i in 0 until root.childCount) {
+      val child = root.getChild(i) ?: continue
+      try { if (hasSendAction(child)) return true } finally { child.recycle() }
+    }
+    return false
+  }
+
   fun say(message: String, forMs: Long = 4000) {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs) }; return }
+    if (currentApp() == packageName && !practice) {
+      Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+      return
+    }
     // Announced, so TalkBack reads the pill the way the old live region did.
     bubbles?.say(message, moodFor(message), forMs, announce = true)
   }
@@ -482,8 +544,8 @@ class OwnvoiceService : AccessibilityService() {
 
   /** Done for inserted and copied, check for look-before-sending; anything else keeps the bubble's mood. */
   private fun moodFor(message: String) = when (message) {
-    "Inserted. Send it yourself.", "Copied." -> "done"
-    "Inserted. Check it looks right before sending.", "Couldn't insert. Copied, paste it.", "No text on this screen." -> "check"
+    "Inserted", "Inserted. Send it yourself.", "Copied." -> "done"
+    "Copied, paste it in", "No text on this screen." -> "check"
     else -> null
   }
 

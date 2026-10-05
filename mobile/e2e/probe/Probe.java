@@ -36,6 +36,8 @@ public class Probe extends Instrumentation {
       .put("checkable", node.isCheckable()).put("checked", node.isChecked())
       .put("editable", node.isEditable()).put("password", node.isPassword())
       .put("focused", node.isFocused()).put("clickable", node.isClickable())
+      .put("app", String.valueOf(node.getPackageName()))
+      .put("selectionStart", node.getTextSelectionStart()).put("selectionEnd", node.getTextSelectionEnd())
       .put("visible", node.isVisibleToUser()).put("bounds", bounds(rect))
       .put("windowType", window.getType()).put("windowBounds", bounds(frame)));
     for (int i = 0; i < node.getChildCount(); i++) walk(node.getChild(i), window);
