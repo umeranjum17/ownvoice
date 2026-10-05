@@ -213,11 +213,14 @@ export function latestMessage(nodes?: ScreenText[], fieldTop?: number): string {
   return text.length > 1500 ? `${text.slice(0, 1000)}\n(middle shortened)\n${text.slice(-500)}` : text;
 }
 
-export type ReplyInput = { latest: string; conversation: string; guide?: string; dashes: 'keep' | 'remove'; avoid?: string[]; platform?: Platform };
+/** `point`: the reply they already started (grow mode); the drafts start from it instead of replacing it. */
+export type ReplyInput = { latest: string; conversation: string; point?: string; guide?: string; dashes: 'keep' | 'remove'; avoid?: string[]; platform?: Platform };
 
 // ponytail: conversation keeps only its last 3000 characters; revisit if long-thread context is needed.
-const inputBlock = ({ latest, conversation }: { latest: string; conversation: string }) =>
-  `${latest ? `Latest message:\n${latest}\n\n` : ''}Conversation:\n${conversation.slice(-3000)}`;
+const inputBlock = ({ latest, conversation, point }: { latest: string; conversation: string; point?: string }) =>
+  `${latest ? `Latest message:\n${latest}\n\n` : ''}Conversation:\n${conversation.slice(-3000)}${point ? `\n\nTheir reply so far:\n${point}` : ''}`;
+
+const pointLine = (point?: string) => point ? 'Keep the main point and wording of their reply so far (below).' : '';
 
 const dashLine = (dashes: 'keep' | 'remove') => dashes === 'keep' ? 'their dashes: keep' : 'their dashes: remove';
 
@@ -243,6 +246,7 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
     '- Use only times, dates and facts that appear on the screen or in their note. If the screen gives no time or date, never add one.',
     '- No "we" or "our" unless the screen or their note shows it.',
     platformLine(input.platform),
+    pointLine(input.point),
     'Sound like them typing on a phone: plain words, short sentences, the thread\'s language, and the casing and tone of their note. Match the length around it: a chat reply is usually one line, a public reply or comment one or two short sentences, an email a short greeting, one to three short sentences and a short sign-off without a name.',
     'Say one concrete thing tied to the screen instead of general praise.',
     'No flattery openers ("Great post", "Love this"), no closing question just to invite replies, no "not X but Y", no lists of three, no hashtags. Don\'t add long dashes (—).',
@@ -267,8 +271,8 @@ const phoneReplyInstructions = (slots: [string, string, string]) => [
 
 /** The condensed phone prompt: instructions (≤ 700 characters) plus the input block. */
 export function phoneReplyPrompt(input: Omit<ReplyInput, 'dashes' | 'avoid'>): string {
-  const line = platformLine(input.platform);
-  return `${phoneReplyInstructions(slotsFor(input.platform))}${line ? `\n${line}` : ''}\n\n${inputBlock(input)}`;
+  const lines = [platformLine(input.platform), pointLine(input.point)].filter(Boolean).map(line => `\n${line}`).join('');
+  return `${phoneReplyInstructions(slotsFor(input.platform))}${lines}\n\n${inputBlock(input)}`;
 }
 
 /** One extra call for one empty slot, with everything already shown as off-limits. */
@@ -277,6 +281,7 @@ export function phoneSlotPrompt(slot: string, input: Omit<ReplyInput, 'dashes' |
     'You write one reply for one person from their phone screen.',
     `The reply: ${slot}`,
     platformLine(input.platform),
+    pointLine(input.point),
     'Every draft must respond to everything the latest message asks or offers.',
     avoidLine(avoid),
     'Don\'t invent facts about them; ask a short question back instead. Use only times, dates and facts on the screen: if it gives no time or date, never add one. If you suggest a different time, use only one from the screen, otherwise ask when suits them. Match their language and tone; plain words, short sentences. No flattery openers, hashtags, emoji or long dashes.',

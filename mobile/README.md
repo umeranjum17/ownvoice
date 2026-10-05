@@ -63,6 +63,12 @@ and keeps the text checks below. The level is never adjusted by hand rules. The
 panel asks once per tap after the cards land, never per keystroke, and never for
 an edited text; each call uses a fresh in-memory cache.
 
+A reply typed under an X or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
+the writer gets their text as `point` (with `typed` empty) so the replies start from it,
+**Yours** keeps their text, and once the fit answers the cards are listed highest level first,
+unrated ones last and ties in slot order. Each card keeps its `slot`, so its tag still names
+what it is for. With no fit answer the cards stay in slot order. Elsewhere typed text is polished.
+
 `fitBackends(app)` in `src/chatgpt/settings.ts` builds the Jev backend from the
 build's `EXPO_PUBLIC_JEV_KEY` (no key: no backend) and sends only under the same
 consent as a ChatGPT send for that app (source, visibility, pause, phone-only,

@@ -110,7 +110,7 @@ function finishedReplies(text: string): string[] {
 /** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt). */
 async function replies(request: DraftRequest, on: WriterEvents): Promise<string[]> {
   const dashes = request.dashes ?? 'remove' as const;
-  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, guide: request.guide, dashes, platform: request.platform };
+  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, dashes, platform: request.platform };
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
