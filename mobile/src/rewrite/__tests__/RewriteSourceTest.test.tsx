@@ -92,6 +92,17 @@ test('ChatGPT chosen rewrites in one call while the phone still checks the meani
   expect(visibleStrings(screen)).toContain('Same meaning as yours');
 });
 
+test.each(['chatgpt', 'phone'] as const)('%s selection rewrite also cases the actual newly split boundary', async source => {
+  store.set(SOURCE_KEY, source);
+  (global as unknown as { fetch: unknown }).fetch = chatgptFetch(sse('autosave locally. make export easy.'));
+  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite')
+    ? 'GENERIC: 2\nSPECIFICITY: 8\nMEANING: pass' : 'autosave locally. make export easy.');
+  const screen = await renderRewrite({ text: 'autosave locally and make export easy.', editable: true });
+  fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
+  await waitFor(() => expect(visibleStrings(screen)).toContain('autosave locally. Make export easy.'));
+  expect(visibleStrings(screen)).not.toContain('autosave locally. make export easy.');
+});
+
 test('ChatGPT chosen without a phone writer still rewrites, with only the number check', async () => {
   store.set(SOURCE_KEY, 'chatgpt');
   native.modelStatus.mockResolvedValue('unavailable');

@@ -131,6 +131,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [who, setWho] = useState<string | null>(null);
   const [yours, setYours] = useState<Draft | null>(null);
   const [unchanged, setUnchanged] = useState(false);
+  const [declined, setDeclined] = useState(false);
   const [cards, setCards] = useState<(Draft | null)[]>([null, null, null]);
   const [why, setWhy] = useState<number | null>(null);
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
@@ -197,6 +198,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setTones(new Map());
     toneFor.current = 0;
     setUnchanged(false);
+    setDeclined(false);
     setReason(null);
     setFraction(null);
     setWhy(null);
@@ -259,6 +261,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         if (run.current !== id) return;
         setFraction(null);
         setUnchanged(!!choice.unchanged && !choice.drafts.length);
+        setDeclined(!!choice.declined);
         setReason(choice.reason ?? path.note);
         setNote(null);
         setPhase('ready');
@@ -358,6 +361,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const hasField = !!capture?.hasField;
   const mainNote = phase === 'failed' || phase === 'loading' ? note
+    : phase === 'ready' && declined ? words.unclearPolish
     : phase === 'ready' && unchanged ? words.looksGoodNote
     : phase === 'ready' && !shown.length ? (mode === 'reply' ? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
     : phase === 'ready' ? (mode === 'reply' ? (hasField ? words.readyReply : words.noField) : words.readyPolish)
@@ -377,7 +381,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   return <Sheet
     title={placeTitle}
     note={empty ? undefined : mainNote ?? undefined}
-    mood={empty ? undefined : mood}
+    mood={mood}
     onClose={() => { void Native.closePanel().catch(() => {}); }}
     cover={coverDraft ? {
       title: mode === 'reply' ? words.whyReply : words.whyVersion,
@@ -449,8 +453,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       </View>
       : null}
     {empty && mainNote
-      ? <Empty mood={mood} text={mainNote}>
-        {phase === 'ready' && mode !== 'empty' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
+      ? <Empty text={mainNote}>
+        {phase === 'ready' && !declined && mode !== 'empty' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
         {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
       </Empty>
       : null}

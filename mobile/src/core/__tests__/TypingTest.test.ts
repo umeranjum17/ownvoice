@@ -1,7 +1,17 @@
 import { readFileSync } from 'fs';
 import nspell from 'nspell';
-import { count, fixed, fixedSlips, slips, suggestion, GRAMMAR, SPELLING } from '../typing';
+import { count, fixed, fixedSentenceSplits, fixedSlips, slips, suggestion, GRAMMAR, SPELLING } from '../typing';
 import { NO_RULES } from '../slop';
+import { speller as loadSpeller } from '../speller';
+
+jest.mock('../../../assets/dictionary/en-affixes.aff', () => 1);
+jest.mock('../../../assets/dictionary/en-words.dic', () => 2);
+jest.mock('expo-asset', () => ({ Asset: { fromModule: (id: number) => ({
+  downloadAsync: async () => ({ localUri: id === 1 ? 'en-affixes.aff' : 'en-words.dic' }),
+}) } }));
+jest.mock('expo-file-system', () => ({ File: jest.fn((uri: string) => ({
+  text: async () => require('fs').readFileSync(`${__dirname}/../../../assets/dictionary/${uri}`, 'utf8'),
+})) }));
 
 const speller = nspell(readFileSync(`${__dirname}/../../../assets/dictionary/en-affixes.aff`, 'utf8'), readFileSync(`${__dirname}/../../../assets/dictionary/en-words.dic`, 'utf8'));
 
@@ -176,6 +186,38 @@ test('automatic contractions fix clear forms and preserve ambiguous ones', () =>
   expect(fixedSlips(ambiguous, speller)).toBe(ambiguous);
   expect(fixedSlips('We cant go and I wont', speller)).toBe('We cant go and I wont');
   expect(fixedSlips('https://site.test/dont @im #thats', speller)).toBe('https://site.test/dont @im #thats');
+});
+
+// Checkpoint 298, j4-fixed30/case-05: the advisory Fix offered autosave → autoclave.
+test('the app dictionary preserves the captured autosave text in advisory and automatic paths', async () => {
+  const typed = 'autosave locally and make export easy.';
+  expect(speller.correct('autosave')).toBe(false);
+  expect(suggestion('autosave', speller)).toBe('autoclave'); // unchanged upstream dictionary
+  const appSpell = await loadSpeller();
+  expect(appSpell.correct('autosave')).toBe(true);
+  expect(slips(typed, appSpell)).toEqual([]); // no advisory Fix button
+  expect(fixedSlips(typed, appSpell)).toBe(typed);
+  expect(slips('autoclave locally', appSpell)).toEqual([]);
+  expect(suggestion('shoud', appSpell)).toBe('should');
+  expect(fixedSlips('shoud teh recieve', appSpell)).toBe('should the receive');
+});
+
+test('new sentence casing preserves existing lowercase, abbreviations and technical identifiers', () => {
+  const original = 'autosave locally and make export easy.';
+  expect(fixedSentenceSplits(original, 'autosave locally. make export easy.', speller)).toBe('autosave locally. Make export easy.');
+  expect(fixedSentenceSplits(original, 'autosave locally, make export easy.', speller)).toBe('autosave locally, make export easy.');
+  const lower = 'autosave locally. make export easy.';
+  expect(fixedSentenceSplits(lower, lower, speller)).toBe(lower);
+  for (const identifier of ['npm', 'API', 'toString', 'save_data', '`make`', 'make()', 'https://site.test/make']) {
+    const text = `Keep it. ${identifier} works.`;
+    expect(fixedSentenceSplits(`Keep it and ${identifier} works.`, text, speller)).toBe(text);
+  }
+  expect(fixedSentenceSplits('Meet at noon and make a plan.', 'Meet at 5 p.m. make a plan.', speller)).toBe('Meet at 5 p.m. make a plan.');
+  expect(fixedSentenceSplits('Get it by 5 and make export easy.', 'Get it by 5. make export easy.', speller)).toBe('Get it by 5. Make export easy.');
+  expect(fixedSentenceSplits("We can't and make another plan.", "We can't. make another plan.", speller)).toBe("We can't. Make another plan.");
+  expect(fixedSentenceSplits('Make a plan. make it easy and make export easy.', 'Make a plan. make it easy. make export easy.', speller)).toBe('Make a plan. make it easy. Make export easy.');
+  expect(fixedSentenceSplits('Use `make export` and make export works.', 'Use it. make export works.', speller)).toBe('Use it. make export works.');
+  expect(fixedSentenceSplits('Keep the setting and make = 1.', 'Keep the setting. make = 1.', speller)).toBe('Keep the setting. make = 1.');
 });
 
 test('correction tables do not inherit object keys', () => {

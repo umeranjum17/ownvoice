@@ -14,7 +14,8 @@ import * as D from 'ownvoice-engine/src/drafts.ts';
 import * as T from 'ownvoice-engine/src/threads.ts';
 
 import nspell from 'nspell';
-import { polishAcceptor } from '../src/core/polish.ts';
+import { canPolish, polishAcceptor } from '../src/core/polish.ts';
+import { fixedSentenceSplits } from '../src/core/typing.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
 
@@ -24,12 +25,13 @@ if (!label || !base || !outPath) {
   process.exit(2);
 }
 const MODEL = process.env.MODEL ?? '';
-type Call = { prompt: string; maxTokens: number; answer: string; ms: number; promptTokens: number; genTokens: number };
+type Call = { prompt: string; maxTokens: number; answer: string; ms: number; promptTokens: number; genTokens: number; error?: string };
 
 async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<string> {
   const started = Date.now();
   const res = await fetch(`${base}/v1/chat/completions`, {
     method: 'POST',
+    signal: AbortSignal.timeout(120_000),
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
       ...(MODEL ? { model: MODEL } : {}),
@@ -40,6 +42,9 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
       temperature: Number(process.env.TEMP ?? 0),
       seed: Number(process.env.SEED ?? 7),
     }),
+  }).catch(error => {
+    calls.push({ prompt, maxTokens, answer: '', ms: Date.now() - started, promptTokens: 0, genTokens: 0, error: String(error) });
+    throw error;
   });
   const json: any = await res.json();
   if (!res.ok) throw new Error(JSON.stringify(json).slice(0, 300));
@@ -57,6 +62,8 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
 async function polish(c: any, calls: Call[]) {
   const dashes = D.dashDecision(false, c.typed);
   const engine = { ask: (p: string, n: number) => call(p, n, calls) };
+  // Slot-0 fixtures qualify local cleanup only; live polish includes the original-point gate.
+  if (c.slot !== 0 && !await canPolish(c.typed, prompt => call(prompt, 8, calls))) return { raw: {}, shown: [], rescued: [] };
   const acceptor = await polishAcceptor(c.typed, dashes, [], spell);
   const raw: Record<string, string> = { LIGHT: acceptor.local ?? c.typed };
   if (c.slot === 0) return { raw, shown: acceptor.results, rescued: [] };
@@ -86,7 +93,7 @@ async function tone(c: any, calls: Call[]) {
 // selection chatter filter, with the single-word full-stop guard for Fix spelling.
 async function select(c: any, calls: Call[]) {
   const raw = await call(J.selectionRewritePrompt(c.typed, c.how, ''), 256, calls);
-  const out = D.cleanSelection(c.typed, J.clean(raw));
+  const out = fixedSentenceSplits(c.typed, D.cleanSelection(c.typed, J.clean(raw)), spell);
   return { shown: [{ text: c.how === 'Fix spelling' ? D.preserveFragment(c.typed, out) : out, slot: 0 }] };
 }
 
@@ -120,6 +127,7 @@ async function reply(c: any, calls: Call[]) {
 }
 
 const results: any[] = [];
+let timedOut = false;
 for (const c of cases) {
   if ((c as any).from) continue; // P13 is scored off the P01 run, same as the report
   if (process.env.ONLY && !process.env.ONLY.split(',').some((p: string) => c.id.startsWith(p))) continue;
@@ -130,5 +138,7 @@ for (const c of cases) {
   catch (e) { r = { error: String(e), shown: [] }; }
   results.push({ id: c.id, ...r, calls, wallMs: Date.now() - started });
   process.stderr.write(`${label} ${c.id} ${Date.now() - started}ms shown=${r.shown.length}\n`);
+  if (String(r.error ?? '').includes('TimeoutError')) { timedOut = true; break; }
 }
-writeFileSync(outPath, JSON.stringify({ label, results }, null, 1));
+writeFileSync(outPath, JSON.stringify({ label, results, timedOut }, null, 1));
+if (timedOut) process.exitCode = 124;

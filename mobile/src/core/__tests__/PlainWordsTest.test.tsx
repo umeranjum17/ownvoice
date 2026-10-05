@@ -99,12 +99,14 @@ describe('panel copy', () => {
     ['polish-ready', {}, { typed: LIST }],
     ['polish-unchanged', { unchanged: true }, { typed: LIST }],
     ['polish-failed', { empty: true }, { typed: LIST }],
+    ['polish-declined', { declined: true }, { typed: 'purple toaster clouds ate the database backwards banana banana' }],
     ['compose-ready', {}, { typed: 'i can bring the stove, super excited', written: '' }],
     ['empty', {}, { typed: '', written: '' }],
     ['writing', { delay: 150 }, { typed: LIST }],
     ['download-progress', { download: true, delay: 150 }, { typed: LIST }],
   ])('%s speaks plainly', async (_name, options, over) => {
     const screen = await renderPanel(stubWriter(options), over);
+    if (_name === 'polish-declined') await waitFor(() => expect(screen.getByText(words.unclearPolish)).toBeTruthy());
     const shown = visibleStrings(screen);
     expect(shown.length).toBeGreaterThan(0);
     assertPlain([...shown, ...Object.values(words)]);

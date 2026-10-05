@@ -4,11 +4,11 @@ import { Dot } from './Dot';
 import type { Mood } from './dot';
 import { space, type, useTheme } from './theme';
 
-/** Nothing to show: Dot says so with the one plain line, and the one thing to do next if there is one. */
-export function Empty({ mood, text, children }: { mood: Mood; text: string; children?: ReactNode }) {
+/** Nothing to show: one plain line, and the one thing to do next if there is one. Dot shows only when a mood is passed; the declined panel omits it here because the sheet header already keeps Dot. */
+export function Empty({ mood, text, children }: { mood?: Mood; text: string; children?: ReactNode }) {
   const t = useTheme();
   return <View style={styles.empty}>
-    <Dot mood={mood} size={72} />
+    {mood ? <Dot mood={mood} size={72} /> : null}
     <Text style={[type.body, { color: t.text, textAlign: 'center', marginTop: space.m }]}>{text}</Text>
     {children ? <View style={{ marginTop: space.l }}>{children}</View> : null}
   </View>;

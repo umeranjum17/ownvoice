@@ -1,4 +1,9 @@
 import { withPhoneFallback } from '../../core/writers';
+jest.mock('../../core/polish', () => ({
+  ...jest.requireActual('../../core/polish'),
+  canPolish: jest.fn(async () => true),
+}));
+
 jest.mock('../../core/speller', () => {
   const fs = require('fs');
   const path = require('path');
@@ -31,7 +36,10 @@ const body = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(con
 } });
 const fetcher = (stream: ReadableStream<Uint8Array>) => jest.fn(async () => ({ ok: true, body: stream } as Response));
 const reported = reportFailure as jest.Mock;
-beforeEach(() => { jest.clearAllMocks(); });
+beforeEach(() => {
+  jest.clearAllMocks();
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(async () => true);
+});
 
 test('finished reply slots land before completion, with escaped text, cleanup and retry labels intact', async () => {
   const originalFetch = global.fetch;
@@ -594,6 +602,43 @@ test.each([
   } finally { global.fetch = originalFetch; }
 });
 
+
+// Checkpoint 298 case-26: a fluent reorder slipped through the layout/distinctness filter.
+test('captured nonsense is declined before any alternate can land or trigger phone fallback', async () => {
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
+  const typed = 'purple toaster clouds ate the database backwards banana banana';
+  const bad = 'the database got eaten backwards by purple toaster clouds banana banana';
+  const { versionAcceptor } = jest.requireActual('../../core/drafts');
+  expect(versionAcceptor(typed, 'remove', []).accept(bad, 2)).toBe(bad); // disconfirm a layout cause
+  const originalFetch = global.fetch;
+  const response = (text: string) => ({ ok: true, body: body(`${event({ type: 'response.output_text.delta', delta: text })}\n\n${event({ type: 'response.completed' })}`) });
+  global.fetch = jest.fn().mockResolvedValueOnce(response('UNCLEAR'))
+    .mockResolvedValueOnce(response(JSON.stringify({ versions: [typed, bad] })));
+  const phone = { write: jest.fn(async () => ({ drafts: [bad] })) };
+  const landed = jest.fn();
+  try {
+    expect(await withPhoneFallback(chatgptWriter, phone, { typed, conversation: '', written: '' }, { landed }, undefined, 'cant'))
+      .toEqual({ drafts: [], declined: true });
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify((global.fetch as jest.Mock).mock.calls[0])).toContain(typed);
+    expect(landed).not.toHaveBeenCalled();
+    expect(phone.write).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+test('an unreadable point check remains a transient failure, allowing fallback rather than false semantic refusal', async () => {
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
+  const originalFetch = global.fetch;
+  global.fetch = fetcher(body(event({ type: 'response.output_text.delta', delta: 'not sure' }) + '\n\n' + event({ type: 'response.completed' })));
+  const phone = { write: jest.fn(async () => ({ drafts: ['autosave locally. Make export easy.'] })) };
+  try {
+    const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' });
+    expect(choice).toEqual({ drafts: ['autosave locally. Make export easy.'], reason: words.fallback });
+    expect(choice.declined).toBeUndefined();
+    expect(phone.write).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  } finally { global.fetch = originalFetch; }
+});
 
 test('fit accepts a React Native signal with no throwIfAborted method', async () => {
   const { signal } = new AbortController();

@@ -1,3 +1,8 @@
+jest.mock('../../core/polish', () => ({
+  ...jest.requireActual('../../core/polish'),
+  canPolish: jest.fn(async () => true),
+}));
+
 jest.mock('../../core/speller', () => {
   const fs = require('fs');
   const path = require('path');
@@ -35,6 +40,7 @@ const setClock = (value: number) => { clock = value; };
 
 beforeEach(() => {
   jest.clearAllMocks();
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(async () => true);
   kv.clear();
   clock = 1000;
   jest.spyOn(Date, 'now').mockImplementation(() => clock);
@@ -444,6 +450,19 @@ test('a phone still getting ready is waited for without recording a yes', async 
 });
 
 // ---- Polish and compose ----
+
+test('phone polish declines the exact captured nonsense before a reordered alternate', async () => {
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
+  const typed = 'purple toaster clouds ate the database backwards banana banana';
+  const bad = 'the database got eaten backwards by purple toaster clouds banana banana';
+  native.ask.mockResolvedValueOnce('UNCLEAR').mockResolvedValueOnce(JSON.stringify({ versions: [typed, bad] }));
+  const landed = jest.fn();
+  expect(await phoneWriter.write(request({ typed }), { landed })).toEqual({ drafts: [], declined: true });
+  expect(native.ask).toHaveBeenCalledTimes(1);
+  expect(native.ask.mock.calls[0][1]).toContain(typed);
+  expect(landed).not.toHaveBeenCalled();
+  native.ask.mockReset();
+});
 
 test('polish runs the C2 rewrite through the phone model and lands labelled versions', async () => {
   native.ask.mockResolvedValue('{"versions":["I will bring the stove. You are on the tent.","Stove: mine. Tent: yours. All agreed."]}');
