@@ -261,6 +261,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           typed: grow ? '' : typed,
           point: grow ? typed : undefined,
           platform,
+          newPost: post,
           guide: voiceGuide(rules, post),
           dashes: dashesFor(rules, value.typed),
           avoid,

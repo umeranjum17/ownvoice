@@ -26,7 +26,9 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   const note = avoidLine(avoid);
   const engine = { ask: (prompt: string, maxTokens: number) => ask(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
   const landed = on.landed ?? (() => {});
-  if (!await canPolish(request.typed, prompt => ask(prompt, 8))) return { drafts: [], declined: true };
+  // A new post of his own starts from a line about the post, which is an instruction rather than a
+  // message waiting to be polished, so the clarity question does not apply there.
+  if (!request.newPost && !await canPolish(request.typed, prompt => ask(prompt, 8))) return { drafts: [], declined: true };
   const acceptor = await polishAcceptor(request.typed, dashes, avoid);
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   await rewrite(engine, request.typed, request.conversation, request.guide ?? '', (version, text) => {
