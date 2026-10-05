@@ -84,7 +84,7 @@ class OwnvoiceInsertTest {
         assertFalse(sameInsertField(aid, oid))
       } finally { other.recycle() }
       assertFalse(sameInsertField(aid, null))
-      assertTrue(sameInsertField(null, bid))
+      assertFalse(sameInsertField(null, bid))
     } finally { a.recycle(); b.recycle() }
   }
 

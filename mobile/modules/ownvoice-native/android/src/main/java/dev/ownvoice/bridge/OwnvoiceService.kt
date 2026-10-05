@@ -67,7 +67,7 @@ internal fun includePracticeText(practice: Boolean, action: Boolean, viewId: Str
   !practice || action || viewId?.startsWith("practice-line-") == true
 
 internal fun sameInsertField(expected: FieldIdentity?, actual: FieldIdentity?): Boolean =
-  expected == null || actual == expected
+  expected != null && actual == expected
 
 internal fun insertTextMatches(app: String, text: String, readingApp: String, expected: String): Boolean =
   app == readingApp && text == expected
