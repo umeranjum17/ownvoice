@@ -1,5 +1,5 @@
 import { Text, View } from 'react-native';
-import type { Ratings as Value, Signal } from '../core/ratings';
+import { POST_UNREAD, type Ratings as Value, type Signal } from '../core/ratings';
 import type { Fit } from '../grow/fit';
 import { WarnIcon } from './icons';
 import { space, type, useTheme } from './theme';
@@ -39,8 +39,9 @@ export function Ratings({ ratings, fit }: { ratings: Value | null; fit?: Fit }) 
   const stockLines = texts(s.signals);
   // Nothing found means nothing shown: a row of "Nothing flagged" and "can't rate the fit" on every
   // card is noise, and it says nothing about the draft. A real level or a real finding earns the row.
-  if (!judged && !notes.length && !stockLines.length) return null;
-  const engagement = notes.length || judged ? sentence(e.title, judged ? fit.words : e.label, [...notes, ...e.unknown]) : '';
+  const discloses = e.unknown.includes(POST_UNREAD);
+  if (!judged && !notes.length && !stockLines.length && !discloses) return null;
+  const engagement = notes.length || judged || discloses ? sentence(e.title, judged ? fit.words : e.label, [...notes, ...e.unknown]) : '';
   const stock = stockLines.length ? sentence(s.title, s.label, stockLines) : '';
   const label = [engagement, stock].filter(Boolean).join(' ');
   return <View accessible accessibilityLabel={label} style={{ marginTop: space.xs }}>

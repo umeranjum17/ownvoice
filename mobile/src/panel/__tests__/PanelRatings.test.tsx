@@ -81,6 +81,13 @@ test('a card with nothing to flag carries no rating rows at all', async () => {
   expect(ratingsOf(clean)).toEqual([]);
 });
 
+test('a clean card that could not read the post still says so', async () => {
+  const labels = ratingsOf(await open(capture({ conversation: '', nodes: [], fieldTop: null }), ['Purple turbines whisper banana logistics.']));
+  expect(labels).toHaveLength(1);
+  expect(labels[0]).toContain("Couldn't read the post to compare");
+  expect(labels[0]).not.toMatch(/None found|rate the fit/);
+});
+
 test('flattery with words the post never used is not rated up', async () => {
   const [label] = ratingsOf(await open(capture(), [NONSENSE, DRAFTS[0], DRAFTS[2]]));
   expect(label).toMatch(/^Stock wording: Some\. “Great post!”: starts with flattery/);
