@@ -30,7 +30,9 @@ import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.Toast
 import com.facebook.react.ReactApplication
 import io.github.umeranjum17.byokit.overlay.ByokitAccessibility
+import io.github.umeranjum17.byokit.overlay.FieldIdentity
 import io.github.umeranjum17.byokit.overlay.FieldNode
+import io.github.umeranjum17.byokit.overlay.FieldSelection
 import io.github.umeranjum17.byokit.overlay.FocusedFields
 import io.github.umeranjum17.byokit.overlay.InsertCancellation
 import io.github.umeranjum17.byokit.overlay.InsertOpts
@@ -63,6 +65,15 @@ internal fun worthChecking(text: String): Boolean = text.trim().let { it.length 
 
 internal fun includePracticeText(practice: Boolean, action: Boolean, viewId: String?): Boolean =
   !practice || action || viewId?.startsWith("practice-line-") == true
+
+internal fun sameInsertField(expected: FieldIdentity?, actual: FieldIdentity?): Boolean =
+  expected == null || actual == expected
+
+internal fun insertTextMatches(app: String, text: String, readingApp: String, expected: String): Boolean =
+  app == readingApp && text == expected
+
+internal fun insertSelectionSettled(selection: FieldSelection?, expected: String): Boolean =
+  selection?.start == expected.length && selection?.end == expected.length
 
 class OwnvoiceService : AccessibilityService() {
   companion object {
@@ -489,18 +500,19 @@ class OwnvoiceService : AccessibilityService() {
   private fun verifyInsert(reading: Capture?, text: String): Boolean {
     if (reading == null || currentApp() != reading.app || !allowed(reading.app)) return false
     val field = focusedField() ?: return false
+    val current = FieldNode.of(field, this)
     try {
-      if (field != reading.input) return false
+      if (!sameInsertField(reading.insertField?.identity, current.identity)) return false
       val before = FocusedFields.read(this) ?: return false
-      if (before.app != reading.app || before.text != text) return false
+      if (!insertTextMatches(before.app, before.text, reading.app, text)) return false
       field.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
         putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, text.length)
         putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, text.length)
       })
       val actual = FocusedFields.read(this) ?: return false
-      return actual.app == reading.app && actual.text == text &&
-        actual.selection?.start == text.length && actual.selection?.end == text.length
-    } finally { field.recycle() }
+      return insertTextMatches(actual.app, actual.text, reading.app, text) &&
+        insertSelectionSettled(actual.selection, text)
+    } finally { current.recycle() }
   }
 
   private fun hasSendAction(root: AccessibilityNodeInfo?): Boolean {

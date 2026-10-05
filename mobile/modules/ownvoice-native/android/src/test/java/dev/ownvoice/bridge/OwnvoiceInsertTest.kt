@@ -3,8 +3,11 @@ package dev.ownvoice.bridge
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
+import android.graphics.Rect
 import android.os.Looper
+import android.view.accessibility.AccessibilityNodeInfo
 import io.github.umeranjum17.byokit.overlay.FieldNode
+import io.github.umeranjum17.byokit.overlay.FieldSelection
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.time.Duration
@@ -55,6 +58,44 @@ class OwnvoiceInsertTest {
     val reading = OwnvoiceService.Capture("", "", "", "com.whatsapp", "WhatsApp", 0L, null, field, emptyList(), null, "tap")
     OwnvoiceService::class.java.getDeclaredField("capture").apply { isAccessible = true }.set(service, reading)
     return reading
+  }
+
+  @Test fun sameFieldHoldsAcrossDistinctNodeObjects() {
+    fun node(viewId: String?): AccessibilityNodeInfo {
+      val n = AccessibilityNodeInfo.obtain()
+      n.packageName = "com.whatsapp"
+      n.className = "android.widget.EditText"
+      if (viewId != null) n.viewIdResourceName = viewId
+      n.setBoundsInScreen(Rect(0, 0, 10, 20))
+      return n
+    }
+    val a = node("com.whatsapp:id/entry")
+    val b = node("com.whatsapp:id/entry")
+    try {
+      assertNotSame(a, b)
+      val aid = FieldNode.of(a).identity
+      val bid = FieldNode.of(b).identity
+      assertNotNull(aid)
+      assertEquals(aid, bid)
+      assertTrue(sameInsertField(aid, bid))
+      val other = node("com.whatsapp:id/other")
+      try {
+        val oid = FieldNode.of(other).identity
+        assertFalse(sameInsertField(aid, oid))
+      } finally { other.recycle() }
+      assertFalse(sameInsertField(aid, null))
+      assertTrue(sameInsertField(null, bid))
+    } finally { a.recycle(); b.recycle() }
+  }
+
+  @Test fun readbackRequiresExactTextAndCollapsedSelection() {
+    assertTrue(insertTextMatches("com.whatsapp", "draft", "com.whatsapp", "draft"))
+    assertFalse(insertTextMatches("com.whatsapp", "other", "com.whatsapp", "draft"))
+    assertFalse(insertTextMatches("com.other", "draft", "com.whatsapp", "draft"))
+    assertTrue(insertSelectionSettled(FieldSelection(5, 5), "draft"))
+    assertFalse(insertSelectionSettled(FieldSelection(0, 5), "draft"))
+    assertFalse(insertSelectionSettled(FieldSelection(4, 4), "draft"))
+    assertFalse(insertSelectionSettled(null, "draft"))
   }
 
   @Test fun invalidationStopsRetryAndSettlesOnceWithoutCopyOrDroppingTheNextCapture() {
