@@ -639,3 +639,27 @@ test('an unreadable point check remains a transient failure, allowing fallback r
     expect(global.fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
+
+// The blank-composer flow: one line about the post, then the next tap. The polish clarity question
+// answers UNCLEAR for a fragment like this, which used to leave the person with the ask and no
+// draft; a new post is an instruction, not a message waiting to be polished, so it is drafted.
+test('a new post is drafted from the line he typed even when the clarity question would decline it', async () => {
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(async () => false);
+  const originalFetch = global.fetch;
+  global.fetch = fetcher(body(event({ type: 'response.output_text.delta', delta: JSON.stringify({ versions: ['Offline notes are finally live after three days of sync issues.', 'Offline notes are finally here.'] }) }) + '\n\n' + event({ type: 'response.completed' })));
+  const landed = jest.fn();
+  try {
+    const choice = await chatgptWriter.write({ conversation: '', written: '', typed: 'we finally shipped offline notes after three days of flaky sync', newPost: true, platform: platformForApp('com.twitter.android') }, { landed });
+    expect(choice.drafts).toContain('Offline notes are finally live after three days of sync issues.');
+    expect(choice.declined).toBeUndefined();
+  } finally { global.fetch = originalFetch; }
+});
+
+test('the same fragment is still declined when it is text to polish rather than a new post', async () => {
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(async () => false);
+  const originalFetch = global.fetch;
+  global.fetch = fetcher(body(event({ type: 'response.completed' })));
+  try {
+    await expect(chatgptWriter.write({ conversation: '', written: '', typed: 'ok' }, {})).resolves.toEqual({ drafts: [], declined: true });
+  } finally { global.fetch = originalFetch; }
+});
