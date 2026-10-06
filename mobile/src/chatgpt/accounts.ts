@@ -32,8 +32,8 @@ function getAccounts(): Accounts {
   return accountsInstance;
 }
 
-// Export accounts as a getter property to maintain API compatibility.
-// In tests, this Proxy allows the lazy instance to be mocked.
+// Export accounts as a Proxy to maintain API compatibility.
+// In tests, the Proxy allows properties to be overridden.
 const mockOverrides = new Map<string | symbol, any>();
 export const accounts = new Proxy({} as Accounts, {
   get: (_, prop) => {

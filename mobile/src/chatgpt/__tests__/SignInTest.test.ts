@@ -3,12 +3,12 @@ import { stateOf, nothing, session } from '../session';
 import { store } from '../../core/store';
 
 jest.mock('../accounts', () => {
-  const mockSignIn = jest.fn(async () => {});
-  const mockSignOut = jest.fn(async () => {});
+  const mockSignIn = jest.fn(async (_provider?: string) => {});
+  const mockSignOut = jest.fn(async (_provider?: string) => {});
   const mockRefresh = jest.fn(async () => {});
-  const mockSignInState = jest.fn(() => null);
-  const mockStatus = jest.fn(async () => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'Connected.' }));
-  const mockCancelSignIn = jest.fn(() => {});
+  const mockSignInState = jest.fn((_provider?: string) => null);
+  const mockStatus = jest.fn(async (_provider?: string) => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'Connected.' }));
+  const mockCancelSignIn = jest.fn((_provider?: string) => {});
 
   return {
     signIn: mockSignIn,
