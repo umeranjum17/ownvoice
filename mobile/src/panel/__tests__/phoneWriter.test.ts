@@ -119,8 +119,8 @@ test('exact duplicate replies are dropped and their slots refilled with the show
   ]);
   expect(mockAsk).toHaveBeenCalledTimes(3);
   expect(mockAsk.mock.calls[0][1]).toBe(220);
-  expect(mockAsk.mock.calls[1][1]).toBe(220);
-  expect(mockAsk.mock.calls[2][1]).toBe(220);
+  expect(mockAsk.mock.calls[1][1]).toBe(120);
+  expect(mockAsk.mock.calls[2][1]).toBe(120);
   const retry = mockAsk.mock.calls[1][0];
   expect(retry).toContain("Don't repeat these: Yep, still on for Saturday. 👍.");
   expect(retry).toContain('Give a different answer: decline or suggest a change, kindly, still answering each point.');
@@ -138,7 +138,7 @@ test('a rejected middle reply refills the decline slot without shifting the unsu
   const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });
   expect(mockAsk).toHaveBeenCalledTimes(2);
   expect(mockAsk.mock.calls[0][1]).toBe(220);
-  expect(mockAsk.mock.calls[1][1]).toBe(220);
+  expect(mockAsk.mock.calls[1][1]).toBe(120);
   expect(mockAsk.mock.calls[1][0]).toContain('Give a different answer');
   expect(mockAsk.mock.calls[1][0]).toContain('decline or suggest a change');
   expect(landed).toEqual([0, 2, 1]);
@@ -192,6 +192,8 @@ test('a late single labelled reply retries both missing slots', async () => {
   expect(result).toEqual({ drafts: ['Yes, Saturday works.', 'No, could we meet Sunday?', 'What time on Saturday?'] });
   expect(mockAsk).toHaveBeenCalledTimes(3);
   expect(mockAsk.mock.calls[0][1]).toBe(220);
+  expect(mockAsk.mock.calls[1][1]).toBe(120);
+  expect(mockAsk.mock.calls[2][1]).toBe(120);
   expect(mockAsk.mock.calls[1][0]).toContain('Give a different answer');
   expect(mockAsk.mock.calls[2][0]).toContain('Not sure yet');
   expect(result.drafts[0]).toContain('Yes');
@@ -220,6 +222,7 @@ test('missing labelled first slot is retried without moving the other replies', 
   const { drafts } = await phoneWriter.write(request(), { landed: (_text, slot) => landed.push(slot) });
   expect(mockAsk).toHaveBeenCalledTimes(2);
   expect(mockAsk.mock.calls[0][1]).toBe(220);
+  expect(mockAsk.mock.calls[1][1]).toBe(120);
   expect(mockAsk.mock.calls[1][0]).toContain('Say yes or agree');
   expect(landed).toEqual([1, 2, 0]);
   expect(drafts).toEqual(['Yes, Saturday works.', 'No, Saturday is out.', 'Not sure yet, what time?']);
@@ -277,6 +280,8 @@ test('the shown avoid list never comes back (Write new ones)', async () => {
   expect(drafts).toEqual(['Fresh plan, happy to bring the stove.']);
   expect(mockAsk).toHaveBeenCalledTimes(3);
   expect(mockAsk.mock.calls[0][1]).toBe(220);
+  expect(mockAsk.mock.calls[1][1]).toBe(120);
+  expect(mockAsk.mock.calls[2][1]).toBe(120);
   expect(mockAsk.mock.calls[1][0]).toContain("Don't repeat these: Yep, still on for Saturday.");
 });
 
