@@ -52,7 +52,7 @@ jest.mock('../../src/chatgpt/accounts', () => {
   });
   const mockRefresh = jest.fn(async () => {});
   const mockAccounts = {
-    providers: [{ key: 'chatgpt', name: 'ChatGPT', label: 'ChatGPT', company: 'OpenAI', billing: 'subscription' as const }],
+    providers: [{ key: 'chatgpt', name: 'ChatGPT', company: 'OpenAI', billing: 'subscription' as const }],
     __mockState: {
       getSignInView: () => signInView,
       getStatusResult: () => statusResult,
@@ -152,7 +152,7 @@ const at = (step: string, inserted = false) => kv.set('setup', JSON.stringify({ 
 test.each(['WELCOME', 'CHOOSE', 'PERMISSION', 'TRY', 'APPS'])('%s uses plain visible wording', async step => {
   at(step, true);
   const screen = await renderSetup();
-  await screen.findByText(({ WELCOME: words.welcomeTitle, CHOOSE: words.tradeGpt3, PERMISSION: words.permissionTitle, TRY: words.tryDoneTitle, APPS: words.appsTitle } as Record<string, string>)[step]);
+  await screen.findByText(({ WELCOME: words.welcomeTitle, CHOOSE: words.tradePlan3.replace('{name}', 'ChatGPT'), PERMISSION: words.permissionTitle, TRY: words.tryDoneTitle, APPS: words.appsTitle } as Record<string, string>)[step]);
   const visible: string[] = [];
   const collect = (node: unknown): void => {
     if (typeof node === 'string') visible.push(node);
@@ -505,7 +505,7 @@ test('theChoiceDefaultsToThisPhoneWhereItCanWrite', async () => {
   const screen = await renderSetup();
   expect(await screen.findByText(words.chooseNote)).toBeTruthy();
   expect(screen.getByTestId('setup-steps').props.accessibilityValue).toEqual({ min: 1, max: 4, now: 1 });
-  for (const line of [words.srcPhoneSub, words.tradePhone1, words.tradePhone2, words.tradePhone3, words.srcGptSub, words.tradeGpt1, words.tradeGpt2, words.tradeGpt3]) expect(screen.getByText(line)).toBeTruthy();
+  for (const line of [words.srcPhoneSub, words.tradePhone1, words.tradePhone2, words.tradePhone3, words.srcGptSub, words.tradeGpt1, words.tradePlan2.replace('{name}', 'ChatGPT'), words.tradePlan3.replace('{name}', 'ChatGPT')]) expect(screen.getByText(line)).toBeTruthy();
   expect(radio(screen, words.srcPhone).props.accessibilityState).toEqual({ checked: true, disabled: false });
   expect(radio(screen, words.srcGpt).props.accessibilityState).toEqual({ checked: false, disabled: false });
   expect(screen.queryByText(words.notNow)).toBeNull();

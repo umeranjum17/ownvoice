@@ -309,15 +309,15 @@ export default function Setup() {
   const phoneCan = phone !== null && phone !== 'cant';
   const planName = (key: string) => plans.find(p => p.key === key)?.name ?? key;
 
-  // Plan options from BYOKit accounts, with provider-specific icons and text
+  // Plan options from BYOKit accounts: one title pattern for every plan, the kit's own label
+  // as the subtitle only when the kit gives one, and the same three disclosure lines each time.
   const planOptions = plans.map(plan => {
-    const icon = plan.key === 'chatgpt' ? <ChatIcon size={22} color={t.onPrimaryContainer} /> : <ChatIcon size={22} color={t.onPrimaryContainer} />;
-    // Use hardcoded words for ChatGPT for backwards compatibility, generic text for other providers
-    const title = plan.key === 'chatgpt' ? words.srcGpt : (plan.label || plan.name);
-    const subtitle = words.srcGptSub;
-    const tradeoffs = plan.key === 'chatgpt'
-      ? [{ text: words.tradeGpt1, good: true }, { text: words.tradeGpt2, good: false }, { text: words.tradeGpt3, good: false }]
-      : [{ text: words.tradePlan1, good: true }, { text: words.tradePlan2, good: false }];
+    const icon = <ChatIcon size={22} color={t.onPrimaryContainer} />;
+    const title = words.srcPlan.replace('{name}', plan.name);
+    const subtitle = plan.label ?? words.srcGptSub;
+    const tradeoffs = [{ text: words.tradeGpt1, good: true },
+      { text: words.tradePlan2.replace('{name}', plan.name), good: false },
+      { text: words.tradePlan3.replace('{name}', plan.name), good: false }];
     return <SourceOption key={plan.key} icon={icon} title={title} subtitle={subtitle} selected={pick === plan.key} onPress={() => setPicked(plan.key)}
       lines={tradeoffs} />;
   });
