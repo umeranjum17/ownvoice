@@ -64,12 +64,12 @@ export function Sheet({ title, note, mood, onClose, children, cover, onCloseCove
       <View style={styles.handleWrap}><View style={[styles.handle, { backgroundColor: t.handle + '66' }]} /></View>
       <View style={styles.header}>
         {!covered && mood ? <View style={styles.dot}><Dot mood={mood} size={44} /></View> : null}
-        <Text accessibilityRole="header" numberOfLines={1} style={[type.heading, { color: t.text, flex: 1 }]}>{covered && cover ? cover.title : title}</Text>
+        <Text accessibilityRole="header" style={[type.heading, { color: t.text, flex: 1 }]}>{covered && cover ? cover.title : title}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={dismiss} hitSlop={12} style={styles.close}>
           <CloseIcon size={24} color={t.muted} />
         </Pressable>
       </View>
-      {note && !covered ? <Text style={[type.note, { color: t.muted, marginHorizontal: space.xl, marginTop: space.xs, marginBottom: space.l }]}>{note}</Text> : null}
+      {note && !covered ? <Text style={[type.note, { color: t.muted, marginHorizontal: space.xl, marginTop: space.xs, marginBottom: space.m }]}>{note}</Text> : null}
       <ScrollView contentContainerStyle={styles.body}>
         {covered && cover ? cover.children : children}
       </ScrollView>

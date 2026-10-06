@@ -128,7 +128,7 @@ export default function Rewrite() {
   return <Sheet title="Make it better" note={enabled ? note : undefined} mood={enabled ? (busy ? 'thinking' : result ? 'ready' : 'idle') : undefined} onClose={() => { void Native.finishRewrite(null, false); }}>
     {!enabled ? (input ? <Empty mood="check" text={note} /> : null) : <>
       <Card variant="filled" label="You selected"><Marked text={input!.text} hits={Slop.hits(input!.text, rules)} /></Card>
-      <View style={{ marginVertical: space.l }}>
+      <View style={{ marginVertical: space.m }}>
         <Choices options={Object.values(Judge.Rewrite)} value={choice} onPick={how => { void rewrite(how); }} />
       </View>
       {busy ? <Placeholder /> : null}
