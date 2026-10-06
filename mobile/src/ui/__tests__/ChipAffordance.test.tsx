@@ -40,6 +40,7 @@ test('dark: every unselected option carries its own fill and edge, distinct from
   (globalThis as Record<string, unknown>).__scheme = 'dark';
   const screen = await render(<Choices options={FIVE} value={null} onPick={() => {}} />);
   const bar = barColor(screen.toJSON());
+  expect(bar).toBe('#211F26');
   const options = chips(screen.toJSON());
   expect(options).toHaveLength(FIVE.length);
   for (const option of options) {
@@ -52,13 +53,21 @@ test('dark: every unselected option carries its own fill and edge, distinct from
   }
 });
 
-test('light: unselected options stay transparent over the bar; selection still lifts out', async () => {
+test('light: every unselected option carries its own fill and edge, distinct from the bar', async () => {
   (globalThis as Record<string, unknown>).__scheme = 'light';
   const screen = await render(<Choices options={FIVE} value={null} onPick={() => {}} />);
-  for (const option of chips(screen.toJSON())) {
-    expect(flatStyle(option).backgroundColor).toBe('transparent');
-    expect(flatStyle(option).borderColor).toBe('transparent');
-    expect(flatStyle(option).borderWidth).toBe(1);
+  const bar = barColor(screen.toJSON());
+  // No tray behind the chips in light: the outline is the affordance now.
+  expect(bar).toBe('transparent');
+  const options = chips(screen.toJSON());
+  expect(options).toHaveLength(FIVE.length);
+  for (const option of options) {
+    const style = flatStyle(option);
+    // Own fill, brightest off the sheet, with a visible outline edge.
+    expect(style.backgroundColor).toBe('#FFFFFF');
+    expect(style.borderColor).toBe('#79747E');
+    expect(style.borderWidth).toBe(1);
+    expect(style.backgroundColor).not.toBe(bar);
   }
 });
 
