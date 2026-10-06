@@ -1,6 +1,6 @@
 import { responseFetch } from './responseFetch';
 import * as SecureStore from 'expo-secure-store';
-import { Accounts, offered, portable, secureStore } from '@byokit/accounts';
+import { Accounts, portable, secureStore } from '@byokit/accounts';
 
 import { CHATGPT_TERMS } from '../core/words';
 export { CHATGPT_TERMS };
@@ -10,10 +10,9 @@ const store = secureStore(SecureStore, 'ownvoice.chatgpt.1');
 // (mockOpenAI) with EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<port>; never set
 // in a distributable build, where sign-in always goes to OpenAI itself.
 const authBase = process.env.EXPO_PUBLIC_E2E_AUTH_BASE || undefined;
-// Offer all subscription plans the kit supports, Claude first per captain's priority.
-const plans = offered().map(p => p.key);
-const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
-export const accounts = new Accounts({ offer: planOrder, app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase } : {}) }, portable);
+// Claude first, then other subscription plans the kit catalogue offers.
+// The kit validates these keys against its catalogue; invalid keys are rejected.
+export const accounts = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase } : {}) }, portable);
 // Generic plan operations: the UI passes the provider key ('claude', 'chatgpt', etc.)
 export const signIn = (provider: string) => accounts.login(member, provider, { via: 'code' });
 export const signOut = (provider: string) => accounts.logout(member, provider);
