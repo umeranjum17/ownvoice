@@ -19,6 +19,6 @@ export function Choices<T extends string>({ options, value, onPick }: { options:
 }
 
 const styles = StyleSheet.create({
-  bar: { flexDirection: 'row', flexWrap: 'nowrap', borderRadius: shape.round, padding: space.xs, gap: space.xs },
-  option: { flex: 1, minHeight: 48, borderRadius: shape.round, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingHorizontal: 6, overflow: 'hidden' },
+  bar: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: shape.round, padding: space.xs, gap: space.xs },
+  option: { minHeight: 48, borderRadius: shape.round, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingHorizontal: space.s, overflow: 'hidden' },
 });
