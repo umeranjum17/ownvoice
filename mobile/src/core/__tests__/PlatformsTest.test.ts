@@ -1,4 +1,4 @@
-import { DEFAULT_PLATFORM, platformForApp, platformLine, polishLine, slotsFor } from '../platforms';
+import { CHROME_URL_BAR, DEFAULT_PLATFORM, platformForApp, platformLine, polishLine, slotsFor } from '../platforms';
 import { phoneReplyPrompt, phoneSlotPrompt, replyPrompt, REPLY_SLOTS } from '../drafts';
 import { lineRetryPrompt, rewritePrompt, scoreDraft, versionPrompt, versionsList } from '../judge';
 
@@ -21,6 +21,15 @@ test('the prompt line names the place and its cap, and stays empty otherwise', (
   expect(platformLine(platformForApp('com.google.android.gm'))).toBe('');
   expect(platformLine(DEFAULT_PLATFORM)).toBe('');
   expect(platformLine()).toBe('');
+});
+
+test('Chrome maps a post URL bar to its platform by whole host', () => {
+  const bar = (text: string) => [{ text, viewId: CHROME_URL_BAR, top: 0, bottom: 1 }] as any;
+  expect(platformForApp('com.android.chrome', bar('linkedin.com/in/post/123'))).toMatchObject({ id: 'linkedin' });
+  expect(platformForApp('com.android.chrome', bar('https://www.linkedin.com/posts/abc'))).toMatchObject({ id: 'linkedin' });
+  expect(platformForApp('com.android.chrome', bar('x.com/umerdemo/status/1'))).toMatchObject({ id: 'x' });
+  expect(platformForApp('com.android.chrome', bar('linkedin.com.evil.example'))).toBe(DEFAULT_PLATFORM);
+  expect(platformForApp('com.android.chrome', [])).toBe(DEFAULT_PLATFORM);
 });
 
 test('reply prompts carry the platform only when known', () => {
@@ -109,8 +118,8 @@ test('reply prompts use the platforms slots', () => {
 
 test('the phone reply prompt stays under 700 characters of instructions on every platform', () => {
   for (const app of ['com.twitter.android', 'com.linkedin.android', 'com.reddit.frontpage', 'com.Slack', 'com.whatsapp', 'com.google.android.gm', 'com.example.other']) {
-    // Grow adds their reply so far (`point`) on X and Reddit; the budget holds with it too.
-    for (const point of app === 'com.twitter.android' || app === 'com.reddit.frontpage' ? [undefined, 'Saturday works for me'] : [undefined]) {
+    // Grow adds their reply so far (`point`) on X, LinkedIn and Reddit; the budget holds with it too.
+    for (const point of app === 'com.twitter.android' || app === 'com.linkedin.android' || app === 'com.reddit.frontpage' ? [undefined, 'Saturday works for me'] : [undefined]) {
       const prompt = phoneReplyPrompt({ latest: 'Sam: Saturday?', conversation: 'Sam: Saturday?', point, platform: platformForApp(app) });
       expect(prompt.split('\n\nLatest message:')[0].length).toBeLessThanOrEqual(700);
     }

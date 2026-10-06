@@ -85,6 +85,7 @@ function chromePlatform(nodes: ScreenText[]): Platform {
   if (!match || (match[2] && Number(match[2]) > 65535)) return DEFAULT_PLATFORM;
   const host = match[1].toLowerCase();
   if (['x.com', 'www.x.com', 'mobile.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com'].includes(host)) return X;
+  if (['linkedin.com', 'www.linkedin.com', 'm.linkedin.com', 'mobile.linkedin.com'].includes(host)) return LINKEDIN;
   if (['reddit.com', 'www.reddit.com', 'old.reddit.com', 'new.reddit.com', 'm.reddit.com'].includes(host)) return REDDIT;
   return DEFAULT_PLATFORM;
 }
