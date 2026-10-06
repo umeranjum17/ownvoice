@@ -1794,7 +1794,6 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
         </View>
         <Text
           accessibilityRole="header"
-          numberOfLines={1}
           style={
             [
               {
@@ -1922,7 +1921,7 @@ exports[`ui components (dark) sheet: dark/sheet 1`] = `
             },
             {
               "color": "#CAC4D0",
-              "marginBottom": 16,
+              "marginBottom": 12,
               "marginHorizontal": 24,
               "marginTop": 4,
             },
@@ -2228,7 +2227,6 @@ exports[`ui components (dark) sheet-covered: dark/sheet-covered 1`] = `
       >
         <Text
           accessibilityRole="header"
-          numberOfLines={1}
           style={
             [
               {
@@ -4962,7 +4960,6 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
         </View>
         <Text
           accessibilityRole="header"
-          numberOfLines={1}
           style={
             [
               {
@@ -5090,7 +5087,7 @@ exports[`ui components (light) sheet: light/sheet 1`] = `
             },
             {
               "color": "#49454F",
-              "marginBottom": 16,
+              "marginBottom": 12,
               "marginHorizontal": 24,
               "marginTop": 4,
             },
@@ -5396,7 +5393,6 @@ exports[`ui components (light) sheet-covered: light/sheet-covered 1`] = `
       >
         <Text
           accessibilityRole="header"
-          numberOfLines={1}
           style={
             [
               {
