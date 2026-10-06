@@ -142,7 +142,7 @@ test('saved writing rules guide and flag the rewrite', async () => {
   expect(visibleStrings(screen)).toContain('cheers mate');
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain('Same meaning as yours'));
-  expect(mockAsk).toHaveBeenCalledWith(expect.stringContaining("Follow the writer's rules: No em dashes. How they write: short, lowercase"), 256);
+  expect(mockAsk).toHaveBeenCalledWith(expect.stringContaining("Follow the writer's rules: No em dashes. Never use: \"cheers mate\". How they write: short, lowercase"), 256);
   expect(visibleStrings(screen)).not.toContain('Sounds natural');
   wipeVoice();
 });

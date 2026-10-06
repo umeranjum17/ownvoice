@@ -1,7 +1,7 @@
 // Draft-quality logic (look spec section 5). Pure TypeScript; the writers call it.
 import { platformLine, slotsFor, CHAT_SLOTS, type Platform } from './platforms.ts';
 import type { Rules } from './slop.ts';
-import { addedNumbers, inventedTimes } from './slop.ts';
+import { addedNumbers, inventedTimes, matcher } from './slop.ts';
 
 // ---- Cleanup of raw model output (moved from the phone writer; behaviour unchanged, spec 5.5) ----
 
@@ -299,14 +299,19 @@ export function stripControlLines(text: string, controls: string[]): string {
   return text.split(/\r?\n/).filter(line => !labels.has(line.trim())).join('\n').trim();
 }
 
-export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = []): (string | null)[] {
+export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = []): (string | null)[] {
   const accepted: (string | null)[] = Array(count).fill(null);
+  // A card that still uses a never-say phrase is dropped, so the caller's existing per-slot retry
+  // asks once more; a second break stays empty (the bottom-level check remains the backstop).
+  const banned = never.map(p => p.trim()).filter(Boolean);
+  const breaks = (text: string) => banned.some(p => matcher(p).test(text));
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
     const clean = stripControlLines(text, controls);
     const draft = dashes === 'remove' ? undash(clean) : clean;
-    if (draft && fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
+    if (!draft || breaks(draft)) return;
+    if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
   };
   for (const candidate of candidates) {
     const source = body(unquote(candidate), false);
