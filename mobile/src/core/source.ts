@@ -3,7 +3,8 @@ import { GPT_APPS_KEY, session } from '../chatgpt/session';
 import { CHATGPT_DEFAULT_OFF, DEFAULT_ON, showsBubble } from './privacy';
 import { store } from './store';
 
-export type Source = 'phone' | 'chatgpt' | null;
+/** The chosen writing source: 'phone' for on-device, a plan provider key ('claude', 'chatgpt', etc.) for cloud, or null when not chosen. */
+export type Source = 'phone' | string | null;
 export const SOURCE_KEY = 'writer-source';
 export const PHONE_ONLY_KEY = 'chatgpt-phone-only';
 // "Not chosen" on purpose (signed out on a phone that can't write): kept, never migrated again.

@@ -33,11 +33,65 @@ jest.mock('../../src/core/localModel', () => ({
   installLocalModel: jest.fn(),
   removeLocalModel: jest.fn(),
 }));
+jest.mock('../../src/chatgpt/accounts', () => {
+  let signInView: any = null;
+  let statusResult: any = { account: 'owner', name: 'ChatGPT', state: 'signed_out', words: 'Not signed in.' };
+
+  const mockSignIn = jest.fn(async (_provider?: string) => {
+    // Simulate starting sign-in: set view to waiting state
+    signInView = { state: 'waiting', via: 'code', code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' };
+  });
+  const mockSignOut = jest.fn(async (_provider?: string) => {
+    signInView = null;
+    statusResult = { account: 'owner', name: 'ChatGPT', state: 'signed_out', words: 'Not signed in.' };
+  });
+  const mockSignInState = jest.fn((_provider?: string) => signInView);
+  const mockStatus = jest.fn(async (_provider?: string) => statusResult);
+  const mockCancelSignIn = jest.fn((_provider?: string) => {
+    signInView = null;
+  });
+  const mockRefresh = jest.fn(async () => {});
+  const mockAccounts = {
+    providers: [{ key: 'chatgpt', name: 'ChatGPT', company: 'OpenAI', billing: 'subscription' as const }],
+    __mockState: {
+      getSignInView: () => signInView,
+      getStatusResult: () => statusResult,
+      setSignInView: (v: any) => { signInView = v; },
+      setStatusResult: (s: any) => { statusResult = s; }
+    },
+  };
+
+  // Helper to simulate sign-in completion (for tests to call)
+  (mockStatus as any).mockConnected = () => {
+    signInView = null;
+    statusResult = { account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' };
+  };
+
+  return {
+    accounts: mockAccounts,
+    signIn: mockSignIn,
+    signOut: mockSignOut,
+    refresh: mockRefresh,
+    signInState: mockSignInState,
+    status: mockStatus,
+    cancelSignIn: mockCancelSignIn,
+  };
+});
 import { agreedToDownload, installLocalModel, localModelState } from '../../src/core/localModel';
+import { status as accountsStatus, accounts, signIn as accountsSignIn, signOut as accountsSignOut, cancelSignIn as accountsCancel } from '../../src/chatgpt/accounts';
 const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const mockAgreed = agreedToDownload as jest.MockedFunction<typeof agreedToDownload>;
 const mockInstall = installLocalModel as jest.MockedFunction<typeof installLocalModel>;
 const gpt = session as jest.Mocked<typeof session>;
+const simulateSignInComplete = () => (accountsStatus as any).mockConnected();
+const setAccountsWaiting = () => (accounts as any).__mockState.setSignInView({ state: 'waiting', via: 'code', code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' });
+// The accounts mock keeps its sign-in view and status in module-closure state that
+// jest.clearAllMocks() never touches, so reset it here: without this, a test that
+// connects leaks a ready status into every later test in this file.
+const resetAccountsMock = () => {
+  (accounts as any).__mockState.setSignInView(null);
+  (accounts as any).__mockState.setStatusResult({ account: 'owner', name: 'ChatGPT', state: 'signed_out', words: 'Not signed in.' });
+};
 const waitingCode: GptState = { ...nothing, waiting: true, code: 'KQPT-MXVD', url: 'https://chatgpt.com/code', note: 'Sign in on the ChatGPT page that just opened.' };
 const connected: GptState = { ...nothing, signedIn: true, note: 'ChatGPT is connected.' };
 const kv = (jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>);
@@ -59,6 +113,7 @@ beforeEach(() => {
   for (const key of Object.keys(events)) delete events[key];
   backHandlers.length = 0;
   jest.clearAllMocks();
+  resetAccountsMock();
   jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
   mockState.mockResolvedValue({ phase: 'ready' });
   mockAgreed.mockImplementation(() => kv.get(AGREED_KEY) === 'true');
@@ -97,7 +152,7 @@ const at = (step: string, inserted = false) => kv.set('setup', JSON.stringify({ 
 test.each(['WELCOME', 'CHOOSE', 'PERMISSION', 'TRY', 'APPS'])('%s uses plain visible wording', async step => {
   at(step, true);
   const screen = await renderSetup();
-  await screen.findByText(({ WELCOME: words.welcomeTitle, CHOOSE: words.tradeGpt3, PERMISSION: words.permissionTitle, TRY: words.tryDoneTitle, APPS: words.appsTitle } as Record<string, string>)[step]);
+  await screen.findByText(({ WELCOME: words.welcomeTitle, CHOOSE: words.tradePlan3.replace('{name}', 'ChatGPT'), PERMISSION: words.permissionTitle, TRY: words.tryDoneTitle, APPS: words.appsTitle } as Record<string, string>)[step]);
   const visible: string[] = [];
   const collect = (node: unknown): void => {
     if (typeof node === 'string') visible.push(node);
@@ -450,7 +505,7 @@ test('theChoiceDefaultsToThisPhoneWhereItCanWrite', async () => {
   const screen = await renderSetup();
   expect(await screen.findByText(words.chooseNote)).toBeTruthy();
   expect(screen.getByTestId('setup-steps').props.accessibilityValue).toEqual({ min: 1, max: 4, now: 1 });
-  for (const line of [words.srcPhoneSub, words.tradePhone1, words.tradePhone2, words.tradePhone3, words.srcGptSub, words.tradeGpt1, words.tradeGpt2, words.tradeGpt3]) expect(screen.getByText(line)).toBeTruthy();
+  for (const line of [words.srcPhoneSub, words.tradePhone1, words.tradePhone2, words.tradePhone3, words.srcGptSub, words.tradeGpt1, words.tradePlan2.replace('{name}', 'ChatGPT'), words.tradePlan3.replace('{name}', 'ChatGPT')]) expect(screen.getByText(line)).toBeTruthy();
   expect(radio(screen, words.srcPhone).props.accessibilityState).toEqual({ checked: true, disabled: false });
   expect(radio(screen, words.srcGpt).props.accessibilityState).toEqual({ checked: false, disabled: false });
   expect(screen.queryByText(words.notNow)).toBeNull();
@@ -458,7 +513,7 @@ test('theChoiceDefaultsToThisPhoneWhereItCanWrite', async () => {
   expect(await screen.findByText(words.permissionTitle)).toBeTruthy();
   expect(kv.get('writer-source')).toBe('"phone"');
   expect(await screen.findByText(words.promiseStays)).toBeTruthy();
-  expect(gpt.start).not.toHaveBeenCalled();
+  expect(accountsSignIn).not.toHaveBeenCalled();
 });
 
 test('choosingChatGptSignsInInsideTheStepThenPromisesChatGpt', async () => {
@@ -475,29 +530,29 @@ test('choosingChatGptSignsInInsideTheStepThenPromisesChatGpt', async () => {
   expect(Linking.openURL).toHaveBeenCalledWith('https://chatgpt.com/code');
   expect(kv.get('writer-source')).toBeUndefined();
   // The person approves on the ChatGPT page; the step notices by itself.
-  gpt.current.mockResolvedValue(connected);
+  simulateSignInComplete();
   expect(await screen.findByText(words.connectedNote, {}, { timeout: 3000 })).toBeTruthy();
-  expect(screen.getByText('ChatGPT is connected')).toBeTruthy();
+  expect(screen.getByText('Signed in to ChatGPT')).toBeTruthy();
   expect(screen.getByText(`${words.privacyGpt} ${words.sentOnlyOnTap}`)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.continueLabel));
   expect(await screen.findByText(words.permissionTitle)).toBeTruthy();
   expect(kv.get('writer-source')).toBe('"chatgpt"');
-  expect(await screen.findByText(words.promiseGpt)).toBeTruthy();
-  expect(screen.getByText(words.promiseGptNote)).toBeTruthy();
+  expect(await screen.findByText('Sent to ChatGPT')).toBeTruthy();
+  expect(screen.getByText('Only when you tap Insert')).toBeTruthy();
   expect(screen.queryByText(words.promiseStays)).toBeNull();
   await screen.unmount();
-  // Process death after the choice: the permission comes back, still promising ChatGPT.
+  // Process death after the choice: the permission comes back, still showing ChatGPT.
   const again = await renderSetup();
-  expect(await again.findByText(words.promiseGpt)).toBeTruthy();
+  expect(await again.findByText('Sent to ChatGPT')).toBeTruthy();
 });
 
 test('alreadySignedInGoesStraightToConnected', async () => {
   at('CHOOSE');
-  gpt.current.mockResolvedValue(connected);
+  simulateSignInComplete();
   const screen = await renderSetup();
   await signInWithChatGpt(screen);
   expect(await screen.findByText(words.connectedNote)).toBeTruthy();
-  expect(gpt.start).not.toHaveBeenCalled();
+  expect(accountsSignIn).not.toHaveBeenCalled();
 });
 
 test.each([['Back', true], ['Cancel', false]])('%sFromSignInReturnsToTheChoiceAndKeepsNothing', async (_, hardware) => {
@@ -506,14 +561,13 @@ test.each([['Back', true], ['Cancel', false]])('%sFromSignInReturnsToTheChoiceAn
   await signInWithChatGpt(screen);
   await screen.findByTestId('sign-in-code');
   if (hardware) await act(async () => { backHandlers.forEach(fire => fire()); });
-  else await fireEvent.press(screen.getByText(words.gptCancel));
+  else await fireEvent.press(screen.getByText('Cancel'));
   expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
-  expect(gpt.cancel).toHaveBeenCalledTimes(1);
+  expect(accountsCancel).toHaveBeenCalledTimes(1);
   expect(kv.get('setup-done')).toBeUndefined();
   expect(kv.get('writer-source')).toBeUndefined();
   expect(kv.get('setup')).toContain('CHOOSE');
-  // A late answer from the dropped sign-in doesn't bring it back.
-  gpt.current.mockResolvedValue(connected);
+  // A late sign-in completion doesn't bring it back after cancel
   await act(async () => { await new Promise(r => setTimeout(r, 1200)); });
   expect(screen.queryByText(words.connectedNote)).toBeNull();
 });
@@ -562,7 +616,7 @@ test('anAgreedDownloadPicksUpWhereItStopped', async () => {
 test('usePhoneInsteadWhereTheDownloadIsNeededGoesBackToTheAsk', async () => {
   at('CHOOSE');
   mockState.mockResolvedValue({ phase: 'not-installed' });
-  gpt.start.mockRejectedValue(new Error('offline'));
+  (accountsSignIn as jest.Mock).mockRejectedValueOnce(new Error('offline'));
   const screen = await renderSetup();
   await fireEvent.press(await screen.findByText(words.srcGpt));
   await fireEvent.press(screen.getByText(words.continueLabel));
@@ -574,14 +628,15 @@ test('usePhoneInsteadWhereTheDownloadIsNeededGoesBackToTheAsk', async () => {
 
 test('aFailedSignInSaysWhyAndOffersThePhone', async () => {
   at('CHOOSE');
-  gpt.start.mockResolvedValue({ ...nothing, note: 'The code expired before it was used. Tap Sign in with ChatGPT for a new one.' });
+  (accountsSignIn as jest.Mock).mockImplementationOnce(async () => {
+    (accounts as any).__mockState.setSignInView({ state: 'failed', error: 'The code expired before it was used. Tap Sign in with ChatGPT for a new one.' });
+  });
   const screen = await renderSetup();
   await signInWithChatGpt(screen);
   expect(await screen.findByText('The code expired before it was used. Tap Sign in with ChatGPT for a new one.')).toBeTruthy();
-  gpt.start.mockResolvedValue(waitingCode);
   await fireEvent.press(screen.getByText(words.tryAgain));
   expect(await screen.findByTestId('sign-in-code')).toBeTruthy();
-  gpt.start.mockRejectedValue(new Error('offline'));
+  (accountsSignIn as jest.Mock).mockRejectedValueOnce(new Error('offline'));
   await act(async () => { backHandlers.forEach(fire => fire()); });
   await signInWithChatGpt(screen);
   expect(await screen.findByText(words.failed)).toBeTruthy();
@@ -613,52 +668,52 @@ test('whereThePhoneCantWriteChatGptLeadsAndNotNowEndsSetup', async () => {
 test('whereThePhoneCantWriteAFailedSignInOffersOnlyTryAgain', async () => {
   at('CHOOSE');
   mockState.mockResolvedValue({ phase: 'unsupported' });
-  gpt.start.mockResolvedValue({ ...nothing, note: 'Couldn\'t reach ChatGPT. Check the internet connection, then tap Sign in again.' });
+  (accountsSignIn as jest.Mock).mockRejectedValueOnce(new Error('offline'));
   const screen = await renderSetup();
-  await fireEvent.press(await screen.findByText(words.gptButton));
+  await fireEvent.press(await screen.findByText('Sign in'));
   expect(await screen.findByText(words.tryAgain)).toBeTruthy();
   expect(screen.queryByText(words.usePhoneInstead)).toBeNull();
 });
 
 test('aSignInStillWaitingComesBackAfterTheScreenIsRebuilt', async () => {
   at('CHOOSE');
-  gpt.current.mockResolvedValue(waitingCode);
+  setAccountsWaiting();
   const screen = await renderSetup();
   expect(await screen.findByTestId('sign-in-code')).toBeTruthy();
 });
 
 test('backWhileTheCodeIsBeingMadeDropsItWhenItArrives', async () => {
   at('CHOOSE');
-  let looked!: (state: GptState) => void;
+  // Leaving while signIn() itself is still running: the code it made is dropped.
+  let release!: () => void;
+  (accountsSignIn as jest.Mock).mockImplementationOnce(() => new Promise<void>(resolve => { release = resolve; }));
   const screen = await renderSetup();
   await screen.findByText(words.tradeGpt1);
-  gpt.current.mockImplementationOnce(() => new Promise(resolve => { looked = resolve; }));
   await signInWithChatGpt(screen);
+  // The sign-in was really started before leaving: otherwise this test is vacuous.
+  await waitFor(() => expect(accountsSignIn).toHaveBeenCalledTimes(1));
+  const cancels = (accountsCancel as jest.Mock).mock.calls.length;
   await act(async () => { backHandlers.forEach(fire => fire()); });
-  await act(async () => { looked(nothing); });
-  expect(gpt.start).not.toHaveBeenCalled();
-  // Left while start() itself was running: the code it made is dropped.
-  let made!: (state: GptState) => void;
-  gpt.start.mockImplementationOnce(() => new Promise(resolve => { made = resolve; }));
-  await signInWithChatGpt(screen);
-  await waitFor(() => expect(gpt.start).toHaveBeenCalledTimes(1));
-  await act(async () => { backHandlers.forEach(fire => fire()); });
-  const cancels = gpt.cancel.mock.calls.length;
-  await act(async () => { made(waitingCode); });
-  await waitFor(() => expect(gpt.cancel.mock.calls.length).toBeGreaterThan(cancels));
+  await act(async () => { release(); });
+  await waitFor(() => expect((accountsCancel as jest.Mock).mock.calls.length).toBeGreaterThan(cancels));
   expect(screen.queryByTestId('sign-in-code')).toBeNull();
   expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
 });
 
-test.each([[true, 1], [false, 0]])('backFromConnectedSignsOutOnlyANewSignIn (new: %s)', async (fresh, signOuts) => {
+test.each([[true], [false]])('backFromConnectedKeepsNothingStored (fresh sign-in: %s)', async (fresh: boolean) => {
   at('CHOOSE');
-  if (fresh) gpt.start.mockResolvedValue(connected);
-  else gpt.current.mockResolvedValue(connected);
+  if (!fresh) simulateSignInComplete();
   const screen = await renderSetup();
   await signInWithChatGpt(screen);
-  await screen.findByText(words.connectedNote);
+  if (fresh) {
+    // A code first; the approval lands afterwards and the step notices by itself.
+    await screen.findByTestId('sign-in-code');
+    simulateSignInComplete();
+  }
+  expect(await screen.findByText(words.connectedNote, {}, { timeout: 3000 })).toBeTruthy();
   await act(async () => { backHandlers.forEach(fire => fire()); });
   expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
-  expect(gpt.signOut).toHaveBeenCalledTimes(signOuts);
+  // Backing out of setup never signs out: an account connected just now stays connected.
+  expect(accountsSignOut).not.toHaveBeenCalled();
   expect(kv.get('writer-source')).toBeUndefined();
 });

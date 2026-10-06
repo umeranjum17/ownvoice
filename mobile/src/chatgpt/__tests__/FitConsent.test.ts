@@ -17,13 +17,26 @@ jest.mock('../accounts', () => {
   const actual = jest.requireActual('../accounts');
   actual.accounts.runtime = jest.fn(async () => ({ getAuth: async () => ({ auth: { apiKey: 'fixture-access' } }), readCredential: async () => ({ type: 'oauth', accountId: 'fixture-account' }) }));
   actual.accounts.failed = jest.fn(async (_member: string, _key: string, error: { kind: string; until: number }) => ({ kind: error.kind, until: error.until }));
+  const mockSignIn = jest.fn(async (_provider?: string) => {});
+  const mockSignOut = jest.fn(async (_provider?: string) => {});
+  const mockSignInState = jest.fn((_provider?: string) => null);
+  const mockStatus = jest.fn(async (_provider?: string) => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' }));
+  const mockCancelSignIn = jest.fn((_provider?: string) => {});
+  const mockRefresh = jest.fn(async () => {});
   return { ...actual,
   reportFailure: jest.fn(async () => null),
-  signOut: jest.fn(async () => {}),
+  signIn: mockSignIn,
+  signOut: mockSignOut,
   codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })),
-  refresh: jest.fn(async () => {}),
-  signInState: jest.fn(() => null),
-  status: jest.fn(async () => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' })),
+  refresh: mockRefresh,
+  signInState: mockSignInState,
+  status: mockStatus,
+  cancelSignIn: mockCancelSignIn,
+  signInChatGPT: () => mockSignIn('chatgpt'),
+  signOutChatGPT: () => mockSignOut('chatgpt'),
+  signInStateChatGPT: () => mockSignInState('chatgpt'),
+  statusChatGPT: () => mockStatus('chatgpt'),
+  cancelSignInChatGPT: () => mockCancelSignIn('chatgpt'),
 }; });
 
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['phone one', 'phone two', 'phone three'] })) } }));

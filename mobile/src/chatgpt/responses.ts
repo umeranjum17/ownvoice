@@ -57,7 +57,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
       if (__DEV__) console.log(`Ownvoice ChatGPT pre-dispatch failure: ${message}`);
       throw new SendVeto(words.phoneWrote, { cause: error });
     }
-    if (!(error instanceof ResponseError && error.kind != null)) await reportFailure(message).catch(() => {});
+    if (!(error instanceof ResponseError && error.kind != null)) await reportFailure('chatgpt', message).catch(() => {});
     throw error;
   }
 }

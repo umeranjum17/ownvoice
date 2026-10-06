@@ -1,15 +1,32 @@
 import { Accounts } from '@byokit/accounts';
 import { stateOf, nothing, session } from '../session';
 import { store } from '../../core/store';
-import { signIn, signOut, status } from '../accounts';
 
-jest.mock('../accounts', () => ({
-  signIn: jest.fn(async () => {}),
-  signOut: jest.fn(async () => {}),
-  refresh: jest.fn(async () => {}),
-  signInState: jest.fn(() => null),
-  status: jest.fn(async () => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'Connected.' })),
-}));
+jest.mock('../accounts', () => {
+  const mockSignIn = jest.fn(async (_provider?: string) => {});
+  const mockSignOut = jest.fn(async (_provider?: string) => {});
+  const mockRefresh = jest.fn(async () => {});
+  const mockSignInState = jest.fn((_provider?: string) => null);
+  const mockStatus = jest.fn(async (_provider?: string) => ({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'Connected.' }));
+  const mockCancelSignIn = jest.fn((_provider?: string) => {});
+
+  return {
+    signIn: mockSignIn,
+    signOut: mockSignOut,
+    refresh: mockRefresh,
+    signInState: mockSignInState,
+    cancelSignIn: mockCancelSignIn,
+    status: mockStatus,
+    // ChatGPT-specific wrappers call the generic mocks
+    signInChatGPT: () => mockSignIn('chatgpt'),
+    signOutChatGPT: () => mockSignOut('chatgpt'),
+    signInStateChatGPT: () => mockSignInState('chatgpt'),
+    cancelSignInChatGPT: () => mockCancelSignIn('chatgpt'),
+    statusChatGPT: () => mockStatus('chatgpt'),
+  };
+});
+
+import { signIn, signOut, status } from '../accounts';
 import { words } from '../../core/words';
 
 // The sign-in states the screen shows, in byokit's own sentences (no real account is involved).

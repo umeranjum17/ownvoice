@@ -58,22 +58,22 @@ const real: Session = {
     if (signingOut) return nothing;
     const a = live();
     await a.refresh().catch(() => {});
-    const state = stateOf(a.signInState(), await a.status().catch(() => null));
+    const state = stateOf(a.signInStateChatGPT(), await a.statusChatGPT().catch(() => null));
     return signingOut ? nothing : state;
   },
   start: async () => {
     store.set(GPT_APPS_KEY, null);
     const a = live();
-    await a.signIn();
-    return stateOf(a.signInState(), await a.status().catch(() => null));
+    await a.signInChatGPT();
+    return stateOf(a.signInStateChatGPT(), await a.statusChatGPT().catch(() => null));
   },
   cancel: async () => {
-    live().cancelSignIn();
+    live().cancelSignInChatGPT();
     return { ...nothing, note: say('signIn.cancelled', { name: NAME }) };
   },
   signOut: () => leaving(async () => {
     try { store.set(GPT_APPS_KEY, null); } catch {}
-    await live().signOut();
+    await live().signOutChatGPT();
     return { ...nothing, note: say('status.signedOut', { name: NAME }) };
   }),
 };

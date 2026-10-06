@@ -228,7 +228,7 @@ test('a kit error is reported and mapped to the plain screen line', async () => 
   const fetch = okFetch(done);
   await expect(chatgptBrain({ fetch }).step('instructions', [], tools)).rejects.toThrow(words.chatgptFailed);
   expect(fetch).not.toHaveBeenCalled();
-  expect(reportFailure).toHaveBeenCalledWith('boom');
+  expect(reportFailure).toHaveBeenCalledWith('chatgpt', 'boom');
 });
 
 test.each(['max_output_tokens', 'content_filter', 'unknown'])('kit incomplete response (%s) never executes partial tool calls', async reason => {

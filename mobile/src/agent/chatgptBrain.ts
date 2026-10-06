@@ -61,7 +61,7 @@ export function chatgptBrain(o: {
       } catch (error) {
         if (error instanceof IncompleteError) throw new Error(words.chatgptFailed);
         const message = error instanceof Error ? error.message : String(error);
-        if (!(error instanceof ResponseError && error.kind != null)) await reportFailure(message).catch(() => {});
+        if (!(error instanceof ResponseError && error.kind != null)) await reportFailure('chatgpt', message).catch(() => {});
         throw new Error(failureLine(error));
       }
     },
