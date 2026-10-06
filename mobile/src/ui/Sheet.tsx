@@ -69,7 +69,7 @@ export function Sheet({ title, note, mood, onClose, children, cover, onCloseCove
           <CloseIcon size={24} color={t.muted} />
         </Pressable>
       </View>
-      {note && !covered ? <Text style={[type.note, { color: t.muted, marginHorizontal: space.xl, marginTop: space.xs, marginBottom: space.l }]}>{note}</Text> : null}
+      {note && !covered ? <Text style={[type.note, { color: t.muted, marginHorizontal: space.xl, marginTop: space.xs, marginBottom: space.m }]}>{note}</Text> : null}
       <ScrollView contentContainerStyle={styles.body}>
         {covered && cover ? cover.children : children}
       </ScrollView>
