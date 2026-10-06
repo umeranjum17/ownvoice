@@ -307,6 +307,7 @@ export default function Setup() {
   if (step === 'WELCOME') return <Welcome onContinue={() => advance()} />;
   if (step === 'DONE') return <View style={{ flex: 1, backgroundColor: t.sheet }} />;
   const phoneCan = phone !== null && phone !== 'cant';
+  const planName = (key: string) => plans.find(p => p.key === key)?.name ?? key;
 
   // Plan options from BYOKit accounts, with provider-specific icons and text
   const planOptions = plans.map(plan => {
@@ -328,7 +329,7 @@ export default function Setup() {
       </>
       : <Button kind="filled" large disabled={!phone} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : startPlanSignIn(pick)} />)}
     {step === 'CHOOSE' && planState?.waiting && <>
-      <Button kind="filled" large disabled={!planState.code} label={words.copyAndOpen} onPress={copyAndOpen} />
+      <Button kind="filled" large disabled={!planState.code} label={planState.provider === 'chatgpt' ? words.copyAndOpen : words.copyAndOpenTo.replace('{name}', planName(planState.provider))} onPress={copyAndOpen} />
       <View style={styles.skip}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>
     </>}
     {step === 'CHOOSE' && planState?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => planState.provider && choose(planState.provider)} />}
@@ -366,7 +367,7 @@ export default function Setup() {
       </View>}
     </>}
     {step === 'CHOOSE' && planState?.waiting && <>
-      <Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={words.signInNote} />
+      <Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={planState.provider === 'chatgpt' ? words.signInNote : words.signInNoteTo.replace('{name}', planName(planState.provider))} />
       <View style={[styles.code, { backgroundColor: t.raised }]}>
         {planState.code && <>
           <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
@@ -383,10 +384,10 @@ export default function Setup() {
     </>}
     {step === 'CHOOSE' && planState?.signedIn && <>
       <View style={styles.connectedDot}><Dot mood="done" size={112} /></View>
-      <Head title={words.signedInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={words.connectedNote} />
+      <Head title={words.signedInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={planState.provider === 'chatgpt' ? words.connectedNote : words.connectedNoteTo.replace('{name}', planName(planState.provider))} />
       <View style={[styles.sent, { backgroundColor: t.group }]}>
         <Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>
-        <Text style={[type.body, { color: t.text, flex: 1 }]}>{planState.provider === 'chatgpt' ? `${words.privacyGpt} ${words.sentOnlyOnTap}` : words.sentOnlyOnTap}</Text>
+        <Text style={[type.body, { color: t.text, flex: 1 }]}>{planState.provider === 'chatgpt' ? `${words.privacyGpt} ${words.sentOnlyOnTap}` : `${words.privacyPlan.replace('{name}', planName(planState.provider))} ${words.sentOnlyOnTap}`}</Text>
       </View>
     </>}
     {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={planState.note ?? words.failed} />}

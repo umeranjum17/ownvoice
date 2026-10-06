@@ -155,7 +155,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
       return require('./responses').chatgptWriter.write(request, { ...on, beforeSend, beforeFetch });
     } }),
     fallbackNote: async () => {
-      const current = await require('./accounts').status();
+      const current = await require('./accounts').status('chatgpt');
       return ['resting', 'not_included', 'needs_again', 'signed_out'].includes(current.state) ? current.words : null;
     },
     phoneWriter,
