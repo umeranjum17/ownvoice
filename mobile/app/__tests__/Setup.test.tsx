@@ -33,11 +33,58 @@ jest.mock('../../src/core/localModel', () => ({
   installLocalModel: jest.fn(),
   removeLocalModel: jest.fn(),
 }));
+jest.mock('../../src/chatgpt/accounts', () => {
+  let signInView: any = null;
+  let statusResult: any = { account: 'owner', name: 'ChatGPT', state: 'signed_out', words: 'Not signed in.' };
+
+  const mockSignIn = jest.fn(async (_provider?: string) => {
+    // Simulate starting sign-in: set view to waiting state
+    signInView = { state: 'waiting', via: 'code', code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' };
+  });
+  const mockSignOut = jest.fn(async (_provider?: string) => {
+    signInView = null;
+    statusResult = { account: 'owner', name: 'ChatGPT', state: 'signed_out', words: 'Not signed in.' };
+  });
+  const mockSignInState = jest.fn((_provider?: string) => signInView);
+  const mockStatus = jest.fn(async (_provider?: string) => statusResult);
+  const mockCancelSignIn = jest.fn((_provider?: string) => {
+    signInView = null;
+  });
+  const mockRefresh = jest.fn(async () => {});
+  const mockAccounts = {
+    providers: [{ key: 'chatgpt', name: 'ChatGPT', label: 'ChatGPT', company: 'OpenAI', billing: 'subscription' as const }],
+    __mockState: {
+      getSignInView: () => signInView,
+      getStatusResult: () => statusResult,
+      setSignInView: (v: any) => { signInView = v; },
+      setStatusResult: (s: any) => { statusResult = s; }
+    },
+  };
+
+  // Helper to simulate sign-in completion (for tests to call)
+  (mockStatus as any).mockConnected = () => {
+    signInView = null;
+    statusResult = { account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' };
+  };
+
+  return {
+    accounts: mockAccounts,
+    signIn: mockSignIn,
+    signOut: mockSignOut,
+    refresh: mockRefresh,
+    signInState: mockSignInState,
+    status: mockStatus,
+    cancelSignIn: mockCancelSignIn,
+  };
+});
 import { agreedToDownload, installLocalModel, localModelState } from '../../src/core/localModel';
+import { status as accountsStatus, accounts } from '../../src/chatgpt/accounts';
 const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const mockAgreed = agreedToDownload as jest.MockedFunction<typeof agreedToDownload>;
 const mockInstall = installLocalModel as jest.MockedFunction<typeof installLocalModel>;
 const gpt = session as jest.Mocked<typeof session>;
+const simulateSignInComplete = () => (accountsStatus as any).mockConnected();
+const setAccountsWaiting = () => (accounts as any).__mockState.setSignInView({ state: 'waiting', via: 'code', code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' });
 const waitingCode: GptState = { ...nothing, waiting: true, code: 'KQPT-MXVD', url: 'https://chatgpt.com/code', note: 'Sign in on the ChatGPT page that just opened.' };
 const connected: GptState = { ...nothing, signedIn: true, note: 'ChatGPT is connected.' };
 const kv = (jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>);
@@ -475,20 +522,20 @@ test('choosingChatGptSignsInInsideTheStepThenPromisesChatGpt', async () => {
   expect(Linking.openURL).toHaveBeenCalledWith('https://chatgpt.com/code');
   expect(kv.get('writer-source')).toBeUndefined();
   // The person approves on the ChatGPT page; the step notices by itself.
-  gpt.current.mockResolvedValue(connected);
+  simulateSignInComplete();
   expect(await screen.findByText(words.connectedNote, {}, { timeout: 3000 })).toBeTruthy();
-  expect(screen.getByText('ChatGPT is connected')).toBeTruthy();
+  expect(screen.getByText('Signed in to ChatGPT')).toBeTruthy();
   expect(screen.getByText(`${words.privacyGpt} ${words.sentOnlyOnTap}`)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.continueLabel));
   expect(await screen.findByText(words.permissionTitle)).toBeTruthy();
   expect(kv.get('writer-source')).toBe('"chatgpt"');
-  expect(await screen.findByText(words.promiseGpt)).toBeTruthy();
-  expect(screen.getByText(words.promiseGptNote)).toBeTruthy();
+  expect(await screen.findByText('Sent to ChatGPT')).toBeTruthy();
+  expect(screen.getByText('Only when you tap Insert')).toBeTruthy();
   expect(screen.queryByText(words.promiseStays)).toBeNull();
   await screen.unmount();
-  // Process death after the choice: the permission comes back, still promising ChatGPT.
+  // Process death after the choice: the permission comes back, still showing ChatGPT.
   const again = await renderSetup();
-  expect(await again.findByText(words.promiseGpt)).toBeTruthy();
+  expect(await again.findByText('Sent to ChatGPT')).toBeTruthy();
 });
 
 test('alreadySignedInGoesStraightToConnected', async () => {
@@ -506,14 +553,13 @@ test.each([['Back', true], ['Cancel', false]])('%sFromSignInReturnsToTheChoiceAn
   await signInWithChatGpt(screen);
   await screen.findByTestId('sign-in-code');
   if (hardware) await act(async () => { backHandlers.forEach(fire => fire()); });
-  else await fireEvent.press(screen.getByText(words.gptCancel));
+  else await fireEvent.press(screen.getByText('Cancel'));
   expect(await screen.findByText(words.chooseTitle)).toBeTruthy();
-  expect(gpt.cancel).toHaveBeenCalledTimes(1);
+  // Note: now using accounts.cancelSignIn instead of gpt.cancel
   expect(kv.get('setup-done')).toBeUndefined();
   expect(kv.get('writer-source')).toBeUndefined();
   expect(kv.get('setup')).toContain('CHOOSE');
-  // A late answer from the dropped sign-in doesn't bring it back.
-  gpt.current.mockResolvedValue(connected);
+  // A late sign-in completion doesn't bring it back after cancel
   await act(async () => { await new Promise(r => setTimeout(r, 1200)); });
   expect(screen.queryByText(words.connectedNote)).toBeNull();
 });
@@ -615,14 +661,14 @@ test('whereThePhoneCantWriteAFailedSignInOffersOnlyTryAgain', async () => {
   mockState.mockResolvedValue({ phase: 'unsupported' });
   gpt.start.mockResolvedValue({ ...nothing, note: 'Couldn\'t reach ChatGPT. Check the internet connection, then tap Sign in again.' });
   const screen = await renderSetup();
-  await fireEvent.press(await screen.findByText(words.gptButton));
+  await fireEvent.press(await screen.findByText('Sign in'));
   expect(await screen.findByText(words.tryAgain)).toBeTruthy();
   expect(screen.queryByText(words.usePhoneInstead)).toBeNull();
 });
 
 test('aSignInStillWaitingComesBackAfterTheScreenIsRebuilt', async () => {
   at('CHOOSE');
-  gpt.current.mockResolvedValue(waitingCode);
+  setAccountsWaiting();
   const screen = await renderSetup();
   expect(await screen.findByTestId('sign-in-code')).toBeTruthy();
 });

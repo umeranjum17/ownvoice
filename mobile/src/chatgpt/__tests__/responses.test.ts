@@ -144,7 +144,7 @@ test.each([
   try {
     await expect(chatgptWriter.write({ conversation: 'Sam: See you?', written: 'Sam: See you?', typed: '' })).rejects.toThrow(words.chatgptFailed);
     expect(fetch).toHaveBeenCalledTimes(1);
-    if (status === 400) expect(reported).toHaveBeenCalledWith(message);
+    if (status === 400) expect(reported).toHaveBeenCalledWith('chatgpt', message);
     else { expect(reported).not.toHaveBeenCalled(); expect(accounts.failed).toHaveBeenCalledTimes(1); }
   } finally { global.fetch = originalFetch; }
 });
@@ -203,7 +203,7 @@ test('a fetch failing before any answer leaves the tap unmarked', async () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(sent).not.toHaveBeenCalled();
     expect(unsent).not.toHaveBeenCalled();
-    expect(reported).toHaveBeenCalledWith('offline');
+    expect(reported).toHaveBeenCalledWith('chatgpt', 'offline');
   } finally { global.fetch = originalFetch; }
 });
 
@@ -283,7 +283,7 @@ test('a failed send mark after dispatch surfaces the failure', async () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(sent).toHaveBeenCalledTimes(1);
     expect(unsent).not.toHaveBeenCalled();
-    expect(reported).toHaveBeenCalledWith('full');
+    expect(reported).toHaveBeenCalledWith('chatgpt', 'full');
   } finally { global.fetch = originalFetch; }
 });
 

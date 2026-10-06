@@ -299,10 +299,14 @@ export default function Setup() {
   // Plan options from BYOKit accounts, with provider-specific icons and text
   const planOptions = plans.map(plan => {
     const icon = plan.key === 'chatgpt' ? <ChatIcon size={22} color={t.onPrimaryContainer} /> : <ChatIcon size={22} color={t.onPrimaryContainer} />;
-    const title = plan.label || plan.name;
-    const subtitle = plan.billing === 'subscription' ? 'The plan you already pay for' : say('billing.api', {});
+    // Use hardcoded words for ChatGPT for backwards compatibility, generic text for other providers
+    const title = plan.key === 'chatgpt' ? words.srcGpt : (plan.label || plan.name);
+    const subtitle = plan.key === 'chatgpt' ? words.srcGptSub : (plan.billing === 'subscription' ? 'The plan you already pay for' : say('billing.api', {}));
+    const tradeoffs = plan.key === 'chatgpt'
+      ? [{ text: words.tradeGpt1, good: true }, { text: words.tradeGpt2, good: true }, { text: words.tradeGpt3, good: false }]
+      : [{ text: 'Your existing account', good: true }, { text: 'Sent to their servers', good: false }];
     return <SourceOption key={plan.key} icon={icon} title={title} subtitle={subtitle} selected={pick === plan.key} onPress={() => setPicked(plan.key)}
-      lines={[{ text: 'Your existing account', good: true }, { text: 'Sent to their servers', good: false }]} />;
+      lines={tradeoffs} />;
   });
   return <Screen step={step} footer={<>
     {step === 'CHOOSE' && !planState && (phone === 'cant'
@@ -350,7 +354,7 @@ export default function Setup() {
       </View>}
     </>}
     {step === 'CHOOSE' && planState?.waiting && <>
-      <Head title={words.signInTitle} note={words.signInNote} />
+      <Head title={planState.provider === 'chatgpt' ? words.signInTitle : `Sign in to ${plans.find(p => p.key === planState.provider)?.name ?? planState.provider}`} note={words.signInNote} />
       <View style={[styles.code, { backgroundColor: t.raised }]}>
         {planState.code && <>
           <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
@@ -370,10 +374,10 @@ export default function Setup() {
       <Head title={`Signed in to ${plans.find(p => p.key === planState.provider)?.name ?? planState.provider}`} note={words.connectedNote} />
       <View style={[styles.sent, { backgroundColor: t.group }]}>
         <Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>
-        <Text style={[type.body, { color: t.text, flex: 1 }]}>{words.sentOnlyOnTap}</Text>
+        <Text style={[type.body, { color: t.text, flex: 1 }]}>{planState.provider === 'chatgpt' ? `${words.privacyGpt} ${words.sentOnlyOnTap}` : words.sentOnlyOnTap}</Text>
       </View>
     </>}
-    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <Head title={words.signInTitle} note={planState.note ?? words.failed} />}
+    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <Head title={planState.provider === 'chatgpt' ? words.signInTitle : `Sign in to ${plans.find(p => p.key === planState.provider)?.name ?? planState.provider}`} note={planState.note ?? words.failed} />}
     {step === 'PERMISSION' && <>
       <Head title={words.permissionTitle} note={words.permissionSubtitle} />
       <View style={[group, { gap: 2 }]}>
