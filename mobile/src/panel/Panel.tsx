@@ -264,6 +264,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           platform,
           newPost: post,
           guide: voiceGuide(rules, post),
+          never: rules.never,
           dashes: dashesFor(rules, value.typed),
           avoid,
         }, {

@@ -56,9 +56,19 @@ export { matcher };
 export function selectedGuide(r: Rules, post: boolean, budget = MAX_GUIDE_LENGTH): { line: string; samples: string[] } {
   const samples = normalizeSamples(r.samples);
   if (samples === null) throw new TypeError('invalid reply samples');
-  const base = [r.noDashes ? 'No em dashes.' : null, r.statementEndings && post ? 'End on a statement, not a question.' : null,
-    r.note.trim() ? `How they write: ${r.note.trim().slice(0,200)}` : null].filter(Boolean).join(' ');
-  return selectExamples(samples, base, budget);
+  const head = [r.noDashes ? 'No em dashes.' : null, r.statementEndings && post ? 'End on a statement, not a question.' : null].filter(Boolean).join(' ');
+  const note = r.note.trim() ? `How they write: ${r.note.trim().slice(0,200)}` : null;
+  // Top 10 never-say phrases, quoted so a multi-word phrase reads as one ban. Phrases that stop
+  // fitting the budget fall off the end, so the dash, ending and note rules still reach the writer.
+  const join = (xs: (string | null)[]) => xs.filter(Boolean).join(' ');
+  const phrases = dedupe(r.never.map(x => x.trim())).slice(0, 10);
+  let picked: string[] = [];
+  for (const phrase of phrases) {
+    const trial = [...picked, JSON.stringify(phrase)];
+    if (join([head, `Never use: ${trial.join(', ')}.`, note]).length > budget) break;
+    picked = trial;
+  }
+  return selectExamples(samples, join([head, picked.length ? `Never use: ${picked.join(', ')}.` : null, note]), budget);
 }
 export function guide(r: Rules, post: boolean): string { return selectedGuide(r, post).line; }
 export function broken(hits:Hit[],text:string,r:Rules){const out:string[]=[];const phrases=hits.filter(h=>h.reason===NEVER_SAY).map(h=>'“'+text.slice(h.start,h.end)+'”').filter((x,i,a)=>a.findIndex(y=>y.toLowerCase()===x.toLowerCase())===i);if(phrases.length)out.push('says '+phrases.join(', ')+' from your never-say list');if(r.noDashes&&hits.some(h=>h.reason===LONG_DASH))out.push('has a long dash (—)');if(hits.some(h=>h.reason===ENDS_ON_QUESTION))out.push('ends on a question');return out;}
