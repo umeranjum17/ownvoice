@@ -85,7 +85,7 @@ test('editable offers Replace and Copy; Replace hands back (R4)', async () => {
   const shown = visibleStrings(screen);
   expect(shown).toContain('Same meaning as yours');
   expect(shown).not.toContain('Sounds natural');
-  expect(shown).toContain("If the app doesn't take it, it's copied too. Just paste.");
+  expect(shown).toContain("Replace puts it in the field. If not, it's copied for you to paste.");
   expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy();
   expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy();
   fireEvent.press(screen.getByRole('button', { name: 'Replace' }));
@@ -118,7 +118,7 @@ test('read-only offers only Copy (R4)', async () => {
   await waitFor(() => expect(visibleStrings(screen)).toContain('Moved to Tuesday.'));
   expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull();
   expect(visibleStrings(screen)).toContain('Copy it, then paste it where you like.');
-  expect(visibleStrings(screen)).not.toContain("If the app doesn't take it, it's copied too. Just paste.");
+  expect(visibleStrings(screen)).not.toContain("Replace puts it in the field. If not, it's copied for you to paste.");
   fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
   expect(native.finishRewrite).toHaveBeenCalledWith('Moved to Tuesday.', false);
 });
