@@ -26,8 +26,8 @@ test('all five rewrite options sit in one unbroken row', async () => {
   const bars: Node[] = [];
   walk(screen.toJSON(), n => { if (n.type === 'View' && n.props.accessibilityRole === undefined && flatStyle(n).flexDirection === 'row') bars.push(n); });
   expect(bars).toHaveLength(1);
-  // One row that never wraps: the second-line strand this fixes came from wrapping.
-  expect(flatStyle(bars[0]).flexWrap).toBe('nowrap');
+  // Wraps onto balanced rows with content-based sizing: no truncation, no stranded single option.
+  expect(flatStyle(bars[0]).flexWrap).toBe('wrap');
 });
 
 test('each option shares the row and keeps its label on one line', async () => {
@@ -36,11 +36,11 @@ test('each option shares the row and keeps its label on one line', async () => {
   const buttons: Node[] = [];
   walk(screen.toJSON(), n => { if (n.type === 'View' && typeof n.props.accessibilityRole === 'string') buttons.push(n); });
   expect(buttons).toHaveLength(FIVE.length);
-  for (const button of buttons) expect(flatStyle(button).flex).toBe(1);
+  for (const button of buttons) expect(flatStyle(button).flex).toBe(undefined);
 
   const labels: Node[] = [];
   walk(screen.toJSON(), n => { if (n.type === 'Text') labels.push(n); });
-  // Labels truncate instead of wrapping the row taller; the longest label stays whole.
+  // Content-based sizing: chips wrap onto balanced rows, labels stay fully readable.
   expect(labels).toHaveLength(FIVE.length);
   for (const label of labels) expect(label.props.numberOfLines).toBe(1);
   expect(screen.getByText('Fix spelling')).toBeTruthy();
