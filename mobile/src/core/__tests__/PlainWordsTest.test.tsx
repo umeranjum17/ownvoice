@@ -246,3 +246,5 @@ describe('panel copy', () => {
 test('fit levels use plain words', () => {
   assertPlain([...LEVELS, UNSURE, UNAVAILABLE]);
 });
+
+test('fitBarWords', () => { const keys = ['fitWhyStrong', 'fitWhyGood', 'fitWhyVague', 'fitWhySkipped', 'fitWhyUnsure']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });

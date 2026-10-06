@@ -20,6 +20,7 @@ import { retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
+import { FitBar } from '../ui/FitBar';
 import { CheckIcon, ChevIcon, CopyIcon, OpenIcon, ShareIcon } from '../ui/icons';
 import { MeaningLine } from '../ui/MeaningLine';
 import { Marked } from '../ui/Marked';
@@ -464,6 +465,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
         <Ratings ratings={yours.ratings} fit={fits.get(yours.text)} />
+        {mode === 'grow' ? <FitBar fit={fits.get(yours.text)} ratings={yours.ratings} /> : null}
         <View style={styles.actions}>
           {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
           <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
@@ -485,6 +487,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           {editing ? null : card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           {/* While editing, the ratings follow the edited text, never the original. */}
           <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={editing ? undefined : fits.get(card.text)} />
+          {mode === 'grow' && !editing ? <FitBar fit={fits.get(card.text)} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
