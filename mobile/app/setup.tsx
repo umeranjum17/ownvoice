@@ -330,7 +330,7 @@ export default function Setup() {
       : <Button kind="filled" large disabled={!phone} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : startPlanSignIn(pick)} />)}
     {step === 'CHOOSE' && planState?.waiting && <>
       <Button kind="filled" large disabled={!planState.code} label={planState.provider === 'chatgpt' ? words.copyAndOpen : words.copyAndOpenTo.replace('{name}', planName(planState.provider))} onPress={copyAndOpen} />
-      <View style={styles.skip}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>
+      <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>
     </>}
     {step === 'CHOOSE' && planState?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => planState.provider && choose(planState.provider)} />}
     {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <>
@@ -597,6 +597,7 @@ const styles = StyleSheet.create({
   field: { minHeight: 48, marginRight: 34, marginTop: space.s, borderWidth: 1, borderRadius: 24, paddingHorizontal: space.l, paddingVertical: space.m, textAlignVertical: 'top' },
   aside: { flexDirection: 'row', alignItems: 'center', gap: space.s, marginTop: space.m, paddingHorizontal: space.xs },
   skip: { alignItems: 'center', paddingVertical: space.xs },
+  secondary: { alignItems: 'center', paddingVertical: space.xs },
   appIcon: { width: 40, height: 40, borderRadius: 12 },
   problem: { flexDirection: 'row', alignItems: 'center', gap: space.m, borderRadius: shape.group, paddingLeft: space.l, paddingVertical: space.s, marginTop: space.m },
   fine: { borderRadius: shape.group, padding: space.l, gap: space.s },

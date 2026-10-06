@@ -690,6 +690,8 @@ test('backWhileTheCodeIsBeingMadeDropsItWhenItArrives', async () => {
   const screen = await renderSetup();
   await screen.findByText(words.tradeGpt1);
   await signInWithChatGpt(screen);
+  // The sign-in was really started before leaving: otherwise this test is vacuous.
+  await waitFor(() => expect(accountsSignIn).toHaveBeenCalledTimes(1));
   const cancels = (accountsCancel as jest.Mock).mock.calls.length;
   await act(async () => { backHandlers.forEach(fire => fire()); });
   await act(async () => { release(); });
