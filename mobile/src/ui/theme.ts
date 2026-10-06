@@ -46,6 +46,10 @@ export function useTheme() {
     cardLine: d.outlineVariant,
     yours: d.surfaceContainerHighest,
     group: d.surfaceContainer,
+    // The strip behind the rewrite option chips. Visible in dark, where it grounds
+    // the row; transparent in light, where it showed as a grey tray the chips
+    // touched and overflowed — the chip outline is the affordance now.
+    choiceBar: scheme === 'dark' ? d.surfaceContainer : 'transparent',
     // An unselected option chip's own fill and edge: one step off the bar with an
     // outline, so the options read as tappable chips instead of plain text on one
     // blob. Brightest in light (like `raised`), one step up in dark.
