@@ -29,6 +29,8 @@ mobile/.run08.sh
 verify-artifacts/
 node_modules/
 packages/engine/dist/
+.android/
+mobile/dist/
 
 # Release signing credentials must never enter source control.
 *.jks
