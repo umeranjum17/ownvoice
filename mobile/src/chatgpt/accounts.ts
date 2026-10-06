@@ -16,22 +16,29 @@ const authBase = process.env.EXPO_PUBLIC_E2E_AUTH_BASE || undefined;
 const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase } : {}) }, portable);
 let realInstance: Accounts | undefined;
 
-function getInstance(): Accounts {
+function kitInstance(): Accounts | undefined {
   if (realInstance) return realInstance;
   try {
     const plans = offered().map(p => p.key);
-    if (!plans.length) return fallback;
+    if (!plans.length) return undefined;
     const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
     realInstance = new Accounts({ offer: planOrder, app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase} : {}) }, portable);
     return realInstance;
   } catch {
-    return fallback;
+    return undefined;
   }
 }
 
-// Export the fallback instance directly for test compatibility.
-// Wrapper functions will call getInstance() to get the upgraded version.
+function getInstance(): Accounts {
+  return kitInstance() ?? fallback;
+}
+
 export const accounts = fallback;
+const fallbackProviders = fallback.providers;
+Object.defineProperty(accounts, 'providers', {
+  configurable: true,
+  get: () => kitInstance()?.providers ?? fallbackProviders,
+});
 // Generic plan operations: the UI passes the provider key ('claude', 'chatgpt', etc.)
 // These call getInstance() to get the kit-driven instance (if available) instead of fallback.
 export const signIn = (provider: string) => getInstance().login(member, provider, { via: 'code' });

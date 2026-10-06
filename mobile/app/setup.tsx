@@ -313,23 +313,23 @@ export default function Setup() {
     const icon = plan.key === 'chatgpt' ? <ChatIcon size={22} color={t.onPrimaryContainer} /> : <ChatIcon size={22} color={t.onPrimaryContainer} />;
     // Use hardcoded words for ChatGPT for backwards compatibility, generic text for other providers
     const title = plan.key === 'chatgpt' ? words.srcGpt : (plan.label || plan.name);
-    const subtitle = plan.key === 'chatgpt' ? words.srcGptSub : (plan.billing === 'subscription' ? 'The plan you already pay for' : say('billing.api', {}));
+    const subtitle = words.srcGptSub;
     const tradeoffs = plan.key === 'chatgpt'
-      ? [{ text: words.tradeGpt1, good: true }, { text: words.tradeGpt2, good: true }, { text: words.tradeGpt3, good: false }]
-      : [{ text: 'Your existing account', good: true }, { text: 'Sent to their servers', good: false }];
+      ? [{ text: words.tradeGpt1, good: true }, { text: words.tradeGpt2, good: false }, { text: words.tradeGpt3, good: false }]
+      : [{ text: words.tradePlan1, good: true }, { text: words.tradePlan2, good: false }];
     return <SourceOption key={plan.key} icon={icon} title={title} subtitle={subtitle} selected={pick === plan.key} onPress={() => setPicked(plan.key)}
       lines={tradeoffs} />;
   });
   return <Screen step={step} footer={<>
     {step === 'CHOOSE' && !planState && (phone === 'cant'
       ? <>
-        <Button kind="filled" large label="Sign in" onPress={() => startPlanSignIn(defaultPlan)} />
+        <Button kind="filled" large label={words.signIn} onPress={() => startPlanSignIn(defaultPlan)} />
         <View style={styles.skip}><Button kind="text" label={words.notNow} onPress={() => { void finish(); }} /></View>
       </>
       : <Button kind="filled" large disabled={!phone} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : startPlanSignIn(pick)} />)}
     {step === 'CHOOSE' && planState?.waiting && <>
       <Button kind="filled" large disabled={!planState.code} label={words.copyAndOpen} onPress={copyAndOpen} />
-      <View style={styles.skip}><Button kind="text" label="Cancel" onPress={leaveSignIn} /></View>
+      <View style={styles.skip}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>
     </>}
     {step === 'CHOOSE' && planState?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => planState.provider && choose(planState.provider)} />}
     {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <>
@@ -366,7 +366,7 @@ export default function Setup() {
       </View>}
     </>}
     {step === 'CHOOSE' && planState?.waiting && <>
-      <Head title={planState.provider === 'chatgpt' ? words.signInTitle : `Sign in to ${plans.find(p => p.key === planState.provider)?.name ?? planState.provider}`} note={words.signInNote} />
+      <Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={words.signInNote} />
       <View style={[styles.code, { backgroundColor: t.raised }]}>
         {planState.code && <>
           <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
@@ -383,19 +383,19 @@ export default function Setup() {
     </>}
     {step === 'CHOOSE' && planState?.signedIn && <>
       <View style={styles.connectedDot}><Dot mood="done" size={112} /></View>
-      <Head title={`Signed in to ${plans.find(p => p.key === planState.provider)?.name ?? planState.provider}`} note={words.connectedNote} />
+      <Head title={words.signedInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={words.connectedNote} />
       <View style={[styles.sent, { backgroundColor: t.group }]}>
         <Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>
         <Text style={[type.body, { color: t.text, flex: 1 }]}>{planState.provider === 'chatgpt' ? `${words.privacyGpt} ${words.sentOnlyOnTap}` : words.sentOnlyOnTap}</Text>
       </View>
     </>}
-    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <Head title={planState.provider === 'chatgpt' ? words.signInTitle : `Sign in to ${plans.find(p => p.key === planState.provider)?.name ?? planState.provider}`} note={planState.note ?? words.failed} />}
+    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={planState.note ?? words.failed} />}
     {step === 'PERMISSION' && <>
       <Head title={words.permissionTitle} note={words.permissionSubtitle} />
       <View style={[group, { gap: 2 }]}>
         <Row lead={<Badge><HandIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={typing ? words.promiseTapTyping : words.promiseTap} subtitle={typing ? words.promiseTapTypingNote : words.promiseTapNote} />
         {source && source !== 'phone'
-          ? <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={`Sent to ${plans.find(p => p.key === source)?.name ?? source}`} subtitle="Only when you tap Insert" />
+          ? <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.sentTo.replace('{name}', plans.find(p => p.key === source)?.name ?? source)} subtitle={words.onlyOnTap} />
           : <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseStays} subtitle={words.promiseStaysNote} />}
         <Row lead={<Badge><ChatIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseSend} subtitle={words.promiseSendNote} />
       </View>
