@@ -1,13 +1,13 @@
 import { runAgent, type Call } from '../loop';
 import { checkVoice, shareNote } from '../tools';
-import { phoneBrain } from '../phoneBrain';
+import { localBrain } from '../localBrain';
 import { scriptBrain } from '../script';
 import { NO_RULES } from '../../core/slop';
-import Native from '../../../modules/ownvoice-native';
+import * as localModel from '../../core/localModel';
 
-jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: { ask: jest.fn() } }));
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn() }));
 
-const native = Native as jest.Mocked<typeof Native>;
+const mockAskLocal = localModel.askLocal as jest.MockedFunction<typeof localModel.askLocal>;
 beforeEach(() => { jest.clearAllMocks(); });
 const rules = { ...NO_RULES, never: ['circle back'] };
 const DRAFT = 'Let us circle back at 3';
@@ -19,14 +19,15 @@ const tools = (shared: string[]) => [
 ];
 
 test('draft, check, revise with the problems, check, then the share card', async () => {
-  native.ask.mockResolvedValueOnce(DRAFT).mockResolvedValueOnce(FIXED);
+  mockAskLocal.mockResolvedValueOnce(DRAFT).mockResolvedValueOnce(FIXED);
   const shared: string[] = [];
   const approve = jest.fn(async (_: Call) => true);
-  const out = await runAgent({ instructions: 'i', task: 'meet at 3', brain: phoneBrain(), approve, tools: tools(shared) });
-  expect(native.ask).toHaveBeenCalledTimes(2);
-  expect(native.ask.mock.calls[0][2]).toEqual({ maxTokens: 256 });
-  expect(native.ask.mock.calls[0][1]).toMatch(/Write the note/);
-  expect(native.ask.mock.calls[1][1]).toMatch(/circle back/);
+  const out = await runAgent({ instructions: 'i', task: 'meet at 3', brain: localBrain(), approve, tools: tools(shared) });
+  expect(mockAskLocal).toHaveBeenCalledTimes(2);
+  expect(mockAskLocal.mock.calls[0][1]).toBe(256);
+  expect(mockAskLocal.mock.calls[1][1]).toBe(256);
+  expect(mockAskLocal.mock.calls[0][0]).toMatch(/Write the note/);
+  expect(mockAskLocal.mock.calls[1][0]).toMatch(/circle back/);
   expect(out.stop).toBe('done');
   expect(approve).toHaveBeenCalledTimes(1);
   expect(shared).toHaveLength(1);
@@ -34,20 +35,19 @@ test('draft, check, revise with the problems, check, then the share card', async
 });
 
 test('stops after 2 revises and still offers the latest draft', async () => {
-  native.ask.mockResolvedValue(DRAFT);
+  mockAskLocal.mockResolvedValue(DRAFT);
   const shared: string[] = [];
-  const out = await runAgent({ instructions: 'i', task: 'meet at 3', brain: phoneBrain(), approve: async () => true, tools: tools(shared) });
-  expect(native.ask).toHaveBeenCalledTimes(3);
+  const out = await runAgent({ instructions: 'i', task: 'meet at 3', brain: localBrain(), approve: async () => true, tools: tools(shared) });
+  expect(mockAskLocal).toHaveBeenCalledTimes(3);
   expect(out.stop).toBe('done');
   expect(shared).toHaveLength(1);
 });
 
-test('the model and maxTokens are parameters', async () => {
-  native.ask.mockResolvedValue(FIXED);
-  await runAgent({ instructions: 'i', task: 'meet at 3', brain: phoneBrain({ model: 'test-model', maxTokens: 64 }),
+test('maxTokens is a parameter', async () => {
+  mockAskLocal.mockResolvedValue(FIXED);
+  await runAgent({ instructions: 'i', task: 'meet at 3', brain: localBrain({ maxTokens: 64 }),
     approve: async () => true, tools: tools([]) });
-  expect(native.ask.mock.calls[0][0]).toMatch(/test-model/);
-  expect(native.ask.mock.calls[0][2]).toEqual({ maxTokens: 64 });
+  expect(mockAskLocal.mock.calls[0][1]).toBe(64);
 });
 
 test('the same script runs on any text writer', async () => {
@@ -61,9 +61,9 @@ test('the same script runs on any text writer', async () => {
 });
 
 test('a no to sharing stops the script and nothing is shared', async () => {
-  native.ask.mockResolvedValue(FIXED);
+  mockAskLocal.mockResolvedValue(FIXED);
   const shared: string[] = [];
-  const out = await runAgent({ instructions: 'i', task: 't', brain: phoneBrain(), approve: async () => false, tools: tools(shared) });
+  const out = await runAgent({ instructions: 'i', task: 't', brain: localBrain(), approve: async () => false, tools: tools(shared) });
   expect(out.stop).toBe('declined');
   expect(shared).toEqual([]);
 });

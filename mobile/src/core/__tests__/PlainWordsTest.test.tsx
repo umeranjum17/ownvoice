@@ -24,8 +24,12 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(),
-  modelStatus: jest.fn(async () => 'unavailable'), ask: jest.fn(), closePanel: jest.fn(),
+  closePanel: jest.fn(),
 } }));
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
+import { askLocal, localModelState } from '../../core/localModel';
+const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 
 const native = Native as jest.Mocked<typeof Native>;
 
@@ -90,9 +94,9 @@ describe('panel copy', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     native.capture.mockReset();
-    native.ask.mockReset();
+    mockAsk.mockReset();
     native.serviceState.mockReset().mockResolvedValue('on');
-    native.modelStatus.mockReset().mockResolvedValue('unavailable');
+    mockState.mockReset().mockResolvedValue({ phase: 'unsupported' });
   });
 
   test.each<[string, StubOptions, { typed?: string; written?: string; hasField?: boolean }]>([
@@ -118,8 +122,8 @@ describe('panel copy', () => {
     const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
     kv.set('voice', JSON.stringify({ never: ['circle back'], noDashes: true, statementEndings: false, note: 'short sentences' }));
     const write = jest.fn(async (_request: DraftRequest, on: WriterEvents) => { on.landed?.('Circle back — tomorrow.', 0); return { drafts: ['Circle back — tomorrow.'] }; });
-    native.modelStatus.mockResolvedValue('available');
-    native.ask.mockResolvedValue('GENERIC: 1\nSPECIFICITY: 9\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: pass\nNOT_INTERESTED: pass\nHOOK: pass');
+    mockState.mockResolvedValue({ phase: 'ready' });
+    mockAsk.mockResolvedValue('GENERIC: 1\nSPECIFICITY: 9\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: pass\nNOT_INTERESTED: pass\nHOOK: pass');
     try {
       const screen = await renderPanel({ write }, { typed: 'circle back — tomorrow', written: '' });
       await waitFor(() => expect(write).toHaveBeenCalled());
@@ -127,7 +131,7 @@ describe('panel copy', () => {
       expect(write.mock.calls[0][0].guide).toContain('short sentences');
       expect(write.mock.calls[0][0].dashes).toBe('remove');
       await fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[0]);
-      await waitFor(() => expect(native.ask).toHaveBeenCalled());
+      await waitFor(() => expect(mockAsk).toHaveBeenCalled());
       await waitFor(() => expect(visibleStrings(screen).join(' ')).toContain('Breaks your rules'));
     } finally { kv.delete('voice'); }
   });
@@ -139,20 +143,20 @@ describe('panel copy', () => {
   });
 
   test('compose keeps post checks with a model answer on a quiet screen', async () => {
-    native.modelStatus.mockResolvedValue('available');
+    mockState.mockResolvedValue({ phase: 'ready' });
     // The first answer feeds the panel's one batched tone call; Why? then takes the next two.
-    native.ask.mockResolvedValueOnce('1: matter-of-fact').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: concern - needs a question\nNOT_INTERESTED: pass\nHOOK: concern - start with the result').mockResolvedValueOnce('MEANING: pass');
+    mockAsk.mockResolvedValueOnce('1: matter-of-fact').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: pass\nFITS: pass\nCLAIMS: pass\nCONVERSATION: concern - needs a question\nNOT_INTERESTED: pass\nHOOK: concern - start with the result').mockResolvedValueOnce('MEANING: pass');
     const screen = await renderPanel(stubWriter(), { typed: 'Shipped the fix today', written: '' });
     await screen.findByRole('button', { name: words.writeNew });
     await fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[1]);
     await waitFor(() => expect(visibleStrings(screen)).toContain('Weak first line'));
     expect(visibleStrings(screen)).not.toContain('Answers the question');
-    expect(native.ask).toHaveBeenCalledTimes(3);
+    expect(mockAsk).toHaveBeenCalledTimes(3);
   });
 
   test('the tone line shows on Yours and each card once the writer names it', async () => {
-    native.modelStatus.mockResolvedValue('available');
-    native.ask.mockResolvedValue('1: blunt\n2: warm\n3: warm\n4: warm');
+    mockState.mockResolvedValue({ phase: 'ready' });
+    mockAsk.mockResolvedValue('1: blunt\n2: warm\n3: warm\n4: warm');
     const screen = await renderPanel(stubWriter(), { typed: LIST });
     const shown = () => visibleStrings(screen).join(' ').replace(/\s+/g, ' ');
     await waitFor(() => expect(shown()).toContain('Sounds blunt'));
@@ -160,8 +164,8 @@ describe('panel copy', () => {
   });
 
   test('Why hides technical model reasons in both draft and meaning checks', async () => {
-    native.modelStatus.mockResolvedValue('available');
-    native.ask.mockResolvedValueOnce('1: calm').mockResolvedValueOnce('MESSAGE').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: concern - The model token limit was low\nFITS: pass\nCLAIMS: pass\nANSWERS: concern - The model token limit was low\nNEXT_STEP: pass').mockResolvedValueOnce('MEANING: concern - The model token limit was low');
+    mockState.mockResolvedValue({ phase: 'ready' });
+    mockAsk.mockResolvedValueOnce('1: calm').mockResolvedValueOnce('MESSAGE').mockResolvedValueOnce('GENERIC: 2\nSPECIFICITY: 8\nSPECIFIC: pass\nCLEAR: pass\nVOICE: concern - The model token limit was low\nFITS: pass\nCLAIMS: pass\nANSWERS: concern - The model token limit was low\nNEXT_STEP: pass').mockResolvedValueOnce('MEANING: concern - The model token limit was low');
     const screen = await renderPanel(stubWriter(), { typed: 'hello there' });
     await screen.findByRole('button', { name: words.writeNew });
     await fireEvent.press((await screen.findAllByRole('button', { name: words.why }))[1]);
@@ -174,9 +178,9 @@ describe('panel copy', () => {
   });
 
   test.each([['unclear kind', ['1: blunt', 'not sure'], 2], ['unreadable checks', ['1: flat', 'MESSAGE', 'looks fine'], 3]] as const)('%s keeps quick checks when the model cannot answer', async (_name, answers, calls) => {
-    native.modelStatus.mockResolvedValue('available');
+    mockState.mockResolvedValue({ phase: 'ready' });
     // The one batched tone call races the Why? checks, so route answers by prompt, not order.
-    native.ask.mockImplementation(async (_id: string, prompt: string) => {
+    mockAsk.mockImplementation(async (prompt: string) => {
       if (prompt.startsWith('What tone')) return answers[0];
       if (prompt.includes('Which kind of screen is it?')) return answers[1] ?? '';
       return answers[2] ?? '';
@@ -186,7 +190,7 @@ describe('panel copy', () => {
     await act(async () => { await fireEvent.press(button); await Promise.resolve(); });
     await waitFor(() => expect(visibleStrings(screen)).toContain(words.noChecks));
     // The batched tone call lands on its own beat: wait for the full set, which then stays put.
-    await waitFor(() => expect(native.ask).toHaveBeenCalledTimes(calls));
+    await waitFor(() => expect(mockAsk).toHaveBeenCalledTimes(calls));
   });
 
   test('no capture shows only its own line', async () => {

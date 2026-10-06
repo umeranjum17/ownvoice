@@ -22,7 +22,6 @@ class PanelActivity : ReactActivity() {
   }
 
   override fun onDestroy() {
-    PhoneModel.release()
     super.onDestroy()
   }
 

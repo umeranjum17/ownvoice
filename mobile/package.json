@@ -13,8 +13,10 @@
   "dependencies": {
     "@byokit/accounts": "0.13.0",
     "@byokit/decide": "0.4.7",
+    "@byokit/infer": "^0.1.0",
     "@byokit/overlay": "0.3.0",
     "@byokit/seal": "0.1.0",
+    "@dr.pogodin/react-native-fs": "^2.40.3",
     "expo": "~57.0.0",
     "expo-asset": "~57.0.18",
     "expo-build-properties": "~1.0.0",
@@ -22,6 +24,7 @@
     "expo-router": "*",
     "expo-secure-store": "^57.0.4",
     "expo-sqlite": "~57.0.3",
+    "llama.rn": "^0.12.9",
     "nspell": "^2.1.5",
     "ownvoice-engine": "file:../packages/engine",
     "react": "19.3.0",

@@ -1,11 +1,19 @@
-import Native from '../../../modules/ownvoice-native';
+jest.mock('../localModel', () => ({
+  AGREED_KEY: 'local-model-agreed',
+  MOBILE_KEY: 'local-model-mobile-data',
+  getLocalModel: jest.fn(() => ({ state: { phase: 'installing' } })),
+  localModelState: jest.fn(),
+  agreedToDownload: jest.fn(),
+  installLocalModel: jest.fn(),
+  removeLocalModel: jest.fn(),
+}));
+import { agreedToDownload, installLocalModel, localModelState, removeLocalModel } from '../localModel';
 import { AGREED_KEY, MOBILE_KEY, agreed, getReady, removeDownload, resume } from '../phoneDownload';
 
-jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
-  modelStatus: jest.fn(), downloadModel: jest.fn(), cancelModelDownload: jest.fn(), deleteModel: jest.fn(),
-} }));
-
-const native = Native as jest.Mocked<typeof Native>;
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
+const mockAgreed = agreedToDownload as jest.MockedFunction<typeof agreedToDownload>;
+const mockInstall = installLocalModel as jest.MockedFunction<typeof installLocalModel>;
+const mockRemove = removeLocalModel as jest.MockedFunction<typeof removeLocalModel>;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 
 const deferred = () => {
@@ -18,57 +26,74 @@ const deferred = () => {
 beforeEach(() => {
   jest.clearAllMocks();
   kv.clear();
-  native.modelStatus.mockResolvedValue('downloadable');
-  native.downloadModel.mockResolvedValue(undefined);
-  native.deleteModel.mockResolvedValue(undefined);
+  mockAgreed.mockImplementation(() => kv.get(AGREED_KEY) === 'true');
+  mockState.mockResolvedValue({ phase: 'not-installed' });
+  mockInstall.mockResolvedValue(undefined);
+  mockRemove.mockImplementation(async () => { kv.delete(AGREED_KEY); kv.delete(MOBILE_KEY); });
 });
 
 test('a mobile-data download picks up on mobile data after a restart', async () => {
   kv.set(AGREED_KEY, 'true');
   kv.set(MOBILE_KEY, 'true');
   await resume();
-  expect(native.downloadModel).toHaveBeenCalledTimes(1);
-  expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: true }, expect.any(Function));
+  expect(mockInstall).toHaveBeenCalledTimes(1);
+  expect(mockInstall).toHaveBeenCalledWith(true, expect.any(Function), expect.any(AbortSignal));
 });
 
 test('a restart with no explicit choice keeps mobile data allowed', async () => {
   kv.set(AGREED_KEY, 'true');
   kv.set(MOBILE_KEY, 'true');
   await getReady();
-  expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: true }, expect.any(Function));
+  expect(mockInstall).toHaveBeenCalledWith(true, expect.any(Function), expect.any(AbortSignal));
   expect(kv.get(MOBILE_KEY)).toBe('true');
 });
 
 test('a Wi-Fi download resumes Wi-Fi-only', async () => {
   kv.set(AGREED_KEY, 'true');
   await resume();
-  expect(native.downloadModel).toHaveBeenCalledWith({ allowMobileData: false }, expect.any(Function));
+  expect(mockInstall).toHaveBeenCalledWith(false, expect.any(Function), expect.any(AbortSignal));
 });
 
 test('asking for mobile data mid-run restarts the download with mobile data allowed', async () => {
   const wifi = deferred();
   const mobile = deferred();
-  native.downloadModel.mockReturnValueOnce(wifi.promise).mockReturnValueOnce(mobile.promise);
+  mockInstall.mockReturnValueOnce(wifi.promise).mockReturnValueOnce(mobile.promise);
   const first = getReady();
-  expect(native.downloadModel).toHaveBeenLastCalledWith({ allowMobileData: false }, expect.any(Function));
+  expect(mockInstall).toHaveBeenLastCalledWith(false, expect.any(Function), expect.any(AbortSignal));
   const second = getReady(true);
-  expect(native.cancelModelDownload).toHaveBeenCalledTimes(1);
-  await Promise.resolve();
-  expect(native.downloadModel).toHaveBeenLastCalledWith({ allowMobileData: true }, expect.any(Function));
-  expect(kv.get(MOBILE_KEY)).toBe('true');
-  wifi.resolve();
-  mobile.resolve();
+  // The replacement waits out the aborted run instead of racing it.
+  expect(mockInstall).toHaveBeenCalledTimes(1);
+  wifi.reject(new Error('aborted'));
   await first.catch(() => {});
+  mobile.resolve();
   await second;
+  expect(mockInstall).toHaveBeenCalledTimes(2);
+  expect(mockInstall).toHaveBeenLastCalledWith(true, expect.any(Function), expect.any(AbortSignal));
+  expect(kv.get(MOBILE_KEY)).toBe('true');
+  expect((mockInstall.mock.calls[0][2] as AbortSignal).aborted).toBe(true);
+});
+
+test('a restart asked twice joins the one replacement instead of starting two', async () => {
+  const wifi = deferred();
+  const mobile = deferred();
+  mockInstall.mockReturnValueOnce(wifi.promise).mockReturnValueOnce(mobile.promise);
+  const first = getReady();
+  const second = getReady(true);
+  const third = getReady(true);
+  wifi.reject(new Error('aborted'));
+  await first.catch(() => {});
+  mobile.resolve();
+  await second;
+  await third;
+  expect(mockInstall).toHaveBeenCalledTimes(2);
 });
 
 test('a second ask without mobile data joins the running download', async () => {
   const run = deferred();
-  native.downloadModel.mockReturnValueOnce(run.promise);
+  mockInstall.mockReturnValueOnce(run.promise);
   const first = getReady();
   const second = getReady(false);
-  expect(native.downloadModel).toHaveBeenCalledTimes(1);
-  expect(native.cancelModelDownload).not.toHaveBeenCalled();
+  expect(mockInstall).toHaveBeenCalledTimes(1);
   run.resolve();
   await first;
   await second;
@@ -77,7 +102,7 @@ test('a second ask without mobile data joins the running download', async () => 
 test('a failed removal keeps the yes so the card stays', async () => {
   kv.set(AGREED_KEY, 'true');
   kv.set(MOBILE_KEY, 'true');
-  native.deleteModel.mockRejectedValueOnce(new Error('locked'));
+  mockRemove.mockRejectedValueOnce(new Error('locked'));
   await expect(removeDownload()).rejects.toThrow('locked');
   expect(agreed()).toBe(true);
   expect(kv.has(MOBILE_KEY)).toBe(true);
@@ -87,6 +112,7 @@ test('a successful removal forgets the yes and the mobile-data choice', async ()
   kv.set(AGREED_KEY, 'true');
   kv.set(MOBILE_KEY, 'true');
   await removeDownload();
+  expect(mockRemove).toHaveBeenCalledTimes(1);
   expect(kv.has(AGREED_KEY)).toBe(false);
   expect(kv.has(MOBILE_KEY)).toBe(false);
 });

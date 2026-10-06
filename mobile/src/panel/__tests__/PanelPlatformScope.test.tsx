@@ -7,9 +7,11 @@ import type { DraftRequest, WriterEvents } from '../../core/writers';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })), capture: jest.fn(),
-  modelStatus: jest.fn(async () => 'available'), closePanel: jest.fn(),
-  typingCheck: jest.fn(async () => false), ask: jest.fn(),
+  closePanel: jest.fn(), typingCheck: jest.fn(async () => false),
 } }));
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'ready' })), agreedToDownload: jest.fn(() => false) }));
+import { askLocal } from '../../core/localModel';
+const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
 jest.mock('../../core/voiceStore', () => ({ loadVoice: () => ({
   never: [], noDashes: false, statementEndings: true, note: '',
 }) }));
@@ -34,14 +36,14 @@ describe.each([
   test.each([
     ['polish', 0], ['polish', 1], ['compose', 0], ['compose', 1],
   ] as const)('%s card %s retains the intended rules and checks', async (mode, card) => {
-    (Native.ask as jest.Mock).mockClear();
+    mockAsk.mockClear();
     const written = mode === 'compose' ? '' : 'Sam: Are we meeting on Saturday?';
     (Native.capture as jest.Mock).mockResolvedValue({
       conversation: written, written, nodes: [], fieldTop: null,
       typed: 'Can we meet on Saturday?',
       app, label, at: 0, id: `${app}-${mode}`, hasField: true,
     });
-    (Native.ask as jest.Mock).mockImplementation(async (_id: string, prompt: string) => {
+    mockAsk.mockImplementation(async (prompt: string) => {
       if (prompt.includes('Which kind of screen is it?')) return 'MESSAGE';
       if (prompt.includes('You check a reply draft')) return answer;
       if (prompt.includes('Compare a rewrite')) return 'MEANING: pass';
@@ -67,9 +69,9 @@ describe.each([
     expect(screen.queryByText(publicScreen ? 'Answers the question' : 'Invites replies')).toBeNull();
     if (post) expect(screen.getByText("Doesn't sound like you")).toBeTruthy();
     else expect(screen.queryByText("Doesn't sound like you")).toBeNull();
-    const checkPrompt = (Native.ask as jest.Mock).mock.calls.find(([_id, prompt]) => prompt.includes('You check a reply draft'))?.[1];
-    expect(checkPrompt).toBeDefined();
-    expect(checkPrompt.includes('End on a statement, not a question.')).toBe(post);
+    const checkCall = mockAsk.mock.calls.find(([prompt]) => prompt.includes('You check a reply draft'));
+    expect(checkCall).toBeDefined();
+    expect(checkCall?.[0].includes('End on a statement, not a question.')).toBe(post);
     if (label) expect(screen.getByText('Right length for a post')).toBeTruthy();
     await screen.unmount();
   });

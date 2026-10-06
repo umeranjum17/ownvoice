@@ -20,12 +20,13 @@ jest.mock('../../../modules/ownvoice-native', () => ({
   default: {
     addListener: jest.fn(() => ({ remove: () => {} })),
     capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(),
-    modelStatus: jest.fn(async () => 'available'), ask: jest.fn(), closePanel: jest.fn(), bubbleRules: jest.fn(),
+    closePanel: jest.fn(), bubbleRules: jest.fn(),
     markTapSent: jest.fn(async () => {}), unmarkTapSent: jest.fn(async () => {}), takeTapFacts: jest.fn(),
   },
 }));
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'ready' })), agreedToDownload: jest.fn(() => false) }));
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 
 const writer = (prefix: string): Writer => ({

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import type { InferState } from '@byokit/infer';
 import { Button } from './Button';
 import { CheckIcon } from './icons';
 import { Progress } from './Progress';
@@ -7,13 +8,12 @@ import { Row } from './Row';
 import { shape, space, type, useTheme } from './theme';
 import { words } from '../core/words';
 import { agreed, downloading, getReady, modelStatus, removeDownload, watch } from '../core/phoneDownload';
-import type { ModelStatus } from '../../modules/ownvoice-native';
 
 /** What the chosen "On this phone" card says: ready, the one-time ask, the bar while it gets ready,
  *  a way on when it stopped, and freeing the space again. Shown only once this phone is the chosen writer. */
 export function PhoneWriter() {
   const t = useTheme();
-  const [model, setModel] = useState<ModelStatus | null>(null);
+  const [model, setModel] = useState<InferState | null>(null);
   const [fraction, setFraction] = useState(0);
   const [confirming, setConfirming] = useState(false);
   const [removeFailed, setRemoveFailed] = useState(false);
@@ -21,7 +21,7 @@ export function PhoneWriter() {
 
   const refresh = () => {
     setTick(n => n + 1);
-    void modelStatus().then(setModel).catch(() => setModel('unavailable'));
+    void modelStatus().then(setModel).catch(() => setModel({ phase: 'unsupported' }));
   };
   useEffect(() => {
     refresh();
@@ -32,13 +32,13 @@ export function PhoneWriter() {
   const remove = () => { setConfirming(false); setRemoveFailed(false); void removeDownload().catch(() => setRemoveFailed(true)).finally(refresh); };
 
   const yes = agreed();
-  const getting = model === 'downloading' || downloading();
-  const stopped = model === 'downloadable' && yes && !getting;
-  const ask = model === 'downloadable' && !yes;
-  const removable = model === 'available' && yes;
+  const getting = model?.phase === 'installing' || model?.phase === 'loading' || downloading();
+  const stopped = (model?.phase === 'not-installed' || model?.phase === 'failed') && yes && !getting;
+  const ask = (model?.phase === 'not-installed' || model?.phase === 'failed') && !yes;
+  const removable = (model?.phase === 'ready' || model?.phase === 'installed') && yes;
   const line = (text: string, color = t.text) => <Text style={[type.note, styles.words, { color }]}>{text}</Text>;
 
-  if (model == null || model === 'unavailable') return null;
+  if (model == null || model.phase === 'unsupported') return null;
   if (ask) return <View style={styles.indent}>
     <Text style={[type.label, { color: t.text }]}>{words.readyTitle}</Text>
     {line(words.readyNote, t.muted)}

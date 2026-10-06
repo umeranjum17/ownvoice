@@ -15,7 +15,7 @@ class OwnvoiceNativeModule : Module() {
   private val context get() = appContext.reactContext!!
   override fun definition() = ModuleDefinition {
     Name("OwnvoiceNative")
-    Events("onServiceChange", "onInserted", "onModelProgress", "onModelPartial", "onModelSettled", "onTyped")
+    Events("onServiceChange", "onInserted", "onTyped")
     OnCreate {
       OwnvoiceService.onInserted = { ok, newlinesLost, practice -> sendEvent("onInserted", mapOf("ok" to ok, "newlinesLost" to newlinesLost, "practice" to practice)) }
       OwnvoiceService.onServiceChange = { state -> sendEvent("onServiceChange", mapOf("state" to state)) }
@@ -130,45 +130,13 @@ class OwnvoiceNativeModule : Module() {
     }
     AsyncFunction("finishRewrite") { text: String?, replace: Boolean -> RewriteActivity.current?.finishRewrite(text, replace) }.runOnQueue(Queues.MAIN)
     AsyncFunction("closePanel") { PanelActivity.current?.finish() }.runOnQueue(Queues.MAIN)
-    AsyncFunction("modelStatus") Coroutine { -> PhoneModel.status(context) }
-    AsyncFunction("downloadModel") Coroutine { options: Map<String, Any?>? ->
-      try {
-        PhoneModel.download(context, options?.get("allowMobileData") as? Boolean ?: false) { fraction ->
-          sendEvent("onModelProgress", mapOf("fraction" to fraction))
-        }
-      }
-      catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
-      finally { sendEvent("onModelSettled", emptyMap<String, Any>()) }
-    }
-    AsyncFunction("cancelModelDownload") Coroutine { -> PhoneModel.cancelDownload() }
-    AsyncFunction("deleteModel") Coroutine { -> PhoneModel.delete(context) }
-    AsyncFunction("ask") Coroutine { id: String, prompt: String, options: Map<String, Any?> ->
-      try {
-        PhoneModel.ask(context, prompt, (options["maxTokens"] as? Number)?.toInt() ?: 256) { text ->
-          sendEvent("onModelPartial", mapOf("id" to id, "text" to text))
-        }
-      } catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
-    }
-    AsyncFunction("draftStream") Coroutine { id: String, prompt: String, maxTokens: Int ->
-      try {
-        val started = android.os.SystemClock.elapsedRealtime()
-        var first = true
-        val answer = PhoneModel.draftStream(context, prompt, maxTokens) { delta ->
-          if (first) {
-            first = false
-            android.util.Log.d(OwnvoiceService.TAG, "draft first token ms=${android.os.SystemClock.elapsedRealtime() - started}")
-          }
-          sendEvent("onModelPartial", mapOf("id" to id, "text" to delta))
-        }
-        android.util.Log.d(OwnvoiceService.TAG, "draft complete ms=${android.os.SystemClock.elapsedRealtime() - started}")
-        answer
-      } catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
-    }
-    AsyncFunction("drafts") Coroutine { prompt: String, options: Map<String, Any?> ->
-      try {
-        PhoneModel.drafts(context, prompt, (options["candidates"] as? Number)?.toInt() ?: 3,
-          (options["maxTokens"] as? Number)?.toInt() ?: 120)
-      } catch (error: Throwable) { throw Exception("${PhoneModel.errorCode(error)}", error) }
+    AsyncFunction("networkType") {
+      val manager = context.getSystemService(android.net.ConnectivityManager::class.java)
+      val caps = manager.getNetworkCapabilities(manager.activeNetwork)
+      if (caps == null) "none"
+      else if (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI)) "wifi"
+      else if (caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR)) "cellular"
+      else "other"
     }
   }
 

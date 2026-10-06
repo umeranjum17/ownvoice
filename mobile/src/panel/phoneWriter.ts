@@ -1,4 +1,5 @@
-import Native, { type ModelStatus } from '../../modules/ownvoice-native';
+import { askLocal } from '../core/localModel';
+import { InferError, type InferState } from '@byokit/infer';
 import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
@@ -8,15 +9,14 @@ import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 
 // Drafts on the phone (spec 5): replies fill three fixed slots from one numbered call,
-// then one retry per empty slot; polish runs the C2 rewrite through the phone model.
-// `ponytail: if the phone model returns fewer than 2 distinct drafts from the numbered call
+// then one retry per empty slot; polish runs the C2 rewrite through the local model.
+// `ponytail: if the local model returns fewer than 2 distinct drafts from the numbered call
 // in at least half of the real-phone chats (spec §6 P3), switch to three slot calls from the start.
 
 const FILL_MS = 8000;
 
-let calls = 0;
 async function ask(prompt: string, maxTokens: number): Promise<string> {
-  return Native.ask(`phone-${Date.now()}-${calls++}`, prompt, { maxTokens });
+  return askLocal(prompt, maxTokens);
 }
 
 /** Polish and compose: the C2 rewrite, streamed as versions land, with layout kept and near-duplicates dropped. */
@@ -60,8 +60,6 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
   const made: (string | null)[] = [null, null, null];
-  let partial = '';
-  const id = `reply-${Date.now()}-${calls++}`;
   const take = (source: string, complete: boolean) => {
     // Match the acceptor's Markdown cleanup before looking for slot boundaries.
     source = source.replace(/\*\*/g, '');
@@ -82,13 +80,8 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
       });
     }
   };
-  const subscription = Native.addListener('onModelPartial', event => {
-    if (event.id === id) { partial += event.text; take(partial, false); }
-  });
-  try {
-    const answer = await Native.draftStream(id, phoneReplyPrompt(input), 220);
-    take(answer, true);
-  } finally { subscription.remove(); }
+  const answer = await ask(phoneReplyPrompt(input), 220);
+  take(answer, true);
   const fillStarted = Date.now();
   for (let slot = 0; slot < slots.length && Date.now() - fillStarted <= FILL_MS; slot++) {
     if (made[slot]) continue;
@@ -99,6 +92,18 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }
   return made.filter((text): text is string => !!text);
+}
+
+function failure(error: unknown): Error {
+  if (error instanceof Error && error.message === words.readyStopped) return error;
+  if (error instanceof InferError) {
+    if (error.code === 'busy') return new Error(words.busy);
+    if (error.code === 'no-space') return new Error(words.noSpace);
+    if (error.code === 'unsupported') return new Error(words.unsupported);
+    if (error.code === 'network') return new Error(words.offlineNoPhone);
+    if (error.code === 'not-installed') return new Error(words.readyPanel);
+  }
+  return new Error(message(errorCode(error)));
 }
 
 export const phoneWriter = {
@@ -129,24 +134,24 @@ export const phoneWriter = {
       drafts.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts };
     }
-    let status: ModelStatus;
-    try { status = await modelStatus(); } catch (error) { throw new Error(message(errorCode(error))); }
-    if (status === 'unavailable') throw new Error(words.unsupported);
+    let status: InferState;
+    try { status = await modelStatus(); } catch (error) { throw failure(error); }
+    if (status.phase === 'unsupported') throw new Error(words.unsupported);
     // The one-time download needs the person's yes, which only Ownvoice itself asks for.
-    if (status === 'downloadable' && !agreed()) throw new Error(words.readyPanel);
+    if ((status.phase === 'not-installed' || status.phase === 'failed') && !agreed()) throw new Error(words.readyPanel);
     try {
       const started = Date.now();
-      if (status !== 'available') {
+      if (status.phase !== 'ready' && status.phase !== 'busy' && status.phase !== 'installed') {
         on.state?.('downloading');
         const stop = watch(fraction => { if (fraction != null) on.fraction?.(fraction); });
-        try { await (status === 'downloadable' ? getReady() : settle()); } finally { stop(); }
+        try { await (status.phase === 'not-installed' || status.phase === 'failed' ? getReady() : settle()); } finally { stop(); }
       }
       on.state?.('writing');
       return request.typed.trim()
         ? await polish(request, on)
         : { drafts: await replies(request, on, started) };
     } catch (error) {
-      throw new Error(message(errorCode(error)));
+      throw failure(error);
     }
   },
 } satisfies Writer;

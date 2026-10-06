@@ -12,19 +12,23 @@ import type { Writer } from '../../core/writers';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(),
-  modelStatus: jest.fn(async () => 'unavailable'), ask: jest.fn(), closePanel: jest.fn(),
+  closePanel: jest.fn(),
   typingCheck: jest.fn(async () => false), rewriteInput: jest.fn(), finishRewrite: jest.fn(),
 } }));
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
+import { askLocal, localModelState } from '../../core/localModel';
+const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
 
 test('automatic tones cannot approve original or generated stock phrases and slips', async () => {
   const original = 'i can bring the the stove, at the end of the day';
   const drafts = ['i can bring the tent, at the end of the day', 'I shoud bring the stove.', 'See you Saturday!'];
-  native.modelStatus.mockResolvedValue('available');
+  mockState.mockResolvedValue({ phase: 'ready' });
   native.typingCheck.mockResolvedValue(false);
-  native.ask.mockImplementation(async (_id, prompt) => prompt.startsWith('What tone') ? '1: natural\n2: natural\n3: natural\n4: friendly' : 'MESSAGE');
+  mockAsk.mockImplementation(async (prompt) => prompt.startsWith('What tone') ? '1: natural\n2: natural\n3: natural\n4: friendly' : 'MESSAGE');
   native.capture.mockResolvedValue({ conversation: SAM, written: SAM, nodes: [], fieldTop: null, typed: original, app: 'com.whatsapp', label: 'WhatsApp', at: 0, id: 'tone-concerns', hasField: true });
   const writer: Writer = { write: async (_request, events) => {
     drafts.forEach((text, slot) => events?.landed?.(text, slot));
@@ -70,8 +74,8 @@ test('cards without deeper evidence have no verdict line', async () => {
 test('original, generated and selection text stay unapproved without wording evidence', async () => {
   const text = 'I can definately bring the stove.';
   const full = 'GENERIC: 1\nSPECIFICITY: 9\n' + ['SPECIFIC', 'CLEAR', 'VOICE', 'FITS', 'CLAIMS', 'ANSWERS', 'NEXT_STEP', 'CONVERSATION', 'NOT_INTERESTED', 'HOOK', 'MEANING'].map(k => `${k}: pass - supported by the chat`).join('\n');
-  native.modelStatus.mockResolvedValue('available');
-  native.ask.mockImplementation(async (_id, prompt) => prompt.startsWith('Below is the text') ? 'MESSAGE' : prompt.startsWith('Rewrite the text') ? text : full);
+  mockState.mockResolvedValue({ phase: 'ready' });
+  mockAsk.mockImplementation(async (prompt) => prompt.startsWith('Below is the text') ? 'MESSAGE' : prompt.startsWith('Rewrite the text') ? text : full);
   const capture = { conversation: SAM, written: SAM, nodes: [], fieldTop: null, typed: text, app: 'com.whatsapp', label: 'WhatsApp', at: 0, id: 'wording-original', hasField: true };
   native.capture.mockResolvedValue(capture);
   const wrap = (child: React.ReactNode) => <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>{child}</SafeAreaProvider>;

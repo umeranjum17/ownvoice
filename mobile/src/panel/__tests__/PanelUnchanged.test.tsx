@@ -11,10 +11,11 @@ import Native from '../../../modules/ownvoice-native';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(async () => {}),
-  modelStatus: jest.fn(async () => 'unavailable'), ask: jest.fn(), closePanel: jest.fn(), typingCheck: jest.fn(async () => false),
+  closePanel: jest.fn(), typingCheck: jest.fn(async () => false),
 } }));
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
 const TYPED = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
 
 const renderPanel = async (options: StubOptions, typed = TYPED) => {

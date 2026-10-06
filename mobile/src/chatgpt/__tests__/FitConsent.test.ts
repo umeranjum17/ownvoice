@@ -11,7 +11,7 @@ import { session } from '../session';
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
-  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}), modelStatus: jest.fn(async () => 'available') },
+  default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}) },
 }));
 jest.mock('../accounts', () => {
   const actual = jest.requireActual('../accounts');
@@ -30,6 +30,9 @@ jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(asyn
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../core/localModel', () => ({ localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
+import { localModelState } from '../../core/localModel';
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const ready = status as jest.Mock;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 
@@ -39,7 +42,7 @@ beforeEach(() => {
   jest.restoreAllMocks();
   jest.clearAllMocks();
   native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: ['com.reddit.frontpage'] });
-  native.modelStatus.mockResolvedValue('available');
+  mockState.mockResolvedValue({ phase: 'ready' });
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
   store.set(SOURCE_KEY, 'chatgpt');
 });

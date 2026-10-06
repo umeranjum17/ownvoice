@@ -20,7 +20,8 @@ import { agreed, downloading, getReady, modelStatus, resume, watch } from '../sr
 import { readLog, syncReadLog } from '../src/core/readLog';
 import { loadVoice } from '../src/core/voiceStore';
 import { saveBubbleRules } from '../src/chatgpt/settings';
-import Native, { type ModelStatus, type ServiceState } from '../modules/ownvoice-native';
+import Native, { type ServiceState } from '../modules/ownvoice-native';
+import type { InferState } from '@byokit/infer';
 
 type Rules = { paused: boolean; on: string[]; off: string[] };
 type App = { app: string; label: string; icon: string | null };
@@ -47,7 +48,7 @@ export default function Home() {
   const inset = useSafeAreaInsets().top;
   const [rules, setRules] = useState<Rules | null>(null);
   const [service, setService] = useState<ServiceState>('off');
-  const [model, setModel] = useState<ModelStatus | null>(null);
+  const [model, setModel] = useState<InferState | null>(null);
   const [fraction, setFraction] = useState(0);
   const [fetching, setFetching] = useState(downloading);
   const [apps, setApps] = useState<App[] | null>(null);
@@ -86,10 +87,9 @@ export default function Home() {
       setFetching(f != null);
       if (f == null) reload(); else setFraction(f);
     });
-    const modelSettled = Native.addListener('onModelSettled', () => { void modelStatus().then(setModel).catch(() => {}); });
-    // A download the person agreed to picks up where it stopped.
+    // A download the person agreed to picks up where it stopped; settling reloads through the watcher above.
     void resume();
-    return () => { shown.remove(); serviceChange.remove(); modelProgress(); modelSettled.remove(); };
+    return () => { shown.remove(); serviceChange.remove(); modelProgress(); };
   }, [reload]);
 
   useFocusEffect(useCallback(() => {
@@ -99,7 +99,7 @@ export default function Home() {
   // This phone was chosen but can't write any more (a new phone restored from a backup, a system
   // change): the choice goes back to not chosen, and nothing is sent anywhere until the person picks.
   useEffect(() => {
-    if (source !== 'phone' || model !== 'unavailable' || process.env.EXPO_PUBLIC_E2E_STUB === '1') return;
+    if (source !== 'phone' || model?.phase !== 'unsupported' || process.env.EXPO_PUBLIC_E2E_STUB === '1') return;
     try { setSource(null); setShownSource(null); } catch {}
   }, [source, model]);
 
@@ -129,7 +129,7 @@ export default function Home() {
   const paused = !!rules?.paused;
   const on = service === 'on';
   const yes = agreed();
-  const phoneCan = model !== 'unavailable';
+  const phoneCan = model?.phase !== 'unsupported';
   // Nothing chosen: the card says so and offers the one way that works here, never a dead end.
   const needs = source === null;
   const viaGpt = source === 'chatgpt';
@@ -141,13 +141,13 @@ export default function Home() {
     ? apps.filter(({ app }) => !isOwnApp(app) && showsBubble(rules, app) && phoneListed(app)).map(({ label }) => label) : [];
   const keptLine = kept.length ? words.cantWriteIn.replace('{apps}', appsLine(kept)) : null;
   const phoneNeeded = viaPhone || !!keptLine;
-  const getting = phoneNeeded && (model === 'downloading' || fetching);
+  const getting = phoneNeeded && (model?.phase === 'installing' || model?.phase === 'loading' || fetching);
   // Ask for the download only where this phone writes: picked, or kept for some apps under ChatGPT.
-  const ask = phoneNeeded && model === 'downloadable' && !yes && !getting;
-  const stopped = phoneNeeded && model === 'downloadable' && yes && !getting;
+  const ask = phoneNeeded && (model?.phase === 'not-installed' || model?.phase === 'failed') && !yes && !getting;
+  const stopped = phoneNeeded && (model?.phase === 'not-installed' || model?.phase === 'failed') && yes && !getting;
   const problem = stopped ? words.readyStopped : null;
   // No writer at all for those apps: this phone really can't write (the panel says phoneOnlyCant there). Unknown is not can't.
-  const cantWrite = model === 'unavailable' ? keptLine : null;
+  const cantWrite = model?.phase === 'unsupported' ? keptLine : null;
   // Never ready from missing data: wait until the writer, its apps and this phone's answer are known.
   const checking = source === undefined || rules === null || viaPhone && model === null || viaGpt && (gpt === null || apps === null || model === null);
   const green = !needs && on && !paused && problem === null && !ask && !gptLine && !cantWrite && !checking;

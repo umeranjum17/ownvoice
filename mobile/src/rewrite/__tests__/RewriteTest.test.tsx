@@ -12,10 +12,13 @@ import { NO_RULES } from '../../core/slop';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
-  rewriteInput: jest.fn(), finishRewrite: jest.fn(async () => {}), ask: jest.fn(),
-  modelStatus: jest.fn(async () => 'available'),
+  rewriteInput: jest.fn(), finishRewrite: jest.fn(async () => {}),
 } }));
-const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock; ask: jest.Mock; modelStatus: jest.Mock };
+jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
+import { askLocal, localModelState } from '../../core/localModel';
+const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
+const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock };
 
 const renderRewrite = async (input: { text: string; editable: boolean } | null) => {
   native.rewriteInput.mockReturnValue(input);
@@ -44,13 +47,13 @@ const visibleStrings = (screen: { toJSON: () => unknown }): string[] => {
 const SELECTION = 'I think we should move the call to Tuesday. Really.';
 
 // The rewrite checks the meaning on the phone, so the phone can write here.
-beforeEach(() => { jest.clearAllMocks(); wipeVoice(); native.modelStatus.mockResolvedValue('available'); });
+beforeEach(() => { jest.clearAllMocks(); wipeVoice(); mockState.mockResolvedValue({ phase: 'ready' }); });
 
 test('empty selection shows only the plain hint (R2)', async () => {
   const screen = await renderRewrite({ text: '   ', editable: true });
   expect(visibleStrings(screen)).toContain('Select some text first, then choose Ownvoice.');
   expect(screen.queryByRole('button', { name: 'Shorter' })).toBeNull();
-  expect(native.ask).not.toHaveBeenCalled();
+  expect(mockAsk).not.toHaveBeenCalled();
 });
 
 test('the five chips read Shorter, Simpler, Fix spelling, Friendlier and Firmer and the note explains what happens next (R2, R3)', async () => {
@@ -61,13 +64,13 @@ test('the five chips read Shorter, Simpler, Fix spelling, Friendlier and Firmer 
 });
 
 test('Copy returns the chosen version and copies it (R4)', async () => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) =>
+  mockAsk.mockImplementation(async (prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'GENERIC: 2\nSPECIFICITY: 8\nMEANING: pass' : 'Move the call to Tuesday.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain('Same meaning as yours'));
-  expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-/), expect.stringContaining('Rewrite the text below. Make it shorter and tighter. Cut filler, keep every point.'), { maxTokens: 256 });
-  expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-check-/), expect.stringContaining('Compare a rewrite with its original.'), { maxTokens: 80 });
+  expect(mockAsk).toHaveBeenCalledWith(expect.stringContaining('Rewrite the text below. Make it shorter and tighter. Cut filler, keep every point.'), 256);
+  expect(mockAsk).toHaveBeenCalledWith(expect.stringContaining('Compare a rewrite with its original.'), 80);
   const shown = visibleStrings(screen);
   expect(shown).toContain('Same meaning as yours');
   expect(shown).not.toContain('Sounds natural');
@@ -79,16 +82,16 @@ test('Copy returns the chosen version and copies it (R4)', async () => {
 });
 
 test('Friendlier sends its own ask (tone polish)', async () => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Sure thing, Tuesday works great.');
+  mockAsk.mockImplementation(async (prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Sure thing, Tuesday works great.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Friendlier' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain('Sure thing, Tuesday works great.'));
-  expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-/), expect.stringContaining('in a friendlier, warmer way'), { maxTokens: 256 });
+  expect(mockAsk).toHaveBeenCalledWith(expect.stringContaining('in a friendlier, warmer way'), 256);
   expect(visibleStrings(screen).filter(x => technicalWords.test(x))).toEqual([]);
 });
 
 test('a rewrite with a new number is warned', async () => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) =>
+  mockAsk.mockImplementation(async (prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'We should move the call to Friday at 7:30.');
   const screen = await renderRewrite({ text: 'Can we move the call?', editable: false });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
@@ -97,7 +100,7 @@ test('a rewrite with a new number is warned', async () => {
 });
 
 test('read-only offers only Copy (R4)', async () => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Moved to Tuesday.');
+  mockAsk.mockImplementation(async (prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Moved to Tuesday.');
   const screen = await renderRewrite({ text: SELECTION, editable: false });
   fireEvent.press(screen.getByRole('button', { name: 'Simpler' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain('Moved to Tuesday.'));
@@ -109,7 +112,7 @@ test('read-only offers only Copy (R4)', async () => {
 });
 
 test('editable Copy never returns a replacement', async () => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Tuesday works.');
+  mockAsk.mockImplementation(async (prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Tuesday works.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy());
@@ -118,7 +121,7 @@ test('editable Copy never returns a replacement', async () => {
 });
 
 test('result is usable before the check, but the verdict waits', async () => {
-  native.ask.mockImplementation((_id: string, prompt: string) => prompt.startsWith('Compare a rewrite')
+  mockAsk.mockImplementation((prompt: string) => prompt.startsWith('Compare a rewrite')
     ? new Promise<string>(() => {}) : Promise.resolve('Tuesday works.'));
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
@@ -131,26 +134,26 @@ test('result is usable before the check, but the verdict waits', async () => {
 
 test('saved writing rules guide and flag the rewrite', async () => {
   saveVoice({ ...NO_RULES, never: ['cheers mate'], noDashes: true, note: 'short, lowercase' });
-  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite')
+  mockAsk.mockImplementation(async (prompt: string) => prompt.startsWith('Compare a rewrite')
     ? 'GENERIC: 0\nSPECIFICITY: 10\nMEANING: pass' : 'cheers mate');
   const screen = await renderRewrite({ text: 'cheers mate — see you soon', editable: true });
   expect(visibleStrings(screen)).toContain('cheers mate');
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain('Same meaning as yours'));
-  expect(native.ask).toHaveBeenCalledWith(expect.stringMatching(/^rewrite-/), expect.stringContaining("Follow the writer's rules: No em dashes. How they write: short, lowercase"), { maxTokens: 256 });
+  expect(mockAsk).toHaveBeenCalledWith(expect.stringContaining("Follow the writer's rules: No em dashes. How they write: short, lowercase"), 256);
   expect(visibleStrings(screen)).not.toContain('Sounds natural');
   wipeVoice();
 });
 
 test('an empty rewrite asks for a retry in plain words', async () => {
-  native.ask.mockResolvedValue('');
+  mockAsk.mockResolvedValue('');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain("Couldn't rewrite that. Try again."));
 });
 
 test('Fix spelling leaves a selected single word without a full stop', async () => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? '' : 'meeting.');
+  mockAsk.mockImplementation(async (prompt: string) => prompt.startsWith('Compare a rewrite') ? '' : 'meeting.');
   const screen = await renderRewrite({ text: 'meeting', editable: false });
   fireEvent.press(screen.getByRole('button', { name: 'Fix spelling' }));
   await waitFor(() => expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy());
@@ -158,7 +161,7 @@ test('Fix spelling leaves a selected single word without a full stop', async () 
 });
 
 test.each(['Shorter', 'Simpler'])('%s keeps a single-word rewrite’s full stop', async how => {
-  native.ask.mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? '' : 'Meeting.');
+  mockAsk.mockImplementation(async (prompt: string) => prompt.startsWith('Compare a rewrite') ? '' : 'Meeting.');
   const screen = await renderRewrite({ text: 'meeting', editable: false });
   fireEvent.press(screen.getByRole('button', { name: how }));
   await waitFor(() => expect(visibleStrings(screen)).toContain('Meeting.'));
@@ -167,7 +170,7 @@ test.each(['Shorter', 'Simpler'])('%s keeps a single-word rewrite’s full stop'
 });
 
 test('a writer failure shows its plain error line', async () => {
-  native.ask.mockRejectedValue(new Error('HTTP 9 too much'));
+  mockAsk.mockRejectedValue(new Error('HTTP 9 too much'));
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Fix spelling' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain(message(9)));
@@ -182,9 +185,9 @@ test('closing hands nothing back', async () => {
 
 test('a newer chip tap drops the earlier answer', async () => {
   let late: (value: string) => void = () => {};
-  native.ask
+  mockAsk
     .mockImplementationOnce(() => new Promise<string>(resolve => { late = resolve; }))
-    .mockImplementation(async (_id: string, prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Second answer wins.');
+    .mockImplementation(async (prompt: string) => prompt.startsWith('Compare a rewrite') ? 'MEANING: pass' : 'Second answer wins.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
   fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
   fireEvent.press(screen.getByRole('button', { name: 'Simpler' }));

@@ -18,19 +18,20 @@ import { runAgent, type Brain, type Call } from './loop';
 import { instructions } from './prompt';
 import { checkVoice, shareNote } from './tools';
 import { labBrain } from './labBrain';
-import { phoneBrain } from './phoneBrain';
+import { localBrain } from './localBrain';
 
-/** One brain per writing choice; the ChatGPT and phone brains plug in here without screen changes. */
-export type Brains = { phone?: Brain; chatgpt?: Brain };
-// Phone chosen and ready runs the fixed script on the on-phone writer; ChatGPT keeps the
-// scripted stand-in until its brain lands. Either way getSource() picks, never a mid-task switch.
-const LAB: Brains = { phone: phoneBrain(), chatgpt: labBrain() };
+/** One brain per writing choice; plan (ChatGPT) and local (on-device) brains. */
+export type Brains = { local?: Brain; plan?: Brain };
+// Local chosen and ready runs on-device via @byokit/infer; plan runs via @byokit/accounts.
+// getSource() picks at task start, never switching mid-task.
+const LAB: Brains = { local: localBrain(), plan: labBrain() };
 
-/** The writer the person chose, when it can write now: ChatGPT when chosen, this phone only when ready. */
+/** The writer the person chose, when it can write now: plan when chosen, local only when ready. */
 export async function pickBrain(brains: Brains): Promise<Brain | null> {
   const source = await getSource().catch(() => null);
-  if (source === 'chatgpt') return brains.chatgpt ?? null;
-  if (source === 'phone' && await phoneCanWrite() === 'ready') return brains.phone ?? null;
+  // 'chatgpt' maps to 'plan', 'phone' maps to 'local' for backward compatibility
+  if (source === 'chatgpt') return brains.plan ?? null;
+  if (source === 'phone' && await phoneCanWrite() === 'ready') return brains.local ?? null;
   return null;
 }
 

@@ -1,23 +1,22 @@
-import Native, { type ModelStatus } from '../../modules/ownvoice-native';
+import { getLocalModel, localModelState, installLocalModel, removeLocalModel, agreedToDownload, AGREED_KEY, MOBILE_KEY } from './localModel';
 import { store } from './store';
+import type { InferState } from '@byokit/infer';
 
-// The one-time download of the phone's writer on phones without one built in. It starts only after the
-// person says yes (kept under AGREED_KEY, with the mobile-data choice under MOBILE_KEY), runs on Wi-Fi
-// unless they choose mobile data, picks up where it stopped, and can be removed again in Settings,
-// which also forgets the yes and the data choice.
+// The one-time download of the local on-device model. Starts only after the person says yes
+// (kept under AGREED_KEY, with mobile-data choice under MOBILE_KEY). Replaced Native module
+// download with @byokit/infer's LocalModel.install().
 
-export const AGREED_KEY = 'phone-download-agreed';
-export const MOBILE_KEY = 'phone-download-mobile-data';
-export const agreed = () => !!store.get<boolean>(AGREED_KEY);
+export { AGREED_KEY, MOBILE_KEY };
+export const agreed = agreedToDownload;
 
-// Emulator acceptance only (EXPO_PUBLIC_E2E_DOWNLOAD=1): a pretend download, so the ask, the bar and
-// removing it can be walked on an emulator, which has no phone writer.
+// Emulator acceptance only (EXPO_PUBLIC_E2E_DOWNLOAD=1): pretend flow for walking the UI.
 const pretend = () => process.env.EXPO_PUBLIC_E2E_DOWNLOAD === '1';
-let pretendStatus: ModelStatus = 'downloadable';
+let pretendState: InferState = { phase: 'not-installed' };
 
 let running: Promise<void> | null = null;
 let runningMobile = false;
-/** Progress (0 to 1) while a download runs, then null once it settles either way. */
+let abortController: AbortController | null = null;
+/** Progress (0 to 1) while a download runs, then null once it settles. */
 const watchers = new Set<(fraction: number | null) => void>();
 const tell = (fraction: number | null) => watchers.forEach(watch => watch(fraction));
 
@@ -28,60 +27,67 @@ export function watch(on: (fraction: number | null) => void): () => void {
 
 export const downloading = () => running !== null;
 
-export async function modelStatus(): Promise<ModelStatus> {
-  if (pretend()) return running ? 'downloading' : pretendStatus;
-  return Native.modelStatus();
+export async function modelStatus(): Promise<InferState> {
+  if (pretend()) return running ? { phase: 'installing' } : pretendState;
+  if (running) return getLocalModel().state;
+  return localModelState();
 }
 
-/** The person said yes: remember it and get the phone ready. A bare call reuses the stored
- *  mobile-data choice; an explicit choice overwrites it. Joins a running download, except a
- *  mobile-data yes restarts a Wi-Fi-only run with data allowed. */
+/** The person said yes: remember it and install the model. Joins a running install, or restarts if mobile data choice changed. */
 export async function getReady(allowMobileData?: boolean): Promise<void> {
   const mobile = allowMobileData ?? !!store.get<boolean>(MOBILE_KEY);
   if (running) {
     if (mobile && !runningMobile) {
       const prev = running;
+      abortController?.abort();
       running = null;
       runningMobile = false;
-      try { if (!pretend()) await Native.cancelModelDownload(); } catch {}
-      prev.catch(() => {});
+      try { await prev; } catch (e: any) { if (e?.name !== 'AbortError' && e?.message !== 'aborted') throw e; }
+      if (running) return running;
     } else return running;
   }
   store.set(AGREED_KEY, true);
   if (allowMobileData !== undefined) store.set(MOBILE_KEY, allowMobileData ? true : null);
   runningMobile = mobile;
   tell(0);
-  const download = pretend() ? pretendDownload() : Native.downloadModel({ allowMobileData: mobile }, tell);
+
+  abortController = new AbortController();
+  const download = pretend()
+    ? pretendDownload()
+    : installLocalModel(mobile, tell, abortController.signal);
+
   const current: Promise<void> = download.finally(() => {
-    if (running === current) { running = null; runningMobile = false; tell(null); }
+    if (running === current) { running = null; runningMobile = false; abortController = null; tell(null); }
   });
   running = current;
   return current;
 }
 
-/** Waits without recording a yes: joins a JS-tracked run, else polls native provisioning
- *  until it leaves 'downloading' (the bubble tapping mid-provisioning). */
+/** Waits without recording consent: joins a tracked install, else polls until state leaves 'installing'. */
 export async function settle(): Promise<void> {
   if (running) return running;
   for (let i = 0; i < 120; i++) {
-    try { if (await modelStatus() !== 'downloading') return; } catch { return; }
+    try { if ((await modelStatus()).phase !== 'installing') return; } catch { return; }
     await new Promise(done => setTimeout(done, 1000));
   }
 }
 
-/** Picks an agreed download back up where it stopped (the app was closed, or Wi-Fi came back). */
+/** Resumes an agreed install that stopped (app closed, network returned). */
 export async function resume(): Promise<void> {
   if (!agreed() || running) return;
-  try { if (await modelStatus() === 'downloadable') await getReady(!!store.get<boolean>(MOBILE_KEY)); } catch {}
+  try {
+    const state = await modelStatus();
+    if (state.phase === 'not-installed') await getReady(!!store.get<boolean>(MOBILE_KEY));
+  } catch (e) {
+    // Resume is fire-and-forget (void resume()); install errors surface in the UI, not here.
+  }
 }
 
-/** Removes the downloaded writer and forgets the yes and the mobile-data choice, so the phone asks again before any new download. */
+/** Removes the model and forgets consent and data choice. */
 export async function removeDownload(): Promise<void> {
-  if (pretend()) { pretendStatus = 'downloadable'; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
-  try { await Native.cancelModelDownload(); } catch {}
-  await Native.deleteModel();
-  store.set(AGREED_KEY, null);
-  store.set(MOBILE_KEY, null);
+  if (pretend()) { pretendState = { phase: 'not-installed' }; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
+  abortController?.abort();
+  await removeLocalModel();
 }
 
 function pretendDownload(): Promise<void> {
@@ -92,7 +98,7 @@ function pretendDownload(): Promise<void> {
       tell(fraction);
       if (fraction < 1) return;
       clearInterval(id);
-      pretendStatus = 'available';
+      pretendState = { phase: 'ready' };
       done();
     }, 300);
   });

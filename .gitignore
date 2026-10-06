@@ -34,3 +34,4 @@ packages/engine/dist/
 *.jks
 *.keystore
 *.p12
+.android-avd/

@@ -1,31 +1,47 @@
-import Native from '../../../modules/ownvoice-native';
+jest.mock('../localModel', () => ({
+  AGREED_KEY: 'local-model-agreed',
+  MOBILE_KEY: 'local-model-mobile-data',
+  localModelState: jest.fn(),
+  agreedToDownload: jest.fn(),
+  installLocalModel: jest.fn(),
+  removeLocalModel: jest.fn(),
+}));
+import { agreedToDownload, localModelState } from '../localModel';
+import type { InferState } from '@byokit/infer';
 import { phoneCanWrite } from '../phoneStatus';
 import { AGREED_KEY } from '../phoneDownload';
 
-jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: { modelStatus: jest.fn() } }));
-
-const native = Native as jest.Mocked<typeof Native>;
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
+const mockAgreed = agreedToDownload as jest.MockedFunction<typeof agreedToDownload>;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 
-beforeEach(() => { jest.clearAllMocks(); kv.clear(); });
+beforeEach(() => {
+  jest.clearAllMocks();
+  kv.clear();
+  mockAgreed.mockImplementation(() => kv.get(AGREED_KEY) === 'true');
+});
 
 test.each([
-  ['available', 'ready'],
-  ['downloadable', 'needsDownload'],
-  ['downloading', 'preparing'],
-  ['unavailable', 'cant'],
-] as const)('status %s maps to %s', async (status, expected) => {
-  native.modelStatus.mockResolvedValue(status);
+  ['ready', 'ready'],
+  ['busy', 'ready'],
+  ['not-installed', 'needsDownload'],
+  ['installing', 'preparing'],
+  ['installed', 'ready'],
+  ['loading', 'preparing'],
+  ['unsupported', 'cant'],
+  ['failed', 'cant'],
+] as const)('phase %s maps to %s', async (phase, expected) => {
+  mockState.mockResolvedValue({ phase } as InferState);
   await expect(phoneCanWrite()).resolves.toBe(expected);
 });
 
-test('a thrown status call maps to cant', async () => {
-  native.modelStatus.mockRejectedValue(new Error('BACKGROUND_USE_BLOCKED'));
+test('a thrown state call maps to cant', async () => {
+  mockState.mockRejectedValue(new Error('BACKGROUND_USE_BLOCKED'));
   await expect(phoneCanWrite()).resolves.toBe('cant');
 });
 
-test('a downloadable phone is getting ready only once the person said yes to the download', async () => {
-  native.modelStatus.mockResolvedValue('downloadable');
+test('a not-installed phone is getting ready only once the person said yes to the download', async () => {
+  mockState.mockResolvedValue({ phase: 'not-installed' });
   kv.set(AGREED_KEY, 'true');
   await expect(phoneCanWrite()).resolves.toBe('preparing');
 });

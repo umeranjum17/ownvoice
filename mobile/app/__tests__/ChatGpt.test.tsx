@@ -23,7 +23,6 @@ jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: {
     copy: jest.fn(async () => {}),
-    modelStatus: jest.fn(async () => 'available'),
     launcherApps: jest.fn(async () => [
       { app: 'com.google.android.gm', label: 'Gmail', icon: null },
       { app: 'com.Slack', label: 'Slack', icon: null },
@@ -34,6 +33,9 @@ jest.mock('../../modules/ownvoice-native', () => ({
 
 const fake = session as jest.Mocked<typeof session>;
 const native = Native as jest.Mocked<typeof Native>;
+jest.mock('../../src/core/localModel', () => ({ localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
+import { localModelState } from '../../src/core/localModel';
+const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const signedIn: GptState = { ...nothing, signedIn: true, note: 'ChatGPT is connected.' };
 const waiting: GptState = { ...nothing, waiting: true, code: 'KQPT-MXVD', url: 'https://chatgpt.com/code', note: 'Sign in on the ChatGPT page that just opened.' };
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
@@ -64,7 +66,7 @@ beforeEach(() => {
   kv.set('setup-done', 'true');
   jest.clearAllMocks();
   (useLocalSearchParams as jest.Mock).mockReturnValue({});
-  native.modelStatus.mockResolvedValue('available');
+  mockState.mockResolvedValue({ phase: 'ready' });
   fake.cancel.mockResolvedValue(nothing);
   jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
 });
@@ -190,7 +192,7 @@ test('signing out while ChatGPT writes hands the writing to this phone', async (
 });
 
 test('signing out on a phone that cannot write leaves nothing chosen', async () => {
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   const screen = await open('chatgpt', signedIn);
   expect(screen.getByText(words.srcPhoneCant)).toBeTruthy();
   expect(screen.queryByText(words.phoneBackup)).toBeNull();
@@ -200,7 +202,7 @@ test('signing out on a phone that cannot write leaves nothing chosen', async () 
 });
 
 test('a phone that stopped writing reads as not chosen, with no promise about where drafts are written', async () => {
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   const screen = await open('phone', signedIn);
   expect(screen.getByText(words.srcPhoneCant)).toBeTruthy();
   expect(screen.queryByText(words.privacyPhone)).toBeNull();
@@ -237,7 +239,7 @@ test('ChatGPT chosen but signed out offers the sign-in in its card', async () =>
 });
 
 test('Home’s Continue with ChatGPT starts the sign-in on arrival', async () => {
-  native.modelStatus.mockResolvedValue('unavailable');
+  mockState.mockResolvedValue({ phase: 'unsupported' });
   (useLocalSearchParams as jest.Mock).mockReturnValue({ start: 'chatgpt' });
   fake.start.mockImplementation(async () => (reports = waiting));
   const screen = await open(null);
