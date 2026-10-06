@@ -15,20 +15,18 @@ const authBase = process.env.EXPO_PUBLIC_E2E_AUTH_BASE || undefined;
 // Wrapper functions will delegate to a lazily-initialized instance with kit-driven list.
 const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase } : {}) }, portable);
 let realInstance: Accounts | undefined;
-let tried = false;
 
 function getInstance(): Accounts {
-  if (!tried) {
-    tried = true;
-    try {
-      const plans = offered().map(p => p.key);
-      const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
-      realInstance = new Accounts({ offer: planOrder, app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase} : {}) }, portable);
-    } catch {
-      // offered() not available - use fallback
-    }
+  if (realInstance) return realInstance;
+  try {
+    const plans = offered().map(p => p.key);
+    if (!plans.length) return fallback;
+    const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
+    realInstance = new Accounts({ offer: planOrder, app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase} : {}) }, portable);
+    return realInstance;
+  } catch {
+    return fallback;
   }
-  return realInstance || fallback;
 }
 
 // Export the fallback instance directly for test compatibility.

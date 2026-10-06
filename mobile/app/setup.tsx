@@ -126,9 +126,19 @@ export default function Setup() {
     Native.serviceState().then(s => { if (mounted.current) setServiceOn(s === 'on'); }).catch(() => {});
     phoneCanWrite().then(can => { if (mounted.current) setPhone(can); });
     // A sign-in still waiting for its code (the screen was rebuilt) comes back to its code.
-    if (latest.current.step === 'CHOOSE' && latest.current.planState) {
-      const provider = latest.current.planState.provider;
-      checkPlanState(provider, signing.current).catch(() => {});
+    if (latest.current.step === 'CHOOSE') {
+      const at = signing.current;
+      const keys = accounts.providers.map(p => p.key);
+      const kept = storedSource();
+      const ordered = kept && keys.includes(kept) ? [kept, ...keys.filter(k => k !== kept)] : keys;
+      void refresh().catch(() => {}).then(async () => {
+        for (const provider of ordered) {
+          if (at !== signing.current || !mounted.current) return;
+          if (signInState(provider)?.state !== 'waiting') continue;
+          await checkPlanState(provider, at).catch(() => {});
+          return;
+        }
+      }).catch(() => {});
     }
     // A step saved by an older version at its last, optional ChatGPT offer: everything else was done.
     if (latest.current.step === 'DONE') void finish(true);
@@ -271,12 +281,14 @@ export default function Setup() {
   }
 
   const copyAndOpen = () => {
-    if (!planState?.code) return;
-    void Native.copy(planState.code).catch(() => {});
-    const providerName = plans.find(p => p.key === planState.provider)?.name ?? planState.provider;
-    if (planState.url) void Linking.openURL(planState.url).catch(() => {
-      if (mounted.current && signing.current === signing.current)
-        setPlanState({ ...planState, note: words.gptPageFailed });
+    const current = planState;
+    if (!current?.code) return;
+    void Native.copy(current.code).catch(() => {});
+    const url = current.url;
+    const at = signing.current;
+    if (url) void Linking.openURL(url).catch(() => {
+      if (mounted.current && at === signing.current)
+        setPlanState(prev => prev && prev.waiting && prev.provider === current.provider && prev.code === current.code ? { ...prev, note: words.gptPageFailed } : prev);
     });
   };
 
