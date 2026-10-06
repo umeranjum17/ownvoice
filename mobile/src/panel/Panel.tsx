@@ -20,7 +20,7 @@ import { retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
-import { FitBar } from '../ui/FitBar';
+import { FitBar, fitBarVisible } from '../ui/FitBar';
 import { CheckIcon, ChevIcon, CopyIcon, OpenIcon, ShareIcon } from '../ui/icons';
 import { MeaningLine } from '../ui/MeaningLine';
 import { Marked } from '../ui/Marked';
@@ -423,6 +423,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const done = phase === 'ready' && unchanged;
   const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
   const replies = mode === 'reply' || mode === 'grow';
+  const grow = mode === 'grow';
+  const yoursFit = yours ? fits.get(yours.text) : undefined;
   // With their own text in the box (polish, grow) a card replaces it: Use this. An empty box takes a reply: Insert.
   const insertLabel = mode === 'reply' ? words.insert : words.useThis;
   // Grow ranks the cards strongest first by their fit; each card keeps its slot, so its tag still names what it is for.
@@ -464,8 +466,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <Marked text={yours.text} hits={[...yours.scores.hits, ...slips]} />
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
-        <Ratings ratings={yours.ratings} fit={fits.get(yours.text)} />
-        {mode === 'grow' ? <FitBar fit={fits.get(yours.text)} ratings={yours.ratings} /> : null}
+        <Ratings ratings={yours.ratings} fit={yoursFit} hideEngagement={grow && fitBarVisible(yoursFit, yours.ratings)} />
+        {grow ? <FitBar fit={yoursFit} ratings={yours.ratings} /> : null}
         <View style={styles.actions}>
           {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
           <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
@@ -477,6 +479,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       const verdict = card.label ? null : distinctVerdict(card, shown);
       const exportBlocked = card.meaning?.ok === false;
       const editing = edit?.slot === card.slot ? edit : null;
+      // While editing, the text is unrated: no fit, no bar, and the engagement row follows the edit.
+      const cardFit = editing ? undefined : fits.get(card.text);
       return <View key={card.slot} style={{ marginBottom: space.m }}>
         <Card variant="outlined" label={card.label ?? (replies ? (TAGS[platform.id] ?? CHAT_TAGS)[card.slot] : undefined)}>
           {editing
@@ -486,8 +490,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           {editing ? null : <ToneLine text={card.text} tones={tones} />}
           {editing ? null : card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           {/* While editing, the ratings follow the edited text, never the original. */}
-          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={editing ? undefined : fits.get(card.text)} />
-          {mode === 'grow' && !editing ? <FitBar fit={fits.get(card.text)} ratings={card.ratings} /> : null}
+          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitBarVisible(cardFit, card.ratings)} />
+          {grow && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />

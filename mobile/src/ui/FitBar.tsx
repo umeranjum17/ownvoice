@@ -1,6 +1,6 @@
 import { Text, View } from 'react-native';
 import { NEVER_SAY } from '../core/slop';
-import type { Ratings } from '../core/ratings';
+import { REACH_UNKNOWN, type Ratings } from '../core/ratings';
 import { words } from '../core/words';
 import { LEVELS, UNSURE, type Fit } from '../grow/fit';
 import { space, type, useTheme } from './theme';
@@ -18,20 +18,40 @@ export function fitFlag(ratings: Ratings | null): string | null {
   return ratings.engagement.signals.find(signal => signal.concern && signal.text.startsWith('Too long for '))?.text ?? null;
 }
 
+/** The engagement row's own findings, folded into the bar's reason so the card carries them once.
+ *  The standing "Text alone can't predict reach" line stays in the other modes' rows only. */
+function details(ratings: Ratings | null): string[] {
+  if (!ratings) return [];
+  return [
+    ...ratings.engagement.signals.map(signal => signal.text),
+    ...ratings.engagement.unknown.filter(line => line !== REACH_UNKNOWN),
+  ];
+}
+
+const sentence = (parts: string[]) => parts.map(part => part.replace(/\.$/, '')).join('. ') + '.';
+
 const GLOSS = [words.fitWhySkipped, words.fitWhyVague, words.fitWhyGood, words.fitWhyStrong] as const;
 
-/** Grow mode's fit bar: four segments and the level in words, with one reason line under it.
- *  The bar fills in when the fit lands (no fit yet, or still can't rate and nothing flagged:
+/** Whether the bar shows for this card: a judged or abstained fit, or a rule flag on its own.
+ *  The panel hides the engagement row exactly when this is true, so a card never shows two levels. */
+export function fitBarVisible(fit: Fit | undefined, ratings: Ratings | null): boolean {
+  if (!fit) return false;
+  if (fitFlag(ratings)) return true;
+  return fit.level != null || fit.words === UNSURE;
+}
+
+/** Grow mode's only fit display: four segments and the level in words, with one reason line under
+ *  it. The bar fills in when the fit lands (no fit yet, or still can't rate and nothing flagged:
  *  nothing shows). A rule flag always shows the bottom level and says why, even over a level.
  *  No number is ever shown or spoken: the spoken label is the level words alone. */
 export function FitBar({ fit, ratings }: { fit: Fit | undefined; ratings: Ratings | null }) {
   const t = useTheme();
-  if (!fit) return null;
+  if (!fit || !fitBarVisible(fit, ratings)) return null;
   const flag = fitFlag(ratings);
   const level = flag ? 0 : fit.level;
-  if (level == null && fit.words !== UNSURE && !flag) return null;
   const label = level != null ? LEVELS[level] : fit.words;
-  const reason = flag ?? (level != null ? GLOSS[level] : words.fitWhyUnsure);
+  const found = details(ratings).filter(line => line !== flag);
+  const reason = sentence(flag ? [flag, ...found] : [...found, level != null ? GLOSS[level] : words.fitWhyUnsure]);
   const filled = level == null ? 0 : level + 1;
   return <View testID="fit-bar" style={{ marginTop: space.s }}>
     <View accessible accessibilityLabel={label}>

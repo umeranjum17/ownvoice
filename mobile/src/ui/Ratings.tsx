@@ -30,8 +30,10 @@ const sentence = (title: string, label: string, lines: string[]) => [`${title}: 
 
 /** A card's engagement rating and, apart from it, its stock-wording rating; read out as one label.
  *  With Jev's fit level the engagement rating is that level; without one it stays the text checks.
- *  A row appears only when it found something, and nothing appears when it found nothing. */
-export function Ratings({ ratings, fit }: { ratings: Value | null; fit?: Fit }) {
+ *  In grow mode the fit bar below carries the level and the findings, so the panel hides this row
+ *  there instead of showing two verdicts. A row appears only when it found something, and nothing
+ *  appears when it found nothing. */
+export function Ratings({ ratings, fit, hideEngagement }: { ratings: Value | null; fit?: Fit; hideEngagement?: boolean }) {
   if (!ratings) return null;
   const { engagement: e, stock: s } = ratings;
   const judged = fit?.level != null;
@@ -40,8 +42,9 @@ export function Ratings({ ratings, fit }: { ratings: Value | null; fit?: Fit }) 
   // Nothing found means nothing shown: a row of "Nothing flagged" and "can't rate the fit" on every
   // card is noise, and it says nothing about the draft. A real level or a real finding earns the row.
   const discloses = e.unknown.includes(POST_UNREAD);
+  if (hideEngagement && !stockLines.length) return null;
   if (!judged && !notes.length && !stockLines.length && !discloses) return null;
-  const engagement = notes.length || judged || discloses ? sentence(e.title, judged ? fit.words : e.label, [...notes, ...e.unknown]) : '';
+  const engagement = !hideEngagement && (notes.length || judged || discloses) ? sentence(e.title, judged ? fit.words : e.label, [...notes, ...e.unknown]) : '';
   const stock = stockLines.length ? sentence(s.title, s.label, stockLines) : '';
   const label = [engagement, stock].filter(Boolean).join(' ');
   return <View accessible accessibilityLabel={label} style={{ marginTop: space.xs }}>
