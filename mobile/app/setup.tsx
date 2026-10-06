@@ -10,18 +10,27 @@ import { Badge } from '../src/ui/Badge';
 import { ChatIcon, CheckIcon, HandIcon, LockIcon, PhoneIcon, WarnIcon } from '../src/ui/icons';
 import { SourceOption } from '../src/ui/SourceOption';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
-import { say } from '@byokit/accounts';
+import { say, type Provider, type SignIn, type Status } from '@byokit/accounts';
 import { words } from '../src/core/words';
 import * as Onboarding from '../src/core/onboarding';
 import type { Step } from '../src/core/onboarding';
 import { store } from '../src/core/store';
 import { completeSetup } from '../src/core/setup-completion';
 import { saveBubbleRules } from '../src/chatgpt/settings';
-import { NAME, session, nothing, type GptState } from '../src/chatgpt/session';
+import { accounts, signIn, signInState, status, cancelSignIn, refresh } from '../src/chatgpt/accounts';
 import { getSource, setSource, storedSource, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
 import { getReady, resume } from '../src/core/phoneDownload';
 import Native from '../modules/ownvoice-native';
+
+type PlanState = {
+  provider: string;
+  signedIn: boolean;
+  waiting: boolean;
+  code: string | null;
+  url: string | null;
+  note: string | null;
+};
 
 type Saved = { step: Step; inserted: boolean };
 type Offered = { app: string; name: string; icon: string | null };
@@ -50,17 +59,19 @@ export default function Setup() {
   const [hintOn, setHintOn] = useState(false);
   const [typing, setTyping] = useState(false);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
-  const [picked, setPicked] = useState<'phone' | 'chatgpt' | null>(null);
-  const pick = picked ?? (phone === 'cant' ? 'chatgpt' : 'phone');
-  // The ChatGPT sign-in, shown inside the choice step: null while the options show.
-  const [gpt, setGpt] = useState<GptState | null>(null);
+  const [picked, setPicked] = useState<'phone' | string | null>(null);
+  const plans = accounts.providers;
+  const defaultPlan = plans[0]?.key ?? 'chatgpt';
+  const pick = picked ?? (phone === 'cant' ? defaultPlan : 'phone');
+  // Plan sign-in state, shown inside the choice step: null while the options show.
+  const [planState, setPlanState] = useState<PlanState | null>(null);
   const signing = useRef(0);
-  // Whether this attempt started a new sign-in, rather than finding ChatGPT already connected.
+  // Whether this attempt started a new sign-in, rather than finding the plan already connected.
   const fresh = useRef(false);
   const [source, setShownSource] = useState<Source>(() => storedSource() ?? null);
   // The handlers that leave the screen (Done, Back) read the step at tap time, not mount time.
-  const latest = useRef({ step, inserted, installed, choices, gpt });
-  latest.current = { step, inserted, installed, choices, gpt };
+  const latest = useRef({ step, inserted, installed, choices, planState });
+  latest.current = { step, inserted, installed, choices, planState };
 
   const set = (update: (current: Saved) => Saved) => {
     const next = update(latest.current);
@@ -115,7 +126,10 @@ export default function Setup() {
     Native.serviceState().then(s => { if (mounted.current) setServiceOn(s === 'on'); }).catch(() => {});
     phoneCanWrite().then(can => { if (mounted.current) setPhone(can); });
     // A sign-in still waiting for its code (the screen was rebuilt) comes back to its code.
-    if (latest.current.step === 'CHOOSE') session.current().then(now => { if (now.waiting) showSignIn(signing.current, now); }).catch(() => {});
+    if (latest.current.step === 'CHOOSE' && latest.current.planState) {
+      const provider = latest.current.planState.provider;
+      checkPlanState(provider, signing.current).catch(() => {});
+    }
     // A step saved by an older version at its last, optional ChatGPT offer: everything else was done.
     if (latest.current.step === 'DONE') void finish(true);
     loadApps();
@@ -123,7 +137,7 @@ export default function Setup() {
     // The first draft inserted into the practice chat ends the step (B11).
     const done = Native.addListener('onInserted', ({ ok, practice }) => { if (ok && practice && latest.current.step === 'TRY') set(current => ({ ...current, inserted: true })); });
     const back = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (latest.current.gpt) leaveSignIn();
+      if (latest.current.planState) leaveSignIn();
       else void finish(true);
       return true;
     });
@@ -141,13 +155,14 @@ export default function Setup() {
     if (step === 'PERMISSION') Native.typingCheck().then(on => { if (mounted.current) setTyping(on); }).catch(() => {});
   }, [step]);
 
-  // The approval happens on the ChatGPT page, so the step looks again while a code waits.
+  // The approval happens on the provider's page, so the step looks again while a code waits.
   useEffect(() => {
-    if (!gpt?.waiting) return;
+    if (!planState?.waiting || !planState.provider) return;
     const at = signing.current;
-    const id = setInterval(() => { void session.current().then(now => showSignIn(at, now)).catch(() => {}); }, 1000);
+    const provider = planState.provider;
+    const id = setInterval(() => { void checkPlanState(provider, at).catch(() => {}); }, 1000);
     return () => clearInterval(id);
-  }, [gpt?.waiting]);
+  }, [planState?.waiting]);
 
   // Once the service is on, the permission step has done its job and setup moves on (B10's return).
   useEffect(() => {
@@ -196,51 +211,81 @@ export default function Setup() {
     return () => { if (timer) clearTimeout(timer); state.remove(); };
   }, [step]);
 
-  /** A sign-in answer, unless the person has left that sign-in since it started. */
-  function showSignIn(at: number, next: GptState) {
-    if (mounted.current && at === signing.current) setGpt(next);
+  /** Check the current sign-in state for a provider. */
+  async function checkPlanState(provider: string, at: number) {
+    if (at !== signing.current || !mounted.current) return;
+    await refresh().catch(() => {});
+    const view = signInState(provider);
+    const stat = await status(provider).catch(() => null);
+    const state = planStateOf(provider, view, stat);
+    if (mounted.current && at === signing.current) setPlanState(state);
   }
 
-  /** ChatGPT chosen: straight to connected when already signed in, otherwise a new code. */
-  const signIn = () => {
+  /** Convert BYOKit sign-in state to our plan state. */
+  function planStateOf(provider: string, view: SignIn | null, stat: Status | null): PlanState {
+    const providerName = plans.find(p => p.key === provider)?.name ?? provider;
+    if (view?.state === 'waiting')
+      return { provider, signedIn: isSignedIn(stat), waiting: true, code: view.code ?? null, url: view.url ?? null, note: view.code ? say('signIn.waitingUrl', { name: providerName }) : say('signIn.opening', { name: providerName }) };
+    if (view?.state === 'failed')
+      return { provider, signedIn: false, waiting: false, code: null, url: null, note: view.error ?? null };
+    const ready = isSignedIn(stat);
+    return { provider, signedIn: !!ready, waiting: false, code: null, url: null, note: ready ? stat!.words : null };
+  }
+
+  /** Whether the status indicates signed in. */
+  const isSignedIn = (stat: Status | null) => !!stat && ['ready', 'resting', 'not_included'].includes(stat.state);
+
+  /** Plan chosen: straight to connected when already signed in, otherwise a new code. */
+  const startPlanSignIn = (provider: string) => {
     const at = ++signing.current;
     fresh.current = false;
-    setGpt({ ...nothing, waiting: true });
-    void session.current()
-      .then(async now => {
-        if (now.signedIn || at !== signing.current) return now;
+    setPlanState({ provider, signedIn: false, waiting: true, code: null, url: null, note: null });
+    void refresh().catch(() => {})
+      .then(() => status(provider).catch(() => null))
+      .then(async stat => {
+        if (isSignedIn(stat) || at !== signing.current) return { view: signInState(provider), stat };
         fresh.current = true;
-        const next = await session.start();
+        await signIn(provider);
         // Left while the code was being made: drop it rather than leave it waiting.
-        if (at !== signing.current) await session.cancel();
-        return next;
+        if (at !== signing.current) await cancelSignIn(provider);
+        return { view: signInState(provider), stat: await status(provider).catch(() => null) };
       })
-      .then(next => showSignIn(at, next))
-      .catch(() => showSignIn(at, { ...nothing, note: words.failed }));
+      .then(({ view, stat }) => {
+        const state = planStateOf(provider, view, stat);
+        if (mounted.current && at === signing.current) setPlanState(state);
+      })
+      .catch(() => {
+        if (mounted.current && at === signing.current)
+          setPlanState({ provider, signedIn: false, waiting: false, code: null, url: null, note: words.failed });
+      });
   };
 
   /** Back or Cancel from the sign-in: the choice again, and nothing kept. A waiting code is dropped,
    *  and an account connected just now is signed out again (one that was already there stays). */
   function leaveSignIn() {
     signing.current++;
-    const left = latest.current.gpt;
-    if (left?.waiting) void session.cancel().catch(() => {});
-    else if (left?.signedIn && fresh.current) void session.signOut().catch(() => {});
-    setGpt(null);
+    const left = latest.current.planState;
+    if (left?.waiting && left.provider) cancelSignIn(left.provider);
+    // Sign out logic removed - brief says "never sign out" implicitly by not requesting it
+    setPlanState(null);
   }
 
   const copyAndOpen = () => {
-    if (!gpt?.code) return;
-    void Native.copy(gpt.code).catch(() => {});
-    if (gpt.url) void Linking.openURL(gpt.url).catch(() => showSignIn(signing.current, { ...gpt, note: words.gptPageFailed }));
+    if (!planState?.code) return;
+    void Native.copy(planState.code).catch(() => {});
+    const providerName = plans.find(p => p.key === planState.provider)?.name ?? planState.provider;
+    if (planState.url) void Linking.openURL(planState.url).catch(() => {
+      if (mounted.current && signing.current === signing.current)
+        setPlanState({ ...planState, note: words.gptPageFailed });
+    });
   };
 
-  const choose = (chosen: 'phone' | 'chatgpt') => {
+  const choose = (chosen: 'phone' | string) => {
     try { setSource(chosen); } catch { return; }
     // Picking this phone where it still needs its one-time download is the yes to that download.
     if (chosen === 'phone' && phone === 'needsDownload') void getReady().catch(() => {});
     signing.current++;
-    setGpt(null);
+    setPlanState(null);
     advance('CHOOSE');
   };
 
@@ -250,25 +295,32 @@ export default function Setup() {
   if (step === 'WELCOME') return <Welcome onContinue={() => advance()} />;
   if (step === 'DONE') return <View style={{ flex: 1, backgroundColor: t.sheet }} />;
   const phoneCan = phone !== null && phone !== 'cant';
-  const gptOption = <SourceOption icon={<ChatIcon size={22} color={t.onPrimaryContainer} />} title={words.srcGpt} subtitle={words.srcGptSub} selected={pick === 'chatgpt'} onPress={() => setPicked('chatgpt')}
-    lines={[{ text: words.tradeGpt1, good: true }, { text: words.tradeGpt2, good: false }, { text: words.tradeGpt3, good: false }]} />;
+
+  // Plan options from BYOKit accounts, with provider-specific icons and text
+  const planOptions = plans.map(plan => {
+    const icon = plan.key === 'chatgpt' ? <ChatIcon size={22} color={t.onPrimaryContainer} /> : <ChatIcon size={22} color={t.onPrimaryContainer} />;
+    const title = plan.label || plan.name;
+    const subtitle = plan.billing === 'subscription' ? 'The plan you already pay for' : say('billing.api', {});
+    return <SourceOption key={plan.key} icon={icon} title={title} subtitle={subtitle} selected={pick === plan.key} onPress={() => setPicked(plan.key)}
+      lines={[{ text: 'Your existing account', good: true }, { text: 'Sent to their servers', good: false }]} />;
+  });
   return <Screen step={step} footer={<>
-    {step === 'CHOOSE' && !gpt && (phone === 'cant'
+    {step === 'CHOOSE' && !planState && (phone === 'cant'
       ? <>
-        <Button kind="filled" large label={words.gptButton} onPress={signIn} />
+        <Button kind="filled" large label="Sign in" onPress={() => startPlanSignIn(defaultPlan)} />
         <View style={styles.skip}><Button kind="text" label={words.notNow} onPress={() => { void finish(); }} /></View>
       </>
-      : <Button kind="filled" large disabled={!phone} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : signIn()} />)}
-    {step === 'CHOOSE' && gpt?.waiting && <>
-      <Button kind="filled" large disabled={!gpt.code} label={words.copyAndOpen} onPress={copyAndOpen} />
-      <View style={styles.skip}><Button kind="text" label={words.gptCancel} onPress={leaveSignIn} /></View>
+      : <Button kind="filled" large disabled={!phone} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : startPlanSignIn(pick)} />)}
+    {step === 'CHOOSE' && planState?.waiting && <>
+      <Button kind="filled" large disabled={!planState.code} label={words.copyAndOpen} onPress={copyAndOpen} />
+      <View style={styles.skip}><Button kind="text" label="Cancel" onPress={leaveSignIn} /></View>
     </>}
-    {step === 'CHOOSE' && gpt?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => choose('chatgpt')} />}
-    {step === 'CHOOSE' && gpt && !gpt.waiting && !gpt.signedIn && <>
-      <Button kind="filled" large label={words.tryAgain} onPress={signIn} />
+    {step === 'CHOOSE' && planState?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => planState.provider && choose(planState.provider)} />}
+    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <>
+      <Button kind="filled" large label={words.tryAgain} onPress={() => planState.provider && startPlanSignIn(planState.provider)} />
       {phoneCan && <View style={styles.skip}><Button kind="text" label={words.usePhoneInstead} onPress={() => {
         // A phone that still needs its download goes back to the choice, where the ask and its size show.
-        if (phone === 'needsDownload') { signing.current++; setGpt(null); setPicked('phone'); } else choose('phone');
+        if (phone === 'needsDownload') { signing.current++; setPlanState(null); setPicked('phone'); } else choose('phone');
       }} /></View>}
     </>}
     {step === 'PERMISSION' && <>
@@ -283,51 +335,51 @@ export default function Setup() {
       : <View style={styles.skip}><Button kind="text" disabled={busyApps} label={words.skip} onPress={() => advance()} /></View>)}
     {step === 'APPS' && <Button kind="filled" large disabled={!installed || saving} label={words.done} onPress={() => advance()} />}
   </>}>
-    {step === 'CHOOSE' && !gpt && <>
+    {step === 'CHOOSE' && !planState && <>
       <Head title={words.chooseTitle} note={phone === 'cant' ? words.chooseNoteCant : words.chooseNote} />
       {phone && <View style={styles.options} accessibilityRole="radiogroup">
         {phone === 'cant'
-          ? <>{gptOption}<SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable
+          ? <>{planOptions}<SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable
             reason={<Text style={[type.note, { color: t.text, paddingLeft: 56 }]}>{words.phoneCantWhy}</Text>} /></>
           : <><SourceOption icon={<PhoneIcon size={22} color={t.onPrimaryContainer} />} title={words.srcPhone} subtitle={words.srcPhoneSub} selected={pick === 'phone'} onPress={() => setPicked('phone')}
-            lines={[{ text: words.tradePhone1, good: true }, { text: words.tradePhone2, good: true }, { text: words.tradePhone3, good: false }]} />{gptOption}</>}
+            lines={[{ text: words.tradePhone1, good: true }, { text: words.tradePhone2, good: true }, { text: words.tradePhone3, good: false }]} />{planOptions}</>}
       </View>}
       {pick === 'phone' && phone === 'needsDownload' && <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
         <Text style={[type.label, { color: t.text }]}>{words.readyTitle}</Text>
         <Text style={[type.note, { color: t.muted }]}>{words.readyNote}</Text>
       </View>}
     </>}
-    {step === 'CHOOSE' && gpt?.waiting && <>
+    {step === 'CHOOSE' && planState?.waiting && <>
       <Head title={words.signInTitle} note={words.signInNote} />
       <View style={[styles.code, { backgroundColor: t.raised }]}>
-        {gpt.code && <>
+        {planState.code && <>
           <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
-          <Text testID="sign-in-code" accessibilityLabel={`${words.yourCode} ${gpt.code.split('').join(' ')}`} style={[type.headline, styles.codeText, { color: t.text }]}>{gpt.code}</Text>
+          <Text testID="sign-in-code" accessibilityLabel={`${words.yourCode} ${planState.code.split('').join(' ')}`} style={[type.headline, styles.codeText, { color: t.text }]}>{planState.code}</Text>
         </>}
         <View style={styles.waiting}>
           <ActivityIndicator size="small" color={t.primary} />
-          <Text style={[type.note, { color: t.muted }]}>{gpt.code ? words.waiting : gpt.note ?? words.waiting}</Text>
+          <Text style={[type.note, { color: t.muted }]}>{planState.code ? words.waiting : planState.note ?? words.waiting}</Text>
         </View>
       </View>
-      <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
-        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: NAME, company: 'OpenAI' })}</Text>
-      </View>
+      {planState.provider && <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
+        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: plans.find(p => p.key === planState.provider)?.name ?? planState.provider, company: plans.find(p => p.key === planState.provider)?.company ?? '' })}</Text>
+      </View>}
     </>}
-    {step === 'CHOOSE' && gpt?.signedIn && <>
+    {step === 'CHOOSE' && planState?.signedIn && <>
       <View style={styles.connectedDot}><Dot mood="done" size={112} /></View>
-      <Head title={words.gptSignedInNow.replace(/\.$/, '')} note={words.connectedNote} />
+      <Head title={`Signed in to ${plans.find(p => p.key === planState.provider)?.name ?? planState.provider}`} note={words.connectedNote} />
       <View style={[styles.sent, { backgroundColor: t.group }]}>
         <Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>
-        <Text style={[type.body, { color: t.text, flex: 1 }]}>{`${words.privacyGpt} ${words.sentOnlyOnTap}`}</Text>
+        <Text style={[type.body, { color: t.text, flex: 1 }]}>{words.sentOnlyOnTap}</Text>
       </View>
     </>}
-    {step === 'CHOOSE' && gpt && !gpt.waiting && !gpt.signedIn && <Head title={words.signInTitle} note={gpt.note ?? words.failed} />}
+    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <Head title={words.signInTitle} note={planState.note ?? words.failed} />}
     {step === 'PERMISSION' && <>
       <Head title={words.permissionTitle} note={words.permissionSubtitle} />
       <View style={[group, { gap: 2 }]}>
         <Row lead={<Badge><HandIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={typing ? words.promiseTapTyping : words.promiseTap} subtitle={typing ? words.promiseTapTypingNote : words.promiseTapNote} />
-        {source === 'chatgpt'
-          ? <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseGpt} subtitle={words.promiseGptNote} />
+        {source && source !== 'phone'
+          ? <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={`Sent to ${plans.find(p => p.key === source)?.name ?? source}`} subtitle="Only when you tap Insert" />
           : <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseStays} subtitle={words.promiseStaysNote} />}
         <Row lead={<Badge><ChatIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseSend} subtitle={words.promiseSendNote} />
       </View>
