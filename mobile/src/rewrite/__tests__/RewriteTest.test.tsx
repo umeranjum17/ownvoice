@@ -14,6 +14,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
   addListener: jest.fn(() => ({ remove: () => {} })),
   rewriteInput: jest.fn(), finishRewrite: jest.fn(async () => {}),
 } }));
+jest.mock('@byokit/infer', () => ({ InferError: class InferError extends Error {} }), { virtual: true });
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
 import { askLocal, localModelState } from '../../core/localModel';
 const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
@@ -63,7 +64,7 @@ test('the five chips read Shorter, Simpler, Fix spelling, Friendlier and Firmer 
   expect(visibleStrings(screen)).toContain('You selected');
 });
 
-test('Copy returns the chosen version and copies it (R4)', async () => {
+test('editable offers Replace and Copy; Replace hands back (R4)', async () => {
   mockAsk.mockImplementation(async (prompt: string) =>
     prompt.startsWith('Compare a rewrite') ? 'GENERIC: 2\nSPECIFICITY: 8\nMEANING: pass' : 'Move the call to Tuesday.');
   const screen = await renderRewrite({ text: SELECTION, editable: true });
@@ -74,10 +75,11 @@ test('Copy returns the chosen version and copies it (R4)', async () => {
   const shown = visibleStrings(screen);
   expect(shown).toContain('Same meaning as yours');
   expect(shown).not.toContain('Sounds natural');
-  expect(shown).toContain('Copy it, then paste it where you like.');
-  expect(screen.queryByRole('button', { name: 'Replace' })).toBeNull();
-  fireEvent.press(screen.getByRole('button', { name: 'Copy' }));
-  expect(native.finishRewrite).toHaveBeenCalledWith('Move the call to Tuesday.', false);
+  expect(shown).toContain("Replace puts it in the field. If not, it's copied for you to paste.");
+  expect(screen.getByRole('button', { name: 'Replace' })).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Copy' })).toBeTruthy();
+  fireEvent.press(screen.getByRole('button', { name: 'Replace' }));
+  expect(native.finishRewrite).toHaveBeenCalledWith('Move the call to Tuesday.', true);
   expect(shown.filter(x => technicalWords.test(x))).toEqual([]);
 });
 

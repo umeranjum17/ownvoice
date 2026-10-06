@@ -84,7 +84,7 @@ export default function Rewrite() {
     const showResult = async (text: string, canWrite: boolean) => {
       if (id !== run.current) return false;
       if (!text) { setNote("Couldn't rewrite that. Try again."); return false; }
-      setNote('Copy it, then paste it where you like.');
+      setNote(input!.editable ? "Replace puts it in the field. If not, it's copied for you to paste." : 'Copy it, then paste it where you like.');
       setResult({ text, meaning: Judge.meaning(input.text, text, null), scores: Judge.scoreDraft(text, null, true, rules), verdict: null });
       setBusy(false);
       const answer = stub === null && canWrite ? await askLocal(Judge.rewriteCheckPrompt(input.text, text), 80).catch(() => null) : null;
@@ -139,7 +139,8 @@ export default function Rewrite() {
           <MeaningLine check={result.meaning} same="Same meaning as yours" />
           <VerdictLine verdict={result.verdict} />
           <View style={{ flexDirection: 'row', gap: space.s, marginTop: space.m }}>
-            <Button kind="filled" label="Copy" disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Native.finishRewrite(result.text, false); }} />
+            {input!.editable && <Button kind="filled" label="Replace" disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Native.finishRewrite(result.text, true); }} />}
+            <Button kind={input!.editable ? 'text' : 'filled'} label="Copy" disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Native.finishRewrite(result.text, false); }} />
             <Button kind="text" label={words.shareText} disabled={exportBlocked} onPress={() => { if (exportBlocked) return; void Share.share({ message: result.text }).catch(() => {}); }} />
           </View>
         </Card>
