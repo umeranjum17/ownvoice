@@ -11,54 +11,38 @@ const store = secureStore(SecureStore, 'ownvoice.chatgpt.1');
 // in a distributable build, where sign-in always goes to OpenAI itself.
 const authBase = process.env.EXPO_PUBLIC_E2E_AUTH_BASE || undefined;
 
-// Lazy initialization: construct Accounts after runtime is ready, not at module scope.
-// Calling offered() at module import time causes native crash (runtime not ready).
-// In test environments, skip lazy loading since offered() may not be available.
-let accountsInstance: Accounts | null = null;
-function getAccounts(): Accounts {
-  if (!accountsInstance) {
-    // Get all subscription plans from the kit's catalogue, Claude first.
-    // In tests, offered() might not work, so fall back to a minimal list.
-    let planOrder: string[];
+// Start with hardcoded list to avoid calling offered() at module scope (RN crash).
+// Wrapper functions will delegate to a lazily-initialized instance with kit-driven list.
+const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase } : {}) }, portable);
+let realInstance: Accounts | undefined;
+let tried = false;
+
+function getInstance(): Accounts {
+  if (!tried) {
+    tried = true;
     try {
       const plans = offered().map(p => p.key);
-      planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
+      const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
+      realInstance = new Accounts({ offer: planOrder, app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase} : {}) }, portable);
     } catch {
-      // Jest environment or offered() not available - use fallback
-      planOrder = ['claude', 'chatgpt'];
+      // offered() not available - use fallback
     }
-    accountsInstance = new Accounts({ offer: planOrder, app: 'Ownvoice', store: () => store, fetch: responseFetch, originator: 'ownvoice', ...(authBase ? { authBase } : {}) }, portable);
   }
-  return accountsInstance;
+  return realInstance || fallback;
 }
 
-// Export accounts as a Proxy to maintain API compatibility.
-// In tests, the Proxy allows properties to be overridden.
-const mockOverrides = new Map<string | symbol, any>();
-export const accounts = new Proxy({} as Accounts, {
-  get: (_, prop) => {
-    // Check if there's a mock override (for tests)
-    if (mockOverrides.has(prop)) {
-      return mockOverrides.get(prop);
-    }
-    const instance = getAccounts();
-    const value = instance[prop as keyof Accounts];
-    return typeof value === 'function' ? value.bind(instance) : value;
-  },
-  set: (_, prop, value) => {
-    // Allow tests to override methods
-    mockOverrides.set(prop, value);
-    return true;
-  }
-});
+// Export the fallback instance directly for test compatibility.
+// Wrapper functions will call getInstance() to get the upgraded version.
+export const accounts = fallback;
 // Generic plan operations: the UI passes the provider key ('claude', 'chatgpt', etc.)
-export const signIn = (provider: string) => accounts.login(member, provider, { via: 'code' });
-export const signOut = (provider: string) => accounts.logout(member, provider);
-export const refresh = () => accounts.keepFresh([member]);
-export const signInState = (provider: string) => accounts.view(member, provider);
-export const cancelSignIn = (provider: string) => accounts.cancel(member, provider);
-export const status = (provider: string) => accounts.status(member, provider);
-export const reportFailure = (provider: string, error: string) => accounts.failed(member, provider, error);
+// These call getInstance() to get the kit-driven instance (if available) instead of fallback.
+export const signIn = (provider: string) => getInstance().login(member, provider, { via: 'code' });
+export const signOut = (provider: string) => getInstance().logout(member, provider);
+export const refresh = () => getInstance().keepFresh([member]);
+export const signInState = (provider: string) => getInstance().view(member, provider);
+export const cancelSignIn = (provider: string) => getInstance().cancel(member, provider);
+export const status = (provider: string) => getInstance().status(member, provider);
+export const reportFailure = (provider: string, error: string) => getInstance().failed(member, provider, error);
 // Legacy ChatGPT-specific wrappers for existing code
 export const signInChatGPT = () => signIn('chatgpt');
 export const signOutChatGPT = () => signOut('chatgpt');
@@ -66,7 +50,7 @@ export const signInStateChatGPT = () => signInState('chatgpt');
 export const cancelSignInChatGPT = () => cancelSignIn('chatgpt');
 export const statusChatGPT = () => status('chatgpt');
 export async function codexAuth(): Promise<{ access: string; accountId: string }> {
-  const runtime = await accounts.runtime(member);
+  const runtime = await getInstance().runtime(member);
   const auth = await runtime.getAuth('openai-codex');
   const credential = await runtime.readCredential('openai-codex');
   if (!auth?.auth?.apiKey || credential?.type !== 'oauth' || typeof credential.accountId !== 'string') throw new Error('Sign in with ChatGPT first.');
