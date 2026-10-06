@@ -27,7 +27,7 @@ describe.each([
   ['com.whatsapp', ''],
   ['com.whatsapp.w4b', ''],
   ['com.Slack', ''],
-  ['com.linkedin.android', ''],
+  ['com.linkedin.android', 'LinkedIn'],
   ['com.instagram.barcelona', ''],
   ['xyz.blueskyweb.app', ''],
   ['com.twitter.android', 'X'],
@@ -55,7 +55,7 @@ describe.each([
     });
     const screen = await render(<Panel writer={{ write }} />);
     const post = mode === 'compose';
-    // A reply typed under a post on X or Reddit grows into suggested replies.
+    // A reply typed under a post on X, LinkedIn or Reddit grows into suggested replies.
     const grow = !post && !!label;
     const publicScreen = post || !!label;
     const title = grow ? 'Suggested replies' : publicScreen ? 'Polish your post' : 'Polish your message';

@@ -10,7 +10,7 @@ Tap the bubble over a chat with an empty message field and Ownvoice offers short
 - `reply-insert`: Insert writes the draft into the focused field and verifies it afterward; **Edit** rewrites a card first.
 - `reply-copy`: Copy places the draft on the clipboard; Copy and the compose hand-off stay disabled while a missing-fact warning shows.
 - `reply-extras`: per-card tone line, **Why?** checks display and ratings.
-- `reply-grow`: a reply typed under an X or Reddit post shows **Suggested replies · X/Reddit** with **Yours** kept and the cards built on that point, ordered by their fit level once it answers (slot order without one). Drive it like `reply-fit` with typed text in the reply box.
+- `reply-grow`: a reply typed under an X, LinkedIn or Reddit post shows **Suggested replies · X/Reddit/LinkedIn** with **Yours** kept and the cards built on that point, ordered by their fit level once it answers (slot order without one). Drive it like `reply-fit` with typed text in the reply box.
 - `reply-paused`: paused/off states show no bubble.
 - `reply-fit`: on X and Reddit replies the engagement rating is Jev's fit level; with no key it says it can't rate the fit, unless the card has no other finding and nothing to disclose (see Reply fit in mobile/README.md). Drive it with `mobile/e2e/jev-proof.mjs` (Chrome shows a lab X post at x.com; levels and probabilities come from the `ownvoice-fit` log line) against `mobile/e2e/jev-standin.mjs serve` until a real key exists; see `mobile/README.md` (Reply fit). For `evidence.sh pair`, the launch command must re-enable the service and sign the E2E ChatGPT in again (both are lost on its force-stop) before `KEEP=1 jev-proof.mjs` on a one-reply case file.
 
