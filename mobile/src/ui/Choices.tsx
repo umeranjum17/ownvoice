@@ -10,7 +10,7 @@ export function Choices<T extends string>({ options, value, onPick }: { options:
       const on = option === value;
       return <Pressable key={option} accessibilityRole="button" accessibilityLabel={option} accessibilityState={{ selected: on }} onPress={() => onPick(option)}
         android_ripple={{ color: t.primary + '1F', borderless: false }}
-        style={[styles.option, on && { backgroundColor: t.primary }]}>
+        style={[styles.option, { backgroundColor: on ? t.primary : t.chip, borderColor: on ? t.primary : t.chipLine }]}>
         {on ? <CheckIcon size={16} color={t.onPrimary} /> : null}
         <Text numberOfLines={1} style={[type.label, { color: on ? t.onPrimary : t.text }]}>{option}</Text>
       </Pressable>;
@@ -20,5 +20,5 @@ export function Choices<T extends string>({ options, value, onPick }: { options:
 
 const styles = StyleSheet.create({
   bar: { flexDirection: 'row', flexWrap: 'wrap', borderRadius: shape.round, padding: space.xs, gap: space.xs },
-  option: { minHeight: 48, borderRadius: shape.round, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingHorizontal: space.s, overflow: 'hidden' },
+  option: { minHeight: 48, borderRadius: shape.round, borderWidth: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: space.xs, paddingHorizontal: space.s, overflow: 'hidden' },
 });

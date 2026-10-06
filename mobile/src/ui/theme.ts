@@ -46,6 +46,11 @@ export function useTheme() {
     cardLine: d.outlineVariant,
     yours: d.surfaceContainerHighest,
     group: d.surfaceContainer,
+    // An unselected option chip's own fill and edge. Transparent in light, where the
+    // bar behind reads as the chip; one step up with an outline in dark, where the
+    // bar alone melts into a single blob.
+    chip: scheme === 'dark' ? d.surfaceContainerHighest : 'transparent',
+    chipLine: scheme === 'dark' ? d.outline : 'transparent',
     primaryContainer: d.primaryContainer,
     onPrimaryContainer: d.onPrimaryContainer,
     text: d.onSurface,
