@@ -152,6 +152,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [fits, setFits] = useState<Map<string, Fit>>(new Map());
   const fitFor = useRef(0);
   const leaves = useRef(false);
+  const [limited, setLimited] = useState(false);
   const [spelling, setSpelling] = useState<{ text: string; slips: Typing.Slip[] }>({ text: '', slips: [] });
   const slips = yours?.text === spelling.text ? spelling.slips : [];
   // The text just copied: its card's copy button shows a tick for a moment.
@@ -183,14 +184,14 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const shown = cards.filter((card): card is Draft => !!card);
 
   // With "Check my spelling as I type" on, the tap also lists what to check in what they typed, each with its own Fix.
-  const findSlips = useCallback(async (text: string, id: number) => {
+  const findSlips = useCallback(async (text: string, id: number, cut: boolean) => {
     try {
       if (!text || !await Native.typingCheck()) {
         if (run.current === id) setSpelling({ text, slips: [] });
         return;
       }
       const spell = await speller().catch(() => null);
-      const found = Typing.slips(text, spell);
+      const found = Typing.slips(text, spell, cut);
       // One word at a time, giving the screen a turn in between: an unusual word can take a moment.
       for (const slip of found) if (spell && slip.fix === undefined && slip.reason === Typing.SPELLING) {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -202,6 +203,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const start = useCallback((value: Capture, avoid?: string[]) => {
     const id = ++run.current;
+    setLimited(!!value.typingLimited);
     const rules = voice.current = loadVoice();
     const platform = platformForApp(value.app, value.nodes);
     const nextMode = modeOf(value.typed, value.written, value.hasField, platform.kind === 'feed', platform);
@@ -227,7 +229,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setWhys(new Map());
     setEdit(null);
     kind.current = null;
-    void findSlips(typed, id);
+    // Trimming must not turn a complete word followed by space into a cut edge.
+    void findSlips(typed, id, !!value.typingLimited && !/\s$/.test(value.typed));
     if (nextMode === 'empty') {
       setNote(null); setPhase('ready'); return;
     }
@@ -450,6 +453,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} footnote={grow ? REACH_UNKNOWN : undefined} />,
     } : undefined}
     onCloseCover={() => setWhy(null)}>
+    {limited ? <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{words.typingLimited}</Text> : null}
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
     {yours && slips.length ? <View style={{ marginBottom: space.m }}>
       <Card variant="outlined" label={words.slipsTitle}>
@@ -462,7 +466,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
               <Text style={[type.body, { color: t.text, fontWeight: '600' }]}>{slip.fix}</Text>
             </> : <Text style={[type.note, { color: t.muted }]}>{slip.fix === '' ? words.slipRepeat : words.slipUnknown}</Text>}
           </View>
-          {slip.fix !== undefined ? <Button kind="tonal" label={words.fix} disabled={!hasField || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip))} /> : null}
+          {slip.fix !== undefined ? <Button kind="tonal" label={words.fix} disabled={!hasField || limited || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip))} /> : null}
         </View>)}
       </Card>
     </View> : null}
@@ -499,10 +503,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitBarVisible(cardFit, card.ratings)} />
           {grow && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
           </View> : <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy} onPress={() => put(card.text)} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />

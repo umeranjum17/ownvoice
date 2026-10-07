@@ -16,6 +16,7 @@ const typingWords = {
   promiseTapTypingNote:'Only to check your spelling, on this phone. Nothing is kept.',
   rowTyping:'Check my spelling as I type',
   rowTypingNote:'It stays on this phone.',
+  typingLimited:'In very long notes, checks cover only the first part.',
 } as const;
 
 // Grow-mode fit bar: what each level means, in plain words. Definitions of the level, never a

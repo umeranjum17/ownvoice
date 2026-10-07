@@ -110,8 +110,9 @@ function grammar(text: string): Slip[] {
   return out;
 }
 
-/** Every slip in [text], sorted, one per spot. Known spelling fixes are immediate; dictionary suggestions wait for a tap because they can be slow. */
-export function slips(text: string, speller: Speller | null): Slip[] {
+/** Every slip in [text], sorted, one per spot. A known cut leaves the trailing word unchecked. Dictionary suggestions wait for a tap. */
+export function slips(text: string, speller: Speller | null, cut = false): Slip[] {
+  if (cut) text = text.replace(/[\p{L}\p{M}'’]+$/u, '');
   const spell = speller ? spelling(text, speller) : [];
   // Known slips remain detectable when the dictionary is not loaded.
   for (const m of unprotected(text).matchAll(WORD)) {

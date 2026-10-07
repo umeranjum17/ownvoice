@@ -1,4 +1,5 @@
 <resources>
+  <string name="ownvoice_typing_limited">In very long notes, checks cover only the first part.</string>
   <string name="ownvoice_service_description">Ownvoice shows a small bubble in the apps you choose. Only when you tap it does Ownvoice read the chat on screen. If you switch on Check my spelling as I type, it also reads the box you are typing in after you pause, and that stays on this phone.</string>
   <style name="OwnvoicePanel" parent="Theme.AppCompat.DayNight.NoActionBar">
     <item name="android:windowIsTranslucent">true</item>

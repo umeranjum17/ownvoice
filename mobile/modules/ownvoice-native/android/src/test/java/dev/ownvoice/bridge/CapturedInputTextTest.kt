@@ -1,6 +1,9 @@
 package dev.ownvoice.bridge
 
+import io.github.umeranjum17.byokit.overlay.FieldSelection
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CapturedInputTextTest {
@@ -51,5 +54,15 @@ class CapturedInputTextTest {
     assertEquals(null, conversationText("Clickable child", false, true))
     assertEquals(null, conversationText("Message", true, false))
     assertEquals("Sam: Can you bring the stove?", conversationText(" Sam: Can you bring the stove? ", false, false))
+  }
+
+  @Test fun cappedChromeFieldsReadAsLimited() {
+    assertFalse(typingTextLimited("com.android.chrome", "a".repeat(9996), null))
+    assertTrue(typingTextLimited("com.android.chrome", "a".repeat(9997), null))
+    assertTrue(typingTextLimited("com.android.chrome", "a".repeat(10000), null))
+    assertTrue(typingTextLimited("com.android.chrome", "a".repeat(9996) + "\u00e9", null))
+    assertFalse(typingTextLimited("com.android.chrome", "hello", null))
+    assertTrue(typingTextLimited("com.android.chrome", "hello", FieldSelection(6, 6)))
+    assertFalse(typingTextLimited("com.example.app", "a".repeat(10000), null))
   }
 }
