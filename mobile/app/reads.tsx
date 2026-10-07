@@ -74,7 +74,7 @@ export default function Reads() {
     else days.push([day, [read]]);
   }
 
-  return <Page title={words.rowReads} note={words.readsNote} onBack={() => router.back()}>
+  return <Page title={words.rowReads} note={words.readsNote} stickyTop onBack={() => router.back()}>
     {reads.length === 0 && <View style={[styles.empty, { backgroundColor: t.group }]}>
       <Dot mood="idle" size={72} />
       <Text style={[type.body, { color: t.text, textAlign: 'center' }]}>{words.nothingRead}</Text>

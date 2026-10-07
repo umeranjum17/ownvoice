@@ -137,7 +137,7 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
   };
 
   const busy = phase === 'working' || phase === 'asking';
-  if (brain === null && !busy) return <Page title={words.agentRow} onBack={() => router.back()}>
+  if (brain === null && !busy) return <Page title={words.agentRow} stickyTop onBack={() => router.back()}>
     <Empty mood="check" text={words.needWriterPanel}>
       <Button kind="filled" label={words.openOwnvoice} onPress={() => router.push('/source')} />
     </Empty>
@@ -147,7 +147,7 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
   const said = phase === 'asking' ? note : line ?? note;
   const mood: Mood = phase === 'working' ? 'thinking' : phase === 'asking' ? 'hello' : phase === 'failed' || line ? 'check' : 'done';
   const field = { color: t.text, backgroundColor: t.raised, borderRadius: shape.card, paddingHorizontal: space.l, paddingVertical: space.m };
-  return <Page title={words.agentRow} onBack={() => router.back()}
+  return <Page title={words.agentRow} stickyTop onBack={() => router.back()}
     footer={<Button kind="filled" large label={words.agentGo} disabled={busy || !task.trim() || brain === undefined} onPress={() => { void start(); }} />}>
     <TextInput testID="phone-agent-lab" accessibilityLabel={words.agentAsk} placeholder={words.agentAsk} placeholderTextColor={t.muted}
       multiline editable={!busy} value={task} onChangeText={setTask} autoCapitalize="sentences"

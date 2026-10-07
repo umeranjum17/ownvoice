@@ -62,7 +62,7 @@ export default function Apps() {
       onPress={() => toggle(app)} />)}
   </View>;
 
-  return <Page title={words.rowApps} note={words.appsScreenNote} onBack={() => router.back()}>
+  return <Page title={words.rowApps} note={words.appsScreenNote} stickyTop onBack={() => router.back()}>
     {saveFailed && <View style={styles.warn}>
       <WarnIcon size={20} color={t.attention} />
       <Text style={[type.body, { color: t.text, flex: 1 }]}>{words.failed}</Text>
