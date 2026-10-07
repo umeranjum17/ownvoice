@@ -69,17 +69,6 @@ const GMAIL: Platform = { id: 'gmail', label: 'Gmail', kind: 'mail', limit: null
 /** Unknown apps keep today's behaviour: the flat 280 post rule and the 3 chat slots. */
 export const DEFAULT_PLATFORM: Platform = { id: 'default', label: '', kind: 'feed', limit: 280, slots: CHAT_SLOTS, polish: '' };
 
-/** Demo fixture for the grow-mode captures: `dev.ownvoice.demo` shows X-style and Reddit-style
- * pages with fictional authors, and the demo-only EXPO_PUBLIC_DEMO_PLATFORM=1 build maps it to X
- * or Reddit from the page's `?p=` hint (read from the page title node). Without the flag the
- * fixture maps nowhere, so no normal build carries any of it. Captions say "X-style" or
- * "Reddit-style"; the package never spoofs a real app. */
-function demoPlatform(nodes: ScreenText[]): Platform {
-  if (typeof process === 'undefined' || process.env.EXPO_PUBLIC_DEMO_PLATFORM !== '1') return DEFAULT_PLATFORM;
-  const text = nodes.map(node => node.text).join('\n');
-  if (/p=reddit|Reddit-style/i.test(text)) return REDDIT;
-  return X;
-}
 /** Chrome's browser-owned URL bar only; page text never identifies a site.
  * Chromium chrome/android/java/res/layout/url_bar.xml declares @+id/url_bar. */
 export const CHROME_URL_BAR = 'com.android.chrome:id/url_bar';
@@ -114,7 +103,6 @@ export function platformForApp(app?: string | null, nodes: ScreenText[] = []): P
     case 'com.whatsapp':
     case 'com.whatsapp.w4b': return WHATSAPP;
     case 'com.google.android.gm': return GMAIL;
-    case 'dev.ownvoice.demo': return demoPlatform(nodes);
     default: return DEFAULT_PLATFORM;
   }
 }
