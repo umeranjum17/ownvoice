@@ -1,9 +1,10 @@
 import {
   REPLY_SLOTS, acceptReplies, cleanDrafts, cleanSelection, dashDecision, dashesFor, latestMessage,
   layoutKept, norm, numbersAndTimesKept, phoneReplyPrompt, phoneSlotPrompt, preserveFragment,
-  rebuildLines, replyPrompt, replySlotPrompt, stripControlLines, undash, versionAcceptor,
+  rebuildLines, replyPrompt, replySlotPrompt, slotsFor, stripControlLines, undash, versionAcceptor,
 } from '../drafts';
 import { versionsList } from '../judge';
+import { platformForApp } from '../platforms';
 
 // ---- 5.5 cleanDrafts (unchanged; now living here) ----
 
@@ -230,6 +231,30 @@ test('the phone reply prompt stays under 700 characters of instructions and asks
   expect(instructions.length).toBeLessThanOrEqual(700);
   expect(prompt).toContain('Draft 1:');
   expect(prompt).toContain('Every draft must respond to everything');
+});
+
+test('phone prompts carry the shortest fitting samples labelled, and drop them past the floor', () => {
+  const label = "Replies they wrote (match this voice, don't copy)";
+  const samples = ['Sounds good.', "I'm in.", 'See you soon.'];
+  const base = { latest: 'Sam: Saturday?', conversation: 'Sam: Saturday?', samples };
+  // Gmail leaves room for all three; Slack only for the two shortest; both stay in budget.
+  const gmail = phoneReplyPrompt({ ...base, platform: platformForApp('com.google.android.gm') });
+  expect(gmail).toContain(label);
+  expect(gmail).toContain('["I\'m in.","Sounds good.","See you soon."]');
+  expect(gmail.split('\n\nLatest message:')[0].length).toBeLessThanOrEqual(700);
+  const slack = phoneReplyPrompt({ ...base, platform: platformForApp('com.Slack') });
+  expect(slack).toContain(label);
+  expect(slack).toContain('["I\'m in.","Sounds good."]');
+  expect(slack).not.toContain('See you soon.');
+  expect(slack.split('\n\nLatest message:')[0].length).toBeLessThanOrEqual(700);
+  const full = phoneReplyPrompt({ ...input, samples: ['x'.repeat(300), 'y'.repeat(300)] });
+  expect(full).toBe(phoneReplyPrompt(input));
+  expect(full).not.toContain(label);
+  const gmailPlatform = platformForApp('com.google.android.gm');
+  const slot = phoneSlotPrompt(slotsFor(gmailPlatform)[0], { latest: 'Dana: still on?', conversation: 'Dana: still on?', platform: gmailPlatform, samples: ['ok', 'yes'] }, []);
+  expect(slot).toContain(label);
+  expect(slot).toContain('["ok","yes"]');
+  expect(phoneSlotPrompt(REPLY_SLOTS[1], { ...input, samples: ['x'.repeat(300), 'y'.repeat(300)] }, [])).toBe(phoneSlotPrompt(REPLY_SLOTS[1], input, []));
 });
 
 // ---- 5.2 Version acceptance ----

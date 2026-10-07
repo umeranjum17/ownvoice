@@ -2,6 +2,7 @@
 import { platformLine, slotsFor, CHAT_SLOTS, type Platform } from './platforms.ts';
 import type { Rules } from './slop.ts';
 import { addedNumbers, inventedTimes, matcher } from './slop.ts';
+import { MAX_GUIDE_LENGTH, selectExamples } from './samples.ts';
 
 // ---- Cleanup of raw model output (moved from the phone writer; behaviour unchanged, spec 5.5) ----
 
@@ -214,7 +215,7 @@ export function latestMessage(nodes?: ScreenText[], fieldTop?: number): string {
 }
 
 /** `point`: the reply they already started (grow mode); the drafts start from it instead of replacing it. */
-export type ReplyInput = { latest: string; conversation: string; point?: string; guide?: string; dashes: 'keep' | 'remove'; avoid?: string[]; platform?: Platform };
+export type ReplyInput = { latest: string; conversation: string; point?: string; guide?: string; /** Identical selected samples for writer and fit; the phone prompts fit the shortest that hold. */ samples?: string[]; dashes: 'keep' | 'remove'; avoid?: string[]; platform?: Platform };
 
 // ponytail: conversation keeps only its last 3000 characters; revisit if long-thread context is needed.
 const inputBlock = ({ latest, conversation, point }: { latest: string; conversation: string; point?: string }) =>
@@ -269,15 +270,24 @@ const phoneReplyInstructions = (slots: [string, string, string]) => [
   'Never invent facts, times or dates: use only the screen. A change reuses only screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
 ].join('\n');
 
+// The two or three shortest samples that still hold the instruction budget ride along, labelled;
+// the rest drop before the budget breaks, so the floor never moves.
+const sampleBlock = (fixed: string, samples?: string[]): string => {
+  if (!samples?.length) return '';
+  const line = selectExamples(samples, '', Math.max(0, MAX_GUIDE_LENGTH - fixed.length - 1)).line;
+  return line ? `\n${line}` : '';
+};
+
 /** The condensed phone prompt: instructions (≤ 700 characters) plus the input block. */
 export function phoneReplyPrompt(input: Omit<ReplyInput, 'dashes' | 'avoid'>): string {
   const lines = [platformLine(input.platform), pointLine(input.point)].filter(Boolean).map(line => `\n${line}`).join('');
-  return `${phoneReplyInstructions(slotsFor(input.platform))}${lines}\n\n${inputBlock(input)}`;
+  const fixed = `${phoneReplyInstructions(slotsFor(input.platform))}${lines}`;
+  return `${fixed}${sampleBlock(fixed, input.samples)}\n\n${inputBlock(input)}`;
 }
 
 /** One extra call for one empty slot, with everything already shown as off-limits. */
 export function phoneSlotPrompt(slot: string, input: Omit<ReplyInput, 'dashes' | 'avoid'>, avoid: string[]): string {
-  return [
+  const fixed = [
     'You write one reply for one person from their phone screen.',
     `The reply: ${slot}`,
     platformLine(input.platform),
@@ -285,8 +295,9 @@ export function phoneSlotPrompt(slot: string, input: Omit<ReplyInput, 'dashes' |
     'Every draft must respond to everything the latest message asks or offers.',
     avoidLine(avoid),
     'Don\'t invent facts about them; ask a short question back instead. Use only times, dates and facts on the screen: if it gives no time or date, never add one. If you suggest a different time, use only one from the screen, otherwise ask when suits them. Match their language and tone; plain words, short sentences. No flattery openers, hashtags, emoji or long dashes.',
-    `Output only the reply text.\n\n${inputBlock(input)}`,
   ].filter(Boolean).join('\n');
+  const out = 'Output only the reply text.';
+  return `${fixed}${sampleBlock(`${fixed}\n${out}`, input.samples)}\n${out}\n\n${inputBlock(input)}`;
 }
 
 /** ChatGPT's one-slot retry: the C2 template narrowed to a single slot plus the avoid list. */

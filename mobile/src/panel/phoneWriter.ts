@@ -54,7 +54,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
 /** Replies: one numbered call, then one retry per empty slot within 8 s of its answer. */
 async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
-  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, platform: request.platform };
+  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, samples: request.samples, platform: request.platform };
   const slots = slotsFor(request.platform);
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];

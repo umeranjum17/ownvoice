@@ -8,7 +8,8 @@ import type { Source } from './source';
 
 /** `point`: in grow mode, what they typed; replies start from it while `typed` stays empty. */
 /** `never`: their never-say phrases; a reply card still using one is dropped so the slot is asked once more. */
-export type DraftRequest = { conversation: string; written: string; nodes?: ScreenText[]; fieldTop?: number; typed: string; point?: string; guide?: string; never?: string[]; dashes?: 'keep' | 'remove'; avoid?: string[]; platform?: Platform; /** A new post of his own, written from what he typed: a one-line topic is the instruction, not text to polish. */ newPost?: boolean };
+/** `samples`: the same selected replies the fit call judges as "Sounds like you"; the phone prompts fit the shortest that hold. */
+export type DraftRequest = { conversation: string; written: string; nodes?: ScreenText[]; fieldTop?: number; typed: string; point?: string; guide?: string; never?: string[]; samples?: string[]; dashes?: 'keep' | 'remove'; avoid?: string[]; platform?: Platform; /** A new post of his own, written from what he typed: a one-line topic is the instruction, not text to polish. */ newPost?: boolean };
 export type WriterState = 'downloading' | 'writing';
 export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
 /** `unchanged`: no drafts because the writer gave their text back as it was, so it already reads well. */
