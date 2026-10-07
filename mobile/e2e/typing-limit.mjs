@@ -70,25 +70,28 @@ try {
   assert.ok(domLength > 10000, 'Fixture must really exceed the Chrome cap');
   results.push({ phase: 'capped', domLength, accessibleLength: field?.text.length, bubble: capped?.label, warned, badgeCleared });
   shot('typing-capped');
-  await type('recieve this note.');
-  const stillClear = !/thing.*to check/.test(bubble(nodes())?.label ?? '');
   await wait(6500); // let the existing six-second notice pill close before the ordinary bubble tap
   tap(bubble(nodes())); await wait(2400);
   state = nodes();
   const panelWarned = state.some(n => n.text === notice || n.label === notice);
-  const fixes = state.filter(n => n.clickable && n.enabled && (n.text === 'Fix' || n.label === 'Fix'));
-  results.push({ phase: 'panel', panelWarned, fixes: fixes.length });
+  const writes = state.filter(n => n.clickable && n.enabled && ['Fix', 'Insert', 'Use this'].some(label => n.text === label || n.label === label));
+  const cutWordFlags = state.filter(n => ['tomor', 'tumor'].includes(n.text) || ['tomor', 'tumor'].includes(n.label));
+  results.push({ phase: 'panel', domLength, panelWarned, writes: writes.length, cutWordFlags: cutWordFlags.map(n => n.text || n.label) });
   shot('typing-panel');
   adb('shell', 'input', 'keyevent', '4'); await wait(700);
+  tap(field); await type('recieve this note.');
+  const stillClear = !/thing.*to check/.test(bubble(nodes())?.label ?? '');
   await open('small'); await type('recieve this note.');
   const fresh = bubble(nodes());
   results.push({ phase: 'fresh', domLength, bubble: fresh?.label });
   shot('typing-fresh');
   assert.ok(badgeCleared && stillClear, 'Capped field must not show a stale or misleading count');
   assert.ok(warned && panelWarned, 'Partial checks must be disclosed on the bubble and in the panel');
-  assert.equal(fixes.length, 0, 'A partial capture must not offer a Fix that replaces the whole field');
+  assert.equal(writes.length, 0, 'A partial capture must not offer Fix or Insert that replaces the whole field');
+  assert.equal(results.find(r => r.phase === 'panel').domLength, 11518, 'Panel proof must use the reported practice note');
+  assert.equal(cutWordFlags.length, 0, 'The cap must not turn tomorrow into a tomor/tumor advisory');
   assert.match(fresh?.label ?? '', /thing.*to check/, 'A fresh field must resume ordinary checks');
-  console.log('PASS: capped-field disclosure, no misleading count or partial Fix, fresh-field recovery');
+  console.log('PASS: capped-field disclosure, no misleading count, partial write or cut-word flag, fresh-field recovery');
 } finally {
   if (recording) execFileSync('.agents/skills/verify-ownvoice/evidence.sh', ['motion-stop'], { env: { ...process.env, ANDROID_SERIAL: serial } });
   writeFileSync(resolve(out, `typing-limit-${label}-${theme}.json`), JSON.stringify(results, null, 2));

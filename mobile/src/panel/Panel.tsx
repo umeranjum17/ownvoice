@@ -184,14 +184,14 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const shown = cards.filter((card): card is Draft => !!card);
 
   // With "Check my spelling as I type" on, the tap also lists what to check in what they typed, each with its own Fix.
-  const findSlips = useCallback(async (text: string, id: number) => {
+  const findSlips = useCallback(async (text: string, id: number, cut: boolean) => {
     try {
       if (!text || !await Native.typingCheck()) {
         if (run.current === id) setSpelling({ text, slips: [] });
         return;
       }
       const spell = await speller().catch(() => null);
-      const found = Typing.slips(text, spell);
+      const found = Typing.slips(text, spell, cut);
       // One word at a time, giving the screen a turn in between: an unusual word can take a moment.
       for (const slip of found) if (spell && slip.fix === undefined && slip.reason === Typing.SPELLING) {
         await new Promise(resolve => setTimeout(resolve, 0));
@@ -229,7 +229,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setWhys(new Map());
     setEdit(null);
     kind.current = null;
-    void findSlips(typed, id);
+    // Trimming must not turn a complete word followed by space into a cut edge.
+    void findSlips(typed, id, !!value.typingLimited && !/\s$/.test(value.typed));
     if (nextMode === 'empty') {
       setNote(null); setPhase('ready'); return;
     }

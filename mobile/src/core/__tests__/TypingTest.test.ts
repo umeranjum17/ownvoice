@@ -78,6 +78,17 @@ test('a pause never works out fixes, and counts stock phrases too', () => {
   expect(count('See you at the cafe at noon.', speller, NO_RULES)).toBe(0);
 });
 
+test('a capped practice note never checks its cut last word', () => {
+  const note = 'We will meet tomorrow. '.repeat(500) + 'teh meeting moved.';
+  expect(note.length).toBe(11518);
+  const capped = note.slice(0, 10000);
+  expect(capped.endsWith('tomor')).toBe(true);
+  expect(slips(capped, speller, true)).toEqual([]);
+  expect(slips(capped, speller).map(s => capped.slice(s.start, s.end))).toEqual(['tomor']);
+  expect(slips('We shoud go tomor', speller, true).map(s => s.start)).toEqual([3]);
+  expect(slips('We meet tomor ', speller, true).map(s => s.start)).toEqual([8]);
+});
+
 test('no close word, no fix', () => expect(suggestion('qwxzvbn', speller)).toBeUndefined());
 
 test('without the dictionary known slips still run', () => expect(slips('Its a shoud day.', null).map(s => s.fix)).toEqual(["It's", "should"]));
