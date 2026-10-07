@@ -499,7 +499,7 @@ class OwnvoiceService : AccessibilityService() {
     insertCancellation = null
     pendingInsert = null
     if (capture === reading) capture = null
-    Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost")
+    Log.i(TAG, "insert result ok=$ok newlinesLost=$newlinesLost result=$result")
     if (!cancelled) {
       if (practice) restIdle()
       else if (ok) {
@@ -519,21 +519,40 @@ class OwnvoiceService : AccessibilityService() {
   /** Verify through the same focused-field reader as capture, after the panel has closed.
    * A cached node accepting SET_TEXT is not proof that the app kept the draft. */
   private fun verifyInsert(reading: Capture?, text: String): Boolean {
-    if (reading == null || currentApp() != reading.app || !allowed(reading.app)) return false
-    val field = focusedField() ?: return false
-    val current = FieldNode.of(field, this)
+    val appMatches = reading != null && currentApp() == reading.app
+    val permitted = reading != null && allowed(reading.app)
+    val field = if (appMatches && permitted) focusedField() else null
+    val current = field?.let { FieldNode.of(it, this) }
+    var resourceMatches = false
+    var nodeMatches = false
+    var identityMatches = false
+    var beforeMatches = false
+    var afterMatches = false
+    var caretSettled = false
     try {
-      if (!sameInsertField(reading.insertField?.identity, current.identity)) return false
+      if (reading == null || field == null || current == null) return false
+      val identity = reading.insertField?.identity
+      resourceMatches = sameInsertField(identity, current.identity)
+      nodeMatches = reading.input == field
+      // Chromium virtual fields lack view ids. Use exact framework node identity,
+      // as the kit does, never package/bounds or another field with matching text.
+      identityMatches = if (identity == null) nodeMatches else resourceMatches
+      if (!identityMatches) return false
       val before = FocusedFields.read(this) ?: return false
-      if (!insertTextMatches(before.app, before.text, reading.app, text)) return false
+      beforeMatches = insertTextMatches(before.app, before.text, reading.app, text)
+      if (!beforeMatches) return false
       field.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
         putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, text.length)
         putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, text.length)
       })
       val actual = FocusedFields.read(this) ?: return false
-      return insertTextMatches(actual.app, actual.text, reading.app, text) &&
-        insertSelectionSettled(actual.selection, text)
-    } finally { current.recycle() }
+      afterMatches = insertTextMatches(actual.app, actual.text, reading.app, text)
+      caretSettled = insertSelectionSettled(actual.selection, text)
+      return afterMatches && caretSettled
+    } finally {
+      Log.d(TAG, "insert verify app=$appMatches allowed=$permitted focus=${field != null} resourceId=${reading?.insertField?.identity != null} resource=$resourceMatches node=$nodeMatches identity=$identityMatches before=$beforeMatches after=$afterMatches caret=$caretSettled")
+      current?.recycle()
+    }
   }
 
   private fun hasSendAction(root: AccessibilityNodeInfo?): Boolean {

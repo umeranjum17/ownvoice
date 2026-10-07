@@ -25,7 +25,7 @@ const toggleTyping = async () => {
 };
 mkdirSync(out, { recursive: true });
 const results = [];
-const page = createServer((req, res) => { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;padding:24px}textarea,input{display:block;width:90%;margin:24px 0;padding:12px;font:18px sans-serif}</style><h1>${req.url === '/x' ? 'Home' : 'Typing proof'}</h1>${req.url === '/x' ? '<p>Umer · Posting as Umer</p>' : ''}<textarea aria-label="${req.url === '/x' ? 'What is happening' : 'Typing proof'}" rows="3"></textarea>${req.url === '/x' ? '<p>Post</p>' : '<input type="password" aria-label="Password proof">'}`); });
+const page = createServer((req, res) => { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;padding:24px}textarea,input{display:block;width:90%;margin:24px 0;padding:12px;font:18px sans-serif}</style><h1>${req.url === '/x' ? 'Home' : 'Typing proof'}</h1>${req.url === '/x' ? '<p>Umer · Posting as Umer</p>' : ''}<textarea aria-label="${req.url === '/x' ? 'What is happening' : 'Typing proof'}" rows="3"></textarea>${req.url === '/x' ? '<p>Post</p>' : '<input type="password" aria-label="Password proof">'}${req.url === '/failed' ? `<script>let timer; document.querySelector('textarea').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { const old = document.querySelector('textarea'); const replacement = old.cloneNode(); replacement.value = 'Leave this message unchanged'; replacement.readOnly = true; old.replaceWith(replacement); }, 12000); });</script>` : ''}`); });
 await new Promise(r => page.listen(0, '127.0.0.1', r));
 const port = page.address().port;
 adb('reverse', `tcp:${port}`, `tcp:${port}`);
@@ -58,7 +58,7 @@ async function typingFixProof() {
   const fix = async expected => {
     nodes('Fix'); await wait(8000); // let native confirmation and clipboard previews settle
     verify('Fix changes only the chosen word', read() === expected, JSON.stringify(read()));
-    const log = adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:I');
+    const log = adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:D');
     insertions.push([...log.matchAll(/insert result ok=(true|false)/g)].at(-1)?.[1] === 'true');
     writeFileSync(resolve(out, 'insert-logcat.txt'), log);
   };
@@ -134,6 +134,20 @@ async function typingFixProof() {
       await fix('I should finish the report by tonight'); expectBadge(0); snap('font13-after-fix');
     }
     verify('native confirms every Fix (not clipboard fallback)', insertions.length > 0 && insertions.every(Boolean), JSON.stringify(insertions));
+    if (theme === 'light') {
+      // Replace the captured field while the panel is open: matching text/bounds
+      // must not make a different, now read-only node a successful insert.
+      await open('/failed');
+      adb('shell', 'logcat', '-c');
+      await fill('I shoud finish the report by tonight'); await showPanel();
+      await wait(14000);
+      nodes('Fix'); await wait(8000);
+      verify('failed insert preserves replacement field', nodes().some(n => n.text === 'Leave this message unchanged'));
+      const log = adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:D');
+      writeFileSync(resolve(out, 'failed-insert-logcat.txt'), log);
+      verify('real failed insert reports false', [...log.matchAll(/insert result ok=(true|false)/g)].at(-1)?.[1] === 'false');
+      snap('failed-insert');
+    }
   } catch (error) {
     writeFileSync(resolve(out, 'failure-logcat.txt'), adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:D', 'AndroidRuntime:E', 'ReactNativeJS:V'));
     writeFileSync(resolve(out, 'failure-accessibility.txt'), adb('shell', 'dumpsys', 'accessibility'));
