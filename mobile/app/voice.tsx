@@ -107,7 +107,7 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
     <Text accessibilityRole="header" style={[type.heading, { color: t.text, fontSize: 18, lineHeight: 24 }]}>{title}</Text>
   </View>;
 
-  return <Page title={words.rowVoice} note={words.voiceNote} onBack={() => { if (shared) void Native.finishRewrite(null, false); else router.back(); }}>
+  return <Page title={words.rowVoice} note={words.voiceNote} stickyTop onBack={() => { if (shared) void Native.finishRewrite(null, false); else router.back(); }}>
     {saveFailed && <Text style={[type.body, { color: t.text }]}>{words.failed}</Text>}
     {preview !== '' && <Card variant="filled">
       <Text style={[type.body, { color: t.text }]}>{preview}</Text>
