@@ -630,11 +630,12 @@ test('usePhoneInsteadWhereTheDownloadIsNeededGoesBackToTheAsk', async () => {
 test('aFailedSignInSaysWhyAndOffersThePhone', async () => {
   at('CHOOSE');
   (accountsSignIn as jest.Mock).mockImplementationOnce(async () => {
-    (accounts as any).__mockState.setSignInView({ state: 'failed', error: 'The code expired before it was used. Tap Sign in with ChatGPT for a new one.' });
+    (accounts as any).__mockState.setSignInView({ state: 'failed', error: 'The code expired before it was used. Tap Sign in with ChatGPT for a new one.', why: 'expired' });
   });
   const screen = await renderSetup();
   await signInWithChatGpt(screen);
-  expect(await screen.findByText('The code expired before it was used. Tap Sign in with ChatGPT for a new one.')).toBeTruthy();
+  expect(await screen.findByText(words.signInFailedNote.replace('{name}', 'ChatGPT'))).toBeTruthy();
+  expect(await screen.findByText('The code expired before it was used.')).toBeTruthy();
   await fireEvent.press(screen.getByText(words.tryAgain));
   expect(await screen.findByTestId('sign-in-code')).toBeTruthy();
   (accountsSignIn as jest.Mock).mockRejectedValueOnce(new Error('offline'));

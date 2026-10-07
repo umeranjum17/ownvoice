@@ -196,6 +196,7 @@ export const words = {
   signInTitle:'Sign in to ChatGPT',
   signIn:'Sign in',
   signInTo:'Sign in to {name}',
+  signInFailedNote:'{name} didn\'t finish the sign-in. Tap Try again.',
   signedInTo:'Signed in to {name}',
   sentTo:'Sent to {name}',
   onlyOnTap:'Only when you tap Insert',

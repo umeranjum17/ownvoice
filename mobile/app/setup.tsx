@@ -10,7 +10,7 @@ import { Badge } from '../src/ui/Badge';
 import { ChatIcon, CheckIcon, HandIcon, LockIcon, PhoneIcon, WarnIcon } from '../src/ui/icons';
 import { SourceOption } from '../src/ui/SourceOption';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
-import { say, type Provider, type SignIn, type Status } from '@byokit/accounts';
+import { say, type Provider, type SignIn, type Status, type WordKey } from '@byokit/accounts';
 import { words } from '../src/core/words';
 import * as Onboarding from '../src/core/onboarding';
 import type { Step } from '../src/core/onboarding';
@@ -30,6 +30,7 @@ type PlanState = {
   code: string | null;
   url: string | null;
   note: string | null;
+  reason: string | null;
 };
 
 type Saved = { step: Step; inserted: boolean };
@@ -235,11 +236,16 @@ export default function Setup() {
   function planStateOf(provider: string, view: SignIn | null, stat: Status | null): PlanState {
     const providerName = plans.find(p => p.key === provider)?.name ?? provider;
     if (view?.state === 'waiting')
-      return { provider, signedIn: isSignedIn(stat), waiting: true, code: view.code ?? null, url: view.url ?? null, note: view.code ? say('signIn.waitingUrl', { name: providerName }) : say('signIn.opening', { name: providerName }) };
-    if (view?.state === 'failed')
-      return { provider, signedIn: false, waiting: false, code: null, url: null, note: view.error ?? null };
+      return { provider, signedIn: isSignedIn(stat), waiting: true, code: view.code ?? null, url: view.url ?? null, note: view.code ? say('signIn.waitingUrl', { name: providerName }) : say('signIn.opening', { name: providerName }), reason: null };
+    if (view?.state === 'failed') {
+      // The note names this screen's own button; the reason carries the kit's cause
+      // (its first sentence) when the kit knows it, and nothing when it does not.
+      const cause = view.why && view.why !== 'failed' ? say(`signIn.${view.why}` as WordKey, { name: providerName }) : null;
+      return { provider, signedIn: false, waiting: false, code: null, url: null, note: words.signInFailedNote.replace('{name}', providerName),
+        reason: cause && cause.includes('. ') ? cause.split('. ')[0] + '.' : cause };
+    }
     const ready = isSignedIn(stat);
-    return { provider, signedIn: !!ready, waiting: false, code: null, url: null, note: ready ? stat!.words : null };
+    return { provider, signedIn: !!ready, waiting: false, code: null, url: null, note: ready ? stat!.words : null, reason: null };
   }
 
   /** Whether the status indicates signed in. */
@@ -249,7 +255,7 @@ export default function Setup() {
   const startPlanSignIn = (provider: string) => {
     const at = ++signing.current;
     fresh.current = false;
-    setPlanState({ provider, signedIn: false, waiting: true, code: null, url: null, note: null });
+    setPlanState({ provider, signedIn: false, waiting: true, code: null, url: null, note: null, reason: null });
     void refresh().catch(() => {})
       .then(() => status(provider).catch(() => null))
       .then(async stat => {
@@ -266,7 +272,7 @@ export default function Setup() {
       })
       .catch(() => {
         if (mounted.current && at === signing.current)
-          setPlanState({ provider, signedIn: false, waiting: false, code: null, url: null, note: words.failed });
+          setPlanState({ provider, signedIn: false, waiting: false, code: null, url: null, note: words.failed, reason: null });
       });
   };
 
@@ -390,7 +396,8 @@ export default function Setup() {
         <Text style={[type.body, { color: t.text, flex: 1 }]}>{planState.provider === 'chatgpt' ? `${words.privacyGpt} ${words.sentOnlyOnTap}` : `${words.privacyPlan.replace('{name}', planName(planState.provider))} ${words.sentOnlyOnTap}`}</Text>
       </View>
     </>}
-    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={planState.note ?? words.failed} />}
+    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <View><Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={planState.note ?? words.failed} />
+      {planState.reason && <Text style={[type.note, { color: t.muted }]}>{planState.reason}</Text>}</View>}
     {step === 'PERMISSION' && <>
       <Head title={words.permissionTitle} note={words.permissionSubtitle} />
       <View style={[group, { gap: 2 }]}>
