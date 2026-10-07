@@ -35,6 +35,7 @@ export function toggleStyle(note: string, style: string): string {
 export function foundLines(found: Found): string {
   const lines: string[] = [words.foundHead];
   if (found.never.length) lines.push(`${words.foundNever} (${found.never.length}): ${found.never.map(x => `“${x}”`).join(', ')}`);
+  if (found.samples.length) lines.push(`${words.foundSamples} (${found.samples.length}): ${found.samples.map(x => `“${x.length > 80 ? x.slice(0, 80) + '…' : x}”`).join(', ')}`);
   if (found.noDashes) lines.push(words.foundRuleDashes);
   if (found.statementEndings) lines.push(words.foundRuleEndings);
   if (found.skipped === 1) lines.push(SKIP_ONE);
@@ -70,7 +71,7 @@ export default function Voice({ shared = false }: { shared?: boolean }) {
   };
   const show = useCallback((markdown: string) => {
     const found = parse(markdown);
-    if (!found.never.length && !found.noDashes && !found.statementEndings) { setPreview(words.foundNothing); setPending(null); return; }
+    if (!found.never.length && !found.noDashes && !found.statementEndings && !found.samples.length) { setPreview(words.foundNothing); setPending(null); return; }
     setPending(found);
     setPreview(foundLines(found));
   }, []);

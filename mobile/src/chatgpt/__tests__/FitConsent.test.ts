@@ -86,7 +86,7 @@ test('a key turns it on: one Jev request with the rubric, its probabilities beco
     fit_1: { probabilities: { 0: 0.3, 1: 0.3, 2: 0.2, 3: 0.2 }, confidence: 0.3 },
   });
   const fits = await evaluate(fetcher);
-  expect(fits).toEqual([{ level: 3, words: LEVELS[3], probability: 0.65 }, { level: null, words: UNSURE, probability: null }]);
+  expect(fits).toEqual([{ level: 3, words: LEVELS[3], probability: 0.65, voice: null }, { level: null, words: UNSURE, probability: null, voice: null }]);
   expect(fetcher).toHaveBeenCalledTimes(1);
   const [url, init] = fetcher.mock.calls[0];
   expect(url).toBe('https://api.typesafe.ai/v1/systemone');
@@ -96,6 +96,38 @@ test('a key turns it on: one Jev request with the rubric, its probabilities beco
   expect(request.state.candidates).toEqual({ 0: options.candidates[0], 1: options.candidates[1] });
   expect(request.questions.fit_0).toMatchObject({ type: 'score', criteria: LEVELS });
   expect(request.questions.fit_0.instructions).toMatch(/^An X reply\. .*Rate candidates\["0"\] only/);
+  expect(request.questions.voice_0.type).toBe('noul');
+});
+
+test('the same call carries the selected samples as a Sounds-like-you yes/no per card', async () => {
+  consent();
+  const samples = ['Sounds good.', "I'm in."];
+  const fetcher = jevReply({
+    fit_0: { probabilities: { 0: 0.05, 1: 0.1, 2: 0.2, 3: 0.65 }, confidence: 0.65 },
+    voice_0: { noul: 0.85 },
+    fit_1: { probabilities: { 0: 0.7, 1: 0.15, 2: 0.1, 3: 0.05 }, confidence: 0.7 },
+    voice_1: { noul: 0.2 },
+  });
+  const fits = await judgeFit({ ...options, samples, backends: fitBackends('com.twitter.android', { key: 'fixture-jev-key', fetch: fetcher }) });
+  expect(fits).toEqual([
+    { level: 3, words: LEVELS[3], probability: 0.65, voice: true },
+    { level: 0, words: LEVELS[0], probability: 0.7, voice: false },
+  ]);
+  const [, init] = fetcher.mock.calls[0];
+  const request = JSON.parse(init!.body as string);
+  expect(request.state.samples).toEqual(samples);
+  expect(request.questions.voice_0.instructions).toContain('candidates["0"]');
+  expect(request.questions.voice_1.instructions).toContain('candidates["1"]');
+  // An abstained yes/no reads as nothing judged, and the levels never move for it.
+  const quiet = jevReply({
+    fit_0: { probabilities: { 0: 0.05, 1: 0.1, 2: 0.2, 3: 0.65 }, confidence: 0.65 },
+    voice_0: { noul: 0.55 },
+  });
+  expect(await judgeFit({ ...options, samples, backends: fitBackends('com.twitter.android', { key: 'fixture-jev-key', fetch: quiet }) }))
+    .toEqual([
+      { level: 3, words: LEVELS[3], probability: 0.65, voice: null },
+      { level: null, words: UNAVAILABLE, probability: null, voice: null },
+    ]);
 });
 
 test('LinkedIn has its own rubric: a strong reply, a skipped one and an abstain', async () => {
@@ -112,9 +144,9 @@ test('LinkedIn has its own rubric: a strong reply, a skipped one and an abstain'
   });
   const fits = await evaluate(fetcher);
   expect(fits).toEqual([
-    { level: 3, words: LEVELS[3], probability: 0.8 },
-    { level: 0, words: LEVELS[0], probability: 0.7 },
-    { level: null, words: UNSURE, probability: null },
+    { level: 3, words: LEVELS[3], probability: 0.8, voice: null },
+    { level: 0, words: LEVELS[0], probability: 0.7, voice: null },
+    { level: null, words: UNSURE, probability: null, voice: null },
   ]);
   expect(fetcher).toHaveBeenCalledTimes(1);
   const [, init] = fetcher.mock.calls[0];

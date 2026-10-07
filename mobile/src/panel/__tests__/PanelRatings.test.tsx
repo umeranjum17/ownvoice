@@ -138,7 +138,7 @@ describe('grow fit bar', () => {
     'Week twelve is where retention showed up for us. Did the drop come before or after your pricing change?',
     'Shipping one small fix beats polishing the launch page.',
   ];
-  const fit = (over: Partial<Fit> = {}): Fit => ({ level: 3, words: LEVELS[3], probability: 0.7, ...over });
+  const fit = (over: Partial<Fit> = {}): Fit => ({ level: 3, words: LEVELS[3], probability: 0.7, voice: null, ...over });
   const bars = (screen: Awaited<ReturnType<typeof open>>) => screen.getAllByTestId('fit-bar');
   const fills = (bar: ReturnType<typeof bars>[number]) =>
     [0, 1, 2, 3].map(i => within(bar).getByTestId(`fit-segment-${i}`).props.style.backgroundColor);

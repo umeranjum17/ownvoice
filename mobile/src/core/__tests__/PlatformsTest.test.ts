@@ -122,6 +122,9 @@ test('the phone reply prompt stays under 700 characters of instructions on every
     for (const point of app === 'com.twitter.android' || app === 'com.linkedin.android' || app === 'com.reddit.frontpage' ? [undefined, 'Saturday works for me'] : [undefined]) {
       const prompt = phoneReplyPrompt({ latest: 'Sam: Saturday?', conversation: 'Sam: Saturday?', point, platform: platformForApp(app) });
       expect(prompt.split('\n\nLatest message:')[0].length).toBeLessThanOrEqual(700);
+      // Imported samples ride along only while they hold the same floor, and drop past it.
+      const sampled = phoneReplyPrompt({ latest: 'Sam: Saturday?', conversation: 'Sam: Saturday?', point, platform: platformForApp(app), samples: ['Sounds good.', "I'm in.", 'See you soon.', 'x'.repeat(400)] });
+      expect(sampled.split('\n\nLatest message:')[0].length).toBeLessThanOrEqual(700);
     }
   }
 });

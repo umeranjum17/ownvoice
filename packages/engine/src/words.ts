@@ -143,6 +143,7 @@ export const words = {
   foundHead:'Found in the file:',
   foundRest:'Nothing else in the file is kept. Add these to Your voice?',
   foundNever:'Never say',
+  foundSamples:'Replies you wrote',
   foundRuleDashes:'Rule: No long dashes (—)',
   foundRuleEndings:'Rule: End posts on a statement, not a question',
   added:'Added. Edit or delete anything below.',

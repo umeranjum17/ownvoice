@@ -604,25 +604,28 @@ test('an import previews what it found before adding anything', async () => {
   fireEvent.press(screen.getByText(words.importFile));
   expect(await screen.findByText(/Found in the file:/)).toBeTruthy();
   expect(screen.getByText(/“delve”, “circle back”/)).toBeTruthy();
+  expect(screen.getByText(/Replies you wrote \(1\): “private reply”/)).toBeTruthy();
   expect(screen.getByText(/Nothing else in the file is kept/)).toBeTruthy();
   expect(loadVoice().never).toEqual([]);                                     // nothing saved until Add these
+  expect(loadVoice().samples).toEqual([]);
   fireEvent.press(screen.getByText(words.addThese));
   await waitFor(() => expect(loadVoice().never).toEqual(['delve', 'circle back']));
   expect(screen.getByText(words.added)).toBeTruthy();
-  expect(loadVoice().samples).toEqual([]);
-  expect(JSON.parse(kv.get('voice')!)).toEqual({ never: ['delve', 'circle back'], noDashes: true, statementEndings: false, note: '', samples: [] });
+  expect(loadVoice().samples).toEqual(['private reply']);
+  expect(JSON.parse(kv.get('voice')!)).toEqual({ never: ['delve', 'circle back'], noDashes: true, statementEndings: false, note: '', samples: ['private reply'] });
 });
 
 test('a markdown share previews and adds through Your voice without a picker', async () => {
   native.sharedMarkdown.mockResolvedValue('# Never say\n- "circle back"\n\nNo em dashes.\n## How I reply\n- private reply');
   const screen = await show(<Voice shared />);
   expect(await screen.findByText(/“circle back”/)).toBeTruthy();
+  expect(screen.getByText(/Replies you wrote \(1\)/)).toBeTruthy();
   expect(loadVoice().never).toEqual([]);
   expect(picker.pickFileAsync).not.toHaveBeenCalled();
   fireEvent.press(screen.getByText(words.addThese));
   await waitFor(() => expect(loadVoice()).toEqual(expect.objectContaining({ never: ['circle back'], noDashes: true })));
-  expect(loadVoice().samples).toEqual([]);
-  expect(JSON.parse(kv.get('voice')!)).toEqual({ never: ['circle back'], noDashes: true, statementEndings: false, note: '', samples: [] });
+  expect(loadVoice().samples).toEqual(['private reply']);
+  expect(JSON.parse(kv.get('voice')!)).toEqual({ never: ['circle back'], noDashes: true, statementEndings: false, note: '', samples: ['private reply'] });
   fireEvent.press(screen.getByLabelText(words.back));
   expect(native.finishRewrite).toHaveBeenCalledWith(null, false);
 });
@@ -750,10 +753,12 @@ test('a failed import keeps its preview available to retry', async () => {
 });
 
 test('an import preview reads in plain words, both skipped counts', () => {
-  expect(foundLines({ never: ['delve'], noDashes: true, statementEndings: false, skipped: 0 }))
+  expect(foundLines({ never: ['delve'], noDashes: true, statementEndings: false, samples: [], skipped: 0 }))
     .toBe('Found in the file:\nNever say (1): “delve”\nRule: No long dashes (—)\nNothing else in the file is kept. Add these to Your voice?');
-  expect(foundLines({ never: [], noDashes: false, statementEndings: true, skipped: 1 })).toContain(SKIP_ONE);
-  expect(foundLines({ never: [], noDashes: false, statementEndings: true, skipped: 3 })).toContain('Left out 3 notes that read as advice, not phrases.');
+  expect(foundLines({ never: [], noDashes: false, statementEndings: true, samples: [], skipped: 1 })).toContain(SKIP_ONE);
+  expect(foundLines({ never: [], noDashes: false, statementEndings: true, samples: [], skipped: 3 })).toContain('Left out 3 notes that read as advice, not phrases.');
+  expect(foundLines({ never: [], noDashes: false, statementEndings: false, samples: ['Sounds good.', 'x'.repeat(90)], skipped: 0 }))
+    .toBe(`Found in the file:\nReplies you wrote (2): “Sounds good.”, “${'x'.repeat(80)}…”\nNothing else in the file is kept. Add these to Your voice?`);
 });
 const SKIP_ONE = 'Left out 1 note that reads as advice, not a phrase.';
 

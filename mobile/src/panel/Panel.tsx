@@ -12,7 +12,7 @@ import { feedRead } from '../core/feed';
 import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
 import { judgeFit, rated, UNAVAILABLE, type Fit } from '../grow/fit';
-import { guide as voiceGuide } from '../core/voice';
+import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
@@ -174,6 +174,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const kind = useRef<{ message: boolean } | null>(null);
   const platformOf = useRef<Platform>(DEFAULT_PLATFORM);
   const postOf = useRef<string | null>(null);
+  // The writer's selected samples for this run: the phone prompts and the fit call share them.
+  const samplesOf = useRef<string[]>([]);
   // The card being edited and its current text; Insert uses this text, Cancel drops it.
   const [edit, setEdit] = useState<{ slot: number; text: string } | null>(null);
   const voice = useRef(loadVoice());
@@ -253,6 +255,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       if (run.current !== id) return;
       leaves.current = path.writer !== phoneWriter;
       let sent = false;
+      // One selection per run: the writer's guide line and the fit call share these samples.
+      const picked = selectedGuide(rules, post);
 
       try {
         const choice = await path.writer.write({
@@ -265,8 +269,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           point: grow ? typed : undefined,
           platform,
           newPost: post,
-          guide: voiceGuide(rules, post),
+          guide: picked.line,
           never: rules.never,
+          samples: samplesOf.current = picked.samples,
           dashes: dashesFor(rules, value.typed),
           avoid,
         }, {
@@ -342,8 +347,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (!texts.length) return;
     fitFor.current = id;
     const backends = leaves.current ? fitBackends(capture.app) : [];
-    void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, backends })
-      .catch(() => texts.map(() => ({ level: null, words: UNAVAILABLE, probability: null })))
+    void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, samples: samplesOf.current, backends })
+      .catch(() => texts.map(() => ({ level: null, words: UNAVAILABLE, probability: null, voice: null })))
       .then(found => {
         if (run.current !== id) return;
         // Levels and probabilities only, never the text: what the proof reads from the device log.
