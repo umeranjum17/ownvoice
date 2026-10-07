@@ -74,7 +74,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     });
     if (complete && !markers.length) closed.push(source);
     for (const card of closed) {
-      acceptReplies([card], exclude, 3, dashes, controls, never).forEach((text, slot) => {
+      acceptReplies([card], exclude, 3, dashes, controls, never, input.point ?? '').forEach((text, slot) => {
         if (!text || made[slot]) return;
         made[slot] = text; exclude.push(text); landed(text, slot);
         if (exclude.length === (request.avoid?.length ?? 0) + 1) console.log(`Ownvoice first draft ms=${Date.now() - started}`);
@@ -88,7 +88,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     if (made[slot]) continue;
     try {
       const asked = phoneSlotPrompt(slots[slot], input, exclude);
-      const [draft] = acceptReplies([await ask(asked, 120)], exclude, 1, dashes, controls, never);
+      const [draft] = acceptReplies([await ask(asked, 120)], exclude, 1, dashes, controls, never, input.point ?? '');
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }

@@ -108,6 +108,18 @@ test('acceptReplies cleans, dedupes and respects the avoid list', () => {
   expect(acceptReplies(['Yep, still on for Saturday. 👍'], ['Yep, still on for Saturday. 👍'], 3)).toEqual([]);
 });
 
+test('acceptReplies drops a card that only echoes their line, so the empty slot is asked once more', () => {
+  // Main765: the one-line starter came back only re-capitalised; an echo-only card is never offered.
+  expect(acceptReplies(['Shipping offline notes.'], [], 3, 'remove', [], [], 'shipping offline notes')).toEqual([]);
+  expect(acceptReplies(['coffee  tomorrow MORNING!'], [], 3, 'remove', [], [], 'Coffee tomorrow morning')).toEqual([]);
+  expect(acceptReplies(['Fix the login bug'], [], 3, 'remove', [], [], 'fix the login bug.')).toEqual([]);
+  // A draft that adds to the line still lands, and differs from it.
+  const [first] = acceptReplies(['Shipping offline notes changed how we work.'], [], 3, 'remove', [], [], 'shipping offline notes');
+  expect(first).toBe('Shipping offline notes changed how we work.');
+  // Without their line there is nothing to echo: the old callers keep working.
+  expect(acceptReplies(['Shipping offline notes.'], [], 3)).toEqual(['Shipping offline notes.']);
+});
+
 // ---- 5.2 Keep the writer's formatting ----
 
 test('layoutKept: a list stays a list with the same markers', () => {
