@@ -236,6 +236,20 @@ describe('grow fit bar', () => {
     } finally { spy.mockRestore(); }
   });
 
+  test('Why? carries the reach line once, off the card', async () => {
+    let resolveFit!: (fits: Fit[]) => void;
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(() => new Promise(resolve => { resolveFit = resolve; }));
+    try {
+      const screen = await open(capture(), [CLEAN[0]]);
+      resolveFit([fit({ level: 2, words: LEVELS[2] }), fit({ level: 2, words: LEVELS[2] })]);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(2));
+      expect(screen.queryByText("Text alone can't predict reach"))
+        .toBeNull();
+      await fireEvent.press(screen.getAllByRole('button', { name: words.why })[1]);
+      await waitFor(() => expect(screen.getByText("Text alone can't predict reach")).toBeTruthy());
+    } finally { spy.mockRestore(); }
+  });
+
   test('an unrateable card carries no bar at all', async () => {
     const spy = jest.spyOn(FitModule, 'judgeFit');
     try {

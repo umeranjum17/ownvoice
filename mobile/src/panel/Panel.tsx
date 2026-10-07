@@ -9,7 +9,7 @@ import { dashesFor } from '../core/drafts';
 import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
 import { prefillFor, prefillUrl } from '../core/prefill';
 import { feedRead } from '../core/feed';
-import { rate, type Ratings as CardRatings } from '../core/ratings';
+import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
 import { judgeFit, rated, UNAVAILABLE, type Fit } from '../grow/fit';
 import { guide as voiceGuide } from '../core/voice';
@@ -109,7 +109,7 @@ function ToneLine({ text, tones }: { text: string; tones: Map<string, string> })
   return <Text style={[type.note, { color: t.muted, marginTop: space.s }]}>{words.toneSounds} {tone}</Text>;
 }
 
-function WhyCover({ draft, checks, who, slips }: { draft: Draft; checks: WhyState; who: string | null; slips: number }) {
+function WhyCover({ draft, checks, who, slips, footnote }: { draft: Draft; checks: WhyState; who: string | null; slips: number; footnote?: string }) {
   const t = useTheme();
   const rows = [
     ...Judge.reasons(draft.scores, draft.text, slips),
@@ -126,7 +126,8 @@ function WhyCover({ draft, checks, who, slips }: { draft: Draft; checks: WhyStat
       {checks.state === 'running' ? <Checking /> : null}
       {checks.state === 'none' ? <Text style={[type.note, { color: t.muted, paddingVertical: space.s }]}>{words.noChecks}</Text> : null}
     </Card>
-    <Text style={[type.note, { color: t.muted, marginTop: space.l, marginBottom: space.l }]}>{Judge.quickChecks(who)}</Text>
+    <Text style={[type.note, { color: t.muted, marginTop: space.l, marginBottom: footnote ? space.s : space.l }]}>{Judge.quickChecks(who)}</Text>
+    {footnote ? <Text style={[type.note, { color: t.muted, marginBottom: space.l }]}>{footnote}</Text> : null}
   </View>;
 }
 
@@ -441,7 +442,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     onClose={() => { void Native.closePanel().catch(() => {}); }}
     cover={coverDraft ? {
       title: replies ? words.whyReply : words.whyVersion,
-      children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} />,
+      children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} footnote={grow ? REACH_UNKNOWN : undefined} />,
     } : undefined}
     onCloseCover={() => setWhy(null)}>
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
