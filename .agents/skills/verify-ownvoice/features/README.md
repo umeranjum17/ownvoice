@@ -6,7 +6,7 @@ The maintained source for verifying user-facing behavior. Read this index, then 
 
 - Host runs need only Node 18+ and a built `packages/engine/dist` (see the skill's Launch).
 - Android runs additionally need an explicit device allocation, a throwaway emulator (`emulator-NNNN`), `JAVA_HOME`, an Android SDK, and `adb`, `zip`, `tesseract`, `magick` on `PATH`.
-- Never drive the BYOKit-owned test phone, a personal app, or an emulator this run did not start.
+- Never drive the BYOKit-owned test phone, a personal app, or an emulator without a current explicit allocation. For a shared allocated serial, use the allocation's device lock and leave emulator lifetime with its owner.
 
 ## Proof and skip reporting
 
@@ -27,5 +27,6 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert.
 - [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
 - [Own posts](./own-posts.md) — Android: a blank feed composer asks for the one line, then drafts from it; edit one and insert it.
+- [Typing checks](./typing-checks.md) — Android: readable-field counts, honest capped-field disclosure, disabled partial Fix, fresh-field recovery.
 
 Not yet mapped: Home/settings walk (`mobile/e2e/settings.mjs`), overlay behaviors (`overlay-proof.mjs`), prefill hand-off (`proof-prefill.mjs`).

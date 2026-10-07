@@ -152,6 +152,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [fits, setFits] = useState<Map<string, Fit>>(new Map());
   const fitFor = useRef(0);
   const leaves = useRef(false);
+  const [limited, setLimited] = useState(false);
   const [spelling, setSpelling] = useState<{ text: string; slips: Typing.Slip[] }>({ text: '', slips: [] });
   const slips = yours?.text === spelling.text ? spelling.slips : [];
   // The text just copied: its card's copy button shows a tick for a moment.
@@ -202,6 +203,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const start = useCallback((value: Capture, avoid?: string[]) => {
     const id = ++run.current;
+    setLimited(!!value.typingLimited);
     const rules = voice.current = loadVoice();
     const platform = platformForApp(value.app, value.nodes);
     const nextMode = modeOf(value.typed, value.written, value.hasField, platform.kind === 'feed', platform);
@@ -450,6 +452,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} footnote={grow ? REACH_UNKNOWN : undefined} />,
     } : undefined}
     onCloseCover={() => setWhy(null)}>
+    {limited ? <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{words.typingLimited}</Text> : null}
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
     {yours && slips.length ? <View style={{ marginBottom: space.m }}>
       <Card variant="outlined" label={words.slipsTitle}>
@@ -462,7 +465,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
               <Text style={[type.body, { color: t.text, fontWeight: '600' }]}>{slip.fix}</Text>
             </> : <Text style={[type.note, { color: t.muted }]}>{slip.fix === '' ? words.slipRepeat : words.slipUnknown}</Text>}
           </View>
-          {slip.fix !== undefined ? <Button kind="tonal" label={words.fix} disabled={!hasField || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip))} /> : null}
+          {slip.fix !== undefined ? <Button kind="tonal" label={words.fix} disabled={!hasField || limited || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip))} /> : null}
         </View>)}
       </Card>
     </View> : null}

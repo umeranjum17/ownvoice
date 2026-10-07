@@ -63,6 +63,11 @@ internal fun includeScreenNode(hasText: Boolean, hasDescription: Boolean, action
 /** The typing check looks only at a message worth checking: at least 12 characters and three words. */
 internal fun worthChecking(text: String): Boolean = text.trim().let { it.length >= 12 && it.split(Regex("\\s+")).size >= 3 }
 
+// Chromium caps a control's accessibility value at 10000 UTF-8 bytes. Selection may expose
+// truncation even when the last whole UTF-8 letter leaves the prefix just below that cap.
+internal fun typingTextLimited(app: String, text: String, selection: FieldSelection?): Boolean =
+  app == "com.android.chrome" && (text.toByteArray(Charsets.UTF_8).size == 10000 || (selection?.end ?: 0) > text.length)
+
 internal fun includePracticeText(practice: Boolean, action: Boolean, viewId: String?): Boolean =
   !practice || action || viewId?.startsWith("practice-line-") == true
 
@@ -141,7 +146,7 @@ class OwnvoiceService : AccessibilityService() {
 
   data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false)
   data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean, val viewId: String? = null, val description: String? = null)
-  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String)
+  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String, val typingLimited: Boolean = false)
   private val main = Handler(Looper.getMainLooper())
   private var capture: Capture? = null
   /** The kit's bubble, driven with no JavaScript running so it restores after a reboot or process death. */
@@ -155,6 +160,7 @@ class OwnvoiceService : AccessibilityService() {
   private var slipApp: String? = null
   private var slipCount = 0
   private var slipLabel = ""
+  @Volatile private var limitedApp: String? = null
   private var insertCancellation: InsertCancellation? = null
   private var pendingInsert: (() -> Unit)? = null
   private var lastPrune = 0L
@@ -258,7 +264,19 @@ class OwnvoiceService : AccessibilityService() {
   private fun typed() {
     val app = typedApp ?: return
     if (!typingCheck || !allowed(app) || currentApp() != app) return
-    val text = FocusedFields.read(this)?.takeIf { it.app == app }?.text.orEmpty()
+    val focused = FocusedFields.read(this)?.takeIf { it.app == app }
+    val text = focused?.text.orEmpty()
+    if (typingTextLimited(app, text, focused?.selection)) {
+      val announce = limitedApp != app
+      limitedApp = app
+      checkedText = null; checkedApp = null
+      showSlips(app, 0, "")
+      val notice = getString(R.string.ownvoice_typing_limited)
+      bubbles?.setLabel("Ownvoice, $notice")
+      if (announce) say(notice, 6000)
+      return
+    }
+    if (limitedApp != null) { limitedApp = null; bubbles?.setLabel("Ownvoice") }
     if (!worthChecking(text)) { checkedText = null; checkedApp = null; return showSlips(app, 0, "") }
     if (text == checkedText && app == checkedApp) return
     checkedText = text; checkedApp = app
@@ -274,7 +292,7 @@ class OwnvoiceService : AccessibilityService() {
   fun showSlips(app: String, count: Int, label: String, checkMs: Double? = null) {
     if (checkMs != null) Log.d(TAG, "typing check ms=${"%.2f".format(checkMs)} badge ms=${SystemClock.elapsedRealtime() - pausedAt} count=$count")
     if (count == 0 && slipCount == 0) return
-    val shown = if (typingCheck && count > 0 && app == currentApp()) count else 0
+    val shown = if (typingCheck && app != limitedApp && count > 0 && app == currentApp()) count else 0
     if (shown == slipCount && (shown == 0 || app == slipApp)) return
     slipApp = app.takeIf { shown > 0 }; slipCount = shown; slipLabel = label
     bubbles?.setLabel(if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice")
@@ -285,6 +303,7 @@ class OwnvoiceService : AccessibilityService() {
   fun typingOff() {
     main.removeCallbacks(typingPause)
     typedApp = null; checkedText = null; checkedApp = null; pendingTyped = null
+    limitedApp = null; bubbles?.setLabel("Ownvoice")
     showSlips("", 0, "")
   }
   override fun onInterrupt() {}
@@ -315,6 +334,7 @@ class OwnvoiceService : AccessibilityService() {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { updateBubble() }; return }
     val app = ByokitAccessibility.foreground?.current ?: currentApp()
     // Another app in front drops the count; Ownvoice's own panel over it keeps it.
+    if (limitedApp != null && app != limitedApp && !panelIsOpen) { limitedApp = null; bubbles?.setLabel("Ownvoice") }
     if (slipCount > 0 && app != slipApp && !panelIsOpen) showSlips(app.orEmpty(), 0, "")
     refreshBubble()
     if (app != null && !panelIsOpen && effectiveRules().shows(app) && !prefs.getBoolean("tipShown", false)) {
@@ -364,10 +384,11 @@ class OwnvoiceService : AccessibilityService() {
     if (cue) readCue.play(bubbleBounds(), drawable)
     val fieldBounds = Rect()
     field?.getBoundsInScreen(fieldBounds)
-    val typed = FocusedFields.read(this)?.takeIf { it.app == app }?.text.orEmpty()
+    val focused = FocusedFields.read(this)?.takeIf { it.app == app }
+    val typed = focused?.text.orEmpty()
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val id = java.util.UUID.randomUUID().toString()
-    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id)
+    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id, typingTextLimited(app, typed, focused?.selection))
     val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), id)
     val saved = synchronized(facts) {
       restoreFacts(this@OwnvoiceService)

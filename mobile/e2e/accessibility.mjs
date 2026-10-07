@@ -8,7 +8,9 @@ import { fileURLToPath } from 'node:url';
 export function accessibilityProbe(serial, scratch) {
   if (!/^emulator-\d+$/.test(serial)) throw new Error('Accessibility proof requires an owned emulator.');
   const avd = process.env.OWNVOICE_AVD_NAME;
-  const actual = execFileSync('adb', ['-s', serial, 'emu', 'avd', 'name'], { encoding: 'utf8' }).trim().split(/\r?\n/)[0];
+  // Some emulator consoles answer no name; the boot property still identifies the allocated AVD.
+  const actual = execFileSync('adb', ['-s', serial, 'emu', 'avd', 'name'], { encoding: 'utf8' }).trim().split(/\r?\n/)[0]
+    || execFileSync('adb', ['-s', serial, 'shell', 'getprop', 'ro.boot.qemu.avd_name'], { encoding: 'utf8' }).trim();
   if (!avd || actual !== avd) throw new Error(`AVD ${actual} does not match OWNVOICE_AVD_NAME.`);
   const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? join(homedir(), 'Android/Sdk');
   const javaHome = process.env.JAVA_HOME;
