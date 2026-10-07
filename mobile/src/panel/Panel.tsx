@@ -62,9 +62,9 @@ const openPrefill = (platform: Platform, draft: Draft) => {
   else void Share.share({ message: text }).catch(() => {});
 };
 
-const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id === 'reddit';
+const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id === 'linkedin' || platform.id === 'reddit';
 
-/** Their reply typed under a post on X or Reddit (the places the fit can rate) grows: their own text stays as Yours
+/** Their reply typed under a post on X, LinkedIn or Reddit (the places the fit can rate) grows: their own text stays as Yours
  *  and the replies, started from their point, are ranked for that place. With nothing typed the reply stays withheld.
  *  A blank composer in a feed app is his own post with nothing to write from, so it asks for the one line it
  *  needs; an empty box anywhere else stays the empty state, and a chat or mail reply is withheld. */
@@ -331,7 +331,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     })();
   });
 
-  // ---- Fit: one Jev call per tap rates every shown reply on X and Reddit; never per keystroke ----
+  // ---- Fit: one Jev call per tap rates every shown reply on X, LinkedIn and Reddit; never per keystroke ----
   useEffect(() => {
     if (phase !== 'ready' || mode !== 'grow' || !capture || !rated(platformOf.current)) return;
     const id = run.current;

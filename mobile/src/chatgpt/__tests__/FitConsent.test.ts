@@ -3,7 +3,7 @@ import { store } from '../../core/store';
 import { fitBackends } from '../settings';
 import { status } from '../accounts';
 import * as Switch from '../../core/switch';
-import { judgeFit, LEVELS, UNAVAILABLE, UNSURE } from '../../grow/fit';
+import { judgeFit, rated, LEVELS, UNAVAILABLE, UNSURE } from '../../grow/fit';
 import { platformForApp } from '../../core/platforms';
 import Native from '../../../modules/ownvoice-native';
 import { signOut } from '../accounts';
@@ -98,6 +98,31 @@ test('a key turns it on: one Jev request with the rubric, its probabilities beco
   expect(request.questions.fit_0.instructions).toMatch(/^An X reply\. .*Rate candidates\["0"\] only/);
 });
 
+test('LinkedIn has its own rubric: a strong reply, a skipped one and an abstain', async () => {
+  consent();
+  expect(rated(platformForApp('com.linkedin.android'))).toBe(true);
+  const platform = platformForApp('com.linkedin.android');
+  const options = { post: 'After 6 years leading platform teams, I am starting my own consultancy.',
+    candidates: ['We did the same review in Leeds: one chatty call on every page load, a small cache cut the slow calls from 900ms to 210ms.', 'Great post! Love this 🔥', 'Nice, consulting is always interesting.'], platform };
+  const evaluate = (fetcher: typeof fetch) => judgeFit({ ...options, backends: fitBackends('com.linkedin.android', { key: 'fixture-jev-key', fetch: fetcher }) });
+  const fetcher = jevReply({
+    fit_0: { probabilities: { 0: 0.02, 1: 0.03, 2: 0.15, 3: 0.8 }, confidence: 0.8 },
+    fit_1: { probabilities: { 0: 0.7, 1: 0.15, 2: 0.1, 3: 0.05 }, confidence: 0.7 },
+    fit_2: { probabilities: { 0: 0.2, 1: 0.3, 2: 0.3, 3: 0.2 }, confidence: 0.3 },
+  });
+  const fits = await evaluate(fetcher);
+  expect(fits).toEqual([
+    { level: 3, words: LEVELS[3], probability: 0.8 },
+    { level: 0, words: LEVELS[0], probability: 0.7 },
+    { level: null, words: UNSURE, probability: null },
+  ]);
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  const [, init] = fetcher.mock.calls[0];
+  const request = JSON.parse(init!.body as string);
+  expect(request.state.platform).toBe('LinkedIn');
+  expect(request.questions.fit_0.instructions).toMatch(/^A LinkedIn reply\. /);
+  expect(request.questions.fit_0.instructions).toContain('Rate candidates["0"] only');
+});
 test.each([
   ['phone-listed', 'on'], ['switch off', 'off'], ['unknown switch', null], ['phone source', 'on'], ['paused', 'on'], ['bubble off', 'on'], ['signed out', 'on'], ['signing out', 'on'],
 ])('%s sends nothing to Jev and says the fit cannot be rated', async (scenario, value) => {

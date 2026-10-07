@@ -71,7 +71,7 @@ To produce a switch flag offline, keep a 32-byte private signing key as hex outs
 ### Reply fit (Jev)
 
 `src/grow/fit.ts` asks Jev, through the published `@byokit/decide` `jev()`, one
-score question per shown text on X and Reddit replies: the platform rubric is the
+score question per shown text on X, LinkedIn and Reddit replies: the platform rubric is the
 question and Jev's most probable level (`LEVELS`) becomes the card's engagement
 level. Below decide's 0.6 floor the card says it isn't sure; when nothing answered
 (no key, no consent, offline, the 20 second deadline) it says it can't rate the fit
@@ -79,7 +79,7 @@ and keeps the text checks below, unless the card has no other finding and nothin
 panel asks once per tap after the cards land, never per keystroke, and never for
 an edited text; each call uses a fresh in-memory cache.
 
-A reply typed under an X or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
+A reply typed under an X, LinkedIn or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
 the writer gets their text as `point` (with `typed` empty) so the replies start from it,
 **Yours** keeps their text, and once the fit answers the cards are listed highest level first,
 unrated ones last and ties in slot order. Each card keeps its `slot`, so its tag still names
@@ -106,7 +106,7 @@ cold load outlasts the 20 second deadline and the cards then say they can't rate
 
 On feed apps (X, Reddit and the other known platforms) a draft card shows the
 checks that found something and nothing when they found nothing: an engagement
-rating, which on X and Reddit replies is Jev's fit level (above), and otherwise
+rating, which on X, LinkedIn and Reddit replies is Jev's fit level (above), and otherwise
 the concerns the text shows on that platform from
 `packages/engine/src/ratings.ts`; where it appears it always says text alone
 can't predict reach. Apart from it sits a separate stock-wording rating from the
