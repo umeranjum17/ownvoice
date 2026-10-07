@@ -59,14 +59,6 @@ async function typingFixProof() {
     nodes('Fix'); await wait(3000); // native insert closes the panel and verifies the field
     verify('Fix changes only the chosen word', read() === expected, JSON.stringify(read()));
   };
-  const rebind = async () => {
-    const services = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim().split(':').filter(s => s && s !== 'null');
-    const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
-    adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', services.filter(s => s !== component).join(':') || 'com.example.disabled/NoService');
-    await wait(500);
-    adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', [...new Set([...services, component])].join(':'));
-    adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1'); await wait(2000);
-  };
   const open = async path => {
     adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${port}${path}`); await wait(2500);
   };
@@ -76,13 +68,26 @@ async function typingFixProof() {
     await new Promise(resolve => recording.exitCode !== null ? resolve() : recording.once('exit', resolve));
     adb('pull', '/data/local/tmp/ov-pm-10.mp4', resolve(out, 'chrome-typing.mp4'));
   };
+  const theme = process.env.OWNVOICE_THEME;
+  if (!['light', 'dark'].includes(theme)) throw new Error('Set OWNVOICE_THEME before launching the app.');
   try {
+    // Reuse completed first-run setup, then explicitly opt Chrome in through its app row.
+    adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+    let home = false;
+    for (let i = 0; i < 20 && !home; i++) {
+      await wait(1000);
+      home = nodes().some(n => /Where the bubble shows/.test(`${n.label} ${n.text}`));
+    }
+    verify('first-run setup complete', home);
     if (!typing()) await toggleTyping();
-    for (const theme of ['light', 'dark']) {
-      adb('shell', 'settings', 'put', 'secure', 'ui_night_mode_custom_type', '-1');
-      adb('shell', 'cmd', 'uimode', 'night', theme === 'dark' ? 'yes' : 'no');
-      verify(`${theme} colour mode`, adb('shell', 'dumpsys', 'uimode').includes(`mComputedNightMode=${theme === 'dark'}`));
-      adb('shell', 'am', 'force-stop', pkg); await rebind();
+    await route('apps');
+    const chrome = () => nodes().find(n => n.checkable && /chrome/i.test(`${n.label} ${n.text}`));
+    if (!chrome()?.checked) {
+      const row = chrome(); if (!row) throw new Error('Chrome app row absent');
+      nodes(row.label || row.text); await wait(1000);
+    }
+    verify('Chrome app enabled', !!chrome()?.checked);
+    verify(`${theme} colour mode`, adb('shell', 'dumpsys', 'uimode').includes(`mComputedNightMode=${theme === 'dark'}`));
       await open('/');
       await fill('I should finish the report by tonight'); expectBadge(0);
       await fill('Its a good plan, I shoud teh report and recieve it by the the evening'); expectBadge(5);
@@ -109,11 +114,18 @@ async function typingFixProof() {
         await showPanel(); await fix("It's a good plan, I shoud finish the report"); expectBadge(1);
         await showPanel(); await fix("It's a good plan, I should finish the report"); expectBadge(0);
       } finally { if (recording) await recordStop(recording); }
+    if (theme === 'dark') {
+      adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
+      await open('/x');
+      await fill('I shoud finish the report by tonight'); await showPanel(); snap('font13-before-fix');
+      await fix('I should finish the report by tonight'); expectBadge(0); snap('font13-after-fix');
     }
-    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
-    adb('shell', 'am', 'force-stop', pkg); await rebind(); await open('/x');
-    await fill('I shoud finish the report by tonight'); await showPanel(); snap('font13-before-fix');
-    await fix('I should finish the report by tonight'); expectBadge(0); snap('font13-after-fix');
+  } catch (error) {
+    writeFileSync(resolve(out, 'failure-logcat.txt'), adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:D', 'AndroidRuntime:E', 'ReactNativeJS:V'));
+    writeFileSync(resolve(out, 'failure-accessibility.txt'), adb('shell', 'dumpsys', 'accessibility'));
+    writeFileSync(resolve(out, 'failure-nodes.json'), JSON.stringify(nodes(), null, 2));
+    snap('failure-screen');
+    throw error;
   } finally {
     adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0');
     writeFileSync(resolve(out, 'typing-results.json'), JSON.stringify(checks, null, 2));
