@@ -18,6 +18,16 @@ const typingWords = {
   rowTypingNote:'It stays on this phone.',
 } as const;
 
+// Grow-mode fit bar: what each level means, in plain words. Definitions of the level, never a
+// promise of reach (no "viral", no "will get"). The unsure line says the rating itself is missing.
+const fitWords = {
+  fitWhyStrong: 'Reads like it moves the conversation forward.',
+  fitWhyGood: 'Reads on-topic, with a clear point.',
+  fitWhyVague: 'Reads relevant, but vague.',
+  fitWhySkipped: 'Reads off-topic, or like bait.',
+  fitWhyUnsure: 'The rating did not come back clearly.',
+} as const;
+
 // Edit before insert: a card's text can be changed in the panel; Insert then uses the edited text.
 const editWords = {
   edit:'Edit',
@@ -36,7 +46,7 @@ const homeWords = {
 } as const;
 
 export const words = {
-  ...engineWords, ...typingWords, ...editWords, ...homeWords,
+  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...homeWords,
   replyWithheld: "Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.",
   tryInsert: 'Write a reply first, then tap the bubble to polish it. Or tap Skip.',
 };

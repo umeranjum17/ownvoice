@@ -4,9 +4,11 @@
 // predicted, a missing post is said out loud, and chats keep their cards as they were.
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import Panel from '../Panel';
 import { technicalWords, words } from '../../core/words';
+import * as FitModule from '../../grow/fit';
+import { LEVELS, UNSURE, type Fit } from '../../grow/fit';
 import type { DraftRequest, WriterEvents } from '../../core/writers';
 import Native, { type Capture } from '../../../modules/ownvoice-native';
 
@@ -60,14 +62,18 @@ const open = async (value: Capture, drafts = DRAFTS) => {
 const ratingsOf = (screen: Awaited<ReturnType<typeof open>>) => screen.queryAllByLabelText(/^(Engagement on |Stock wording)/).slice(1).map(node => node.props.accessibilityLabel as string);
 
 test('each X reply card shows only the checks that found something, and none rates a draft up', async () => {
-  const labels = ratingsOf(await open(capture()));
+  const screen = await open(capture());
+  const labels = ratingsOf(screen);
   // The question card asks a question, so it carries the engagement row and no stock row; the link
-  // card carries both (a link and flattery); the repeat carries only stock wording, not engagement.
+  // card carries its bar (bottom level, flag reason) plus stock wording; the repeat carries only
+  // stock wording, not engagement. One card, one fit verdict: no engagement row repeats a bar level.
   expect(labels).toHaveLength(3);
   const [question, linked, repeat] = labels;
   expect(question).toBe("Engagement on X: Nothing flagged. Asks a question. Text alone can't predict reach.");
-  expect(linked).toMatch(/^Engagement on X: Worth a second look\. Has a link\./);
   expect(linked).toMatch(/Stock wording: Some\. “Great post!”: starts with flattery/);
+  expect(linked).not.toMatch(/^Engagement on X/);
+  expect(screen.getAllByLabelText(LEVELS[0])).toHaveLength(1);
+  expect(screen.getByText('Has a link.')).toBeTruthy();
   // The repeat is a literal word-overlap fact under stock wording, not an engagement judgement, so it
   // gets a stock row only.
   expect(repeat).toMatch(/^Stock wording: Some\. Shares most of its wording with the post\.$/);
@@ -108,19 +114,151 @@ test('a new post with nothing on screen makes no parent comparison and reports n
   for (const label of labels) expect(label).not.toMatch(/Couldn't read the post|Shares most of its wording with the post|Tags people/);
 });
 
-test('a card with four engagement signals reads all four aloud, concerns included', async () => {
+test('a card with four engagement signals reads all four aloud in its bar, bottom level', async () => {
   const draft = `@stranger what do you think? See https://example.com ${'x'.repeat(300)}`;
-  const labels = ratingsOf(await open(capture(), [draft]));
-  expect(labels).toHaveLength(1);
-  for (const signal of ['Too long for X', 'Has a link', "Tags people who aren't in the post", 'Asks a question']) {
-    expect(labels[0]).toContain(signal);
-  }
+  const screen = await open(capture(), [draft]);
+  await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(1));
+  expect(screen.getAllByLabelText(LEVELS[0])).toHaveLength(1);
+  expect(screen.queryAllByLabelText(/^Engagement on /)).toEqual([]);
+  expect(screen.getByText("Has a link. Too long for X. Tags people who aren't in the post. Asks a question.")).toBeTruthy();
 });
 
 test('Insert still puts the exact rated card text in the box and never posts', async () => {
   const screen = await open(capture());
   fireEvent.press(screen.getAllByRole('button', { name: words.useThis })[0]);
   await waitFor(() => expect(native.insert).toHaveBeenCalledWith(DRAFTS[0]));
+});
+
+// Grow mode's fit bar: the cards land first and the bar fills in when the fit does. The real
+// judgeFit runs everywhere below (no key means no fetch and every card rates unavailable); only
+// the scripted levels are faked, per candidate text, through a spy on the module Panel calls.
+describe('grow fit bar', () => {
+  const CLEAN = [
+    'Did the pricing change land before the retention drop showed up?',
+    'Week twelve is where retention showed up for us. Did the drop come before or after your pricing change?',
+    'Shipping one small fix beats polishing the launch page.',
+  ];
+  const fit = (over: Partial<Fit> = {}): Fit => ({ level: 3, words: LEVELS[3], probability: 0.7, ...over });
+  const bars = (screen: Awaited<ReturnType<typeof open>>) => screen.getAllByTestId('fit-bar');
+  const fills = (bar: ReturnType<typeof bars>[number]) =>
+    [0, 1, 2, 3].map(i => within(bar).getByTestId(`fit-segment-${i}`).props.style.backgroundColor);
+
+  test('the cards land before the bar and each judged level fills its own segments', async () => {
+    let resolveFit!: (fits: Fit[]) => void;
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(() => new Promise(resolve => { resolveFit = resolve; }));
+    try {
+      const screen = await open(capture(), CLEAN);
+      expect(screen.getByText('Suggested replies · X')).toBeTruthy();
+      expect(spy).toHaveBeenCalled();
+      // The fit has not landed: cards with their actions, but no bar yet.
+      expect(screen.getAllByRole('button', { name: 'Use this' }).length).toBeGreaterThan(0);
+      expect(screen.queryByTestId('fit-bar')).toBeNull();
+      resolveFit([fit({ level: 3, words: LEVELS[3] }), fit({ level: 2, words: LEVELS[2] }), fit({ level: 1, words: LEVELS[1] }), fit({ level: 0, words: LEVELS[0] })]);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(4));
+      // Yours first, then the drafts in their ranked slots: one bar per level word.
+      for (const word of LEVELS) expect(screen.getAllByLabelText(word)).toHaveLength(1);
+      // One fit verdict per card: the bar carries the level, so no engagement row repeats it.
+      expect(screen.queryAllByLabelText(/^Engagement on /)).toEqual([]);
+      const reasons = [
+        'Reads like it moves the conversation forward.',
+        'Asks a question. Reads on-topic, with a clear point.',
+        'Asks a question. Reads relevant, but vague.',
+        'Reads off-topic, or like bait.',
+      ];
+      for (const reason of reasons) expect(screen.getByText(reason)).toBeTruthy();
+      for (const reason of reasons) { expect(reason).not.toMatch(/\d|%/); expect(technicalWords.test(reason)).toBe(false); }
+      // Four segments each: the second-ranked bar fills three, the third two, the bottom one.
+      const [, good, vague, skipped] = bars(screen);
+      const distinct = (colors: unknown[]) => colors.filter((color, i, all) => all.indexOf(color) === i);
+      expect(distinct(fills(good))).toHaveLength(2);
+      const [first, second, third, fourth] = fills(vague);
+      expect(second).toBe(first);
+      expect(third).not.toBe(first);
+      expect(fourth).toBe(third);
+      const [bottomFirst, ...bottomRest] = fills(skipped);
+      expect(bottomRest.every(color => color !== bottomFirst)).toBe(true);
+      expect(bottomFirst).toBe(first);
+      for (const label of LEVELS.map(word => screen.getByLabelText(word).props.accessibilityLabel as string)) {
+        expect(label).not.toMatch(/\d|%/);
+        expect(technicalWords.test(label)).toBe(false);
+      }
+    } finally { spy.mockRestore(); }
+  });
+
+  test('an abstained card says it is not sure, with an empty bar', async () => {
+    const spy = jest.spyOn(FitModule, 'judgeFit')
+      .mockResolvedValue([fit({ level: null, words: UNSURE, probability: null }), fit({ level: 2, words: LEVELS[2] })]);
+    try {
+      const screen = await open(capture(), [CLEAN[0]]);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(2));
+      expect(screen.getAllByLabelText(UNSURE)).toHaveLength(1);
+      expect(screen.queryAllByLabelText(/^Engagement on /)).toEqual([]);
+      expect(screen.getByText(words.fitWhyUnsure)).toBeTruthy();
+      expect(screen.getByText('Asks a question. Reads on-topic, with a clear point.')).toBeTruthy();
+      const [unsure] = bars(screen);
+      expect(new Set(fills(unsure)).size).toBe(1);
+    } finally { spy.mockRestore(); }
+  });
+
+  test('a link card shows the bottom level and says why, over a strong level', async () => {
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockResolvedValue([fit(), fit()]);
+    try {
+      const screen = await open(capture(), ['See the full thread at https://example.com/launch-notes for the numbers.']);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(2));
+      expect(screen.getAllByLabelText(LEVELS[3])).toHaveLength(1);
+      expect(screen.getAllByLabelText(LEVELS[0])).toHaveLength(1);
+      expect(screen.queryAllByLabelText(/^Engagement on /)).toEqual([]);
+      expect(within(bars(screen)[1]).getByText('Has a link.')).toBeTruthy();
+    } finally { spy.mockRestore(); }
+  });
+
+  test('a never-say card shows the bottom level and quotes the phrase back', async () => {
+    const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
+    kv.set('voice', JSON.stringify({ never: ['circle back'], noDashes: false, statementEndings: false, note: '' }));
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockResolvedValue([fit(), fit({ level: 2, words: LEVELS[2] })]);
+    try {
+      const screen = await open(capture(), ["Let's circle back on the launch thread tomorrow."]);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(2));
+      expect(screen.getAllByLabelText(LEVELS[0])).toHaveLength(1);
+      const bar = bars(screen)[1];
+      expect(within(bar).getByText(/on your never-say list/)).toBeTruthy();
+      expect(within(bar).getByText(/circle back/i)).toBeTruthy();
+    } finally { spy.mockRestore(); kv.delete('voice'); }
+  });
+
+  test('a too-long card shows the bottom level and says so', async () => {
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockResolvedValue([fit(), fit()]);
+    try {
+      const screen = await open(capture(), [`On X the detail is ${'x'.repeat(300)}`]);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(2));
+      expect(screen.getAllByLabelText(LEVELS[0])).toHaveLength(1);
+      expect(within(bars(screen)[1]).getByText('Too long for X.')).toBeTruthy();
+    } finally { spy.mockRestore(); }
+  });
+
+  test('Why? carries the reach line once, off the card', async () => {
+    let resolveFit!: (fits: Fit[]) => void;
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(() => new Promise(resolve => { resolveFit = resolve; }));
+    try {
+      const screen = await open(capture(), [CLEAN[0]]);
+      resolveFit([fit({ level: 2, words: LEVELS[2] }), fit({ level: 2, words: LEVELS[2] })]);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(2));
+      expect(screen.queryByText("Text alone can't predict reach"))
+        .toBeNull();
+      await fireEvent.press(screen.getAllByRole('button', { name: words.why })[1]);
+      await waitFor(() => expect(screen.getByText("Text alone can't predict reach")).toBeTruthy());
+    } finally { spy.mockRestore(); }
+  });
+
+  test('an unrateable card carries no bar at all', async () => {
+    const spy = jest.spyOn(FitModule, 'judgeFit');
+    try {
+      const screen = await open(capture(), ['Purple turbines whisper banana logistics.']);
+      await waitFor(() => expect(spy).toHaveBeenCalled());
+      await act(async () => { await spy.mock.results[0].value; });
+      expect(screen.queryByTestId('fit-bar')).toBeNull();
+    } finally { spy.mockRestore(); }
+  });
 });
 
 test.each([['com.whatsapp', 'WhatsApp'], ['dev.ownvoice.app', 'Ownvoice']])('%s cards carry no engagement rating', async (app, label) => {

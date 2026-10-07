@@ -9,7 +9,7 @@ import { dashesFor } from '../core/drafts';
 import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
 import { prefillFor, prefillUrl } from '../core/prefill';
 import { feedRead } from '../core/feed';
-import { rate, type Ratings as CardRatings } from '../core/ratings';
+import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
 import { judgeFit, rated, UNAVAILABLE, type Fit } from '../grow/fit';
 import { guide as voiceGuide } from '../core/voice';
@@ -20,6 +20,7 @@ import { retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
+import { FitBar, fitBarVisible } from '../ui/FitBar';
 import { CheckIcon, ChevIcon, CopyIcon, OpenIcon, ShareIcon } from '../ui/icons';
 import { MeaningLine } from '../ui/MeaningLine';
 import { Marked } from '../ui/Marked';
@@ -108,7 +109,7 @@ function ToneLine({ text, tones }: { text: string; tones: Map<string, string> })
   return <Text style={[type.note, { color: t.muted, marginTop: space.s }]}>{words.toneSounds} {tone}</Text>;
 }
 
-function WhyCover({ draft, checks, who, slips }: { draft: Draft; checks: WhyState; who: string | null; slips: number }) {
+function WhyCover({ draft, checks, who, slips, footnote }: { draft: Draft; checks: WhyState; who: string | null; slips: number; footnote?: string }) {
   const t = useTheme();
   const rows = [
     ...Judge.reasons(draft.scores, draft.text, slips),
@@ -125,7 +126,8 @@ function WhyCover({ draft, checks, who, slips }: { draft: Draft; checks: WhyStat
       {checks.state === 'running' ? <Checking /> : null}
       {checks.state === 'none' ? <Text style={[type.note, { color: t.muted, paddingVertical: space.s }]}>{words.noChecks}</Text> : null}
     </Card>
-    <Text style={[type.note, { color: t.muted, marginTop: space.l, marginBottom: space.l }]}>{Judge.quickChecks(who)}</Text>
+    <Text style={[type.note, { color: t.muted, marginTop: space.l, marginBottom: footnote ? space.s : space.l }]}>{Judge.quickChecks(who)}</Text>
+    {footnote ? <Text style={[type.note, { color: t.muted, marginBottom: space.l }]}>{footnote}</Text> : null}
   </View>;
 }
 
@@ -422,6 +424,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const done = phase === 'ready' && unchanged;
   const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
   const replies = mode === 'reply' || mode === 'grow';
+  const grow = mode === 'grow';
+  const yoursFit = yours ? fits.get(yours.text) : undefined;
   // With their own text in the box (polish, grow) a card replaces it: Use this. An empty box takes a reply: Insert.
   const insertLabel = mode === 'reply' ? words.insert : words.useThis;
   // Grow ranks the cards strongest first by their fit; each card keeps its slot, so its tag still names what it is for.
@@ -438,7 +442,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     onClose={() => { void Native.closePanel().catch(() => {}); }}
     cover={coverDraft ? {
       title: replies ? words.whyReply : words.whyVersion,
-      children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} />,
+      children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} footnote={grow ? REACH_UNKNOWN : undefined} />,
     } : undefined}
     onCloseCover={() => setWhy(null)}>
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
@@ -463,7 +467,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <Marked text={yours.text} hits={[...yours.scores.hits, ...slips]} />
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
-        <Ratings ratings={yours.ratings} fit={fits.get(yours.text)} />
+        <Ratings ratings={yours.ratings} fit={yoursFit} hideEngagement={grow && fitBarVisible(yoursFit, yours.ratings)} />
+        {grow ? <FitBar fit={yoursFit} ratings={yours.ratings} /> : null}
         <View style={styles.actions}>
           {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
           <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
@@ -475,6 +480,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       const verdict = card.label ? null : distinctVerdict(card, shown);
       const exportBlocked = card.meaning?.ok === false;
       const editing = edit?.slot === card.slot ? edit : null;
+      // While editing, the text is unrated: no fit, no bar, and the engagement row follows the edit.
+      const cardFit = editing ? undefined : fits.get(card.text);
       return <View key={card.slot} style={{ marginBottom: space.m }}>
         <Card variant="outlined" label={card.label ?? (replies ? (TAGS[platform.id] ?? CHAT_TAGS)[card.slot] : undefined)}>
           {editing
@@ -484,7 +491,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           {editing ? null : <ToneLine text={card.text} tones={tones} />}
           {editing ? null : card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           {/* While editing, the ratings follow the edited text, never the original. */}
-          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={editing ? undefined : fits.get(card.text)} />
+          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitBarVisible(cardFit, card.ratings)} />
+          {grow && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
