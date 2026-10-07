@@ -1,12 +1,12 @@
 # Typing checks
 
-With the spelling switch on, readable fields get a slip count after a pause. Chrome exposes only a capped prefix of very long fields; Ownvoice must disclose that limitation, hide the misleading count, disable a partial spelling Fix, and resume normal checks in a fresh field.
+With the spelling switch on, readable fields get a slip count after a pause. Chrome exposes only a capped prefix of very long fields; Ownvoice must disclose that limitation, hide the misleading count, disable a partial spelling Fix and draft Insert, and resume normal checks in a fresh field.
 
 ## Sub-features
 
 - `typing-readable`: a small opted-in field answers with a count.
 - `typing-limited`: a real Chrome field larger than 10 KB has no misleading count and shows the plain partial-check notice on the bubble and tapped panel.
-- `typing-partial-fix`: a partial capture offers no actionable spelling Fix that could replace the unread suffix.
+- `typing-partial-fix`: a partial capture offers no actionable spelling Fix or draft Insert that could replace the unread suffix.
 - `typing-resume`: a fresh readable field answers normally after the limited field.
 
 ## How to get to it (user POV)

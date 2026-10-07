@@ -27,6 +27,6 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert.
 - [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
 - [Own posts](./own-posts.md) — Android: a blank feed composer asks for the one line, then drafts from it; edit one and insert it.
-- [Typing checks](./typing-checks.md) — Android: readable-field counts, honest capped-field disclosure, disabled partial Fix, fresh-field recovery.
+- [Typing checks](./typing-checks.md) — Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery.
 
 Not yet mapped: Home/settings walk (`mobile/e2e/settings.mjs`), overlay behaviors (`overlay-proof.mjs`), prefill hand-off (`proof-prefill.mjs`).
