@@ -173,15 +173,16 @@ const recordStart = remote => {
   return child;
 };
 const recordStop = async child => {
-  try { adb('shell', 'pkill', '-INT', 'screenrecord'); } catch {} // clean device-side stop keeps the moov atom
+  try { adb('shell', 'pkill', '-INT', 'screenrecord'); } catch (error) { console.warn(`Recorder interrupt failed: ${error.message}`); } // clean device-side stop keeps the moov atom
   await wait(2500);
-  try { child.kill('SIGTERM'); } catch {} // fallback: killing the client finalizes the mp4
+  try { child.kill('SIGTERM'); } catch (error) { console.warn(`Recorder client cleanup failed: ${error.message}`); } // fallback: killing the client finalizes the mp4
   await wait(1000);
 };
 /** One demo take: screenrecord the bubble tap, panel, and (D1) insert; stop cleanly with SIGINT. */
 const take = async (id, page, caption, expectWords, insert) => {
   adb('logcat', '-c');
   const remote = `/data/local/tmp/${id}.mp4`;
+  const started = Date.now();
   const rec = recordStart(remote);
   await wait(1200);
   // A relaunch onto the running fixture may not take: force-stop so the page extra always applies.
@@ -202,6 +203,7 @@ const take = async (id, page, caption, expectWords, insert) => {
     }
   }
   await wait(2500); // let the bars fill on the recording
+  const frameAt = ((Date.now() - started) / 1000 - 0.5).toFixed(2);
   if (insert) {
     // Back with no keyboard showing closes the panel: only dismiss a shown keyboard.
     if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(600); }
@@ -231,7 +233,7 @@ const take = async (id, page, caption, expectWords, insert) => {
   execFileSync('ffmpeg', ['-y', '-v', 'error', '-i', local, '-vf',
     `pad=iw:ih+120:0:0:color=black,drawtext=text='${caption}':fontsize=44:fontcolor=white:x=(w-text_w)/2:y=h-85`,
     '-c:a', 'copy', captioned], { stdio: 'inherit' });
-  execFileSync('ffmpeg', ['-y', '-v', 'error', '-ss', '9', '-i', captioned, '-frames:v', '1', resolve(out, `OWNVOICE-grow-${id}.png`)], { stdio: 'inherit' });
+  execFileSync('ffmpeg', ['-y', '-v', 'error', '-ss', frameAt, '-i', captioned, '-frames:v', '1', resolve(out, `OWNVOICE-grow-${id}.png`)], { stdio: 'inherit' });
   console.log(`${id}: levels [${fits.map(f => f.words).join(' | ')}]${insert ? ', insert ok' : ''}`);
 };
 
