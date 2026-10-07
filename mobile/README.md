@@ -106,7 +106,7 @@ cold load outlasts the 20 second deadline and the cards then say they can't rate
 
 On feed apps (X, Reddit and the other known platforms) a draft card shows the
 checks that found something and nothing when they found nothing: an engagement
-rating, which on X and Reddit replies is Jev's fit level (above), and otherwise
+rating, which on X, LinkedIn and Reddit replies is Jev's fit level (above), and otherwise
 the concerns the text shows on that platform from
 `packages/engine/src/ratings.ts`; where it appears it always says text alone
 can't predict reach. Apart from it sits a separate stock-wording rating from the
