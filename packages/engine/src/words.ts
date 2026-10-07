@@ -63,7 +63,7 @@ export const words = {
   switchRowAction:'Use Ownvoice',
   on:'On',
   off:'Off',
-  stepApp:'Tap “Ownvoice”',
+  stepApp:'In Downloaded apps, tap “Ownvoice”',
   stepSwitch:'Switch on “Use Ownvoice”',
   stepAllow:'Tap “Allow”',
   fullControl:'Android asks to allow “full control”. It asks that of every helper like this one.',
