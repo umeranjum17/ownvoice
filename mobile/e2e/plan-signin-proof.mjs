@@ -80,7 +80,7 @@ const record = async (name, fn, limit = 120) => {
   const proc = spawn('adb', ['-s', serial, 'shell', 'screenrecord', '--time-limit', String(limit), device]);
   let err;
   try { await fn(); } catch (e) { err = e; }
-  try { adb('shell', 'pkill', '-2', 'screenrecord'); } catch {}
+  try { adb('shell', 'pkill', '-2', 'screenrecord'); } catch { /* already stopped */ }
   await Promise.race([new Promise(r => proc.on('exit', r)), wait(15000)]);
   proc.kill();
   try { execFileSync('adb', ['-s', serial, 'pull', device, resolve(out, `${name}.mp4`)], { stdio: 'inherit' }); } catch (e) { if (!err) err = e; }
@@ -268,7 +268,7 @@ try {
   log(`plan proof saved to ${out}.`);
 } finally {
   for (const [v, key] of [[priorServices, 'enabled_accessibility_services'], [priorAccessibility, 'accessibility_enabled']]) {
-    try { adb('shell', 'settings', v === 'null' ? 'delete' : 'put', 'secure', key, ...(v === 'null' ? [] : [v])); } catch {}
+    try { adb('shell', 'settings', v === 'null' ? 'delete' : 'put', 'secure', key, ...(v === 'null' ? [] : [v])); } catch { /* best-effort restore; the lane setup re-enables per scenario */ }
   }
   await mock.close();
 }
