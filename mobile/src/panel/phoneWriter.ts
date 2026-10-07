@@ -7,6 +7,9 @@ import { canPolish, polishAcceptor } from '../core/polish';
 import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
+// Demo fixture drafts live in their own module so normal bundles carry none of them: the
+// constant-false branch drops the require (as app/agent.tsx drops the lab screen).
+const demoStubs = process.env.EXPO_PUBLIC_DEMO_PLATFORM === '1' ? require('./demoStubs') as typeof import('./demoStubs') : null;
 
 // Drafts on the phone (spec 5): replies fill three fixed slots from one numbered call,
 // then one retry per empty slot; polish runs the C2 rewrite through the local model.
@@ -110,6 +113,9 @@ function failure(error: unknown): Error {
 export const phoneWriter = {
   async write(request: DraftRequest, on: WriterEvents = {}): Promise<Choice> {
     if (process.env.EXPO_PUBLIC_E2E_STUB === '1') {
+      // Grow-mode captures on the demo fixture get their own fixed drafts, keyed to the fixture post.
+      const demo = !request.typed.trim() ? demoStubs?.demoDrafts(request.conversation) : null;
+      if (demo) { demo.forEach((text, slot) => on.landed?.(text, slot)); return { drafts: demo }; }
       // A typed 'Quick update' comes back as it was, through the real acceptor: the already-minimal case.
       if (request.typed.startsWith('Quick update')) {
         const acceptor = await polishAcceptor(request.typed, request.dashes ?? 'remove', request.avoid ?? []);
