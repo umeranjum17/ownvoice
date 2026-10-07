@@ -1,5 +1,8 @@
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 import { words } from '../core/words';
+// Demo fixture drafts live in their own module so normal bundles carry none of them: the
+// constant-false branch drops the require (as app/agent.tsx drops the lab screen).
+const demoStubs = process.env.EXPO_PUBLIC_DEMO_PLATFORM === '1' ? require('./demoStubs') as typeof import('./demoStubs') : null;
 
 // Fixed drafts with delays, for Panel tests and the emulator screenshot build (spec section 6:
 // "stub writer for fixed texts"). Never wired into the app's default writer; it never talks to a model.
@@ -24,6 +27,13 @@ export type StubOptions = { delay?: number; download?: boolean; fail?: boolean; 
  *  number-check meaning line can fire (a version drops the list and its numbers). */
 export const stubWriter = (options: StubOptions = {}): Writer => ({
   async write(request: DraftRequest, on: WriterEvents = {}): Promise<Choice> {
+    // Grow-mode captures on the demo fixture get their own fixed drafts, keyed to the fixture post.
+    const demo = demoStubs?.demoDrafts(request.conversation);
+    if (demo && !request.typed.trim() && !options.drafts) {
+      await wait(options.delay ?? 200);
+      demo.forEach((text, slot) => on.landed?.(text, slot));
+      return { drafts: demo };
+    }
     if (options.fail) { await wait(options.delay ?? 200); throw new Error(words.unsupported); }
     if (options.download) {
       on.state?.('downloading');

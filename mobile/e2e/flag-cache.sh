@@ -14,6 +14,8 @@ MARK='bring the stove' # fixed stub draft: stubWriter.ts always bundles one copy
 count() { grep -o "$MARK" "$1"/_expo/static/js/android/*.js | wc -l; }
 LAB_MARK='phone-agent-lab' # src/agent/Screen.tsx's testID: only a lab bundle carries the screen
 lab() { grep -o "$LAB_MARK" "$1"/_expo/static/js/android/*.js | wc -l; }
+DEMO_MARK='demo_maker_example' # demoStubs.ts fixture handle: only a demo-flagged bundle carries the demo drafts
+demo() { grep -o "$DEMO_MARK" "$1"/_expo/static/js/android/*.js | wc -l; }
 
 LAB=.lab-flag-cache
 export HOME="$PWD/$LAB/home" npm_config_cache="$PWD/$LAB/home/npm" EXPO_NO_TELEMETRY=1
@@ -33,6 +35,7 @@ export_dir clean "" --clear
 CLEAN=$(count "$LAB/clean")
 [ "$CLEAN" -ge 1 ] || fail "marker '$MARK' absent even from a clean export; the check is blind"
 [ "$(lab "$LAB/clean")" -eq 0 ] || fail "a normal export carries the phone-agent lab screen"
+[ "$(demo "$LAB/clean")" -eq 0 ] || fail "a normal export carries the grow-demo drafts"
 
 export_dir agent EXPO_PUBLIC_PHONE_AGENT=1 --clear
 [ "$(lab "$LAB/agent")" -ge 1 ] || fail "marker '$LAB_MARK' absent from a lab export; the check is blind"
@@ -46,6 +49,11 @@ NOW=$(count "$LAB/plain")
 [ "$NOW" -eq "$CLEAN" ] || fail "normal export after a stub export has $NOW copies vs clean $CLEAN — stale flagged transform reused; is cacheVersion set in metro.config.js?"
 
 # Mutation check: prove the regression has teeth by removing the fix.
+# Demo-flagged exports carry the fixture drafts; a normal export right after must not reuse them.
+export_dir demo "EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_DEMO_PLATFORM=1" --clear
+[ "$(demo "$LAB/demo")" -ge 1 ] || fail "marker '$DEMO_MARK' absent from a demo export; the check is blind"
+export_dir after-demo "" # no --clear: must not reuse the demo export's transforms
+[ "$(demo "$LAB/after-demo")" -eq 0 ] || fail "normal export after a demo export carries the demo drafts — stale flagged transform reused; is EXPO_PUBLIC_DEMO_PLATFORM in metro.config.js cacheVersion?"
 sed '/config.cacheVersion/d' metro.config.js >"$LAB/mutated.js" && mv "$LAB/mutated.js" metro.config.js
 export_dir mutated-stub EXPO_PUBLIC_E2E_STUB=1 --clear
 export_dir mutated-plain ""
