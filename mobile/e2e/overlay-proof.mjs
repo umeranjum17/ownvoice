@@ -25,14 +25,14 @@ const toggleTyping = async () => {
 };
 mkdirSync(out, { recursive: true });
 const results = [];
-const page = createServer((req, res) => { res.setHeader('Content-Type', 'text/html'); res.end(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;padding:24px}textarea,input{display:block;width:90%;margin:24px 0;padding:12px;font:18px sans-serif}</style><h1>${req.url === '/x' ? 'Home' : 'Typing proof'}</h1>${req.url === '/x' ? '<p>Umer · Posting as Umer</p>' : ''}<textarea aria-label="${req.url === '/x' ? 'What is happening' : 'Typing proof'}" rows="3"></textarea>${req.url === '/x' ? '<p>Post</p>' : '<input type="password" aria-label="Password proof">'}`); });
+const page = createServer((req, res) => { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;padding:24px}textarea,input{display:block;width:90%;margin:24px 0;padding:12px;font:18px sans-serif}</style><h1>${req.url === '/x' ? 'Home' : 'Typing proof'}</h1>${req.url === '/x' ? '<p>Umer · Posting as Umer</p>' : ''}<textarea aria-label="${req.url === '/x' ? 'What is happening' : 'Typing proof'}" rows="3"></textarea>${req.url === '/x' ? '<p>Post</p>' : '<input type="password" aria-label="Password proof">'}`); });
 await new Promise(r => page.listen(0, '127.0.0.1', r));
 const port = page.address().port;
 adb('reverse', `tcp:${port}`, `tcp:${port}`);
 const openChrome = async () => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${port}`); await wait(2500); };
 // Narrow spelling journey: opt-in/setup must already be complete, as for this driver.
 async function typingFixProof() {
-  const checks = [], timings = [];
+  const checks = [], timings = [], insertions = [];
   const verify = (name, ok, detail = '') => {
     checks.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name} ${detail}`);
     if (!ok) throw new Error(`${name}: ${detail}`);
@@ -56,11 +56,24 @@ async function typingFixProof() {
     verify('Fix present', nodes().some(n => n.clickable && (n.text === 'Fix' || n.label === 'Fix')));
   };
   const fix = async expected => {
-    nodes('Fix'); await wait(3000); // native insert closes the panel and verifies the field
+    nodes('Fix'); await wait(8000); // let native confirmation and clipboard previews settle
     verify('Fix changes only the chosen word', read() === expected, JSON.stringify(read()));
+    const log = adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:I');
+    insertions.push([...log.matchAll(/insert result ok=(true|false)/g)].at(-1)?.[1] === 'true');
+    writeFileSync(resolve(out, 'insert-logcat.txt'), log);
   };
   const open = async path => {
-    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${port}${path}`); await wait(2500);
+    const navigate = () => adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${port}${path}`);
+    navigate(); await wait(2500);
+    let privacyNotice = false;
+    for (let i = 0; i < 6 && !field(); i++) {
+      const list = nodes();
+      privacyNotice ||= list.some(n => /Enhanced ad privacy in Chrome/.test(`${n.label} ${n.text}`));
+      const button = privacyNotice && list.find(n => n.clickable && /^(More|Got it)$/.test(n.text));
+      if (button) { nodes(button.text); await wait(500); }
+      else await wait(1000);
+    }
+    if (privacyNotice) { navigate(); await wait(2000); }
   };
   const recordStop = async recording => {
     const pid = adb('shell', 'pidof', 'screenrecord').trim();
@@ -120,6 +133,7 @@ async function typingFixProof() {
       await fill('I shoud finish the report by tonight'); await showPanel(); snap('font13-before-fix');
       await fix('I should finish the report by tonight'); expectBadge(0); snap('font13-after-fix');
     }
+    verify('native confirms every Fix (not clipboard fallback)', insertions.length > 0 && insertions.every(Boolean), JSON.stringify(insertions));
   } catch (error) {
     writeFileSync(resolve(out, 'failure-logcat.txt'), adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:D', 'AndroidRuntime:E', 'ReactNativeJS:V'));
     writeFileSync(resolve(out, 'failure-accessibility.txt'), adb('shell', 'dumpsys', 'accessibility'));
