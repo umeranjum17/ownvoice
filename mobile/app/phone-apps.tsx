@@ -54,7 +54,7 @@ export default function PhoneApps() {
     }).catch(() => setSaveFailed(true));
   };
 
-  return <Page title={words.phoneOnlyApps} note={words.phoneOnlyNote} onBack={() => router.back()}>
+  return <Page title={words.phoneOnlyApps} note={words.phoneOnlyNote} stickyTop onBack={() => router.back()}>
     {saveFailed && <Text style={[type.body, { color: t.text }]}>{words.gptAppsSaveFailed}</Text>}
     {failed && <Empty mood="check" text={words.gptAppsUnavailable}><Button kind="filled" label={words.tryAgain} onPress={load} /></Empty>}
     {!!apps?.length && <View style={{ borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden', paddingVertical: space.xs }}>

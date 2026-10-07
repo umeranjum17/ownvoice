@@ -101,10 +101,11 @@ const homeCopy = async () => {
   return screen;
 };
 
-test('Home places its title beneath the status bar inset', async () => {
+test('Home keeps its top inset fixed so scrolled content never slides under the status bar', async () => {
   const screen = await render(<SafeAreaInsetsContext.Provider value={{ top: 32, bottom: 0, left: 0, right: 0 }}><Home /></SafeAreaInsetsContext.Provider>);
-  const page = screen.toJSON() as unknown as { props: { contentContainerStyle: unknown } };
-  expect(page.props.contentContainerStyle).toEqual(expect.arrayContaining([expect.objectContaining({ paddingTop: 32 + space.xl })]));
+  const page = screen.toJSON() as unknown as { props: { style: unknown } };
+  expect(page.props.style).toEqual(expect.objectContaining({ paddingTop: 32 + space.xl }));
+  expect(JSON.stringify(screen.toJSON()).split('paddingTop')).toHaveLength(2);
 }, 10_000);
 
 test('Your voice keeps its top inset fixed so scrolled content never slides under the status bar', async () => {

@@ -161,7 +161,7 @@ export default function Home() {
   const shown = (apps ?? []).filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={[styles.page, { paddingTop: inset + space.xl }]}>
+  return <View style={{ flex: 1, backgroundColor: t.sheet, paddingTop: inset + space.xl }}><ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={styles.page}>
     <Text accessibilityRole="header" style={[type.display, { color: t.text }]}>{words.homeTitle}</Text>
     <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{viaPhone ? words.homePhone : viaGpt ? words.homeGpt : words.welcomeNote}</Text>
 
@@ -218,7 +218,7 @@ export default function Home() {
     {process.env.EXPO_PUBLIC_PHONE_AGENT === '1' && <View style={group}>
       <Row lead={icon(ChatIcon)} title={words.agentRow} onPress={() => router.push('/agent')} />
     </View>}
-  </ScrollView>;
+  </ScrollView></View>;
 }
 
 const styles = StyleSheet.create({

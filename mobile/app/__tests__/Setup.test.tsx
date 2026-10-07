@@ -231,6 +231,7 @@ test('permissionExplainsAndOpensTheSwitch', async () => {
   expect(screen.getByText(words.promiseSend)).toBeTruthy();
   expect(screen.getByText(words.switchRowAction, { includeHiddenElements: true })).toBeTruthy();
   expect(screen.getByText(words.stepApp)).toBeTruthy();
+  expect(screen.getByText(/Downloaded apps/)).toBeTruthy();
   expect(screen.getByText(words.stepSwitch)).toBeTruthy();
   expect(screen.getByText(words.stepAllow)).toBeTruthy();
   expect(screen.getByText(words.fullControl)).toBeTruthy();

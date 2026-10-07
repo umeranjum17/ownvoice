@@ -478,8 +478,8 @@ function Screen({ step, footer, children }: { step: Step; footer: ReactNode; chi
   const t = useTheme();
   const { top, bottom } = useSafeAreaInsets();
   const at = STEPPED.indexOf(step);
-  return <View style={{ flex: 1, backgroundColor: t.sheet }}>
-    <ScrollView contentContainerStyle={[styles.page, { paddingTop: top + space.l }]} keyboardShouldPersistTaps="always">
+  return <View style={{ flex: 1, backgroundColor: t.sheet, paddingTop: top + space.l }}>
+    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="always">
       <View testID="setup-steps" style={styles.steps} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: STEPPED.length, now: at + 1 }}>
         {STEPPED.map((s, i) => <View key={s} style={[styles.stepBar, { backgroundColor: i <= at ? t.primary : t.yours }]} />)}
       </View>

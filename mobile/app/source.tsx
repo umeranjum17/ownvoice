@@ -191,7 +191,7 @@ export default function SourceScreen() {
   ];
 
   return <View style={{ flex: 1 }}>
-    <Page title={words.rowSource} note={words.sourceNote} onBack={() => router.back()}>
+    <Page title={words.rowSource} note={words.sourceNote} stickyTop onBack={() => router.back()}>
       {source !== undefined && phone !== null && <View style={styles.options} accessibilityRole="radiogroup">
         {phone === 'cant'
           ? <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable
