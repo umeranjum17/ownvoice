@@ -12,7 +12,7 @@ import Native from '../../../modules/ownvoice-native';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(async () => ({ ok: true, newlinesLost: false })), copy: jest.fn(),
-  closePanel: jest.fn(), typingCheck: jest.fn(),
+  closePanel: jest.fn(), typingCheck: jest.fn(), showSlips: jest.fn(async () => {}),
 } }));
 jest.mock('../../core/speller', () => ({
   speller: async () => {
@@ -51,6 +51,10 @@ test('each slip gets its own Fix, which inserts their text with only that slip f
   expect(native.insert).not.toHaveBeenCalled();
   fireEvent.press(fixes[1]);
   await waitFor(() => expect(native.insert).toHaveBeenCalledWith('Its a good plan, I should be there by the the evening.'));
+  // The landed Fix refreshes the list and the bubble's count to what is left.
+  await waitFor(() => expect(native.showSlips).toHaveBeenCalled());
+  expect(native.showSlips).toHaveBeenLastCalledWith('com.whatsapp', 2, `2 ${words.slipMany}`, 0);
+  await waitFor(() => expect(screen.getAllByRole('button', { name: words.fix })).toHaveLength(2));
 });
 
 test('the slips speak plainly', async () => {
@@ -92,11 +96,19 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
     <Panel writer={selected} />
   </SafeAreaProvider>;
   const screen = await render(view(writer));
-  const checkOriginal = async () => {
+  // After a Fix the evidence follows the fixed text: no slips row, no list and no
+  // Fix button until the check runs again. Untouched evidence survives a refresh.
+  const checkOriginal = async (fixed = false) => {
     await fireEvent.press(screen.getAllByRole('button', { name: words.why })[0]);
     await screen.findByText('Names the stove');
-    expect(screen.getByText('There are possible slips to review.')).toBeTruthy();
+    if (fixed) expect(screen.queryByText('There are possible slips to review.')).toBeNull();
+    else expect(screen.getByText('There are possible slips to review.')).toBeTruthy();
     await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+    if (fixed) {
+      expect(screen.queryByText(words.slipsTitle)).toBeNull();
+      expect(screen.queryByRole('button', { name: words.fix })).toBeNull();
+      return;
+    }
     expect(screen.getByText(words.slipsTitle)).toBeTruthy();
     expect(screen.getByText('Check the wording')).toBeTruthy();
     expect(screen.queryByText('Sounds natural', { exact: false })).toBeNull();
@@ -112,7 +124,7 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
   native.typingCheck.mockImplementationOnce(() => new Promise(resolve => { finishRefresh = resolve; }));
   await fireEvent.press(screen.getByRole('button', { name: words.writeNew }));
   await screen.findByRole('button', { name: words.tryAgain });
-  await checkOriginal();
+  await checkOriginal(true);
   await fireEvent.press(screen.getByRole('button', { name: words.tryAgain }));
   await screen.findByRole('button', { name: words.writeNew });
   await checkOriginal();

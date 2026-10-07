@@ -5,6 +5,7 @@ import { askLocal } from '../core/localModel';
 import * as Judge from '../core/judge';
 import * as Typing from '../core/typing';
 import { speller } from '../core/speller';
+import { slipsLabel } from '../core/typingCheck';
 import { dashesFor } from '../core/drafts';
 import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
 import { prefillFor, prefillUrl } from '../core/prefill';
@@ -361,15 +362,45 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   });
 
   // Puts [text] in their message box, only on their tap, through the same way as a draft.
-  const put = (text: string) => {
-    if (inserting.current) return;
+  const put = (text: string): Promise<boolean> => {
+    if (inserting.current) return Promise.resolve(false);
     inserting.current = true;
     setInsertBusy(true);
-    void Native.serviceState().then(state => {
-      if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return; }
-      return Native.insert(text);
-    }).catch(() => { setNote(words.serviceOff); setPhase('failed'); })
+    return Native.serviceState().then(async state => {
+      if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return false; }
+      const done = await Native.insert(text);
+      // Success unless the service says otherwise; a missing verdict keeps the old behaviour.
+      return done == null || done.ok !== false;
+    }).catch(() => { setNote(words.serviceOff); setPhase('failed'); return false; })
       .finally(() => { inserting.current = false; setInsertBusy(false); });
+  };
+
+  // A Check-these Fix that landed drops only that slip everywhere the count shows:
+  // the list shrinks and the bubble's badge follows what is left. Texts stay as the
+  // tap read them, so a later refresh still matches what is on screen.
+  const fixSlip = (slip: Typing.Slip) => {
+    const before = yours?.text;
+    if (!before || spelling.text !== before) return;
+    const id = slip.start;
+    const text = Typing.fixed(before, slip);
+    const delta = text.length - before.length;
+    void put(text).then(ok => {
+      if (!ok) return;
+      setSpelling(prev => {
+        if (prev.text !== before) return prev;
+        const rest = prev.slips.filter(s => s.start !== id);
+        if (rest.length === prev.slips.length) return prev;
+        return { text: prev.text, slips: rest.map(s => (s.start > id ? { ...s, start: s.start + delta, end: s.end + delta } : s)) };
+      });
+      void (async () => {
+        try {
+          const spell = await speller().catch(() => null);
+          const n = Typing.count(text, spell, voice.current);
+          // checkMs 0 marks a fix refresh, not a typing pause, in the device log.
+          await Native.showSlips(capture?.app ?? '', n, slipsLabel(n), 0);
+        } catch {}
+      })();
+    });
   };
 
   // Why? starts with local evidence and unchecked rows; deeper results are cached by text for this run.
@@ -466,7 +497,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
               <Text style={[type.body, { color: t.text, fontWeight: '600' }]}>{slip.fix}</Text>
             </> : <Text style={[type.note, { color: t.muted }]}>{slip.fix === '' ? words.slipRepeat : words.slipUnknown}</Text>}
           </View>
-          {slip.fix !== undefined ? <Button kind="tonal" label={words.fix} disabled={!hasField || limited || insertBusy} onPress={() => put(Typing.fixed(yours.text, slip))} /> : null}
+          {slip.fix !== undefined ? <Button kind="tonal" label={words.fix} disabled={!hasField || limited || insertBusy} onPress={() => fixSlip(slip)} /> : null}
         </View>)}
       </Card>
     </View> : null}
@@ -503,10 +534,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitBarVisible(cardFit, card.ratings)} />
           {grow && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy || !editing.text.trim()} onPress={() => { void put(editing.text); }} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
           </View> : <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy} onPress={() => put(card.text)} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy} onPress={() => { void put(card.text); }} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />
