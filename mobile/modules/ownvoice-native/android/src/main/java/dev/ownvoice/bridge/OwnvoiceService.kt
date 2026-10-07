@@ -66,7 +66,7 @@ internal fun worthChecking(text: String): Boolean = text.trim().let { it.length 
 // Chromium caps a control's accessibility value at 10000 UTF-8 bytes. Selection may expose
 // truncation even when the last whole UTF-8 letter leaves the prefix just below that cap.
 internal fun typingTextLimited(app: String, text: String, selection: FieldSelection?): Boolean =
-  app == "com.android.chrome" && (text.toByteArray(Charsets.UTF_8).size == 10000 || (selection?.end ?: 0) > text.length)
+  app == "com.android.chrome" && (text.toByteArray(Charsets.UTF_8).size in 9997..10000 || (selection?.end ?: 0) > text.length)
 
 internal fun includePracticeText(practice: Boolean, action: Boolean, viewId: String?): Boolean =
   !practice || action || viewId?.startsWith("practice-line-") == true

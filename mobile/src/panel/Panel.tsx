@@ -502,10 +502,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitBarVisible(cardFit, card.ratings)} />
           {grow && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy || !editing.text.trim()} onPress={() => put(editing.text)} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
           </View> : <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || insertBusy} onPress={() => put(card.text)} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy} onPress={() => put(card.text)} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />
