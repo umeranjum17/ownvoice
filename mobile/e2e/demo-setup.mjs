@@ -54,7 +54,7 @@ for (let i = 0; i < 30; i++) {
   try {
     adb('shell', 'ping', '-c1', '-W2', '10.0.2.2');
     break;
-  } catch {}
+  } catch (error) { console.warn(`Loopback not ready: ${error.message}`); }
   await wait(5000);
 }
 await wait(30000);
@@ -124,7 +124,7 @@ try {
     try {
       const lines = adb('logcat', '-d', `${tag}`, '*:S').split('\n').filter(l => l.includes('ownvoice') || l.includes('Error') || l.includes('error')).slice(-8);
       console.log(`${tag}: ${lines.join(' | ')}`);
-    } catch {}
+    } catch (error) { console.warn(`Could not read ${tag}: ${error.message}`); }
   }
   throw e;
 }
@@ -147,4 +147,4 @@ await waitLabel(/where should i help|the bubble shows only/i, 30);
 await tapLabel(/done/i);
 await waitLabel(/where the bubble shows/i, 30);
 console.log('Demo setup done: ChatGPT chosen and connected, service bound, home reached.');
-} finally { await mock.close?.().catch(() => {}); }
+} finally { await mock.close?.(); }
