@@ -369,35 +369,32 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     return Native.serviceState().then(async state => {
       if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return false; }
       const done = await Native.insert(text);
-      // Success unless the service says otherwise; a missing verdict keeps the old behaviour.
-      return done == null || done.ok !== false;
+      return done?.ok === true;
     }).catch(() => { setNote(words.serviceOff); setPhase('failed'); return false; })
       .finally(() => { inserting.current = false; setInsertBusy(false); });
   };
 
-  // A Check-these Fix that landed drops only that slip everywhere the count shows:
-  // the list shrinks and the bubble's badge follows what is left. Texts stay as the
-  // tap read them, so a later refresh still matches what is on screen.
+  // Only a verified insert advances the text and offsets used by the next Fix.
   const fixSlip = (slip: Typing.Slip) => {
     const before = yours?.text;
     if (!before || spelling.text !== before) return;
-    const id = slip.start;
+    const id = run.current;
     const text = Typing.fixed(before, slip);
     const delta = text.length - before.length;
     void put(text).then(ok => {
-      if (!ok) return;
-      setSpelling(prev => {
-        if (prev.text !== before) return prev;
-        const rest = prev.slips.filter(s => s.start !== id);
-        if (rest.length === prev.slips.length) return prev;
-        return { text: prev.text, slips: rest.map(s => (s.start > id ? { ...s, start: s.start + delta, end: s.end + delta } : s)) };
+      if (!ok || run.current !== id) return;
+      setYours(prev => prev?.text === before ? { ...prev, text } : prev);
+      setSpelling(prev => prev.text !== before ? prev : {
+        text,
+        slips: prev.slips.filter(s => s.start !== slip.start).map(s => s.start > slip.start
+          ? { ...s, start: s.start + delta, end: s.end + delta } : s),
       });
       void (async () => {
         try {
           const spell = await speller().catch(() => null);
           const n = Typing.count(text, spell, voice.current);
           // checkMs 0 marks a fix refresh, not a typing pause, in the device log.
-          await Native.showSlips(capture?.app ?? '', n, slipsLabel(n), 0);
+          if (run.current === id) await Native.showSlips(capture?.app ?? '', n, slipsLabel(n), 0);
         } catch {}
       })();
     });

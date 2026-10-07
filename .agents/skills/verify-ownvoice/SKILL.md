@@ -34,7 +34,7 @@ Android: `adb devices` shows only emulators you own; drivers themselves refuse n
 
 ## Drive
 
-Host: one JSON request on stdin, one response on stdout — see [features/engine-protocol.md](features/engine-protocol.md) for exact requests. Android: run the documented driver for the feature — see the other files in [features/](features/). Reuse these instruments; do not write a new harness when one exists.
+Host: one JSON request on stdin, one response on stdout — see [features/engine-protocol.md](features/engine-protocol.md) for exact requests. Android: run the documented driver for the feature — see the other files in [features/](features/), including [typing checks](features/typing-check.md) for the overlay journey's spelling/Fix mode and its driver-owned captures. Reuse these instruments; do not write a new harness when one exists.
 
 ## Review evidence (fleet standard)
 
