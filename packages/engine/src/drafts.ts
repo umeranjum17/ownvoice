@@ -220,7 +220,7 @@ export type ReplyInput = { latest: string; conversation: string; point?: string;
 const inputBlock = ({ latest, conversation, point }: { latest: string; conversation: string; point?: string }) =>
   `${latest ? `Latest message:\n${latest}\n\n` : ''}Conversation:\n${conversation.slice(-3000)}${point ? `\n\nTheir reply so far:\n${point}` : ''}`;
 
-const pointLine = (point?: string) => point ? 'Keep the main point and wording of their reply so far (below).' : '';
+const pointLine = (point?: string) => point ? 'Keep the main point of their reply so far (below); never send it back unchanged.' : '';
 
 const dashLine = (dashes: 'keep' | 'remove') => dashes === 'keep' ? 'their dashes: keep' : 'their dashes: remove';
 
@@ -299,18 +299,26 @@ export function stripControlLines(text: string, controls: string[]): string {
   return text.split(/\r?\n/).filter(line => !labels.has(line.trim())).join('\n').trim();
 }
 
-export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = []): (string | null)[] {
+/** An echo only re-capitalises or re-punctuates the user's line, so it is never a draft. */
+export const echoKey = (text: string) =>
+  text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+
+export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = [], point = ''): (string | null)[] {
   const accepted: (string | null)[] = Array(count).fill(null);
   // A card that still uses a never-say phrase is dropped, so the caller's existing per-slot retry
   // asks once more; a second break stays empty (the bottom-level check remains the backstop).
   const banned = never.map(p => p.trim()).filter(Boolean);
   const breaks = (text: string) => banned.some(p => matcher(p).test(text));
+  // A card that only echoes their line (Main765: 'shipping offline notes' came back as
+  // 'Shipping offline notes') is dropped the same way, so the same retry re-asks once.
+  const echo = echoKey(point);
+  const echoes = (text: string) => echo.length > 0 && echoKey(text) === echo;
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
     const clean = stripControlLines(text, controls);
     const draft = dashes === 'remove' ? undash(clean) : clean;
-    if (!draft || breaks(draft)) return;
+    if (!draft || breaks(draft) || echoes(draft)) return;
     if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
   };
   for (const candidate of candidates) {

@@ -118,7 +118,7 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
   const never = request.never ?? [];
   const made: (string | null)[] = [null, null, null];
   const take = (raw: string[]) => {
-    acceptReplies(raw, request.avoid ?? [], 3, dashes, controls, never).forEach((text, slot) => {
+    acceptReplies(raw, request.avoid ?? [], 3, dashes, controls, never, input.point ?? '').forEach((text, slot) => {
       if (!text || made[slot]) return;
       made[slot] = text;
       exclude.push(text);
@@ -139,7 +139,7 @@ async function replies(request: DraftRequest, on: WriterEvents): Promise<string[
   for (let slot = 0; slot < slots.length; slot++) {
     if (made[slot]) continue;
     try {
-      const [draft] = acceptReplies(await ask(replySlotPrompt(slots[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes, controls, never);
+      const [draft] = acceptReplies(await ask(replySlotPrompt(slots[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes, controls, never, input.point ?? '');
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; }
   }
