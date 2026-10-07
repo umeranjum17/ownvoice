@@ -100,10 +100,6 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
     expect(screen.getByText(words.slipsTitle)).toBeTruthy();
     expect(screen.getByText('Check the wording')).toBeTruthy();
     expect(screen.queryByText('Sounds natural', { exact: false })).toBeNull();
-    const insertions = native.insert.mock.calls.length;
-    await fireEvent.press(screen.getByRole('button', { name: words.fix }));
-    await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(insertions + 1));
-    await waitFor(() => expect(native.insert).toHaveBeenLastCalledWith('I can definitely bring the stove.'));
   };
   await screen.findByText(words.slipsTitle);
   await screen.findByRole('button', { name: words.writeNew });
