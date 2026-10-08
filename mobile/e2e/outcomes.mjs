@@ -102,8 +102,8 @@ export async function proveOutcomes({ adb, nodes, bubble, wait, evidence, theme,
   assert.ok(nodes().some(n => n.text?.includes(onText)), 'Saved reply can be read through the app');
   database("CREATE TRIGGER deny_reply_record BEFORE INSERT ON storage WHEN NEW.key='reply-outcomes' BEGIN SELECT RAISE(ABORT, 'Phone storage refused this reply record'); END;");
   await rebind(); await fixture(); await insert();
-  assert.ok(nodes().some(n => `${n.text} ${n.label}`.includes('Storage refused the save.')), 'The saving failure must show its readable cause');
-  shot('record-write-refused');
+  const deadline = Date.now() + 4000; let refused = false; do { refused = nodes().some(n => `${n.text} ${n.label}`.includes('Storage refused the save.')); if (refused) { shot('record-write-refused'); break; } await wait(100); } while (Date.now() < deadline);
+  assert.ok(refused, 'The saving failure must show its readable cause within four seconds');
   saved = database(); assert.deepEqual(JSON.parse(saved['reply-outcomes']), rows);
   database('DROP TRIGGER deny_reply_record;');
   await rebind(); await open('reads'); changeRetention(); await wait(1000);
