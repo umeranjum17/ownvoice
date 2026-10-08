@@ -1,18 +1,15 @@
 # Fit calibration
 
-G9 reads local reply check-ins through the developer CLI. It compares shown fit groups without sending data or claiming Ownvoice caused growth. This is an explicitly approved calibration-only slice: the account-analytics export is not verified for his plan (official X help does not document it), so there is no CSV import or changed app screen.
+Host verification recipe for the developer-only G9 CLI. The authoritative [calibration contract and approved scope](../../../../mobile/eval/README.md#fit-calibration-g9-local-only) cover eligibility, verdicts and why weekly numbers stay manual.
 
 ## Sub-features
 
-- Strong/Good versus Might/Skipped, using the app's actual level strings and Outcome type.
-- At least 15 eligible check-ins in each group; smaller groups never pass.
-- Strictly higher replies-or-likes rate passes; ties and reversed rates fail.
-- Not-posted, absent check-ins and unrated/unsure records do not count.
-- Bad JSON, malformed rows and duplicate insertions fail visibly; input stays unchanged.
+- Seeded verdicts and eligibility exclusions against the linked calibration contract.
+- Invalid-input diagnostics and byte-for-byte input preservation.
 
 ## How to get to it (user POV)
 
-A developer runs `node mobile/eval/fit-calibration.ts <reply-outcomes.json>` on the JSON array stored at `reply-outcomes`. It prints the verdict, both groups' counts and exclusions. This is not an app feature; weekly numbers stay manual because the account-analytics export is not verified for his plan.
+Use the developer command and input format in the linked calibration contract; there is no changed app screen.
 
 ## Driving it with the host CLI
 
@@ -20,8 +17,8 @@ Preconditions: Node with native TypeScript stripping (the writer eval uses the s
 
 Run `node mobile/eval/fit-calibration.integration.ts` from the repo root. It creates seeded outcome files with synthetic Umer insertion ids and drives the actual CLI as a subprocess, checks pass/fail/not-enough outputs and exit codes, unequal denominators, exclusions, bad input and byte-for-byte preservation. It removes its temporary files. Save command, stdout, stderr and exit code under `verify-artifacts/<task>/fit-calibration/`.
 
-To drive a specific seeded file, run `node mobile/eval/fit-calibration.ts <file>`. Exit codes are 0 pass, 1 fail, 2 not enough yet, 3 invalid input. Capture all three verdicts; none is interchangeable with a pass. The integration runner's successful exit means the CLI contract held, not that real personal outcomes passed G9.
+To drive a specific seeded file, run `node mobile/eval/fit-calibration.ts <file>` from the repo root. Capture all three verdicts and compare exit codes against the linked contract. The integration runner's successful exit means the CLI contract held, not that real personal outcomes passed G9.
 
 ## Gotchas
 
-No check-in is inferred from daily account analytics or text. A pass measures association on these check-ins only; selection bias remains. Reply text is optional and unnecessary. Public account-analytics examples have daily New follows/Unfollows but no follower total, so they cannot fill the weekly follower count without a baseline. Separately, account totals are never used as per-reply check-ins for G9. This host proof does not verify Android check-in UI or SQLite persistence (see Local reply outcomes).
+The seeded host proof does not establish personal calibration or verify Android check-in UI or SQLite persistence (see [Local reply outcomes](./reply-outcomes.md)). For interpretation limits and the account-analytics distinction, use the linked calibration contract.

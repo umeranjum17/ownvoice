@@ -4,7 +4,7 @@ The maintained source for verifying user-facing behavior. Read this index, then 
 
 ## Baseline preconditions
 
-- Host runs need only Node 18+ and a built `packages/engine/dist` (see the skill's Launch).
+- Host engine protocol runs need only Node 18+ and a built `packages/engine/dist` (see the skill's Launch). Other host recipes specify their own runtime preconditions.
 - Android runs additionally need an explicit device allocation, a throwaway emulator (`emulator-NNNN`), `JAVA_HOME`, an Android SDK, and `adb`, `zip`, `tesseract`, `magick` on `PATH`.
 - Never drive the BYOKit-owned test phone, a personal app, or an emulator without a current explicit allocation. For a shared allocated serial, use the allocation's device lock and leave emulator lifetime with its owner.
 
@@ -27,7 +27,7 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert.
 - [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
 - [Local reply outcomes](./reply-outcomes.md) — Android: insert → real local store → read-back, text opt-in and failed append.
-- [Fit calibration](./fit-calibration.md) — host: seeded local outcome files → G9 pass, fail or not enough yet; approved calibration-only slice, account-analytics export not verified for his plan, weekly numbers stay manual.
+- [Fit calibration](./fit-calibration.md) — host: seeded local outcome files → G9 verdicts; [scope and input contract](../../../../mobile/eval/README.md#fit-calibration-g9-local-only).
 - [Own posts](./own-posts.md) — Android: a blank feed composer asks for the one line, then drafts from it; edit one and insert it.
 - [Typing checks](./typing-checks.md) — Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery.
 

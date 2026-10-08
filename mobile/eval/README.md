@@ -42,10 +42,13 @@ node fit-calibration.ts <reply-outcomes.json>
 node fit-calibration.integration.ts
 ```
 
+Run from this directory with Node's native TypeScript stripping and installed
+mobile dependencies; no model endpoint, sign-in or emulator is needed.
 Use the JSON array saved under `reply-outcomes`, with the real `Outcome`
 shape from `src/core/store.ts`. `checkin` is `replies`, `likes`, `nothing` or
 `not-posted`; `checkinAt` is optional milliseconds since epoch. No text is
-needed. The CLI only reads the file and makes no network calls.
+needed. The CLI only reads the file and makes no network calls. Malformed
+JSON, invalid insertion metadata and duplicate insertion IDs are rejected.
 
 Strong/Good and Might/Skipped use the level strings from `src/grow/fit.ts`.
 Only checked-in, posted replies with one of those four levels count; unrated,
@@ -55,7 +58,9 @@ at least 15 eligible check-ins. Pass requires a strictly higher fraction of
 and excluded rows. Exit codes: pass 0, fail 1, **not enough yet 2**, invalid
 input 3 (with the actual cause on stderr). Neither an insufficient sample nor
 invalid input can pass. This is a personal association, not proof Ownvoice
-caused engagement. The integration command seeds files in TMPDIR and drives
+caused engagement. Selection bias remains: mostly inserting top cards makes
+the lower group fill slowly; rated inserts of the person's own draft also count.
+The integration command seeds files in TMPDIR and drives
 the real CLI, including unequal denominators, exclusions and malformed input.
 
 This is an explicitly approved calibration-only slice; no X import is built.
