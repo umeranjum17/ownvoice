@@ -67,6 +67,10 @@ export function EyeIcon({ size, color }: Props) {
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M2.5,12 C5,7 8.5,5 12,5 s7,2 9.5,7 c-2.5,5 -6,7 -9.5,7 s-7,-2 -9.5,-7z M9,12 a3,3 0 1 0 6,0 a3,3 0 1 0 -6,0" stroke={color} {...line} /></Svg>;
 }
 
+export function TrendIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M3.5,19.5 L9.5,13.5 L13,16.5 L20.5,8 M15.5,8 h5 v5" stroke={color} {...line} strokeWidth={2} /></Svg>;
+}
+
 export function PauseIcon({ size, color }: Props) {
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M9,6 v12 M15,6 v12" stroke={color} {...line} strokeWidth={2.2} /></Svg>;
 }

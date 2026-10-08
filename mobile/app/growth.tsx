@@ -23,17 +23,20 @@ const trendWord = (values: number[]): string => {
   return trend === 'up' ? words.growthUp : trend === 'same' ? words.growthSame : trend === 'down' ? words.growthDown : words.growthNew;
 };
 
-/** His own counts as plain bars, oldest first; heights only, never a digit. */
+/** His own counts as short bars scaled across this series' own low and high, so a rise or
+ *  fall shows; one count needs no chart, since its number is already above. */
 function Bars({ values }: { values: number[] }) {
   const t = useTheme();
-  if (!values.length) return null;
-  const max = Math.max(...values, 1);
+  if (values.length < 2) return null;
+  const low = Math.min(...values);
+  const range = Math.max(...values) - low || 1;
   return <View style={styles.bars}>
-    {values.map((value, i) => <View key={i} style={[styles.bar, { height: 8 + 56 * (value / max), backgroundColor: t.primary }]} />)}
+    {values.map((value, i) => <View key={i} style={[styles.bar, { height: 10 + 38 * ((value - low) / range), backgroundColor: t.primary }]} />)}
   </View>;
 }
 
-const weekday = (at: number) => new Date(at).toLocaleDateString([], { weekday: 'long' });
+const weekLabel = (indexFromLatest: number) =>
+  indexFromLatest === 0 ? words.weekThis : indexFromLatest === 1 ? words.weekLast : words.weekOlder;
 
 /** Your growth: his own typed counts as bars and plain trend words. Since he started, never a cause. */
 export default function Growth() {
@@ -63,8 +66,8 @@ export default function Growth() {
         <Bars values={ks} />
       </View>
     </View>}
-    {[...rows].reverse().map(row => <View key={row.at} style={[styles.group, { backgroundColor: t.group }]}>
-      <Text style={[type.label, { color: t.primary }]}>{weekday(row.at)}</Text>
+    {[...rows].reverse().map((row, i) => <View key={`${row.at}-${i}`} style={[styles.group, { backgroundColor: t.group }]}>
+      <Text style={[type.label, { color: t.primary }]}>{weekLabel(i)}</Text>
       {row.x.trim() ? <Text style={[type.body, { color: t.text }]}>{`${words.weeklyX}: ${row.x.trim()}`}</Text> : null}
       {row.reddit.trim() ? <Text style={[type.body, { color: t.text }]}>{`${words.weeklyReddit}: ${row.reddit.trim()}`}</Text> : null}
     </View>)}

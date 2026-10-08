@@ -59,6 +59,9 @@ const growthWords = {
   growthDown: 'Down since last week',
   growthNew: 'Not enough yet. Check back next week.',
   growthEmpty: 'Nothing here yet. Add your counts when the weekly card asks.',
+  weekThis: 'This week',
+  weekLast: 'Last week',
+  weekOlder: 'An earlier week',
 } as const;
 
 // Home's readiness card: never "Ready to help" while it is still checking, or while an app the

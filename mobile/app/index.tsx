@@ -8,7 +8,7 @@ import { Progress } from '../src/ui/Progress';
 import { Button } from '../src/ui/Button';
 import { Badge } from '../src/ui/Badge';
 import { Dot } from '../src/ui/Dot';
-import { ChatIcon, CheckIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon, TrendIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
@@ -219,11 +219,15 @@ export default function Home() {
       <Text style={[type.label, { color: t.text }]}>
         {checkin.platformLabel ? `How did your reply ${words.checkinOn} ${checkin.platformLabel} do?` : words.checkinAsk}
       </Text>
-      <View style={styles.statusActions}>
-        <Button kind="text" label={words.checkinReplies} onPress={() => answer('replies')} />
-        <Button kind="text" label={words.checkinLikes} onPress={() => answer('likes')} />
-        <Button kind="text" label={words.checkinQuiet} onPress={() => answer('nothing')} />
-        <Button kind="text" label={words.checkinSkipped} onPress={() => answer('not-posted')} />
+      <View style={styles.answers}>
+        <View style={styles.answerCol}>
+          <Button kind="text" label={words.checkinReplies} onPress={() => answer('replies')} />
+          <Button kind="text" label={words.checkinQuiet} onPress={() => answer('nothing')} />
+        </View>
+        <View style={styles.answerCol}>
+          <Button kind="text" label={words.checkinLikes} onPress={() => answer('likes')} />
+          <Button kind="text" label={words.checkinSkipped} onPress={() => answer('not-posted')} />
+        </View>
       </View>
     </View>}
 
@@ -241,7 +245,7 @@ export default function Home() {
     </View>}
 
     {!weekly && hasCounts && <View style={group}>
-      <Row lead={icon(EyeIcon)} title={words.growthOpen} onPress={() => router.push('/growth')} />
+      <Row lead={icon(TrendIcon)} title={words.growthOpen} onPress={() => router.push('/growth')} />
       {countsSaved && <Text style={[type.note, { color: t.muted, paddingHorizontal: space.l, paddingBottom: space.s }]}>{words.weeklySaved}</Text>}
     </View>}
 
@@ -287,5 +291,7 @@ const styles = StyleSheet.create({
   tip: { flexDirection: 'row', alignItems: 'flex-start', gap: space.l, borderRadius: shape.group, borderWidth: 1, borderStyle: 'dashed', padding: space.l },
   statusActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.l },
   growth: { gap: space.s, borderRadius: shape.group, padding: space.l },
+  answers: { flexDirection: 'row', gap: space.m, marginTop: space.s },
+  answerCol: { flex: 1, gap: space.xs, alignItems: 'flex-start' },
   count: { borderWidth: 1, borderRadius: shape.card, paddingHorizontal: space.l, paddingVertical: space.m },
 });

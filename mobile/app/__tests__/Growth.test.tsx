@@ -121,7 +121,7 @@ test('the weekly card saves his own typed counts on this phone, and the growth s
   expect(growth.getByText('567')).toBeTruthy();
   expect(growth.getAllByText(words.growthNew)).toHaveLength(2);
   expect(growth.getByText(words.growthTitle)).toBeTruthy();
-  const staticWords = [words.growthTitle, words.growthNote, words.weeklyX, words.weeklyReddit, words.growthNew, words.growthEmpty];
+  const staticWords = [words.growthTitle, words.growthNote, words.weeklyX, words.weeklyReddit, words.growthNew, words.growthEmpty, words.weekThis, words.weekLast, words.weekOlder];
   expect(staticWords.filter(line => technicalWords.test(line) || /\d/.test(line))).toEqual([]);
   expect(fetchMock).not.toHaveBeenCalled();
 });
