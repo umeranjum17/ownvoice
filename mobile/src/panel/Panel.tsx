@@ -522,7 +522,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <Ratings ratings={yours.ratings} fit={yoursFit} hideEngagement={grow && fitBarVisible(yoursFit, yours.ratings)} />
         {grow ? <FitBar fit={yoursFit} ratings={yours.ratings} /> : null}
         <View style={styles.actions}>
-          {grow ? <Button kind="filled" label={words.useThis} disabled={!hasField || insertBusy} onPress={() => put(yours.text, -1, yoursFit, yours.ratings)} /> : null}
+          {grow ? <Button kind="filled" label={words.useThis} disabled={!hasField || limited || insertBusy} onPress={() => { void put(yours.text, -1, yoursFit, yours.ratings); }} /> : null}
           {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
           <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
         </View>
