@@ -249,7 +249,7 @@ test('fit levels use plain words', () => {
   assertPlain([...LEVELS, UNSURE, UNAVAILABLE]);
 });
 
-test('growthWords', () => { const keys = ['checkinAsk', 'checkinOn', 'checkinReplies', 'checkinLikes', 'checkinQuiet', 'checkinSkipped', 'weeklyTitle', 'weeklyNote', 'weeklyX', 'weeklyReddit', 'weeklySave', 'weeklySaved', 'growthOpen', 'growthTitle', 'growthNote', 'growthUp', 'growthSame', 'growthDown', 'growthNew', 'growthEmpty', 'weekThis', 'weekLast', 'weekOlder']; expect(keys.filter(k => !(k in words))).toEqual([]); const shown = keys.map(k => words[k as keyof typeof words]); assertPlain(shown); expect(shown.join(' ')).not.toMatch(/\d/); expect(shown.join(' ')).not.toMatch(/viral|will get|\bscore\b/i); });
+test('growthWords', () => { const keys = ['checkinAsk', 'checkinOn', 'checkinReplies', 'checkinLikes', 'checkinQuiet', 'checkinSkipped', 'weeklyTitle', 'weeklyNote', 'weeklyX', 'weeklyReddit', 'weeklySave', 'weeklySaved', 'growthOpen', 'growthTitle', 'growthNote', 'growthUp', 'growthSame', 'growthDown', 'growthNew', 'growthEmpty', 'weeklyReminder', 'countFormat', 'growthUpChecked', 'growthSameChecked', 'growthDownChecked']; expect(keys.filter(k => !(k in words))).toEqual([]); const shown = keys.map(k => words[k as keyof typeof words]); assertPlain(shown); expect(shown.join(' ')).not.toMatch(/\d/); expect(shown.join(' ')).not.toMatch(/viral|will get|\bscore\b/i); });
 
 test('his own counts are the only digits, and only on the growth screen', async () => {
   const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;

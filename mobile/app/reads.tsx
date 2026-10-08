@@ -13,7 +13,7 @@ import { plain, type Read } from '../src/core/privacy';
 import { readLog, syncReadLog, wipeReadLog } from '../src/core/readLog';
 import { wipeVoice } from '../src/core/voiceStore';
 import Native from '../modules/ownvoice-native';
-import { KEEP_REPLIES, OUTCOMES, store, outcomes, type Outcome } from '../src/core/store';
+import { GROWTH_COUNTS, KEEP_REPLIES, OUTCOMES, store, outcomes, type Outcome } from '../src/core/store';
 import { Switch } from '../src/ui/Switch';
 
 const dayOf = (time: number) => {
@@ -83,6 +83,7 @@ export default function Reads() {
       wipeVoice();
       store.set(OUTCOMES, null);
       store.set(KEEP_REPLIES, null);
+      store.set(GROWTH_COUNTS, null);
       setReplies([]); setKeep(false);
       setReads([]);
     } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }

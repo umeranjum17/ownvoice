@@ -61,7 +61,7 @@ export function answerOutcome(id: string, checkin: CheckinAnswer): void {
 
 /** The oldest unanswered insert old enough to ask about, or null when nothing is due. */
 export function pendingCheckin(now = Date.now()): Outcome | null {
-  const due = outcomes().filter(row => !row.checkin && now - row.at >= CHECKIN_MS);
+  const due = outcomes().filter(row => row.card === 'suggestion' && !row.checkin && now - row.at >= CHECKIN_MS);
   due.sort((a, b) => a.at - b.at);
   return due[0] ?? null;
 }
@@ -75,6 +75,11 @@ export function growthCounts(): GrowthCount[] {
 /** His own typed counts, kept on this phone. Blank lines are dropped, never sent. */
 export function saveGrowthCount(x: string, reddit: string, at = Date.now()): void {
   const entry = { at, x: x.trim(), reddit: reddit.trim() };
+  for (const [field, value] of [['x', entry.x], ['reddit', entry.reddit]]) {
+    if (value && (!/^-?\d+$/.test(value) || !Number.isSafeInteger(Number(value)) || field === 'x' && Number(value) < 0)) {
+      throw new Error('Enter whole numbers without commas or spaces.');
+    }
+  }
   if (!entry.x && !entry.reddit) return;
   store.set(GROWTH_COUNTS, [...growthCounts(), entry]);
 }

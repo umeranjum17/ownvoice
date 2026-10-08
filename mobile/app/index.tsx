@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Row } from '../src/ui/Row';
@@ -12,7 +12,7 @@ import { ChatIcon, CheckIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, 
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
-import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, saveGrowthCount, store, type CheckinAnswer, type Outcome } from '../src/core/store';
+import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, store, type CheckinAnswer, type Outcome } from '../src/core/store';
 import { getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
 import { NAME, session, type GptState } from '../src/chatgpt/session';
 import { say } from '@byokit/accounts';
@@ -63,9 +63,7 @@ export default function Home() {
   const [checkin, setCheckin] = useState<Outcome | null>(null);
   const [weekly, setWeekly] = useState(false);
   const [hasCounts, setHasCounts] = useState(false);
-  const [xCount, setXCount] = useState('');
-  const [karma, setKarma] = useState('');
-  const [countsSaved, setCountsSaved] = useState(false);
+  const [checkinFailed, setCheckinFailed] = useState(false);
   const busy = useRef(Promise.resolve());
   const readsBusy = useRef(Promise.resolve());
 
@@ -140,16 +138,11 @@ export default function Home() {
   // A check-in answer is saved onto its own outcome record, on this phone; the line then goes quiet.
   const answer = (result: CheckinAnswer) => {
     if (!checkin) return;
-    try { answerOutcome(checkin.id, result); } catch {}
-    try { setCheckin(pendingCheckin()); } catch {}
-  };
-  // His own typed counts stay on this phone; blanks never save.
-  const saveCounts = () => {
-    if (!xCount.trim() && !karma.trim()) return;
-    try { saveGrowthCount(xCount, karma); } catch {}
-    setXCount(''); setKarma('');
-    try { setWeekly(needsWeeklyCount()); setHasCounts(growthCounts().length > 0); } catch {}
-    setCountsSaved(true);
+    try { answerOutcome(checkin.id, result); }
+    catch { setCheckinFailed(true); return; }
+    setCheckinFailed(false);
+    setCheckin(null);
+    reload();
   };
 
   const paused = !!rules?.paused;
@@ -219,6 +212,7 @@ export default function Home() {
       <Text style={[type.label, { color: t.text }]}>
         {checkin.platformLabel ? `How did your reply ${words.checkinOn} ${checkin.platformLabel} do?` : words.checkinAsk}
       </Text>
+      {checkinFailed && <Text style={[type.note, { color: t.text }]}>{words.outcomeFailed}</Text>}
       <View style={styles.answers}>
         <View style={styles.answerCol}>
           <Button kind="text" label={words.checkinReplies} onPress={() => answer('replies')} />
@@ -233,20 +227,12 @@ export default function Home() {
 
     {weekly && <View style={[styles.growth, { backgroundColor: t.group }]}>
       <Text style={[type.label, { color: t.text }]}>{words.weeklyTitle}</Text>
-      <Text style={[type.note, { color: t.muted }]}>{words.weeklyNote}</Text>
-      <TextInput accessibilityLabel={words.weeklyX} placeholder={words.weeklyX} value={xCount} onChangeText={setXCount}
-        keyboardType="number-pad" style={[styles.count, { color: t.text, borderColor: t.line }]} />
-      <TextInput accessibilityLabel={words.weeklyReddit} placeholder={words.weeklyReddit} value={karma} onChangeText={setKarma}
-        keyboardType="number-pad" style={[styles.count, { color: t.text, borderColor: t.line }]} />
-      <View style={styles.statusActions}>
-        <Button kind="filled" label={words.weeklySave} onPress={saveCounts} />
-        {hasCounts && <Button kind="text" label={words.growthOpen} onPress={() => router.push('/growth')} />}
-      </View>
+      <Text style={[type.note, { color: t.muted }]}>{words.weeklyReminder}</Text>
+      <Button kind="text" label={words.growthOpen} onPress={() => router.push('/growth')} />
     </View>}
 
     {!weekly && hasCounts && <View style={group}>
       <Row lead={icon(TrendIcon)} title={words.growthOpen} onPress={() => router.push('/growth')} />
-      {countsSaved && <Text style={[type.note, { color: t.muted, paddingHorizontal: space.l, paddingBottom: space.s }]}>{words.weeklySaved}</Text>}
     </View>}
 
     <View style={group}>
@@ -293,5 +279,4 @@ const styles = StyleSheet.create({
   growth: { gap: space.s, borderRadius: shape.group, padding: space.l },
   answers: { flexDirection: 'row', gap: space.m, marginTop: space.s },
   answerCol: { flex: 1, gap: space.xs, alignItems: 'flex-start' },
-  count: { borderWidth: 1, borderRadius: shape.card, paddingHorizontal: space.l, paddingVertical: space.m },
 });
