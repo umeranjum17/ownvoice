@@ -13,6 +13,8 @@ import { plain, type Read } from '../src/core/privacy';
 import { readLog, syncReadLog, wipeReadLog } from '../src/core/readLog';
 import { wipeVoice } from '../src/core/voiceStore';
 import Native from '../modules/ownvoice-native';
+import { KEEP_REPLIES, OUTCOMES, store, outcomes, type Outcome } from '../src/core/store';
+import { Switch } from '../src/ui/Switch';
 
 const dayOf = (time: number) => {
   const at = new Date(time);
@@ -29,15 +31,31 @@ export default function Reads() {
   const t = useTheme();
   const [reads, setReads] = useState<Read[]>([]);
   const [icons, setIcons] = useState<Map<string, string | null>>(new Map());
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [replies, setReplies] = useState<Outcome[]>([]);
+  const [keep, setKeep] = useState(false);
+  const refreshReplies = () => {
+    setReplies(outcomes());
+    setKeep(store.get<boolean>(KEEP_REPLIES, true) === true);
+  };
+  const retention = () => {
+    try {
+      // Remove saved text before switching off; failure leaves the switch on, never a false promise.
+      if (keep) store.set(OUTCOMES, outcomes().map(({ text: _text, ...row }) => row));
+      store.set(KEEP_REPLIES, !keep);
+      refreshReplies();
+      setError(null);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
+  };
   const [asking, setAsking] = useState(false);
   const pending = useRef<Promise<void>>(Promise.resolve());
   const wiping = useRef(false);
   const refresh = useCallback(() => {
     if (wiping.current) return;
+    try { refreshReplies(); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     pending.current = pending.current.then(() => syncReadLog().then(rows => {
       if (!wiping.current) setReads(rows);
-    }).catch(() => { if (!wiping.current) { try { setReads(readLog()); } catch { setError(true); } } }));
+    }).catch(() => { if (!wiping.current) { try { setReads(readLog()); } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); } } }));
   }, []);
   useEffect(() => {
     refresh();
@@ -57,14 +75,17 @@ export default function Reads() {
     if (wiping.current) return;
     wiping.current = true;
     setAsking(false);
-    setError(false);
+    setError(null);
     try {
       await pending.current;
       await Native.forget();
       await wipeReadLog();
       wipeVoice();
+      store.set(OUTCOMES, null);
+      store.set(KEEP_REPLIES, null);
+      setReplies([]); setKeep(false);
       setReads([]);
-    } catch { setError(true); }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
     finally { wiping.current = false; }
   };
   const days: [string, Read[]][] = [];
@@ -74,7 +95,17 @@ export default function Reads() {
     else days.push([day, [read]]);
   }
 
-  return <Page title={words.rowReads} note={words.readsNote} stickyTop onBack={() => router.back()}>
+  return <Page title={words.rowReads} note={words.outcomeReadsNote} stickyTop onBack={() => router.back()}>
+    <View style={[styles.group, { backgroundColor: t.group }]}>
+      <Row title={words.keepReplies} subtitle={words.keepRepliesNote} onPress={retention}
+        end={<View pointerEvents="none"><Switch value={keep} onValueChange={retention} /></View>} />
+    </View>
+    {replies.length ? <View style={[styles.group, { backgroundColor: t.group }]}>
+      <Text accessibilityRole="header" style={[type.label, { color: t.primary, padding: space.l }]}>{words.outcomeTitle}</Text>
+      {[...replies].reverse().map(reply => <Row key={reply.id}
+        title={`${reply.card === 'yours' ? words.outcomeYours : words.outcomeSuggestion} · ${reply.platformLabel}`}
+        subtitle={[reply.level ?? words.outcomeNoLevel, new Date(reply.at).toLocaleString(), reply.text].filter(Boolean).join('\n')} />)}
+    </View> : null}
     {reads.length === 0 && <View style={[styles.empty, { backgroundColor: t.group }]}>
       <Dot mood="idle" size={72} />
       <Text style={[type.body, { color: t.text, textAlign: 'center' }]}>{words.nothingRead}</Text>
@@ -103,7 +134,10 @@ export default function Reads() {
           </View>
         </View>
         : <Row lead={<Badge><TrashIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.wipe} subtitle={words.wipeVoiceNote} onPress={() => setAsking(true)} />}
-      {error && !asking && <Text style={[type.note, styles.failed, { color: t.text }]}>{words.failed}</Text>}
+      {error && !asking && <View style={styles.failed}>
+        <Text style={[type.note, { color: t.text }]}>{words.failed}</Text>
+        <Text style={[type.note, { color: t.text }]}>{error}</Text>
+      </View>}
     </View>
   </Page>;
 }

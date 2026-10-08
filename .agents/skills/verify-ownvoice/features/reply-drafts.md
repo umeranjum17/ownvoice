@@ -23,7 +23,7 @@ Tap the bubble over a chat with an empty message field and Ownvoice offers short
 
 Preconditions:
 
-- Explicit emulator allocation; a release APK built with `EXPO_PUBLIC_E2E_STUB=1`; `ANDROID_SERIAL=emulator-NNNN`, `OWNVOICE_AVD_NAME=<its AVD>`, `JAVA_HOME`, SDK via `ANDROID_HOME`, `adb`/`zip`/`tesseract`/`magick` on `PATH`.
+- Explicit emulator allocation; a release APK built with `EXPO_PUBLIC_E2E_STUB=1` (and `EXPO_PUBLIC_E2E_GPT=1` for cleared-data writer-choice setup); pick the writer through the app UI. Label captures **stub writer**, not real-model proof; `ANDROID_SERIAL=emulator-NNNN`, `OWNVOICE_AVD_NAME=<its AVD>`, `JAVA_HOME`, SDK via `ANDROID_HOME`, `adb`/`zip`/`tesseract`/`magick` on `PATH`.
 
 - **Install and drive.** `node e2e/driver.mjs <release-apk> [screenshots-dir]` installs on the throwaway emulator, walks setup, enables the service (with the documented off/on rebind), taps the bubble in a chat field, and reads back inserted text from the React Native field plus Chrome's textarea/contenteditable.
 - **Paused/off prevention.** The driver exercises paused and service-off states asserting no bubble.
@@ -34,5 +34,5 @@ Preconditions:
 - The driver refuses phone serials and verifies the AVD name — never point it elsewhere.
 - `uiautomator dump` unbinds the service; the driver's own probe sets `FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES`.
 - After any reinstall the service needs the off/on `enabled_accessibility_services` toggle (the driver does this).
-- Panel controls swallow `adb input tap` — drive cards and buttons with DPAD (`input keyevent 19/20/21/22`) + ENTER (`keyevent 66`); see the skill's Review evidence.
+- For React Native panel controls, use conditional Back (only when the keyboard is shown), then guarded TAB focus and DPAD_CENTER (`23`); Enter (`66`) did not activate Use this in the F6a emulator proof. A plain tap using fresh screenshot/native bounds also activated it. See the skill's Review evidence.
 - Insertion into Chrome retries 13×150 ms because Chrome refuses `ACTION_SET_TEXT` under an overlay; a failed insert falls back to Copy.

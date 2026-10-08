@@ -11,6 +11,8 @@ module.exports = {
     android: {
       package: 'dev.ownvoice.next',
       versionCode: 4,
+      // Reply outcomes and opt-in text stay on this phone, including outside Android backups.
+      allowBackup: false,
       adaptiveIcon: {
         foregroundImage: './assets/icon/dot-icon-foreground.png',
         monochromeImage: './assets/icon/dot-icon-monochrome.png',

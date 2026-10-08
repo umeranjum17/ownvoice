@@ -4,7 +4,7 @@ export type ServiceState = 'on' | 'off' | 'stuck';
 export type NetworkType = 'wifi' | 'cellular' | 'other' | 'none';
 import type { ScreenText } from '../../../src/core/drafts';
 export type Capture = { conversation: string; written: string; nodes: ScreenText[]; fieldTop: number | null; typed: string; app: string; label: string; at: number; id: string; hasField: boolean; typingLimited?: boolean };
-export type TapFact = { id: string; at: number; app: string; label: string; screen: boolean; typed: boolean; replying: boolean; sent: boolean };
+export type TapFact = { id: string; at: number; app: string; label: string; screen: boolean; typed: boolean; replying: boolean; sent: boolean; inserted?: boolean };
 type Events = {
   onServiceChange: (event: { state: ServiceState }) => void;
   onInserted: (event: { ok: boolean; newlinesLost: boolean; practice: boolean }) => void;

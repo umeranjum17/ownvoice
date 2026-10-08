@@ -48,6 +48,15 @@ const homeWords = {
 
 export const words = {
   ...engineWords, ...typingWords, ...fitWords, ...editWords, ...homeWords,
+  keepReplies: 'Keep my replies to learn from',
+  keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
+  outcomeTitle: 'Replies you inserted',
+  outcomeReadsNote: 'The read list keeps taps, never text, for a month. Inserted reply records stay until you wipe them. You choose whether to keep their text below. Reply records never leave this phone.',
+  outcomeSuggestion: 'Suggestion',
+  outcomeYours: 'Yours',
+  outcomeNoLevel: 'No fit shown',
+  outcomeFailed: 'Could not save. Try again.',
+  outcomeRefused: 'Storage refused the save.',
   replyWithheld: "Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.",
   tryInsert: 'Write a reply first, then tap the bubble to polish it. Or tap Skip.',
 };

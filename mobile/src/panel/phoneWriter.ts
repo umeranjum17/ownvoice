@@ -126,8 +126,8 @@ export const phoneWriter = {
       // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).
       const drafts = request.typed.includes('multiline draft')
-        ? ["Saturday works.\nI'll bring the stove.", 'Sure, Saturday works. See you then.', 'What time should I arrive?']
-        : ['Yes, still on! I\'ll bring the stove.', 'Sure, Saturday works. See you then.', 'Should be. What time were you thinking?'];
+        ? ["Saturday works.\nI'll bring the stove.", 'Saturday is tricky for me. Could we do Sunday instead?', 'What time should I arrive?']
+        : ['Yes, still on! I\'ll bring the stove.', 'Saturday is tricky for me. Could we do Sunday instead?', 'Should be. What time were you thinking?'];
       if (request.typed.trim()) {
         const acceptor = await polishAcceptor(request.typed, request.dashes ?? 'remove', request.avoid ?? []);
         if (acceptor.local != null) on.landed?.(acceptor.local, 0, versionsList[0].label);

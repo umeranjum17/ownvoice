@@ -38,6 +38,13 @@ public class Composer extends Activity {
 
     EditText field = new EditText(this);
     field.setHint("What's happening?");
+    if (getIntent().getBooleanExtra("reply", false)) {
+      TextView parent = new TextView(this);
+      parent.setText("Umer keeps notes offline to stay focused.");
+      parent.setTextColor(Color.BLACK);
+      root.addView(parent);
+      field.setText("I keep my notes at https://example.com.");
+    }
     field.setTextSize(18);
     field.setTextColor(Color.BLACK);
     field.setHintTextColor(Color.GRAY);

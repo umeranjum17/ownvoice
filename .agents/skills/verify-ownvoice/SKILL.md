@@ -30,7 +30,7 @@ node dist/cli.mjs schema       # prints protocol/schema.json
 node -e "console.log(process.version)"   # >= 18
 ```
 
-Android: `adb devices` shows only emulators you own; drivers themselves refuse non-`emulator-` serials and verify `OWNVOICE_AVD_NAME`.
+Android: drivers refuse non-`emulator-` serials and verify `OWNVOICE_AVD_NAME`. The shared `emulatorName` reader uses `adb emu avd name`, falling back only on blank output to `getprop ro.boot.qemu.avd_name` (the console path can return nothing under isolated HOME). A nonblank mismatch, or both readings blank, still refuses the journey.
 
 ## Drive
 
@@ -51,13 +51,13 @@ The skill produces every proof a reviewer checks; nothing is hand-captured aroun
 .agents/skills/verify-ownvoice/evidence.sh pair <task> <screen> <label> -- \
   adb shell am start -n dev.ownvoice.next/.MainActivity   # or a deep link / driver navigation
 .agents/skills/verify-ownvoice/evidence.sh motion-start <task> <interaction>
-# …perform the interaction (DPAD+ENTER on sheets, below)…
+# …perform the interaction (guarded DPAD activation on sheets, below)…
 .agents/skills/verify-ownvoice/evidence.sh motion-stop
 ```
 
 `pair` force-stops the app, flips the theme, relaunches and settles before each shot — RN reads the colour scheme at process start, and the emulator's twilight schedule is disabled first (the sequence `mobile/e2e/first-run.mjs` uses). Run `pair` with label `before` on the base build and `after` on the candidate. `theme` and `shot` exist for screens a driver has already put on display. Screenshots stream host-side via `adb exec-out screencap -p` — never screencap to device storage such as `/sdcard/Download` (EACCES on real phones); recordings pull from `/data/local/tmp`.
 
-**DPAD+ENTER on sheets:** controls on the translucent drafts panel and rewrite sheet swallow `adb shell input tap` — the tap lands and nothing fires. Navigate with `input keyevent 19/20/21/22` and activate with `keyevent 66`. Taps work on setup and Home screens and on the bubble itself; tapping the dimmed area dismisses a sheet. Proven panel sequence (emulator, 2026-10-04): tap the bubble, `input keyevent 4` (clears the keyboard so focus can leave the field), `input keyevent 20`, `input keyevent 66` — inserts the first card. (Evidence: retro 2026-10-04 `state/ov-gmail-replies.status`; `mobile/reports/live-proof-p9.md`.)
+**Guarded DPAD activation on sheets:** controls on the translucent drafts panel and rewrite sheet swallow `adb shell input tap` — the tap lands and nothing fires. Navigate with `input keyevent 19/20/21/22` and activate a focused React Native button with `keyevent 23` (DPAD_CENTER). Enter (`66`) did not activate Use this in the F6a emulator journey; retain that as a keyboard finding, not an app fix. Taps work on setup and Home screens and on the bubble itself; tapping the dimmed area dismisses a sheet. Panel sequence: tap the bubble and wait for cards in the accessibility tree. Send `input keyevent 4` **only if** `dumpsys input_method` reports `mInputShown=true`; otherwise Back dismisses the sheet. Step `input keyevent 61` (TAB) one at a time, at most twelve steps, logging the focused node after each. Alternatively, use DOWN to enter the intended card, then LEFT to reach that row's Use this. DOWN alone can skip suggestion cards' Use this and land on Copy; record this keyboard-navigation finding, not as a fixed app defect. Fit bars can take focus stops: require the intended card's action to have keyboard/accessibility focus before sending `keyevent 23`; refuse and capture the focus trail/screenshot if it never does. The earlier fixed DOWN sequence inserted the first card on 2026-10-04 but is not sufficient for every card layout. (Evidence: retro 2026-10-04 `state/ov-gmail-replies.status`; `mobile/reports/live-proof-p9.md`.)
 
 **Service after force-stops:** `pair` and any `am force-stop` unbind the accessibility service (Android rebinds only when `enabled_accessibility_services` changes), so later captures of bubble/panel screens need the documented off/on service toggle first; app screens like Home are unaffected.
 
