@@ -1,5 +1,5 @@
 // OV-7 service/geometry/privacy proof. Run after driver.mjs enables Ownvoice and Chrome.
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -14,7 +14,7 @@ const tap = n => adb('shell', 'input', 'tap', ...center(n).map(x => String(Math.
 const bubble = list => list.find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label));
 const requireBubble = () => { const n = bubble(nodes()); if (!n) throw new Error('Ownvoice bubble absent'); return n; };
 const route = async path => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${path}`); await wait(1500); };
-const snap = name => { adb('shell', 'screencap', '-p', `/sdcard/${name}.png`); adb('pull', `/sdcard/${name}.png`, resolve(out, `${name}.png`)); };
+const snap = name => writeFileSync(resolve(out, `${name}.png`), execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 }));
 const pref = () => adb('shell', 'su', '0', 'cat', `/data/data/${pkg}/shared_prefs/ownvoice-native.xml`);
 const typing = () => /name="typingCheck" value="true"/.test(pref());
 const toggleTyping = async () => {
@@ -25,12 +25,145 @@ const toggleTyping = async () => {
 };
 mkdirSync(out, { recursive: true });
 const results = [];
-const page = createServer((_req, res) => { res.setHeader('Content-Type', 'text/html'); res.end('<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;padding:24px}textarea,input{display:block;width:90%;margin:24px 0;padding:12px;font:18px sans-serif}</style><h1>Typing proof</h1><textarea aria-label="Typing proof" rows="3"></textarea><input type="password" aria-label="Password proof">'); });
+const page = createServer((req, res) => { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font:18px sans-serif;padding:24px}textarea,input{display:block;width:90%;margin:24px 0;padding:12px;font:18px sans-serif}</style><h1>${req.url === '/x' ? 'Home' : 'Typing proof'}</h1>${req.url === '/x' ? '<p>Umer · Posting as Umer</p>' : ''}<textarea aria-label="${req.url === '/x' ? 'What is happening' : 'Typing proof'}" rows="3"></textarea>${req.url === '/x' ? '<p>Post</p>' : '<input type="password" aria-label="Password proof">'}${req.url === '/failed' ? `<script>let timer; document.querySelector('textarea').addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => { const old = document.querySelector('textarea'); const replacement = old.cloneNode(); replacement.value = 'Leave this message unchanged'; replacement.readOnly = true; old.replaceWith(replacement); }, 12000); });</script>` : ''}`); });
 await new Promise(r => page.listen(0, '127.0.0.1', r));
 const port = page.address().port;
 adb('reverse', `tcp:${port}`, `tcp:${port}`);
 const openChrome = async () => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${port}`); await wait(2500); };
+// Narrow spelling journey: opt-in/setup must already be complete, as for this driver.
+async function typingFixProof() {
+  const checks = [], timings = [], insertions = [];
+  const verify = (name, ok, detail = '') => {
+    checks.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name} ${detail}`);
+    if (!ok) throw new Error(`${name}: ${detail}`);
+  };
+  const field = () => nodes().find(n => n.editable && !n.password);
+  const read = () => field()?.text ?? '';
+  const fill = async text => {
+    const f = field(); if (!f) throw new Error('Editable field absent');
+    tap(f); await wait(500);
+    adb('shell', 'input', 'keycombination', '113', '29');
+    adb('shell', 'input', 'keyevent', '67');
+    adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
+    await wait(2000);
+    verify('exact field input', read() === text, JSON.stringify(read()));
+  };
+  const expectBadge = count => verify(`badge ${count}`, requireBubble().label ===
+    (count ? `Ownvoice, ${count === 1 ? 'one thing to check' : `${count} things to check`}` : 'Ownvoice'), requireBubble().label);
+  const showPanel = async () => {
+    tap(requireBubble()); await wait(4500);
+    verify('Check these present', nodes().some(n => /check these/i.test(`${n.label} ${n.text}`)));
+    verify('Fix present', nodes().some(n => n.clickable && (n.text === 'Fix' || n.label === 'Fix')));
+  };
+  const fix = async expected => {
+    nodes('Fix'); await wait(8000); // let native confirmation and clipboard previews settle
+    verify('Fix changes only the chosen word', read() === expected, JSON.stringify(read()));
+    const log = adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:D');
+    insertions.push([...log.matchAll(/insert result ok=(true|false)/g)].at(-1)?.[1] === 'true');
+    writeFileSync(resolve(out, 'insert-logcat.txt'), log);
+  };
+  const open = async path => {
+    const navigate = () => adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${port}${path}`);
+    navigate(); await wait(2500);
+    let privacyNotice = false;
+    for (let i = 0; i < 6 && !field(); i++) {
+      const list = nodes();
+      privacyNotice ||= list.some(n => /Enhanced ad privacy in Chrome/.test(`${n.label} ${n.text}`));
+      const button = privacyNotice && list.find(n => n.clickable && /^(More|Got it)$/.test(n.text));
+      if (button) { nodes(button.text); await wait(500); }
+      else await wait(1000);
+    }
+    if (privacyNotice) { navigate(); await wait(2000); }
+  };
+  const recordStop = async recording => {
+    const pid = adb('shell', 'pidof', 'screenrecord').trim();
+    if (pid) adb('shell', 'kill', '-2', ...pid.split(/\s+/));
+    await new Promise(resolve => recording.exitCode !== null ? resolve() : recording.once('exit', resolve));
+    adb('pull', '/data/local/tmp/ov-pm-10.mp4', resolve(out, 'chrome-typing.mp4'));
+  };
+  const theme = process.env.OWNVOICE_THEME;
+  if (!['light', 'dark'].includes(theme)) throw new Error('Set OWNVOICE_THEME before launching the app.');
+  try {
+    // Reuse completed first-run setup, then explicitly opt Chrome in through its app row.
+    adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+    let home = false;
+    for (let i = 0; i < 20 && !home; i++) {
+      await wait(1000);
+      home = nodes().some(n => /Where the bubble shows/.test(`${n.label} ${n.text}`));
+    }
+    verify('first-run setup complete', home);
+    if (!typing()) await toggleTyping();
+    await route('apps');
+    const chrome = () => nodes().find(n => n.checkable && /chrome/i.test(`${n.label} ${n.text}`));
+    if (!chrome()?.checked) {
+      const row = chrome(); if (!row) throw new Error('Chrome app row absent');
+      nodes(row.label || row.text); await wait(1000);
+    }
+    verify('Chrome app enabled', !!chrome()?.checked);
+    verify(`${theme} colour mode`, adb('shell', 'dumpsys', 'uimode').includes(`mComputedNightMode=${theme === 'dark'}`));
+      await open('/');
+      await fill('I should finish the report by tonight'); expectBadge(0);
+      await fill('Its a good plan, I shoud teh report and recieve it by the the evening'); expectBadge(5);
+      snap(`${theme}-five-slips`);
+      await fill('This is a longer note about the plan for the weekend and all the things we need to prepare before everyone arrives on Friday evening for dinner. I shoud bring the extra chairs from the garage and check whether we still have enough plates for the whole group. Please tell me if anything else is missing from the list so we can pick it up on the way home tomorrow after work in the afternoon.'); expectBadge(1);
+      await open('/x');
+      let recording;
+      if (theme === 'light') {
+        recording = spawn('adb', ['-s', serial, 'shell', 'screenrecord', '--time-limit', '180', '/data/local/tmp/ov-pm-10.mp4']);
+        await wait(500);
+      }
+      try {
+        adb('shell', 'logcat', '-c');
+        await fill('I shoud finish the report by tonight'); expectBadge(1);
+        const log = adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:D');
+        const times = [...log.matchAll(/typing check ms=([\d.]+) badge ms=([\d.]+) count=1/g)];
+        const timing = times.at(-1);
+        verify('badge within 1 second', !!timing && Number(timing[2]) < 1000, timing?.[0] ?? log);
+        timings.push({ theme, checkMs: Number(timing[1]), badgeMs: Number(timing[2]) });
+        await showPanel(); snap(`${theme}-before-fix`);
+        await fix('I should finish the report by tonight'); expectBadge(0); snap(`${theme}-after-fix`);
+        // Two successive Fixes must preserve the first edit and use refreshed offsets.
+        await fill('Its a good plan, I shoud finish the report'); expectBadge(2);
+        await showPanel(); await fix("It's a good plan, I shoud finish the report"); expectBadge(1);
+        await showPanel(); await fix("It's a good plan, I should finish the report"); expectBadge(0);
+      } finally { if (recording) await recordStop(recording); }
+    if (theme === 'dark') {
+      adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
+      await open('/x');
+      await fill('I shoud finish the report by tonight'); await showPanel(); snap('font13-before-fix');
+      await fix('I should finish the report by tonight'); expectBadge(0); snap('font13-after-fix');
+    }
+    verify('native confirms every Fix (not clipboard fallback)', insertions.length > 0 && insertions.every(Boolean), JSON.stringify(insertions));
+    if (theme === 'light') {
+      // Replace the captured field while the panel is open: matching text/bounds
+      // must not make a different, now read-only node a successful insert.
+      await open('/failed');
+      adb('shell', 'logcat', '-c');
+      await fill('I shoud finish the report by tonight'); await showPanel();
+      await wait(14000);
+      nodes('Fix'); await wait(8000);
+      verify('failed insert preserves replacement field', nodes().some(n => n.text === 'Leave this message unchanged'));
+      const log = adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:D');
+      writeFileSync(resolve(out, 'failed-insert-logcat.txt'), log);
+      verify('real failed insert reports false', [...log.matchAll(/insert result ok=(true|false)/g)].at(-1)?.[1] === 'false');
+      snap('failed-insert');
+    }
+  } catch (error) {
+    writeFileSync(resolve(out, 'failure-logcat.txt'), adb('shell', 'logcat', '-d', '-s', 'OwnvoiceNative:D', 'AndroidRuntime:E', 'ReactNativeJS:V'));
+    writeFileSync(resolve(out, 'failure-accessibility.txt'), adb('shell', 'dumpsys', 'accessibility'));
+    writeFileSync(resolve(out, 'failure-nodes.json'), JSON.stringify(nodes(), null, 2));
+    snap('failure-screen');
+    throw error;
+  } finally {
+    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0');
+    writeFileSync(resolve(out, 'typing-results.json'), JSON.stringify(checks, null, 2));
+    writeFileSync(resolve(out, 'timing.md'), '| theme | check ms | badge ms |\n|---|---|---|\n' + timings.map(t => `| ${t.theme} | ${t.checkMs} | ${t.badgeMs} |`).join('\n') + '\n');
+  }
+}
 try {
+  if (process.argv.includes('--typing-fix')) {
+    await typingFixProof();
+  } else {
   if (typing()) await toggleTyping(); // reset a previous interrupted proof through the app's own control
   await openChrome();
   const initial = requireBubble();
@@ -80,6 +213,7 @@ try {
   await route('/'); await wait(4000); requireBubble();
   results.push('Bubble restored after emulator reboot without service toggles'); snap('after-reboot');
   console.log(results.join('\n'));
+  }
 } finally {
   writeFileSync(resolve(out, 'results.json'), JSON.stringify(results, null, 2));
   page.close(); if (adb('reverse', '--list').includes(`tcp:${port}`)) adb('reverse', '--remove', `tcp:${port}`);
