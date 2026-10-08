@@ -8,11 +8,11 @@ import { Progress } from '../src/ui/Progress';
 import { Button } from '../src/ui/Button';
 import { Badge } from '../src/ui/Badge';
 import { Dot } from '../src/ui/Dot';
-import { ChatIcon, CheckIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon, TrendIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
-import { store } from '../src/core/store';
+import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, store, type CheckinAnswer, type Outcome } from '../src/core/store';
 import { getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
 import { NAME, session, type GptState } from '../src/chatgpt/session';
 import { say } from '@byokit/accounts';
@@ -59,6 +59,11 @@ export default function Home() {
   const [typing, setTyping] = useState<boolean | null>(null);
   const [source, setShownSource] = useState<Source | undefined>(storedSource);
   const [gpt, setGpt] = useState<GptState | null>(null);
+  // Growth check-in (F6b): one quiet line per due insert, answered onto its own outcome record.
+  const [checkin, setCheckin] = useState<Outcome | null>(null);
+  const [weekly, setWeekly] = useState(false);
+  const [hasCounts, setHasCounts] = useState(false);
+  const [checkinFailed, setCheckinFailed] = useState(false);
   const busy = useRef(Promise.resolve());
   const readsBusy = useRef(Promise.resolve());
 
@@ -71,6 +76,15 @@ export default function Home() {
     void session.current().then(setGpt).catch(() => {});
     void Native.launcherApps(null).then(setApps).catch(() => {});
     setPhrases(loadVoice().never.length);
+    try {
+      setCheckin(pendingCheckin());
+      setWeekly(needsWeeklyCount());
+      setHasCounts(growthCounts().length > 0);
+    } catch {
+      setCheckin(null);
+      setWeekly(false);
+      setHasCounts(false);
+    }
     readsBusy.current = readsBusy.current.then(async () => {
       try {
         const reads = await syncReadLog().catch(() => readLog());
@@ -125,6 +139,15 @@ export default function Home() {
   };
   // The person's yes starts the one-time download (on Wi-Fi unless they pick mobile data).
   const start = (mobileData = false) => { void getReady(mobileData).catch(() => {}); };
+  // A check-in answer is saved onto its own outcome record, on this phone; the line then goes quiet.
+  const answer = (result: CheckinAnswer) => {
+    if (!checkin) return;
+    try { answerOutcome(checkin.id, result); }
+    catch { setCheckinFailed(true); return; }
+    setCheckinFailed(false);
+    setCheckin(null);
+    reload();
+  };
 
   const paused = !!rules?.paused;
   const on = service === 'on';
@@ -189,6 +212,33 @@ export default function Home() {
       </View>}
     </View>
 
+    {checkin && <View style={[styles.growth, { backgroundColor: t.group }]}>
+      <Text style={[type.label, { color: t.text }]}>
+        {checkin.platformLabel ? `How did your reply ${words.checkinOn} ${checkin.platformLabel} do?` : words.checkinAsk}
+      </Text>
+      {checkinFailed && <Text style={[type.note, { color: t.text }]}>{words.outcomeFailed}</Text>}
+      <View style={styles.answers}>
+        <View style={styles.answerCol}>
+          <Button kind="text" label={words.checkinReplies} onPress={() => answer('replies')} />
+          <Button kind="text" label={words.checkinQuiet} onPress={() => answer('nothing')} />
+        </View>
+        <View style={styles.answerCol}>
+          <Button kind="text" label={words.checkinLikes} onPress={() => answer('likes')} />
+          <Button kind="text" label={words.checkinSkipped} onPress={() => answer('not-posted')} />
+        </View>
+      </View>
+    </View>}
+
+    {weekly && <View style={[styles.growth, { backgroundColor: t.group }]}>
+      <Text style={[type.label, { color: t.text }]}>{words.weeklyTitle}</Text>
+      <Text style={[type.note, { color: t.muted }]}>{words.weeklyReminder}</Text>
+      <Button kind="text" label={words.growthOpen} onPress={() => router.push('/growth')} />
+    </View>}
+
+    {!weekly && hasCounts && <View style={group}>
+      <Row lead={icon(TrendIcon)} title={words.growthOpen} onPress={() => router.push('/growth')} />
+    </View>}
+
     <View style={group}>
       <Row lead={icon(LockIcon)} title={words.rowSource} subtitle={viaPhone ? words.rowSourcePhone : viaGpt ? words.rowSourceGpt : words.rowSourceNone} onPress={() => router.push('/source')} />
       <Row lead={icon(GridIcon)} title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
@@ -230,4 +280,7 @@ const styles = StyleSheet.create({
   resting: { opacity: 0.55 },
   tip: { flexDirection: 'row', alignItems: 'flex-start', gap: space.l, borderRadius: shape.group, borderWidth: 1, borderStyle: 'dashed', padding: space.l },
   statusActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.l },
+  growth: { gap: space.s, borderRadius: shape.group, padding: space.l },
+  answers: { flexDirection: 'row', gap: space.m, marginTop: space.s },
+  answerCol: { flex: 1, gap: space.xs, alignItems: 'flex-start' },
 });

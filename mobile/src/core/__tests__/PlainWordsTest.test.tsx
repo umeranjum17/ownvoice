@@ -5,6 +5,7 @@ import { offeredApps } from '../onboarding';
 import React from 'react';
 const renderToStaticMarkup: (element: React.ReactElement) => string = require('react-dom/server').renderToStaticMarkup;
 import Home from '../../../app/index';
+import Growth from '../../../app/growth';
 import Source from '../../../app/source';
 import Panel from '../../panel/Panel';
 import { stubWriter, type StubOptions } from '../../panel/stubWriter';
@@ -246,6 +247,25 @@ describe('panel copy', () => {
 
 test('fit levels use plain words', () => {
   assertPlain([...LEVELS, UNSURE, UNAVAILABLE]);
+});
+
+test('growthWords', () => { const keys = ['checkinAsk', 'checkinOn', 'checkinReplies', 'checkinLikes', 'checkinQuiet', 'checkinSkipped', 'weeklyTitle', 'weeklyNote', 'weeklyX', 'weeklyReddit', 'weeklySave', 'weeklySaved', 'growthOpen', 'growthTitle', 'growthNote', 'growthUp', 'growthSame', 'growthDown', 'growthNew', 'growthEmpty', 'weeklyReminder', 'countFormat', 'growthUpChecked', 'growthSameChecked', 'growthDownChecked']; expect(keys.filter(k => !(k in words))).toEqual([]); const shown = keys.map(k => words[k as keyof typeof words]); assertPlain(shown); expect(shown.join(' ')).not.toMatch(/\d/); expect(shown.join(' ')).not.toMatch(/viral|will get|\bscore\b/i); });
+
+test('his own counts are the only digits, and only on the growth screen', async () => {
+  const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
+  kv.set('growth-counts', JSON.stringify([{ at: Date.now(), x: '1234', reddit: '567' }]));
+  try {
+    const screen = await render(
+      <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
+        <Growth />
+      </SafeAreaProvider>);
+    const shown = visibleStrings(screen);
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.join(' ')).toMatch(/\d/);
+    const withoutCounts = shown.filter(line => !line.includes('1234') && !line.includes('567'));
+    expect(withoutCounts.join(' ')).not.toMatch(/\d/);
+    assertPlain(withoutCounts);
+  } finally { kv.delete('growth-counts'); }
 });
 
 test('fitBarWords', () => { const keys = ['fitWhyStrong', 'fitWhyGood', 'fitWhyVague', 'fitWhySkipped', 'fitWhyUnsure']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });

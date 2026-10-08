@@ -28,6 +28,7 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
 - [Local reply outcomes](./reply-outcomes.md) — Android: insert → real local store → read-back, text opt-in and failed append.
 - [Fit calibration](./fit-calibration.md) — host: seeded local outcome files → G9 verdicts; [scope and input contract](../../../../mobile/eval/README.md#fit-calibration-g9-local-only).
+- [Growth check-in and counts](./reply-growth.md) — Android: day-later check-in answers onto the outcome record, weekly typed counts, growth screen.
 - [Own posts](./own-posts.md) — Android: a blank feed composer asks for the one line, then drafts from it; edit one and insert it.
 - [Typing checks](./typing-checks.md) — Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery.
 

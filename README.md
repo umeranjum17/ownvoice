@@ -81,6 +81,12 @@ Pick who writes your drafts, and change it any time. **On this phone** is privat
   <img src="docs/readme/choose.webp" alt="How should Ownvoice write? On this phone, private and free, and With your ChatGPT, with their trade-offs and 'Get this phone ready to write: it needs about 2 to 3 GB, once, on Wi-Fi'" width="300" />
 </p>
 
+### Your growth
+
+About a day after you insert a suggestion, Home asks how your reply did: **Got replies back**, **Some likes**, **Nothing yet**, or **Didn't post it**. The answer stays on that reply's record on your phone. Spelling fixes and **Yours** do not get this check-in. There is no automatic count read; use the answer buttons.
+
+Home also shows a plain-words reminder when you have no saved counts or a week has passed since your last save. Tap **See your growth** to enter your X follower count and Reddit karma on **Your growth**. Use whole numbers without commas or spaces; karma can be negative. You can leave either count blank. Your counts appear only on this screen, with a line since you started. Each platform compares its own last two entries: **Up since last week** (or Same / Down) only when they are about a week apart in this week and last week; otherwise it says **since you last checked**. It never claims Ownvoice caused a change. Answers and counts save locally, work offline, and call no writer. If a save fails, your answer or count inputs stay available to try again.
+
 ### Everything in one place
 
 Home shows at a glance whether Ownvoice is ready, and holds every setting: how Ownvoice writes, which apps show the bubble, your voice, and what Ownvoice read.
@@ -108,7 +114,7 @@ Ownvoice reads the screen only when you tap its bubble, never in the background,
 - **On this phone**, nothing you read or write leaves the phone. Ownvoice has no server of its own.
 - **With your ChatGPT**, the chat on screen, what you typed and your writing rules go to ChatGPT, only when you tap the bubble. Text you select and send to **Make it better** goes to ChatGPT too. Ownvoice keeps no copy.
 - **Check my spelling as I type** is off unless you switch it on in Home. When it's on, Ownvoice also reads the message box you're typing in each time you stop typing for a moment, in apps you switched on, and a number on the bubble shows how many things look worth checking: spelling, common slips like "its" for "it's", and stock phrases. The check runs on the phone, even when you chose ChatGPT: nothing you type goes anywhere, nothing is kept, and these checks don't show up in What Ownvoice read. Tap the bubble to see them; each has its own **Fix**, and nothing changes until you tap it.
-- **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once, along with Your voice.
+- **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once, along with Your voice, saved reply records (including check-in answers), the reply-text saving choice, and your growth counts.
 
 <p align="center">
   <img src="docs/readme/reads.webp" alt="What Ownvoice read: one entry, 'Suggested replies in Ownvoice, read the chat on screen, Today', and Wipe everything" width="300" />
