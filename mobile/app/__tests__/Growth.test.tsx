@@ -1,4 +1,4 @@
-import { AppState } from 'react-native';
+import { AppState, type AppStateStatus } from 'react-native';
 import Storage from 'expo-sqlite/kv-store';
 import Reads from '../reads';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
@@ -96,6 +96,36 @@ test('a due insert asks once; each answer is saved onto its own record with no n
   expect(outcomes().every(row => typeof row.checkinAt === 'number')).toBe(true);
   expect(screen.queryByText(`How did your reply ${words.checkinOn} X do?`)).toBeNull();
   expect(fetchMock).not.toHaveBeenCalled();
+});
+
+test('failed Home growth reads hide stale prompts and links until a successful reload', async () => {
+  let foreground = (_state: AppStateStatus) => {};
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, callback) => {
+    foreground = callback;
+    return { remove: () => {} };
+  });
+  const old = Date.now() - 8 * 24 * 3600_000;
+  kv.set('reply-outcomes', JSON.stringify([due('reply', old)]));
+  kv.set('growth-counts', JSON.stringify([{ at: old, x: '10', reddit: '5' }]));
+  const screen = await render(<Home />);
+  await screen.findByText(words.statusReady);
+  expect(screen.getByText(words.checkinLikes)).toBeTruthy();
+  expect(screen.getByText(words.weeklyTitle)).toBeTruthy();
+  kv.set('growth-counts', '{');
+  await act(async () => { foreground('active'); });
+  expect(screen.queryByText(words.checkinLikes)).toBeNull();
+  expect(screen.queryByText(words.weeklyTitle)).toBeNull();
+  expect(screen.queryByText(words.growthOpen)).toBeNull();
+  expect(kv.get('growth-counts')).toBe('{');
+  kv.set('growth-counts', JSON.stringify([{ at: Date.now(), x: '10', reddit: '5' }]));
+  await act(async () => { foreground('active'); });
+  expect(screen.getByText(words.checkinLikes)).toBeTruthy();
+  expect(screen.getByText(words.growthOpen)).toBeTruthy();
+  kv.set('reply-outcomes', '{');
+  await act(async () => { foreground('active'); });
+  expect(screen.queryByText(words.checkinLikes)).toBeNull();
+  expect(screen.queryByText(words.growthOpen)).toBeNull();
+  expect(kv.get('reply-outcomes')).toBe('{');
 });
 
 test('a fresh insert stays quiet until about a day passes', async () => {

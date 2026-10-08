@@ -80,7 +80,11 @@ export default function Home() {
       setCheckin(pendingCheckin());
       setWeekly(needsWeeklyCount());
       setHasCounts(growthCounts().length > 0);
-    } catch {}
+    } catch {
+      setCheckin(null);
+      setWeekly(false);
+      setHasCounts(false);
+    }
     readsBusy.current = readsBusy.current.then(async () => {
       try {
         const reads = await syncReadLog().catch(() => readLog());
