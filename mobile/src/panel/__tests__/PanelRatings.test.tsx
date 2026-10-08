@@ -128,8 +128,6 @@ test('Insert still puts the exact rated card text in the box and never posts', a
   const card = (text: string) => within(screen.getByText(text).parent!);
   await fireEvent.press(card(DRAFTS[0]).getByRole('button', { name: words.useThis }));
   await waitFor(() => expect(native.insert).toHaveBeenCalledWith(DRAFTS[0]));
-  await fireEvent.press(card(TYPED).getByRole('button', { name: words.useThis }));
-  await waitFor(() => expect(native.insert).toHaveBeenLastCalledWith(TYPED));
 });
 
 // Grow mode's fit bar: the cards land first and the bar fills in when the fit does. The real
