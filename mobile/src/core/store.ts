@@ -8,7 +8,7 @@ export const GROWTH_COUNTS = 'growth-counts';
 export type CheckinAnswer = 'replies' | 'likes' | 'nothing' | 'not-posted';
 export type Outcome = { id: string; platform: string; platformLabel: string; level: string | null; card: 'yours' | 'suggestion'; slot: number; at: number; text?: string; checkin?: CheckinAnswer; checkinAt?: number };
 export type GrowthCount = { at: number; x: string; reddit: string };
-/** A recorded insert becomes a check-in line about a day later. */
+/** Only suggestion records are eligible; spelling fixes and own text must never prompt a check-in. */
 export const CHECKIN_MS = 24 * 60 * 60 * 1000;
 /** The weekly numbers card waits a week after the last saved counts. */
 export const COUNTS_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -59,7 +59,6 @@ export function answerOutcome(id: string, checkin: CheckinAnswer): void {
   store.set(OUTCOMES, next);
 }
 
-/** The oldest unanswered insert old enough to ask about, or null when nothing is due. */
 export function pendingCheckin(now = Date.now()): Outcome | null {
   const due = outcomes().filter(row => row.card === 'suggestion' && !row.checkin && now - row.at >= CHECKIN_MS);
   due.sort((a, b) => a.at - b.at);
@@ -72,7 +71,7 @@ export function growthCounts(): GrowthCount[] {
   return saved ?? [];
 }
 
-/** His own typed counts, kept on this phone. Blank lines are dropped, never sent. */
+/** His own typed counts, kept on this phone. Blank fields add no platform observation; nothing is sent. */
 export function saveGrowthCount(x: string, reddit: string, at = Date.now()): void {
   const entry = { at, x: x.trim(), reddit: reddit.trim() };
   for (const [field, value] of [['x', entry.x], ['reddit', entry.reddit]]) {
