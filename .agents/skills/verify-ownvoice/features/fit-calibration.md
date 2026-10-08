@@ -1,6 +1,6 @@
 # Fit calibration
 
-G9 reads local reply check-ins through the developer CLI. It compares shown fit groups without sending data or claiming Ownvoice caused growth. There is no CSV import or changed app screen.
+G9 reads local reply check-ins through the developer CLI. It compares shown fit groups without sending data or claiming Ownvoice caused growth. This is an explicitly approved calibration-only slice: the account-analytics export is not verified for his plan (official X help does not document it), so there is no CSV import or changed app screen.
 
 ## Sub-features
 
@@ -12,7 +12,7 @@ G9 reads local reply check-ins through the developer CLI. It compares shown fit 
 
 ## How to get to it (user POV)
 
-A developer runs `node mobile/eval/fit-calibration.ts <reply-outcomes.json>` on the JSON array stored at `reply-outcomes`. It prints the verdict, both groups' counts and exclusions. This is not an app feature; weekly numbers remain manual.
+A developer runs `node mobile/eval/fit-calibration.ts <reply-outcomes.json>` on the JSON array stored at `reply-outcomes`. It prints the verdict, both groups' counts and exclusions. This is not an app feature; weekly numbers stay manual because the account-analytics export is not verified for his plan.
 
 ## Driving it with the host CLI
 
@@ -24,4 +24,4 @@ To drive a specific seeded file, run `node mobile/eval/fit-calibration.ts <file>
 
 ## Gotchas
 
-No check-in is inferred from daily account analytics or text. A pass measures association on these check-ins only; selection bias remains. Reply text is optional and unnecessary. The current account-overview CSV evidence lacks follower totals and per-reply rows; it cannot safely populate this input. This host proof does not verify Android check-in UI or SQLite persistence (see Local reply outcomes).
+No check-in is inferred from daily account analytics or text. A pass measures association on these check-ins only; selection bias remains. Reply text is optional and unnecessary. Public account-analytics examples have daily New follows/Unfollows but no follower total, so they cannot fill the weekly follower count without a baseline. Separately, account totals are never used as per-reply check-ins for G9. This host proof does not verify Android check-in UI or SQLite persistence (see Local reply outcomes).

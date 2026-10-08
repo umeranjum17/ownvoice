@@ -58,9 +58,12 @@ invalid input can pass. This is a personal association, not proof Ownvoice
 caused engagement. The integration command seeds files in TMPDIR and drives
 the real CLI, including unequal denominators, exclusions and malformed input.
 
-No X import is built: public account-overview examples have daily follower
-changes, not total followers or individual reply rows. Manual weekly numbers
-remain the source; account aggregates must not become invented check-ins.
+This is an explicitly approved calibration-only slice; no X import is built.
+The account-analytics export is not verified for his plan (official X help does
+not document it). Public examples have daily New follows/Unfollows but no
+follower total, so they cannot fill the weekly follower count without a
+baseline; weekly numbers therefore stay manual. Separately, account totals
+are never used as per-reply check-ins for G9.
 
 ## Threshold rule
 
