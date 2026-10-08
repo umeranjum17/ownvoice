@@ -4,7 +4,7 @@ import { shape, type, useTheme } from './theme';
 import { useCardBusy } from './Card';
 
 type ButtonProps = {
-  kind: 'filled' | 'tonal' | 'text';
+  kind: 'filled' | 'tonal' | 'outlined' | 'text';
   label: string;
   disabled?: boolean;
   /** A screen's one main action (setup): taller, with a larger label. */
@@ -12,13 +12,14 @@ type ButtonProps = {
   onPress: () => void;
 };
 
-/** A Material pill button. Filled is the one main action on a card; tonal for a small in-line action (a slip's Fix); text for the rest. */
+/** A Material pill button. Filled is the one main action on a card; tonal for a small in-line action (a slip's Fix); outlined for a tappable answer (a growth check-in); text for the rest. */
 export function Button({ kind, label, disabled = false, large = false, onPress }: ButtonProps) {
   const t = useTheme();
   const busy = useCardBusy();
   const off = disabled || busy;
   const filled = kind === 'filled';
   const tonal = kind === 'tonal';
+  const outlined = kind === 'outlined';
   return <Pressable
     accessibilityRole="button"
     accessibilityState={{ disabled: off }}
@@ -26,7 +27,7 @@ export function Button({ kind, label, disabled = false, large = false, onPress }
     onPress={onPress}
     hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
     android_ripple={{ color: (filled ? t.onPrimary : t.primary).slice(0, 7) + '1F', foreground: true }}
-    style={[styles.button, kind === 'text' && { paddingHorizontal: 8 }, large && styles.large, tonal && styles.tonal, (filled || tonal) && { backgroundColor: off ? t.text + '1F' : filled ? t.primary : t.primaryContainer }]}>
+    style={[styles.button, kind === 'text' && { paddingHorizontal: 8 }, large && styles.large, tonal && styles.tonal, outlined && [styles.outlined, { borderColor: off ? t.text : t.outline }], (filled || tonal) && { backgroundColor: off ? t.text + '1F' : filled ? t.primary : t.primaryContainer }]}>
     <Text style={[type.label, large && styles.largeLabel, { color: filled ? (off ? t.text : t.onPrimary) : tonal ? (off ? t.text : t.onPrimaryContainer) : t.primary }, off && { opacity: 0.38 }]}>{label}</Text>
   </Pressable>;
 }
@@ -60,6 +61,8 @@ const styles = StyleSheet.create({
   },
   large: { height: 56 },
   tonal: { paddingHorizontal: 16 },
+  // A tappable answer: a light 1dp outline with a 48dp target (minHeight wins over height).
+  outlined: { minHeight: 48, borderWidth: 1, paddingHorizontal: 16 },
   icon: { width: 40, height: 40, borderRadius: shape.round, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   largeLabel: { fontSize: 16, lineHeight: 24 },
 });

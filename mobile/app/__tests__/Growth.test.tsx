@@ -1,4 +1,4 @@
-import { AppState, type AppStateStatus } from 'react-native';
+import { AppState, StyleSheet, type AppStateStatus } from 'react-native';
 import Storage from 'expo-sqlite/kv-store';
 import Reads from '../reads';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
@@ -89,6 +89,10 @@ test('a due insert asks once; each answer is saved onto its own record with no n
   ];
   for (const [label, value] of answers) {
     await waitFor(() => expect(screen.getByText(`How did your reply ${words.checkinOn} X do?`)).toBeTruthy());
+    // Each answer is a light outlined button with a 48dp target, not a plain link.
+    const flat = StyleSheet.flatten(screen.getByText(label).parent?.props.style ?? {});
+    expect(flat.borderWidth).toBe(1);
+    expect(flat.minHeight).toBe(48);
     await fireEvent.press(screen.getByText(label));
     await waitFor(() => expect(outcomes().find(row => row.checkin === value)).toBeTruthy());
   }

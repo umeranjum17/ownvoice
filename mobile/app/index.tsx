@@ -219,12 +219,12 @@ export default function Home() {
       {checkinFailed && <Text style={[type.note, { color: t.text }]}>{words.outcomeFailed}</Text>}
       <View style={styles.answers}>
         <View style={styles.answerCol}>
-          <Button kind="text" label={words.checkinReplies} onPress={() => answer('replies')} />
-          <Button kind="text" label={words.checkinQuiet} onPress={() => answer('nothing')} />
+          <Button kind="outlined" label={words.checkinReplies} onPress={() => answer('replies')} />
+          <Button kind="outlined" label={words.checkinQuiet} onPress={() => answer('nothing')} />
         </View>
         <View style={styles.answerCol}>
-          <Button kind="text" label={words.checkinLikes} onPress={() => answer('likes')} />
-          <Button kind="text" label={words.checkinSkipped} onPress={() => answer('not-posted')} />
+          <Button kind="outlined" label={words.checkinLikes} onPress={() => answer('likes')} />
+          <Button kind="outlined" label={words.checkinSkipped} onPress={() => answer('not-posted')} />
         </View>
       </View>
     </View>}
