@@ -35,6 +35,32 @@ const editWords = {
   editField:'Edit this draft',
 } as const;
 
+// Growth check-in (F6b): a quiet line about a day after an insert, a weekly numbers card, and the
+// growth screen. Every line stays in plain words with no digits; his own typed counts are the one
+// scoped exception, and they render only on the growth screen's number fields.
+const growthWords = {
+  checkinAsk: 'How did your reply do?',
+  checkinOn: 'on',
+  checkinReplies: 'Got replies back',
+  checkinLikes: 'Some likes',
+  checkinQuiet: 'Nothing yet',
+  checkinSkipped: 'Didn\u2019t post it',
+  weeklyTitle: 'Your counts this week',
+  weeklyNote: 'Type in what you see on your profiles. They stay on this phone.',
+  weeklyX: 'Followers on X',
+  weeklyReddit: 'Karma on Reddit',
+  weeklySave: 'Save these counts',
+  weeklySaved: 'Saved. See how it moves on your growth screen.',
+  growthOpen: 'See your growth',
+  growthTitle: 'Your growth',
+  growthNote: 'Since you started. Your own counts, kept on this phone. This never says what caused a change.',
+  growthUp: 'Up since last week',
+  growthSame: 'Same as last week',
+  growthDown: 'Down since last week',
+  growthNew: 'Not enough yet. Check back next week.',
+  growthEmpty: 'Nothing here yet. Add your counts when the weekly card asks.',
+} as const;
+
 // Home's readiness card: never "Ready to help" while it is still checking, or while an app the
 // bubble shows in has no writer.
 const homeWords = {
@@ -47,7 +73,7 @@ const homeWords = {
 } as const;
 
 export const words = {
-  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...homeWords,
+  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...growthWords, ...homeWords,
   keepReplies: 'Keep my replies to learn from',
   keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
   outcomeTitle: 'Replies you inserted',

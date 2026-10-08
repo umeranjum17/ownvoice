@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Row } from '../src/ui/Row';
@@ -12,7 +12,7 @@ import { ChatIcon, CheckIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, 
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
-import { store } from '../src/core/store';
+import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, saveGrowthCount, store, type CheckinAnswer, type Outcome } from '../src/core/store';
 import { getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
 import { NAME, session, type GptState } from '../src/chatgpt/session';
 import { say } from '@byokit/accounts';
@@ -59,6 +59,13 @@ export default function Home() {
   const [typing, setTyping] = useState<boolean | null>(null);
   const [source, setShownSource] = useState<Source | undefined>(storedSource);
   const [gpt, setGpt] = useState<GptState | null>(null);
+  // Growth check-in (F6b): one quiet line per due insert, answered onto its own outcome record.
+  const [checkin, setCheckin] = useState<Outcome | null>(null);
+  const [weekly, setWeekly] = useState(false);
+  const [hasCounts, setHasCounts] = useState(false);
+  const [xCount, setXCount] = useState('');
+  const [karma, setKarma] = useState('');
+  const [countsSaved, setCountsSaved] = useState(false);
   const busy = useRef(Promise.resolve());
   const readsBusy = useRef(Promise.resolve());
 
@@ -71,6 +78,11 @@ export default function Home() {
     void session.current().then(setGpt).catch(() => {});
     void Native.launcherApps(null).then(setApps).catch(() => {});
     setPhrases(loadVoice().never.length);
+    try {
+      setCheckin(pendingCheckin());
+      setWeekly(needsWeeklyCount());
+      setHasCounts(growthCounts().length > 0);
+    } catch {}
     readsBusy.current = readsBusy.current.then(async () => {
       try {
         const reads = await syncReadLog().catch(() => readLog());
@@ -125,6 +137,20 @@ export default function Home() {
   };
   // The person's yes starts the one-time download (on Wi-Fi unless they pick mobile data).
   const start = (mobileData = false) => { void getReady(mobileData).catch(() => {}); };
+  // A check-in answer is saved onto its own outcome record, on this phone; the line then goes quiet.
+  const answer = (result: CheckinAnswer) => {
+    if (!checkin) return;
+    try { answerOutcome(checkin.id, result); } catch {}
+    try { setCheckin(pendingCheckin()); } catch {}
+  };
+  // His own typed counts stay on this phone; blanks never save.
+  const saveCounts = () => {
+    if (!xCount.trim() && !karma.trim()) return;
+    try { saveGrowthCount(xCount, karma); } catch {}
+    setXCount(''); setKarma('');
+    try { setWeekly(needsWeeklyCount()); setHasCounts(growthCounts().length > 0); } catch {}
+    setCountsSaved(true);
+  };
 
   const paused = !!rules?.paused;
   const on = service === 'on';
@@ -189,6 +215,36 @@ export default function Home() {
       </View>}
     </View>
 
+    {checkin && <View style={[styles.growth, { backgroundColor: t.group }]}>
+      <Text style={[type.label, { color: t.text }]}>
+        {checkin.platformLabel ? `How did your reply ${words.checkinOn} ${checkin.platformLabel} do?` : words.checkinAsk}
+      </Text>
+      <View style={styles.statusActions}>
+        <Button kind="text" label={words.checkinReplies} onPress={() => answer('replies')} />
+        <Button kind="text" label={words.checkinLikes} onPress={() => answer('likes')} />
+        <Button kind="text" label={words.checkinQuiet} onPress={() => answer('nothing')} />
+        <Button kind="text" label={words.checkinSkipped} onPress={() => answer('not-posted')} />
+      </View>
+    </View>}
+
+    {weekly && <View style={[styles.growth, { backgroundColor: t.group }]}>
+      <Text style={[type.label, { color: t.text }]}>{words.weeklyTitle}</Text>
+      <Text style={[type.note, { color: t.muted }]}>{words.weeklyNote}</Text>
+      <TextInput accessibilityLabel={words.weeklyX} placeholder={words.weeklyX} value={xCount} onChangeText={setXCount}
+        keyboardType="number-pad" style={[styles.count, { color: t.text, borderColor: t.line }]} />
+      <TextInput accessibilityLabel={words.weeklyReddit} placeholder={words.weeklyReddit} value={karma} onChangeText={setKarma}
+        keyboardType="number-pad" style={[styles.count, { color: t.text, borderColor: t.line }]} />
+      <View style={styles.statusActions}>
+        <Button kind="filled" label={words.weeklySave} onPress={saveCounts} />
+        {hasCounts && <Button kind="text" label={words.growthOpen} onPress={() => router.push('/growth')} />}
+      </View>
+    </View>}
+
+    {!weekly && hasCounts && <View style={group}>
+      <Row lead={icon(EyeIcon)} title={words.growthOpen} onPress={() => router.push('/growth')} />
+      {countsSaved && <Text style={[type.note, { color: t.muted, paddingHorizontal: space.l, paddingBottom: space.s }]}>{words.weeklySaved}</Text>}
+    </View>}
+
     <View style={group}>
       <Row lead={icon(LockIcon)} title={words.rowSource} subtitle={viaPhone ? words.rowSourcePhone : viaGpt ? words.rowSourceGpt : words.rowSourceNone} onPress={() => router.push('/source')} />
       <Row lead={icon(GridIcon)} title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
@@ -230,4 +286,6 @@ const styles = StyleSheet.create({
   resting: { opacity: 0.55 },
   tip: { flexDirection: 'row', alignItems: 'flex-start', gap: space.l, borderRadius: shape.group, borderWidth: 1, borderStyle: 'dashed', padding: space.l },
   statusActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.l },
+  growth: { gap: space.s, borderRadius: shape.group, padding: space.l },
+  count: { borderWidth: 1, borderRadius: shape.card, paddingHorizontal: space.l, paddingVertical: space.m },
 });
