@@ -100,7 +100,7 @@ class OwnvoiceNativeModule : Module() {
       OwnvoiceService.instance?.captured()?.let { c -> mapOf("conversation" to c.conversation, "written" to c.written, "typed" to c.typed, "app" to c.app, "label" to c.label, "at" to c.at, "id" to c.id, "hasField" to (c.input != null), "typingLimited" to c.typingLimited, "fieldTop" to c.fieldTop, "nodes" to c.nodes.map { mapOf("text" to it.text, "left" to it.left, "top" to it.top, "bottom" to it.bottom, "clickable" to it.clickable, "viewId" to it.viewId, "description" to it.description) }) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("takeTapFacts") {
-      OwnvoiceService.savedFacts(context).map { mapOf("at" to it.at, "app" to it.app, "label" to it.label, "screen" to it.screen, "typed" to it.typed, "replying" to it.replying, "id" to it.id, "sent" to it.sent) }
+      OwnvoiceService.savedFacts(context).map { mapOf("at" to it.at, "app" to it.app, "label" to it.label, "screen" to it.screen, "typed" to it.typed, "replying" to it.replying, "id" to it.id, "sent" to it.sent, "inserted" to it.inserted) }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("markTapSent") { id: String -> OwnvoiceService.markTapSent(context, id) }.runOnQueue(Queues.MAIN)
     AsyncFunction("unmarkTapSent") { id: String -> OwnvoiceService.unmarkTapSent(context, id) }.runOnQueue(Queues.MAIN)

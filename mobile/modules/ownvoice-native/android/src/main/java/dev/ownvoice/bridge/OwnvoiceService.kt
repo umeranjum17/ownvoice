@@ -107,14 +107,14 @@ class OwnvoiceService : AccessibilityService() {
     private const val DAY_MS = 24L * 60 * 60 * 1000
     private const val TIP = "Tap for reply ideas, or to polish what you wrote."
 
-    private fun factLine(f: TapFact) = listOf(f.at, f.app.replace(Regex("[\\t\\r\\n]"), " "), f.label.replace(Regex("[\\t\\r\\n]"), " "), f.screen, f.typed, f.replying, f.id, f.sent).joinToString("\t")
+    private fun factLine(f: TapFact) = listOf(f.at, f.app.replace(Regex("[\\t\\r\\n]"), " "), f.label.replace(Regex("[\\t\\r\\n]"), " "), f.screen, f.typed, f.replying, f.id, f.sent, f.inserted).joinToString("\t")
     // ponytail: If the service never runs, old facts remain until its next start.
     private fun restoreFacts(context: android.content.Context) {
       val prefs = context.getSharedPreferences("ownvoice-native", MODE_PRIVATE)
       if (facts.isEmpty()) prefs.getString(FACTS, "").orEmpty().lineSequence().filter { it.isNotBlank() }.forEach { line ->
         val parts = line.split('\t')
-        if (parts.size == 7 || parts.size == 8) parts[0].toLongOrNull()?.let { at ->
-          facts += TapFact(at, parts[1], parts[2], parts[3].toBoolean(), parts[4].toBoolean(), parts[5].toBoolean(), parts[6], parts.getOrNull(7) == "true")
+        if (parts.size in 7..9) parts[0].toLongOrNull()?.let { at ->
+          facts += TapFact(at, parts[1], parts[2], parts[3].toBoolean(), parts[4].toBoolean(), parts[5].toBoolean(), parts[6], parts.getOrNull(7) == "true", parts.getOrNull(8) == "true")
         }
       }
       val kept = facts.filter { System.currentTimeMillis() - it.at < KEEP_MS }
@@ -136,6 +136,13 @@ class OwnvoiceService : AccessibilityService() {
         facts.clear(); facts.addAll(updated)
       }
     }
+    private fun markInserted(context: android.content.Context, id: String) = synchronized(facts) {
+      restoreFacts(context)
+      val updated = facts.map { if (it.id == id) it.copy(inserted = true) else it }
+      check(context.getSharedPreferences("ownvoice-native", MODE_PRIVATE).edit()
+        .putString(FACTS, updated.joinToString("\n", transform = ::factLine)).commit()) { "The phone could not save the insertion." }
+      facts.clear(); facts.addAll(updated)
+    }
     fun markTapSent(context: android.content.Context, id: String) = setTapSent(context, id, true)
     fun unmarkTapSent(context: android.content.Context, id: String) = setTapSent(context, id, false)
     fun clearSavedFacts(context: android.content.Context) = synchronized(facts) {
@@ -144,7 +151,7 @@ class OwnvoiceService : AccessibilityService() {
     }
   }
 
-  data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false)
+  data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false, val inserted: Boolean = false)
   data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean, val viewId: String? = null, val description: String? = null)
   data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String, val typingLimited: Boolean = false)
   private val main = Handler(Looper.getMainLooper())
@@ -511,6 +518,10 @@ class OwnvoiceService : AccessibilityService() {
         if (result != "copied") copyDraft(text)
         say("Copied, paste it in")
       }
+    }
+    if (ok && reading != null) {
+      try { markInserted(this, reading.id) }
+      catch (error: Exception) { say("Inserted, but could not save the record. ${error.message}") }
     }
     onInserted?.invoke(ok, newlinesLost, practice)
     done(ok, newlinesLost)

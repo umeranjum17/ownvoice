@@ -4,6 +4,7 @@
 // Boots nothing itself: start fm-prefill1 first, then run with its serial.
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
+import { emulatorName } from './accessibility.mjs';
 
 const serial = process.env.ANDROID_SERIAL?.trim();
 if (!/^emulator-\d+$/.test(serial ?? '')) throw new Error('Set ANDROID_SERIAL to an emulator serial.');
@@ -15,7 +16,7 @@ const attached = execFileSync('adb', ['devices']).toString().split('\n')
 if (!attached.includes(serial)) throw new Error(`${serial} not attached: ${attached.join(',')}`);
 if (attached.length > 1) throw new Error(`another emulator is up (${attached.join(',')}); wait your turn.`);
 
-const avd = execFileSync('adb', ['-s', serial, 'emu', 'avd', 'name']).toString().split('\n')[0].trim();
+const avd = emulatorName(serial);
 if (avd !== 'fm-prefill1') throw new Error(`Refusing ${serial}: AVD ${avd} is not fm-prefill1.`);
 console.log(`proof on ${serial} (${avd})`);
 

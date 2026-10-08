@@ -21,7 +21,9 @@ import { retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
-import { FitBar, fitBarVisible } from '../ui/FitBar';
+import { FitBar, fitBarVisible, fitFlag } from '../ui/FitBar';
+import { saveOutcome } from '../core/store';
+import { LEVELS } from '../grow/fit';
 import { CheckIcon, ChevIcon, CopyIcon, OpenIcon, ShareIcon } from '../ui/icons';
 import { MeaningLine } from '../ui/MeaningLine';
 import { Marked } from '../ui/Marked';
@@ -362,14 +364,27 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   });
 
   // Puts [text] in their message box, only on their tap, through the same way as a draft.
-  const put = (text: string): Promise<boolean> => {
+  const put = (text: string, slot = -1, fit?: Fit, ratings: CardRatings | null = null): Promise<boolean> => {
     if (inserting.current) return Promise.resolve(false);
     inserting.current = true;
     setInsertBusy(true);
-    return Native.serviceState().then(async state => {
+    return Native.serviceState().then(state => {
       if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return false; }
-      const done = await Native.insert(text);
-      return done?.ok === true;
+      const reading = capture;
+      const platform = platformOf.current.id;
+      const platformLabel = platformOf.current.label || reading?.label || '';
+      const level = mode === 'grow' && fitBarVisible(fit, ratings)
+        ? (fitFlag(ratings) ? LEVELS[0] : fit?.level != null ? LEVELS[fit.level] : fit?.words ?? null) : null;
+      return Native.insert(text).then(async result => {
+        if (!result?.ok || !reading) return result?.ok === true;
+        try {
+          saveOutcome({ id: reading.id, platform, platformLabel, level, card: slot === -1 ? 'yours' : 'suggestion', slot, at: Date.now() }, text);
+        } catch (error) {
+          console.warn('Could not save inserted reply record', error);
+          await Native.say(/refused|readonly|read.only/i.test(String(error)) ? words.outcomeRefused : words.outcomeFailed).catch(() => {});
+        }
+        return true;
+      });
     }).catch(() => { setNote(words.serviceOff); setPhase('failed'); return false; })
       .finally(() => { inserting.current = false; setInsertBusy(false); });
   };
@@ -507,6 +522,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <Ratings ratings={yours.ratings} fit={yoursFit} hideEngagement={grow && fitBarVisible(yoursFit, yours.ratings)} />
         {grow ? <FitBar fit={yoursFit} ratings={yours.ratings} /> : null}
         <View style={styles.actions}>
+          {grow ? <Button kind="filled" label={words.useThis} disabled={!hasField || limited || insertBusy} onPress={() => { void put(yours.text, -1, yoursFit, yours.ratings); }} /> : null}
           {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
           <Button kind="text" label={words.why} onPress={() => openWhy(yours)} />
         </View>
@@ -531,10 +547,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitBarVisible(cardFit, card.ratings)} />
           {grow && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy || !editing.text.trim()} onPress={() => { void put(editing.text); }} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy || !editing.text.trim()} onPress={() => { void put(editing.text, card.slot); }} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
           </View> : <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy} onPress={() => { void put(card.text); }} />
+            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy} onPress={() => { void put(card.text, card.slot, cardFit, card.ratings); }} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />
@@ -561,8 +577,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 }
 
 const styles = StyleSheet.create({
-  // Wraps Why? onto its own line on narrow phones rather than squeezing the buttons.
-  actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s, marginTop: space.m, marginLeft: -space.xs },
+  actions: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: space.s, marginTop: space.m, marginLeft: -space.xs },
   quote: { flexDirection: 'row', gap: space.m, borderRadius: shape.card, padding: space.l },
   slip: { flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 56, paddingVertical: space.s },
   slipText: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s },

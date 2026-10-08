@@ -16,12 +16,12 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
-import { accessibilityProbe, center } from './accessibility.mjs';
+import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
 
 const serial = process.env.ANDROID_SERIAL?.trim();
 if (!/^emulator-\d+$/.test(serial ?? '')) throw new Error('Set ANDROID_SERIAL to an owned emulator (owner phones are refused).');
 const avd = process.env.OWNVOICE_AVD_NAME;
-const actual = execFileSync('adb', ['-s', serial, 'emu', 'avd', 'name'], { encoding: 'utf8' }).trim().split(/\r?\n/)[0];
+const actual = emulatorName(serial);
 if (!avd || actual !== avd) throw new Error(`Refusing ${serial}: AVD ${actual} is not ${avd}.`);
 const apk = process.argv[2];
 if (!apk) throw new Error('Pass the release APK path.');
@@ -115,7 +115,7 @@ execFileSync('adb', ['-s', serial, 'install', '-r', fixtureApk], { stdio: 'inher
 if (!adb('shell', 'pm', 'path', pkg).includes('package:')) execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'logcat', '-c');
 const toggleService = async on => {
-  const list = on ? [component] : ['com.example.disabled/NoService', component];
+  const list = on ? [component] : ['com.example.disabled/NoService'];
   adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', list.join(':'));
   adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
   await wait(1500);
@@ -123,6 +123,13 @@ const toggleService = async on => {
 await toggleService(false);
 await toggleService(true);
 await wait(2500);
+if (!/Bound services:\s*\{[^}]*Ownvoice/.test(adb('shell', 'dumpsys', 'accessibility'))) throw new Error('Ownvoice accessibility service is not bound.');
+
+if (process.env.OWNVOICE_OUTCOME_PROOF === '1') {
+  const { proveOutcomes } = await import('./outcomes.mjs');
+  await proveOutcomes({ adb, nodes, bubble, wait, evidence, theme, before, out, fixturePkg, pkg });
+  process.exit(0);
+}
 
 // 2. The blank X-style composer: focused, empty, nothing on it about the post.
 adb('shell', 'monkey', '-p', fixturePkg, '-c', 'android.intent.category.LAUNCHER', '1');

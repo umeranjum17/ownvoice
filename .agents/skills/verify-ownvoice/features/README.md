@@ -26,6 +26,7 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [Reply drafts](./reply-drafts.md) — Android: bubble tap offers replies; Insert puts one in the field.
 - [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert.
 - [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
+- [Local reply outcomes](./reply-outcomes.md) — Android: insert → real local store → read-back, text opt-in and failed append.
 - [Own posts](./own-posts.md) — Android: a blank feed composer asks for the one line, then drafts from it; edit one and insert it.
 - [Typing checks](./typing-checks.md) — Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery.
 

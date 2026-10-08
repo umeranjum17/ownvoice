@@ -35,7 +35,7 @@ public class Probe extends Instrumentation {
       .put("className", String.valueOf(node.getClassName()))
       .put("checkable", node.isCheckable()).put("checked", node.isChecked())
       .put("editable", node.isEditable()).put("password", node.isPassword())
-      .put("focused", node.isFocused()).put("clickable", node.isClickable()).put("enabled", node.isEnabled())
+      .put("focused", node.isFocused()).put("accessibilityFocused", node.isAccessibilityFocused()).put("clickable", node.isClickable()).put("enabled", node.isEnabled())
       .put("app", String.valueOf(node.getPackageName()))
       .put("selectionStart", node.getTextSelectionStart()).put("selectionEnd", node.getTextSelectionEnd())
       .put("visible", node.isVisibleToUser()).put("bounds", bounds(rect))

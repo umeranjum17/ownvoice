@@ -76,7 +76,7 @@ case "${1:-}" in
     [ -e "$pidf" ] && { echo "a recording is already running (pid $(cat "$pidf"))" >&2; exit 1; }
     mkdir -p "$dir"
     "${ADB[@]}" shell rm -f /data/local/tmp/ov-motion.mp4
-    "${ADB[@]}" shell screenrecord --time-limit "$REC_LIMIT" /data/local/tmp/ov-motion.mp4 &
+    "${ADB[@]}" shell screenrecord --time-limit "$REC_LIMIT" /data/local/tmp/ov-motion.mp4 >"$dir/.motion-recorder.log" 2>&1 &
     echo $! > "$pidf"; printf '%s' "$out" > "$outf"
     echo "recording to $out (cap ${REC_LIMIT}s — motion-stop when the interaction is done)" ;;
   motion-stop)

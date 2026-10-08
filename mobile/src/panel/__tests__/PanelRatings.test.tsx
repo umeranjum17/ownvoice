@@ -125,7 +125,8 @@ test('a card with four engagement signals reads all four aloud in its bar, botto
 
 test('Insert still puts the exact rated card text in the box and never posts', async () => {
   const screen = await open(capture());
-  fireEvent.press(screen.getAllByRole('button', { name: words.useThis })[0]);
+  const card = (text: string) => within(screen.getByText(text).parent!);
+  await fireEvent.press(card(DRAFTS[0]).getByRole('button', { name: words.useThis }));
   await waitFor(() => expect(native.insert).toHaveBeenCalledWith(DRAFTS[0]));
 });
 

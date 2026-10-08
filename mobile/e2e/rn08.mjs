@@ -7,12 +7,12 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
-import { accessibilityProbe, center } from './accessibility.mjs';
+import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
 
 const serial = process.env.ANDROID_SERIAL;
 const avdName = process.env.OWNVOICE_AVD_NAME?.trim();
 if (!/^emulator-\d+$/.test(serial ?? '') || !avdName) throw new Error('Set ANDROID_SERIAL to an emulator and OWNVOICE_AVD_NAME to its owned AVD name.');
-const actualAvd = execFileSync('adb', ['-s', serial, 'emu', 'avd', 'name'], { encoding: 'utf8' }).trim().split(/\r?\n/)[0];
+const actualAvd = emulatorName(serial);
 if (actualAvd !== avdName) throw new Error(`Refusing ${serial}: AVD ${actualAvd} does not match ${avdName}.`);
 const apk = process.argv[2];
 if (!apk) throw new Error('Pass the release APK path.');

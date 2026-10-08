@@ -6,6 +6,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { emulatorName } from './accessibility.mjs';
 
 const serial = process.env.ANDROID_SERIAL;
 if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (owner phones are refused).');
@@ -17,7 +18,7 @@ const out = resolve(process.argv[3] ?? 'e2e/artifacts');
 mkdirSync(out, { recursive: true });
 
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
-const avd = execFileSync('adb', ['-s', serial, 'emu', 'avd', 'name'], { encoding: 'utf8' }).trim().split('\n')[0].trim();
+const avd = emulatorName(serial);
 if (avd !== wantAvd) throw new Error(`Refusing ${serial}: avd ${avd} is not the owned ${wantAvd}.`);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
