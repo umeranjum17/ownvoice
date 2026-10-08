@@ -395,7 +395,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           const n = Typing.count(text, spell, voice.current);
           // checkMs 0 marks a fix refresh, not a typing pause, in the device log.
           if (run.current === id) await Native.showSlips(capture?.app ?? '', n, slipsLabel(n), 0);
-        } catch {}
+        } catch (error) { console.warn('Could not refresh spelling badge', error); }
       })();
     });
   };

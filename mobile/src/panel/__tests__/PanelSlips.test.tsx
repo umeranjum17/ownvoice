@@ -112,6 +112,10 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
   await fireEvent.press(screen.getByRole('button', { name: words.tryAgain }));
   await screen.findByRole('button', { name: words.writeNew });
   await checkOriginal();
+  const insertions = native.insert.mock.calls.length;
+  await fireEvent.press(screen.getByRole('button', { name: words.fix }));
+  await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(insertions + 1));
+  await waitFor(() => expect(native.insert).toHaveBeenLastCalledWith('I can definitely bring the stove.'));
   native.capture.mockResolvedValue({ ...capture, typed: 'I can bring the stove.', id: 'tap-changed' });
   await screen.rerender(view({ ...writer }));
   await waitFor(() => expect(screen.queryByText(words.slipsTitle)).toBeNull());
