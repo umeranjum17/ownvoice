@@ -22,7 +22,7 @@ import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
 import { FitBar, fitBarVisible, fitFlag } from '../ui/FitBar';
-import { saveOutcome } from '../core/store';
+import { saveOutcome, type PanelMode } from '../core/store';
 import { LEVELS } from '../grow/fit';
 import { CheckIcon, ChevIcon, CopyIcon, OpenIcon, ShareIcon } from '../ui/icons';
 import { MeaningLine } from '../ui/MeaningLine';
@@ -37,7 +37,7 @@ import { shape, space, type, useReducedMotion, useTheme } from '../ui/theme';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { phoneWriter } from './phoneWriter';
 
-type Mode = 'reply' | 'polish' | 'compose' | 'own' | 'empty' | 'grow';
+type Mode = PanelMode;
 
 /** What each reply card is for, in the order the writers fill that app's slots (platforms.ts). */
 const TAGS: Record<string, [string, string, string]> = {
@@ -378,7 +378,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       return Native.insert(text).then(async result => {
         if (!result?.ok || !reading) return result?.ok === true;
         try {
-          saveOutcome({ id: reading.id, platform, platformLabel, level, card: slot === -1 ? 'yours' : 'suggestion', slot, at: Date.now() }, text);
+          saveOutcome({ id: reading.id, platform, platformLabel, level, card: slot === -1 ? 'yours' : 'suggestion', slot, at: Date.now(), mode: mode ?? undefined }, text);
         } catch (error) {
           console.warn('Could not save inserted reply record', error);
           await Native.say(/refused|readonly|read.only/i.test(String(error)) ? words.outcomeRefused : words.outcomeFailed).catch(() => {});
