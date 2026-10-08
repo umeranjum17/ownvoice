@@ -27,7 +27,7 @@ export function Button({ kind, label, disabled = false, large = false, onPress }
     onPress={onPress}
     hitSlop={{ top: 4, bottom: 4, left: 8, right: 8 }}
     android_ripple={{ color: (filled ? t.onPrimary : t.primary).slice(0, 7) + '1F', foreground: true }}
-    style={[styles.button, kind === 'text' && { paddingHorizontal: 8 }, large && styles.large, tonal && styles.tonal, outlined && [styles.outlined, { borderColor: off ? t.text : t.outline }], (filled || tonal) && { backgroundColor: off ? t.text + '1F' : filled ? t.primary : t.primaryContainer }]}>
+    style={[styles.button, kind === 'text' && { paddingHorizontal: 8 }, large && styles.large, tonal && styles.tonal, ...(outlined ? [styles.outlined, { borderColor: off ? t.text : t.outline }] : []), (filled || tonal) && { backgroundColor: off ? t.text + '1F' : filled ? t.primary : t.primaryContainer }]}>
     <Text style={[type.label, large && styles.largeLabel, { color: filled ? (off ? t.text : t.onPrimary) : tonal ? (off ? t.text : t.onPrimaryContainer) : t.primary }, off && { opacity: 0.38 }]}>{label}</Text>
   </Pressable>;
 }
