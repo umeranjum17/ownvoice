@@ -35,6 +35,33 @@ loader and no `.mjs` helper in between; polish additionally imports the shared
 mobile `src/core/polish.ts` acceptor and loads the bundled Hunspell dictionary;
 prompts, pipeline and scorer are the app's own.
 
+## Fit calibration (G9, local only)
+
+```sh
+node fit-calibration.ts <reply-outcomes.json>
+node fit-calibration.integration.ts
+```
+
+Use the JSON array saved under `reply-outcomes`, with the real `Outcome`
+shape from `src/core/store.ts`. `checkin` is `replies`, `likes`, `nothing` or
+`not-posted`; `checkinAt` is optional milliseconds since epoch. No text is
+needed. The CLI only reads the file and makes no network calls.
+
+Strong/Good and Might/Skipped use the level strings from `src/grow/fit.ts`.
+Only checked-in, posted replies with one of those four levels count; unrated,
+unsure, absent check-ins and `not-posted` rows are excluded. Both groups need
+at least 15 eligible check-ins. Pass requires a strictly higher fraction of
+`replies` or `likes` in Strong/Good; a tie fails. Output includes group counts
+and excluded rows. Exit codes: pass 0, fail 1, **not enough yet 2**, invalid
+input 3 (with the actual cause on stderr). Neither an insufficient sample nor
+invalid input can pass. This is a personal association, not proof Ownvoice
+caused engagement. The integration command seeds files in TMPDIR and drives
+the real CLI, including unequal denominators, exclusions and malformed input.
+
+No X import is built: public account-overview examples have daily follower
+changes, not total followers or individual reply rows. Manual weekly numbers
+remain the source; account aggregates must not become invented check-ins.
+
 ## Threshold rule
 
 A model or prompt change must not drop below the study's numbers on **P01,

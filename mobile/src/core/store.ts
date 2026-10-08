@@ -4,7 +4,7 @@ import Storage from 'expo-sqlite/kv-store';
 // Read history itself is owned by the native service, not this store.
 export const OUTCOMES = 'reply-outcomes';
 export const KEEP_REPLIES = 'keep-replies';
-export type Outcome = { id: string; platform: string; platformLabel: string; level: string | null; card: 'yours' | 'suggestion'; slot: number; at: number; text?: string };
+export type Outcome = { id: string; platform: string; platformLabel: string; level: string | null; card: 'yours' | 'suggestion'; slot: number; at: number; text?: string; checkin?: 'replies' | 'likes' | 'nothing' | 'not-posted'; checkinAt?: number };
 const snapshots = new Map<string, unknown>();
 export const store = {
   peek<T>(name: string): T | null { return (snapshots.get(name) as T | undefined) ?? null; },
