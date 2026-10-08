@@ -6,9 +6,13 @@ export const OUTCOMES = 'reply-outcomes';
 export const KEEP_REPLIES = 'keep-replies';
 export const GROWTH_COUNTS = 'growth-counts';
 export type CheckinAnswer = 'replies' | 'likes' | 'nothing' | 'not-posted';
-export type Outcome = { id: string; platform: string; platformLabel: string; level: string | null; card: 'yours' | 'suggestion'; slot: number; at: number; text?: string; checkin?: CheckinAnswer; checkinAt?: number };
+/** The drafts panel mode an insert came from. Only reply contexts prompt a check-in. */
+export type PanelMode = 'reply' | 'polish' | 'compose' | 'own' | 'empty' | 'grow';
+export type Outcome = { id: string; platform: string; platformLabel: string; level: string | null; card: 'yours' | 'suggestion'; slot: number; at: number; mode?: PanelMode; text?: string; checkin?: CheckinAnswer; checkinAt?: number };
 export type GrowthCount = { at: number; x: string; reddit: string };
-/** Only suggestion records are eligible; spelling fixes and own text must never prompt a check-in. */
+/** Only reply-mode suggestion records are eligible; polished drafts, composed posts,
+ *  spelling fixes and own text must never prompt a check-in. Records saved before the
+ *  panel mode was recorded carry no mode and keep the earlier suggestion-only behavior. */
 export const CHECKIN_MS = 24 * 60 * 60 * 1000;
 /** The weekly numbers card waits a week after the last saved counts. */
 export const COUNTS_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -60,7 +64,8 @@ export function answerOutcome(id: string, checkin: CheckinAnswer): void {
 }
 
 export function pendingCheckin(now = Date.now()): Outcome | null {
-  const due = outcomes().filter(row => row.card === 'suggestion' && !row.checkin && now - row.at >= CHECKIN_MS);
+  const due = outcomes().filter(row => row.card === 'suggestion' && !row.checkin && now - row.at >= CHECKIN_MS
+    && (row.mode === undefined || row.mode === 'reply' || row.mode === 'grow'));
   due.sort((a, b) => a.at - b.at);
   return due[0] ?? null;
 }

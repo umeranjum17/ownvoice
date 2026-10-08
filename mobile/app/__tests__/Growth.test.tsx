@@ -192,6 +192,27 @@ test('only suggestion records become check-ins, and failed answers stay availabl
   expect(pendingCheckin()).toBeNull();
 });
 
+test('only reply-mode suggestions become check-ins; polish and compose inserts stay quiet', async () => {
+  const old = Date.now() - 25 * 3600_000;
+  kv.set('reply-outcomes', JSON.stringify([
+    { ...due('polish', old), mode: 'polish' },
+    { ...due('compose', old + 1), mode: 'compose' },
+    { ...due('reply', old + 2), mode: 'reply' },
+  ]));
+  expect(pendingCheckin()?.id).toBe('reply');
+  const screen = await render(<Home />);
+  await screen.findByText(words.statusReady);
+  await waitFor(() => expect(screen.getByText(`How did your reply ${words.checkinOn} X do?`)).toBeTruthy());
+  await fireEvent.press(screen.getByText(words.checkinLikes));
+  await waitFor(() => expect(outcomes().find(row => row.id === 'reply')?.checkin).toBe('likes'));
+  expect(typeof outcomes().find(row => row.id === 'reply')?.checkinAt).toBe('number');
+  expect(outcomes().find(row => row.id === 'polish')?.checkin).toBeUndefined();
+  expect(outcomes().find(row => row.id === 'compose')?.checkin).toBeUndefined();
+  expect(pendingCheckin()).toBeNull();
+  expect(screen.queryByText(`How did your reply ${words.checkinOn} X do?`)).toBeNull();
+  expect(fetchMock).not.toHaveBeenCalled();
+});
+
 test('both count fields reject invalid input before writing either field', () => {
   saveGrowthCount('10', '-5');
   const before = growthCounts();
