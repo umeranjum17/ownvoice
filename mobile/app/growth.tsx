@@ -1,5 +1,6 @@
 import { useCallback, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle, Polyline } from 'react-native-svg';
 import { router, useFocusEffect } from 'expo-router';
 import { Page } from '../src/ui/Page';
 import { shape, space, type, useTheme } from '../src/ui/theme';
@@ -23,22 +24,33 @@ const trendWord = (values: number[]): string => {
   return trend === 'up' ? words.growthUp : trend === 'same' ? words.growthSame : trend === 'down' ? words.growthDown : words.growthNew;
 };
 
-/** His own counts as short bars scaled across this series' own low and high, so a rise or
- *  fall shows; one count needs no chart, since its number is already above. */
+/** His own counts as a thin honest line: scaled over a padded range centred on the data
+ *  (span = the series spread or a tenth of the latest count, whichever is wider), so a small
+ *  change draws small and a flat series sits level mid-height. The trend words stay the signal;
+ *  one count needs no chart, since its number is already above. */
+const CHART_H = 48;
 function Bars({ values }: { values: number[] }) {
   const t = useTheme();
+  const [width, setWidth] = useState(0);
   if (values.length < 2) return null;
-  const low = Math.min(...values);
-  const range = Math.max(...values) - low || 1;
-  return <View style={styles.bars}>
-    {values.map((value, i) => <View key={i} style={[styles.bar, { height: 10 + 38 * ((value - low) / range), backgroundColor: t.primary }]} />)}
+  const latest = values[values.length - 1];
+  const span = Math.max(Math.max(...values) - Math.min(...values), Math.abs(latest) * 0.1) || 1;
+  const mid = (Math.max(...values) + Math.min(...values)) / 2;
+  const y = (v: number) => CHART_H - 6 - ((v - (mid - span / 2)) / span) * (CHART_H - 12);
+  const x = (i: number) => (i / (values.length - 1)) * Math.max(width - 8, 1) + 4;
+  const points = values.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  return <View style={styles.line} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
+    {width > 0 && <Svg width={width} height={CHART_H} viewBox={`0 0 ${width} ${CHART_H}`}>
+      <Polyline points={points} fill="none" stroke={t.primary} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+      {values.map((v, i) => <Circle key={i} cx={x(i)} cy={y(v)} r={3.5} fill={t.primary} />)}
+    </Svg>}
   </View>;
 }
 
 const weekLabel = (indexFromLatest: number) =>
   indexFromLatest === 0 ? words.weekThis : indexFromLatest === 1 ? words.weekLast : words.weekOlder;
 
-/** Your growth: his own typed counts as bars and plain trend words. Since he started, never a cause. */
+/** Your growth: his own typed counts as a line and plain trend words. Since he started, never a cause. */
 export default function Growth() {
   const t = useTheme();
   const [rows, setRows] = useState<GrowthCount[]>([]);
@@ -77,6 +89,5 @@ export default function Growth() {
 const styles = StyleSheet.create({
   group: { borderRadius: shape.group, overflow: 'hidden', padding: space.l, gap: space.s },
   section: { gap: space.xs, paddingVertical: space.s },
-  bars: { flexDirection: 'row', alignItems: 'flex-end', gap: space.xs, paddingTop: space.s },
-  bar: { flex: 1, borderRadius: 3, minHeight: 8 },
+  line: { height: CHART_H, paddingTop: space.s },
 });

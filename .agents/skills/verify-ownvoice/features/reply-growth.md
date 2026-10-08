@@ -6,7 +6,7 @@ F6b asks about one inserted reply about a day later, takes weekly X/Reddit count
 
 - A recorded insert grows one quiet Home line after about a day (Got replies back / Some likes / Nothing yet / Didn't post it); the answer lands on that same outcome record (`checkin` + `checkinAt` in `mobile/src/core/store.ts`, shared with F6c calibration).
 - A Home card about once a week takes his typed X follower count and Reddit karma; the numbers stay on the phone and render only on the growth screen (the one scoped digits exception in `PlainWordsTest`).
-- The growth screen reads "since you started", shows his counts as bars with plain trend words (Up / Same / Down since last week), and never says Ownvoice caused a change.
+- The growth screen reads "since you started", shows his counts as a thin honest line with plain trend words (Up / Same / Down since last week), and never says Ownvoice caused a change.
 - Manual buttons alone cover the check-in; the optional one-tap "Read my counts" screen read is a follow-up, not built here.
 
 ## How to get to it (user POV)
@@ -27,4 +27,4 @@ Seed one outcome record with an `at` timestamp faked a day forward plus one week
 
 ## Gotchas
 
-The check-in line shows only for unanswered records at least a day old; answering twice keeps the first answer. Counts are his own typed strings, kept verbatim — bars and trends use only values that parse as numbers. This proof does not qualify writer prose, fit levels, or any remote backend. Read every screenshot before reporting ready.
+The check-in line shows only for unanswered records at least a day old; answering twice keeps the first answer. Counts are his own typed strings, kept verbatim — the line chart and trends use only values that parse as numbers. This proof does not qualify writer prose, fit levels, or any remote backend. Read every screenshot before reporting ready.
