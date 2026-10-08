@@ -3,7 +3,7 @@
 // the panel never offers to send or post.
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { fireEvent, render, waitFor } from '@testing-library/react-native';
+import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import Panel from '../Panel';
 import { words } from '../../core/words';
 import type { DraftRequest, WriterEvents } from '../../core/writers';
@@ -46,6 +46,8 @@ const open = async () => {
 // The typed text carries no rating row, so the first row on screen is the first landed draft's.
 const firstRating = (screen: Awaited<ReturnType<typeof open>>) => screen.getAllByLabelText(/^Engagement on /)[0].props.accessibilityLabel as string;
 
+const editing = (screen: Awaited<ReturnType<typeof open>>) => within(screen.getByLabelText('Edit this draft').parent!);
+
 beforeEach(() => native.insert.mockClear());
 
 test('an edited card inserts exactly the edited text and is rated as edited', async () => {
@@ -55,7 +57,7 @@ test('an edited card inserts exactly the edited text and is rated as edited', as
   const edited = 'Week twelve, for us. More at https://example.com';
   await fireEvent.changeText(screen.getByLabelText('Edit this draft'), edited);
   expect(firstRating(screen)).toMatch(/^Engagement on X: Worth a second look\. Has a link\./);
-  await fireEvent.press(screen.getAllByRole('button', { name: words.useThis })[0]);
+  await fireEvent.press(editing(screen).getByRole('button', { name: words.useThis }));
   await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(1));
   expect(native.insert).toHaveBeenCalledWith(edited);
 });
@@ -77,7 +79,7 @@ test('an emptied edit cannot be inserted, and nothing offers to send or post', a
   const screen = await open();
   await fireEvent.press(screen.getAllByRole('button', { name: 'Edit' })[0]);
   await fireEvent.changeText(screen.getByLabelText('Edit this draft'), '   ');
-  await fireEvent.press(screen.getAllByRole('button', { name: words.useThis })[0]);
+  await fireEvent.press(editing(screen).getByRole('button', { name: words.useThis }));
   await new Promise(resolve => setTimeout(resolve, 20));
   expect(native.insert).not.toHaveBeenCalled();
   expect(screen.queryAllByRole('button', { name: /^(send|post|reply|tweet)\b/i })).toEqual([]);
