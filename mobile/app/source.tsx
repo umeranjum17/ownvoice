@@ -92,8 +92,8 @@ export default function SourceScreen() {
   const connectClaude = () => {
     const text = pasted.trim();
     if (!text || signIn?.key !== 'claude') return;
-    require('../src/chatgpt/accounts').paste('claude', text)
-      .then(() => setPasted(''), () => setProblem(words.claudePasteFailed));
+    try { require('../src/chatgpt/accounts').paste('claude', text); } catch { setProblem(words.claudePasteFailed); return; }
+    setPasted('');
   };
 
   const leaveSignIn = () => {
