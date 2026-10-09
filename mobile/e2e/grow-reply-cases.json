@@ -1,0 +1,16 @@
+{
+  "x": [
+    { "post": "Shipped the offline reading mode today. No sync, no account, every article cached to the phone so a tunnel can't stop you.", "reply": "offline first is the right call, but how do you handle a page that updates after it's cached" },
+    { "post": "I raised prices 40% and churn went down. Turns out cheap prices were attracting people who never stuck around.", "reply": "raising prices can filter for people who actually need it" },
+    { "post": "Deleted the onboarding tour. New users now just see the empty app and one example. Activation is up.", "reply": "the tour was the problem, an empty screen with one example shows the point faster" },
+    { "post": "My best growth channel this year was answering questions in a forum I actually use. No ads, no audience, just helpful answers.", "reply": "showing up where people already ask beats broadcasting at them" },
+    { "post": "We moved the whole team to one repo. Fewer handoffs, but the CI queue is now the bottleneck every afternoon.", "reply": "one repo helps until everyone lands at once, the queue is the new handoff" }
+  ],
+  "reddit": [
+    { "post": "r/androidapps: My notes app stores everything in a single SQLite file. Someone told me to move to JSON files instead. Is that worth it?", "reply": "a single SQLite file is fine until they need to read it elsewhere, then export is the whole problem" },
+    { "post": "r/androidapps: Got a one-star review saying the widget is always a day behind. I can't reproduce it. Where do I start?", "reply": "check what triggers the widget refresh at midnight, widgets cache their last state" },
+    { "post": "r/androidapps: How many permissions is too many for a simple notes app? I need storage and nothing else.", "reply": "storage only is the right set, anything beyond that needs a plain reason on the screen" },
+    { "post": "r/androidapps: I want to add a subscription but the app works fully offline. Does that even make sense?", "reply": "offline apps are hard to gate, a one time price fits better than a subscription" },
+    { "post": "r/androidapps: My app asks for a rating right after launch and people ignore it. Should the prompt show later?", "reply": "ask after a real success, never on launch, launch is the worst moment to interrupt" }
+  ]
+}

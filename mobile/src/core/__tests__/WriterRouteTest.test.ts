@@ -135,3 +135,12 @@ test('empty or blank polish still falls back and partial replies stay incomplete
     expect((await withPhoneFallback(primary(['one', 'two']), phone, { ...request, typed })).reason).toBe(words.fallback);
   }
 });
+
+// Grow mode sets `point` (their typed reply). Two or three usable cards are kept; only an empty
+// answer falls back. A typed-empty request without a point keeps the fixed-three rule above.
+test('a grow reply that fills two slots is kept, not thrown away', async () => {
+  const primary = (drafts: string[]): Writer => ({ write: async () => ({ drafts }) });
+  const grow = { ...request, typed: '', point: 'offline first is the right call' };
+  expect(await withPhoneFallback(primary(['one', 'two']), phone, grow)).toEqual({ drafts: ['one', 'two'] });
+  expect((await withPhoneFallback(primary([]), phone, grow)).reason).toBe(words.fallback);
+});
