@@ -7,7 +7,7 @@ export const UNSURE = 'Not sure about this one';
 /** The plain abstention: no level, no probability, the unsure words. */
 export const abstain = (): Fit => ({ level: null, words: UNSURE, probability: null, voice: null });
 
-/** Per-platform rubric lines Jev is asked (guesses until calibrated on Umer's own outcomes). */
+/** Per-platform rubric lines the judge is asked (guesses until calibrated on Umer's own outcomes). */
 const ANCHORS = 'Choose the level by content: Likely to be skipped means off-topic text, nonsense, empty praise or bait. Might get a reply means relevant but vague or rambling. Good fit here means a clear useful point with limited new detail. Strong fit here means a specific new detail, concrete mechanism or pertinent question with a reason that moves this conversation forward. Brevity alone does not make a reply stronger.';
 const RUBRIC: Record<string, string> = {
   x: 'An X reply. Rate how likely it is to earn a reply back (above all from the post author), a quote or a share, and how unlikely a mute, block or "not interested". Reward one concrete new point and a first line that stands alone. Generic praise and bait without a concrete new point belong at the lowest level, even if provocative. A relevant specific question is stronger than empty agreement. Penalise generic praise, engagement bait, links, tagging strangers and text that sounds machine-written.',
@@ -15,7 +15,7 @@ const RUBRIC: Record<string, string> = {
   reddit: "A Reddit comment. Rate how likely upvotes are: on topic, specific, adds something the thread lacks, fits the subreddit's tone and the rules visible in the post. Generic praise and vote bait without useful thread-specific detail belong at the lowest level. Reward actionable specifics over empty agreement. Penalise self-promotion, links, jokes that derail and text that sounds machine-written.",
 };
 
-/** `probability`: Jev's probability for `level`, for logs and proof only; people see `words`. */
+/** `probability`: the judge's probability for `level`, for logs and proof only; people see `words`. */
 /** `voice`: the same call's yes/no on whether the card sounds like them, from their selected samples. */
 export type Fit = { level: number | null; words: string; probability: number | null; voice: boolean | null };
 

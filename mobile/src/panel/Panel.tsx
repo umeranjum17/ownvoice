@@ -151,7 +151,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const [tones, setTones] = useState<Map<string, string>>(new Map());
   const toneFor = useRef(0);
-  // Jev's fit per shown text, asked once per tap after the cards land; only when the writer's text left the phone.
+  // The fit per shown text, asked once per tap after the cards land; only when the writer's text left the phone.
   const [fits, setFits] = useState<Map<string, Fit>>(new Map());
   const fitFor = useRef(0);
   const leaves = useRef(false);
