@@ -16,7 +16,7 @@ import tasksJson from '../../../e2e/agent-tasks.json';
 
 jest.mock('../../core/source', () => ({ getSource: jest.fn(async () => 'chatgpt') }));
 jest.mock('../../chatgpt/settings', () => ({
-  agentChatgptConsent: () => ({ beforeSend: async () => true, beforeFetch: () => true }),
+  agentConsent: () => ({ beforeSend: async () => true, beforeFetch: () => true }),
 }));
 jest.mock('../../chatgpt/accounts', () => {
   const actual = jest.requireActual('../../chatgpt/accounts');

@@ -1,7 +1,7 @@
 import { jev, type Backend } from '@byokit/decide';
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
-import { cloudOf, getSource, isOwnApp, phoneListed, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
+import { cloudNow, cloudOf, cloudSession, getSource, isOwnApp, phoneListed, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { modelStatus } from '../core/phoneDownload';
 import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
@@ -9,7 +9,7 @@ import { store } from '../core/store';
 import { cloudWords, needWriter, routeWriters, SendVeto, thrower, type WriterEvents, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
-import { claudeNow, claudeSession, mocked, session, sessionNow, signOutGuard, type Session } from './session';
+import { mocked, signOutGuard } from './session';
 const stubbed = process.env.EXPO_PUBLIC_E2E_STUB === '1';
 type BubbleRules = Awaited<ReturnType<typeof Native.bubbleRules>>;
 let rulesNow: BubbleRules | null = null;
@@ -35,10 +35,6 @@ const switchStore = {
 };
 
 type Guard = { active: boolean; epoch: number };
-
-/** The chosen cloud account's own session and its synchronous mirror, one per key. */
-const cloudSession = (key: CloudKey): Session => key === 'claude' ? claudeSession : session;
-const cloudNow = (key: CloudKey) => (key === 'claude' ? claudeNow : sessionNow)();
 
 /** Still signed in under the same sign-out epoch the send started with. */
 function guardOk(key: CloudKey, before: Guard, signedIn: boolean): boolean {
@@ -85,11 +81,6 @@ export function agentConsent(key: CloudKey): Required<Pick<WriterEvents, 'before
   const epoch = signOutGuard(key).epoch;
   const beforeFetch = () => fetchCore(epoch, key) && (mocked || switchNow?.chatgpt === 'on');
   return { beforeSend, beforeFetch };
-}
-
-/** The lab agent's ChatGPT consent: the agent brain runs on the ChatGPT key. */
-export function agentChatgptConsent(): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
-  return agentConsent('chatgpt');
 }
 
 /** The consent every cloud request sends under, re-checked immediately before sending: still signed in, never mid-sign-out, not paused, the app still on that account's routing and the switch not off (`app` is null for the app-agnostic rewrite sheet). */

@@ -86,6 +86,7 @@ const claudeWords = {
   claudeOpen: 'Open the Claude page',
   claudeSignOut: 'Sign out of Claude',
   claudePageFailed: 'Couldn’t open the Claude page. Try the button again.',
+  claudePasteFailed: 'Claude sign-in ended. Start it again.',
   srcClaude: 'With your Claude',
   rowSourceClaude: 'With your Claude',
   homeClaude: 'Writes with your Claude.',

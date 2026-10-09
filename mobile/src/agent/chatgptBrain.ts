@@ -5,7 +5,7 @@ import { classify, IncompleteError, isFunctionCall, ResponseError } from '@byoki
 import { accounts, codexAuth, reportFailure } from '../chatgpt/accounts';
 import { withResponseFetch } from '../chatgpt/responseFetch';
 import { CHATGPT_MODEL } from '../chatgpt/responses';
-import { agentChatgptConsent } from '../chatgpt/settings';
+import { agentConsent } from '../chatgpt/settings';
 import { getSource } from '../core/source';
 import { CHATGPT_OFF } from '../core/switch';
 import { words } from '../core/words';
@@ -32,7 +32,7 @@ export function chatgptBrain(o: {
     async step(instructions, items, tools, onText): Promise<Turn> {
       // Nothing is sent when any guard fails: the screen shows the plain line instead.
       if ((await getSource()) !== 'chatgpt') throw new Error(words.needWriterPanel);
-      const consent = agentChatgptConsent();
+      const consent = agentConsent('chatgpt');
       try {
         if (!(await consent.beforeSend())) throw new Error(words.chatgptFailed);
       } catch (error) {

@@ -28,7 +28,11 @@ jest.mock('../../chatgpt/accounts', () => {
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'ready' })), agreedToDownload: jest.fn(() => false) }));
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['a', 'b', 'c'] })) } }));
-jest.mock('../../core/source', () => ({ getSource: jest.fn(async () => 'chatgpt') }));
+jest.mock('../../core/source', () => ({
+  getSource: jest.fn(async () => 'chatgpt'),
+  cloudSession: () => require('../../chatgpt/session').session,
+  cloudNow: () => require('../../chatgpt/session').sessionNow(),
+}));
 jest.mock('../../chatgpt/session', () => ({
   mocked: false,
   session: { current: jest.fn(async () => ({ signedIn: true })) },

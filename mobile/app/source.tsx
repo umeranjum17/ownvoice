@@ -13,9 +13,9 @@ import { ChatIcon, CheckIcon, ChevIcon, ClaudeIcon, EyeIcon, LockIcon, PhoneIcon
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
-import { getSource, phoneOnly, setSource, type CloudKey, type Source } from '../src/core/source';
+import { cloudSession, getSource, phoneOnly, setSource, type CloudKey, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
-import { CLAUDE_NAME, claudeSession, NAME, nothing, session, type GptState } from '../src/chatgpt/session';
+import { CLAUDE_NAME, NAME, nothing, type GptState } from '../src/chatgpt/session';
 import { appsLine } from './index';
 import Native from '../modules/ownvoice-native';
 
@@ -41,7 +41,6 @@ export default function SourceScreen() {
   const live = useRef(true);
   const latest = useRef(signIn);
   latest.current = signIn;
-  const cloudSession = (key: CloudKey) => key === 'claude' ? claudeSession : session;
   const setState = (key: CloudKey, next: GptState) => (key === 'claude' ? setClaude : setGpt)(next);
 
   const choose = (next: Source) => {
@@ -51,8 +50,8 @@ export default function SourceScreen() {
   const reload = useCallback(() => {
     void getSource().then(now => { if (live.current) setShown(now); }).catch(() => { if (live.current) setShown(null); });
     void phoneCanWrite().then(can => { if (live.current) setPhone(can); });
-    void session.current().then(now => { if (live.current) setGpt(now); }).catch(() => { if (live.current) setGpt(nothing); });
-    void claudeSession.current().then(now => { if (live.current) setClaude(now); }).catch(() => { if (live.current) setClaude(nothing); });
+    void cloudSession('chatgpt').current().then(now => { if (live.current) setGpt(now); }).catch(() => { if (live.current) setGpt(nothing); });
+    void cloudSession('claude').current().then(now => { if (live.current) setClaude(now); }).catch(() => { if (live.current) setClaude(nothing); });
     void Promise.all([Native.launcherApps(null), Native.bubbleRules()]).then(([apps, rules]) => {
       const listed = phoneOnly();
       if (live.current) setStays(appsLine(apps.filter(({ app }) => listed.includes(app) && showsBubble(app, rules)).map(({ label }) => label)));
@@ -93,7 +92,7 @@ export default function SourceScreen() {
   const connectClaude = () => {
     const text = pasted.trim();
     if (!text || signIn?.key !== 'claude') return;
-    try { require('../src/chatgpt/accounts').paste('claude', text); } catch { setProblem(words.gptAppsSaveFailed); return; }
+    try { require('../src/chatgpt/accounts').paste('claude', text); } catch { setProblem(words.claudePasteFailed); return; }
     setPasted('');
   };
 

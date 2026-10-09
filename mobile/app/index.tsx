@@ -13,8 +13,8 @@ import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, store, type CheckinAnswer, type Outcome } from '../src/core/store';
-import { cloudOf, getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
-import { CLAUDE_NAME, claudeSession, NAME, session, type GptState } from '../src/chatgpt/session';
+import { cloudOf, cloudSession, getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
+import { CLAUDE_NAME, NAME, type GptState } from '../src/chatgpt/session';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
 import { readLog, syncReadLog } from '../src/core/readLog';
@@ -74,8 +74,8 @@ export default function Home() {
     void Native.bubbleRules().then(setRules).catch(() => {});
     void Native.typingCheck().then(setTyping).catch(() => {});
     void getSource().then(setShownSource).catch(() => {});
-    void session.current().then(setGpt).catch(() => {});
-    void claudeSession.current().then(setClaude).catch(() => {});
+    void cloudSession('chatgpt').current().then(setGpt).catch(() => {});
+    void cloudSession('claude').current().then(setClaude).catch(() => {});
     void Native.launcherApps(null).then(setApps).catch(() => {});
     setPhrases(loadVoice().never.length);
     try {

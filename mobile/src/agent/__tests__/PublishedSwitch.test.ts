@@ -3,7 +3,11 @@ import { resolve } from 'node:path';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {} }));
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: {} }));
-jest.mock('../../core/source', () => ({ getSource: jest.fn(async () => 'chatgpt') }));
+jest.mock('../../core/source', () => ({
+  getSource: jest.fn(async () => 'chatgpt'),
+  cloudSession: () => require('../../chatgpt/session').session,
+  cloudNow: () => require('../../chatgpt/session').sessionNow(),
+}));
 jest.mock('../../core/store', () => {
   const values = new Map<string, unknown>();
   return { store: {
