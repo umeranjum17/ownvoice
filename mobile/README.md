@@ -70,28 +70,32 @@ Live proofs run through the app on the signed-in test emulator, using its byokit
 
 To produce a switch flag offline, keep a 32-byte private signing key as hex outside this repository and, from `mobile/`, run `SWITCH_SEQ=1 node --experimental-strip-types scripts/sign-switch.ts /path/to/private-key off` (increment the sequence for later flags). This prints the signed JSON; it does not publish it. Never commit the private key.
 
-### Reply fit (Jev)
+### Reply fit
 
-`src/grow/fit.ts` asks Jev, through the published `@byokit/decide` `jev()`, one
+`src/grow/fit.ts` asks one judge call, through the published `@byokit/decide`, for one
 score question per shown text on X, LinkedIn and Reddit replies: the platform rubric is the
-question and Jev's most probable level (`LEVELS`) becomes the card's engagement
-level. Below decide's 0.6 floor the card says it isn't sure; when nothing answered
-(no key, no consent, offline, the 20 second deadline) it says it can't rate the fit
-and keeps the text checks below, unless the card has no other finding and nothing to disclose, when no row appears at all. The level is never adjusted by hand rules. The
-panel asks once per tap after the cards land, never per keystroke, and never for
-an edited text; each call uses a fresh in-memory cache.
+question and the model's most probable level (`LEVELS`) becomes the card's engagement
+level. Below decide's 0.6 floor, or when nothing answered (no backend, no consent,
+offline, the 20 second deadline), the card abstains with the plain **Not sure about this
+one** bar; the panel never shows a number and never predicts reach. The level is never
+adjusted by hand rules. The panel asks once per tap after the writer settles, never per
+keystroke, and never for an edited text; each call uses a fresh in-memory cache.
+
+By default the fit runs on the person's **signed-in ChatGPT plan** through the same
+`accounts.respond` the writer uses, so no Jev key ships in the app. A build with
+`EXPO_PUBLIC_JEV_KEY` uses Jev instead (billed per use to that key), which the emulator
+stand-in proofs set. `fitBackends(app)` in `src/chatgpt/settings.ts` sends only under the
+same consent as a ChatGPT send for that app (source, visibility, pause, phone-only,
+sign-out epoch, remote switch), checked again at dispatch. Drafts the phone wrote are
+never sent.
 
 A reply typed under an X, LinkedIn or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
 the writer gets their text as `point` (with `typed` empty) so the replies start from it,
 **Yours** keeps their text, and once the fit answers the cards are listed highest level first,
 unrated ones last and ties in slot order. Each card keeps its `slot`, so its tag still names
-what it is for. With no fit answer the cards stay in slot order. Elsewhere typed text is polished.
-
-`fitBackends(app)` in `src/chatgpt/settings.ts` builds the Jev backend from the
-build's `EXPO_PUBLIC_JEV_KEY` (no key: no backend) and sends only under the same
-consent as a ChatGPT send for that app (source, visibility, pause, phone-only,
-sign-out epoch, remote switch), checked again at dispatch. Drafts the phone wrote
-are never sent. Jev is billed per use to that key.
+what it is for. With no fit answer the cards stay in slot order. The fit runs once the
+writer settles either way, so when the writer fails the typed reply still shows its honest
+fit read instead of only the writer's fallback line. Elsewhere typed text is polished.
 
 Proof without a key: `node e2e/jev-standin.mjs serve` answers Jev's wire format
 from a local model's token probabilities (ollama, `OLLAMA`/`MODEL`), and

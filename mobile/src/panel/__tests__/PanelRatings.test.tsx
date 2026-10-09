@@ -117,7 +117,8 @@ test('a new post with nothing on screen makes no parent comparison and reports n
 test('a card with four engagement signals reads all four aloud in its bar, bottom level', async () => {
   const draft = `@stranger what do you think? See https://example.com ${'x'.repeat(300)}`;
   const screen = await open(capture(), [draft]);
-  await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(1));
+  // Yours carries a bare "Not sure" bar; the flagged draft carries the bottom level and its findings.
+  await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(2));
   expect(screen.getAllByLabelText(LEVELS[0])).toHaveLength(1);
   expect(screen.queryAllByLabelText(/^Engagement on /)).toEqual([]);
   expect(screen.getByText("Has a link. Too long for X. Tags people who aren't in the post. Asks a question.")).toBeTruthy();
@@ -251,13 +252,29 @@ describe('grow fit bar', () => {
     } finally { spy.mockRestore(); }
   });
 
-  test('an unrateable card carries no bar at all', async () => {
+  test('a typed reply still gets its fit read when the writer fails', async () => {
+    // The 2026-10-01 failure: the writer failed and the panel showed only its fallback, no fit read.
+    const spy = jest.spyOn(FitModule, 'judgeFit');
+    try {
+      native.capture.mockResolvedValue(capture());
+      const screen = await render(
+        <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
+          <Panel writer={{ write: async () => { throw new Error('no writer'); } }} />
+        </SafeAreaProvider>);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar').length).toBeGreaterThan(0));
+      expect(screen.getAllByLabelText(UNSURE).length).toBeGreaterThan(0);
+    } finally { spy.mockRestore(); }
+  });
+
+  test('a card the fit cannot judge still shows the plain unsure read', async () => {
     const spy = jest.spyOn(FitModule, 'judgeFit');
     try {
       const screen = await open(capture(), ['Purple turbines whisper banana logistics.']);
       await waitFor(() => expect(spy).toHaveBeenCalled());
       await act(async () => { await spy.mock.results[0].value; });
-      expect(screen.queryByTestId('fit-bar')).toBeNull();
+      // Every grow card carries an honest fit read: a bare "Not sure" bar when nothing was judged.
+      expect(screen.getAllByTestId('fit-bar').length).toBeGreaterThan(0);
+      expect(screen.getAllByLabelText(UNSURE).length).toBeGreaterThan(0);
     } finally { spy.mockRestore(); }
   });
 });

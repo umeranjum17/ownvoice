@@ -12,7 +12,7 @@ import { prefillFor, prefillUrl } from '../core/prefill';
 import { feedRead } from '../core/feed';
 import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
-import { judgeFit, rated, UNAVAILABLE, type Fit } from '../grow/fit';
+import { judgeFit, rated, UNSURE, type Fit } from '../grow/fit';
 import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
@@ -21,7 +21,7 @@ import { retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
-import { FitBar, fitBarVisible, fitFlag } from '../ui/FitBar';
+import { FitBar, fitBarVisible, fitFlag, fitHidesEngagement } from '../ui/FitBar';
 import { saveOutcome, type PanelMode } from '../core/store';
 import { LEVELS } from '../grow/fit';
 import { CheckIcon, ChevIcon, CopyIcon, OpenIcon, ShareIcon } from '../ui/icons';
@@ -344,9 +344,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     })();
   });
 
-  // ---- Fit: one Jev call per tap rates every shown reply on X, LinkedIn and Reddit; never per keystroke ----
+  // ---- Fit: one judge call per tap rates every shown reply on X, LinkedIn and Reddit; never per keystroke.
+  // It runs once the writer settles either way: when the writer failed, the typed reply still gets its honest
+  // fit read instead of the panel showing only the writer's fallback line (the 2026-10-01 failure). ----
   useEffect(() => {
-    if (phase !== 'ready' || mode !== 'grow' || !capture || !rated(platformOf.current)) return;
+    if ((phase !== 'ready' && phase !== 'failed') || mode !== 'grow' || !capture || !rated(platformOf.current)) return;
     const id = run.current;
     if (fitFor.current === id) return;
     const texts = [...(yours?.text ? [yours.text] : []), ...shown.map(draft => draft.text)];
@@ -354,7 +356,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     fitFor.current = id;
     const backends = leaves.current ? fitBackends(capture.app) : [];
     void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, samples: samplesOf.current, backends })
-      .catch(() => texts.map(() => ({ level: null, words: UNAVAILABLE, probability: null, voice: null })))
+      .catch(() => texts.map(() => ({ level: null, words: UNSURE, probability: null, voice: null })))
       .then(found => {
         if (run.current !== id) return;
         // Levels and probabilities only, never the text: what the proof reads from the device log.
@@ -519,7 +521,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <Marked text={yours.text} hits={[...yours.scores.hits, ...slips]} />
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
-        <Ratings ratings={yours.ratings} fit={yoursFit} hideEngagement={grow && fitBarVisible(yoursFit, yours.ratings)} />
+        <Ratings ratings={yours.ratings} fit={yoursFit} hideEngagement={grow && fitHidesEngagement(yoursFit, yours.ratings)} />
         {grow ? <FitBar fit={yoursFit} ratings={yours.ratings} /> : null}
         <View style={styles.actions}>
           {grow ? <Button kind="filled" label={words.useThis} disabled={!hasField || limited || insertBusy} onPress={() => { void put(yours.text, -1, yoursFit, yours.ratings); }} /> : null}
@@ -544,7 +546,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           {editing ? null : <ToneLine text={card.text} tones={tones} />}
           {editing ? null : card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           {/* While editing, the ratings follow the edited text, never the original. */}
-          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitBarVisible(cardFit, card.ratings)} />
+          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitHidesEngagement(cardFit, card.ratings)} />
           {grow && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy || !editing.text.trim()} onPress={() => { void put(editing.text, card.slot); }} />

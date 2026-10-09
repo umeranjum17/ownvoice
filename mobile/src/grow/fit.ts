@@ -4,7 +4,6 @@ import type { Platform } from '../core/platforms';
 /** Lowest first, as decide's `score` wants. Plain words: no numbers, no "score". */
 export const LEVELS = ['Likely to be skipped', 'Might get a reply', 'Good fit here', 'Strong fit here'];
 export const UNSURE = 'Not sure about this one';
-export const UNAVAILABLE = "Can't rate the fit right now";
 
 /** Per-platform rubric lines Jev is asked (guesses until calibrated on Umer's own outcomes). */
 const ANCHORS = 'Choose the level by content: Likely to be skipped means off-topic text, nonsense, empty praise or bait. Might get a reply means relevant but vague or rambling. Good fit here means a clear useful point with limited new detail. Strong fit here means a specific new detail, concrete mechanism or pertinent question with a reason that moves this conversation forward. Brevity alone does not make a reply stronger.';
@@ -21,13 +20,14 @@ export type Fit = { level: number | null; words: string; probability: number | n
 /** Whether this platform has a rubric to rate against. */
 export const rated = (platform: Platform) => platform.id in RUBRIC;
 
-/** One decide call: a `fit_<i>` rubric level per candidate, each Jev's most probable level, plus one
- *  `voice_<i>` yes/no on whether it sounds like them, from the same selected samples the writer got.
- *  Below decide's floor the card says unsure; when nothing answered (no key, no consent, offline) it
- *  says it can't rate. The voice answer never reorders the cards. */
+/** One decide call: a `fit_<i>` rubric level per candidate, each model backend's most probable level,
+ *  plus one `voice_<i>` yes/no on whether it sounds like them, from the same selected samples the
+ *  writer got. Below decide's floor, or when nothing answered (no backend, no consent, offline, the
+ *  deadline), the card abstains with the plain unsure read; the panel never shows a number and never
+ *  predicts reach. The voice answer never reorders the cards. */
 export async function judgeFit(o: { post: string; candidates: string[]; platform: Platform; samples?: string[]; backends: Backend[] }): Promise<Fit[]> {
   const rubric = RUBRIC[o.platform.id];
-  const none = (): Fit => ({ level: null, words: UNAVAILABLE, probability: null, voice: null });
+  const none = (): Fit => ({ level: null, words: UNSURE, probability: null, voice: null });
   if (!rubric || !o.backends.length || !o.candidates.length) return o.candidates.map(none);
   const samples = o.samples ?? [];
   const questions: Record<string, Question> = Object.fromEntries(o.candidates.flatMap((_, i) => [
