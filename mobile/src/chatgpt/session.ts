@@ -103,7 +103,7 @@ const accountSession = (key: CloudKey): Session => {
     start: async () => {
       if (key === 'chatgpt') store.set(GPT_APPS_KEY, null);
       const a = live();
-      await (key === 'claude' ? a.signInClaude() : a.signInChatGPT());
+      await (key === 'claude' ? a.signInClaude() : a.signIn('chatgpt'));
       return readState(a);
     },
     cancel: async () => {

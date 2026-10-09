@@ -18,8 +18,6 @@ jest.mock('../accounts', () => {
     signInState: mockSignInState,
     cancelSignIn: mockCancelSignIn,
     status: mockStatus,
-    // ChatGPT-specific wrappers call the generic mocks
-    signInChatGPT: () => mockSignIn('chatgpt'),
   };
 });
 

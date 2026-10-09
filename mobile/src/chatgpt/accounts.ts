@@ -56,8 +56,6 @@ export const reportFailure = (provider: string, error: string) => getInstance().
 export const paste = (provider: string, text: string) => getInstance().paste(member, provider, text);
 // Claude's PKCE flow is paste-based, so it starts without the device-code `via` ChatGPT uses.
 export const signInClaude = () => getInstance().login(member, 'claude');
-// Legacy ChatGPT-specific wrappers for existing code
-export const signInChatGPT = () => signIn('chatgpt');
 export async function codexAuth(): Promise<{ access: string; accountId: string }> {
   const runtime = await getInstance().runtime(member);
   const auth = await runtime.getAuth('openai-codex');
@@ -84,7 +82,7 @@ function jsonBody(text: string): string {
  *  refresh, resting and sign-out stay the kit's; only the ask shape differs per provider. */
 export async function askCloud(key: CloudKey, ask: CloudAsk): Promise<string> {
   if (key === 'claude') {
-    const text = await accounts.respond(member, { provider: 'claude', model: CLAUDE_MODEL, max_tokens: 2048,
+    const text = await accounts.respond(member, { provider: 'claude', model: CLAUDE_MODEL, max_tokens: 8192,
       system: ask.instructions, messages: [{ role: 'user', content: ask.input }], onText: ask.onText, signal: ask.signal });
     return ask.json ? jsonBody(text) : text;
   }
