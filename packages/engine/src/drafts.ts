@@ -394,7 +394,9 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
-    const clean = stripSlotInstruction(stripDraftLabel(stripControlLines(text, controls)), slots);
+    // Instruction line first (the prompt prints it above the reply), then any label the model
+    // left as the reply itself: 'Agree and add ... from the post.\nDraft' must empty out.
+    const clean = stripDraftLabel(stripSlotInstruction(stripControlLines(text, controls), slots));
     const draft = dashes === 'remove' ? undash(clean) : clean;
     if (!draft || breaks(draft) || echoes(draft) || contradicts(draft, slot)) return;
     if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;

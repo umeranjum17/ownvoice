@@ -141,6 +141,9 @@ test('acceptReplies drops a card that only echoes their line, so the empty slot 
   expect(acceptReplies(['Draft'], [], 3, 'remove', [], [], '', xSlots)).toEqual([]);
   expect(acceptReplies(['draft 1'], [], 3, 'remove', [], [], '', xSlots)).toEqual([]);
   expect(acceptReplies(['Draft 1:'], [], 3, 'remove', [], [], '', xSlots)).toEqual([]);
+  // The live form (2026-10-09 reproof): the instruction line with the bare label as its reply.
+  expect(acceptReplies(['Agree and add one concrete detail from the post.\nDraft'], [], 3, 'remove', [], [], '', xSlots)).toEqual([]);
+  expect(acceptReplies(['Push back kindly, with one reason from the post.\nDraft 2'], [], 3, 'remove', [], [], '', xSlots)).toEqual([]);
   expect(acceptReplies(['Draft 1: It caches every article, so a tunnel cannot stop you.'], [], 3, 'remove', [], [], '', xSlots))
     .toEqual(['It caches every article, so a tunnel cannot stop you.']);
   expect(acceptReplies(['Draft 1\nIt caches every article, so a tunnel cannot stop you.'], [], 3, 'remove', [], [], '', xSlots))
