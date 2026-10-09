@@ -1,4 +1,4 @@
-import { Accounts } from '@byokit/accounts';
+import { Accounts, type Status } from '@byokit/accounts';
 import { stateOf, nothing, session } from '../session';
 import { store } from '../../core/store';
 
@@ -29,6 +29,8 @@ jest.mock('../accounts', () => {
 import { signIn, signOut, status } from '../accounts';
 import { words } from '../../core/words';
 
+const connection = (fields: Pick<Status, 'state' | 'words'> & Partial<Status>): Status => ({ id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', ...fields });
+
 // The sign-in states the screen shows, in byokit's own sentences (no real account is involved).
 test('sign-out revokes and clears app permission', async () => {
   store.set('chatgpt-apps', { on: ['com.whatsapp'] });
@@ -54,7 +56,7 @@ test('sign-out revokes even when clearing consent fails', async () => {
 
 test('starting a new sign-in clears consent from an expired account', async () => {
   store.set('chatgpt-apps', { on: ['com.whatsapp'] });
-  (status as jest.Mock).mockResolvedValueOnce({ account: 'owner', name: 'ChatGPT', state: 'needs_again', words: 'Sign in again.' });
+  (status as jest.Mock).mockResolvedValueOnce(connection({ state: 'needs_again', words: 'Sign in again.' }));
   expect((await session.current()).signedIn).toBe(false);
   expect((await session.start()).signedIn).toBe(true);
   expect(signIn).toHaveBeenCalled();
@@ -69,7 +71,7 @@ test('waitingShowsTheCodeToTypeAndThePageToOpen', () => {
   const view = stateOf({ state: 'waiting', via: 'code', code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' }, null);
   expect(view).toMatchObject({ signedIn: false, waiting: true, code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' });
   expect(view.note).toContain('ChatGPT page');
-  expect(stateOf({ state: 'waiting', code: 'KQPT-MXVD' }, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state: 'signing', words: 'Signing in' }).signedIn).toBe(false);
+  expect(stateOf({ state: 'waiting', code: 'KQPT-MXVD' }, connection({ state: 'signing', words: 'Signing in' })).signedIn).toBe(false);
   expect(stateOf({ state: 'waiting' }, null).note).toContain('Opening');
 });
 
@@ -92,17 +94,17 @@ test.each([
 });
 
 test('a connected account is shown as connected, a resting one says why', () => {
-  const ready = stateOf(null, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
+  const ready = stateOf(null, connection({ state: 'ready', words: 'ChatGPT is connected.' }));
   expect(ready).toEqual({ ...nothing, signedIn: true, note: 'ChatGPT is connected.' });
-  const resting = stateOf(null, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' });
+  const resting = stateOf(null, connection({ state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' }));
   expect(resting.signedIn).toBe(true);
   expect(resting.resting).toBe('ChatGPT is resting until 3:40pm.');
   for (const state of ['signed_out', 'needs_again', 'signing'] as const)
-    expect(stateOf(null, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state, words: words.failed }).signedIn).toBe(false);
+    expect(stateOf(null, connection({ state, words: words.failed })).signedIn).toBe(false);
 });
 
 test('a plan that does not include this says so', () => {
-  const view = stateOf(null, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state: 'not_included', words: "Your ChatGPT plan doesn't include this yet." });
+  const view = stateOf(null, connection({ state: 'not_included', words: "Your ChatGPT plan doesn't include this yet." }));
   expect(view.signedIn).toBe(true);
   expect(view.resting).toBe("Your ChatGPT plan doesn't include this yet.");
 });
