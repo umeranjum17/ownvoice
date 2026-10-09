@@ -13,7 +13,7 @@ export type DraftRequest = { conversation: string; written: string; nodes?: Scre
 export type WriterState = 'downloading' | 'writing';
 export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
 /** `unchanged`: no drafts because the writer gave their text back as it was, so it already reads well. */
-export type Choice = { drafts: string[]; reason?: string; unchanged?: boolean; declined?: boolean };
+export type Choice = { drafts: string[]; reason?: string; unchanged?: boolean; declined?: boolean; onPhone?: boolean };
 export interface Writer { write(request: DraftRequest, on?: WriterEvents): Promise<Choice> }
 export class SendVeto extends Error {}
 
@@ -53,7 +53,7 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
     const reason = error instanceof SendVeto ? error.message
       : classify(message)?.kind === 'network' ? words.offlinePhone
       : (await fallbackNote?.().catch(() => null)) ?? words.fallback;
-    return { ...(await phone.write(request, on)), reason };
+    return { ...(await phone.write(request, on)), reason, onPhone: true };
   }
 }
 

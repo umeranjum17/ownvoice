@@ -95,7 +95,7 @@ test('the off switch and a resting plan both hand the writing to the phone, with
 
 test('without a phone status the fallback still reaches the phone', async () => {
   const short: Writer = { write: async () => ({ drafts: ['only one'] }) };
-  expect(await withPhoneFallback(short, phone, request)).toEqual({ drafts: phoneDrafts, reason: words.fallback });
+  expect(await withPhoneFallback(short, phone, request)).toEqual({ drafts: phoneDrafts, reason: words.fallback, onPhone: true });
 });
 
 test('an unchanged answer from ChatGPT is kept, not passed to the phone as a failure', async () => {
@@ -103,7 +103,7 @@ test('an unchanged answer from ChatGPT is kept, not passed to the phone as a fai
   const failing: Writer = { write: async () => { throw new Error(words.chatgptFailed); } };
   expect(await withPhoneFallback(same, failing, request)).toEqual({ drafts: [], unchanged: true });
   const none: Writer = { write: async () => ({ drafts: [] }) };
-  expect(await withPhoneFallback(none, phone, request)).toEqual({ drafts: (await phone.write(request)).drafts, reason: words.fallback });
+  expect(await withPhoneFallback(none, phone, request)).toEqual({ drafts: (await phone.write(request)).drafts, reason: words.fallback, onPhone: true });
 });
 
 test('the read log says when a screen went to ChatGPT, and never says what it said', () => {

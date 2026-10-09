@@ -300,6 +300,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           },
         });
         if (run.current !== id) return;
+        if (choice.onPhone) leaves.current = false;
         setFraction(null);
         setUnchanged(!!choice.unchanged && !choice.drafts.length);
         setDeclined(!!choice.declined);

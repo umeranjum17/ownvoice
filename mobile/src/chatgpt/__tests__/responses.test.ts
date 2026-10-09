@@ -635,7 +635,7 @@ test('an unreadable point check remains a transient failure, allowing fallback r
   const phone = { write: jest.fn(async () => ({ drafts: ['autosave locally. Make export easy.'] })) };
   try {
     const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' });
-    expect(choice).toEqual({ drafts: ['autosave locally. Make export easy.'], reason: words.fallback });
+    expect(choice).toEqual({ drafts: ['autosave locally. Make export easy.'], reason: words.fallback, onPhone: true });
     expect(choice.declined).toBeUndefined();
     expect(phone.write).toHaveBeenCalledTimes(1);
     expect(global.fetch).toHaveBeenCalledTimes(1);

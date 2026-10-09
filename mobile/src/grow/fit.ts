@@ -23,8 +23,8 @@ export const rated = (platform: Platform) => platform.id in RUBRIC;
 /** One decide call: a `fit_<i>` rubric level per candidate, each model backend's most probable level,
  *  plus one `voice_<i>` yes/no on whether it sounds like them, from the same selected samples the
  *  writer got. Below decide's floor, or when nothing answered (no backend, no consent, offline, the
- *  deadline), the card abstains with the plain unsure read; the panel never shows a number and never
- *  predicts reach. The voice answer never reorders the cards. */
+ *  deadline), the card abstains with the plain unsure read; the panel never shows a number and abstains
+ *  plainly. The voice answer never reorders the cards. */
 export async function judgeFit(o: { post: string; candidates: string[]; platform: Platform; samples?: string[]; backends: Backend[] }): Promise<Fit[]> {
   const rubric = RUBRIC[o.platform.id];
   const none = (): Fit => ({ level: null, words: UNSURE, probability: null, voice: null });

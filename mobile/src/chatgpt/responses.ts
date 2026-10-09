@@ -21,7 +21,6 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
   let started = false;
   let marked = false;
   try {
-    if (key === 'fit' && on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
     // decide aborts its slow backend with `controller.abort()`. The signal reason is the plain cause to
     // carry, not a thrown AbortSignal helper: this call may abort before any dispatch, and that failure
     // must stay a real error, never masked as a consent veto.

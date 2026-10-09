@@ -9,7 +9,7 @@ import Panel from '../Panel';
 import { technicalWords, words } from '../../core/words';
 import * as FitModule from '../../grow/fit';
 import { LEVELS, UNSURE, type Fit } from '../../grow/fit';
-import type { DraftRequest, WriterEvents } from '../../core/writers';
+import { withPhoneFallback, type DraftRequest, type Writer, type WriterEvents } from '../../core/writers';
 import Native, { type Capture } from '../../../modules/ownvoice-native';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
@@ -44,16 +44,15 @@ const capture = (over: Partial<Capture> = {}): Capture => ({
   app: 'com.twitter.android', label: 'X', at: 0, id: 'tap-x', hasField: true, ...over,
 });
 
-const open = async (value: Capture, drafts = DRAFTS) => {
-  native.capture.mockResolvedValue(value);
-  const write = async (_request: DraftRequest, on: WriterEvents = {}) => {
+const open = async (value: Capture, drafts = DRAFTS, writer: Writer = { write: async (_request: DraftRequest, on: WriterEvents = {}) => {
     await new Promise(resolve => setTimeout(resolve, 1));
     drafts.forEach((text, slot) => on.landed?.(text, slot));
     return { drafts: [...drafts] };
-  };
+  } }) => {
+  native.capture.mockResolvedValue(value);
   const screen = await render(
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-      <Panel writer={{ write }} />
+      <Panel writer={writer} />
     </SafeAreaProvider>);
   await waitFor(() => expect(screen.getAllByRole('button', { name: value.typed.trim() ? 'Use this' : 'Insert' }).length).toBeGreaterThan(0));
   return screen;
@@ -184,6 +183,19 @@ describe('grow fit bar', () => {
         expect(label).not.toMatch(/\d|%/);
         expect(technicalWords.test(label)).toBe(false);
       }
+    } finally { spy.mockRestore(); }
+  });
+
+  test('drafts the phone wrote after a ChatGPT failure go to no fit backend, and read not sure', async () => {
+    const failing: Writer = { write: async () => { throw new Error('ChatGPT could not answer.'); } };
+    const phone: Writer = { write: async (_request, on) => { CLEAN.forEach((text, slot) => on?.landed?.(text, slot)); return { drafts: [...CLEAN] }; } };
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => ({ level: null, words: UNSURE, probability: null, voice: null })));
+    try {
+      const screen = await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, on, undefined, 'ready') });
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(CLEAN.length + 1));
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][0].backends).toEqual([]);
+      expect(screen.getAllByLabelText(UNSURE)).toHaveLength(CLEAN.length + 1);
     } finally { spy.mockRestore(); }
   });
 
