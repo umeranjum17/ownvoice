@@ -23,9 +23,9 @@ import Native from '../modules/ownvoice-native';
  *  The chosen card says how it is doing and what can be changed; switching to an account asks first (or
  *  signs in right here), switching back to the phone is immediate. `start=chatgpt|claude` (from Home's
  *  card) begins that switch on arrival. */
-const SWITCH_COPY: Record<CloudKey, { title: string; body: string; name: string; company: string; yes: string }> = {
-  chatgpt: { title: words.switchTitle, body: words.switchBody, name: NAME, company: 'OpenAI', yes: words.switchYes },
-  claude: { title: words.claudeSwitchTitle, body: words.claudeSwitchBody, name: CLAUDE_NAME, company: 'Anthropic', yes: words.claudeSwitchYes },
+const ACCOUNT_COPY: Record<CloudKey, { title: string; body: string; name: string; company: string; yes: string; button: string; signOut: string; phoneBackup: string; ready: string }> = {
+  chatgpt: { title: words.switchTitle, body: words.switchBody, name: NAME, company: 'OpenAI', yes: words.switchYes, button: words.gptButton, signOut: words.gptSignOut, phoneBackup: words.phoneBackup, ready: words.gptSignedInNow },
+  claude: { title: words.claudeSwitchTitle, body: words.claudeSwitchBody, name: CLAUDE_NAME, company: 'Anthropic', yes: words.claudeSwitchYes, button: words.claudeButton, signOut: words.claudeSignOut, phoneBackup: words.claudePhoneBackup, ready: say('status.ready', { name: CLAUDE_NAME }) },
 };
 
 export default function SourceScreen() {
@@ -39,7 +39,7 @@ export default function SourceScreen() {
   const [signIn, setSignIn] = useState<{ key: CloudKey; state: GptState } | null>(null);
   const [pasted, setPasted] = useState('');
   const [confirm, setConfirm] = useState<CloudKey | null>(null);
-  const [stays, setStays] = useState<string | null>(null);
+  const [stays, setStays] = useState<string[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const attempt = useRef(0);
   const started = useRef(false);
@@ -59,7 +59,7 @@ export default function SourceScreen() {
     void cloudSession('claude').current().then(now => { if (live.current) setClaude(now); }).catch(() => { if (live.current) setClaude(nothing); });
     void Promise.all([Native.launcherApps(null), Native.bubbleRules()]).then(([apps, rules]) => {
       const listed = phoneOnly();
-      if (live.current) setStays(appsLine(apps.filter(({ app }) => listed.includes(app) && showsBubble(app, rules)).map(({ label }) => label)));
+      if (live.current) setStays(apps.filter(({ app }) => listed.includes(app) && showsBubble(app, rules)).map(({ label }) => label));
     }).catch(() => {});
   }, []);
 
@@ -165,62 +165,17 @@ export default function SourceScreen() {
   const chosen = source === 'phone' && phone === 'cant' ? null : source;
   const icon = (Icon: typeof ChatIcon) => <Icon size={22} color={t.onPrimaryContainer} />;
   const indent = (text: string, color = t.text) => <Text style={[type.note, styles.indent, { color }]}>{text}</Text>;
-  const resting = !!gpt?.resting;
-  const gptSigning = signIn?.key === 'chatgpt' ? signIn.state : null;
-  const claudeSigning = signIn?.key === 'claude' ? signIn.state : null;
-  const claudeResting = !!claude?.resting;
-
-  const gptBody = gptSigning
-    ? gptSigning.waiting
-      ? <>
-        {indent(words.signInNote, t.muted)}
-        <View style={[styles.code, { backgroundColor: t.group }]}>
-          {gptSigning.code && <>
-            <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
-            <Text testID="sign-in-code" accessibilityLabel={`${words.yourCode} ${gptSigning.code.split('').join(' ')}`} style={[type.headline, styles.codeText, { color: t.text }]}>{gptSigning.code}</Text>
-          </>}
-          <View style={styles.waiting}>
-            <ActivityIndicator size="small" color={t.primary} />
-            <Text style={[type.note, { color: t.muted }]}>{gptSigning.code ? words.waiting : gptSigning.note ?? words.waiting}</Text>
-          </View>
-        </View>
-        <Button kind="filled" disabled={!gptSigning.code} label={words.copyAndOpen} onPress={copyAndOpen} />
-        <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
-        <Text style={[type.note, styles.indent, { color: t.muted }]}>{say('terms.grey', { name: NAME, company: 'OpenAI' })}</Text>
-      </>
-      : <>
-        {indent(gptSigning.note ?? words.failed)}
-        <View style={styles.actions}>
-          <Button kind="filled" label={words.tryAgain} onPress={() => beginSignIn('chatgpt')} />
-          <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
-        </View>
-      </>
-    : source === 'chatgpt'
-      ? <>
-        {gpt?.signedIn
-          ? <View style={styles.status}>
-            {!resting && <CheckIcon size={18} color={t.primary} />}
-            <Text style={[type.note, styles.words, { color: t.text }]}>{gpt.note ?? words.gptSignedInNow}</Text>
-          </View>
-          : <>
-            {indent(say('status.needsAgain', { name: NAME }))}
-            <View style={styles.indent}><Button kind="filled" label={words.gptButton} onPress={() => beginSignIn('chatgpt')} /></View>
-          </>}
-        {phoneCan && indent(resting || !gpt?.signedIn ? words.restingPhone : words.phoneBackup, t.muted)}
-        <View style={[styles.inner, { backgroundColor: t.group }]}>
-          <Row title={words.phoneOnlyApps} subtitle={stays ?? undefined} onPress={() => router.push('/phone-apps')} />
-          {gpt?.signedIn && <View style={styles.signOut}><Button kind="text" label={words.gptSignOut} onPress={() => signOut('chatgpt')} /></View>}
-        </View>
-      </>
-      : null;
-
-  // Claude signs in on its own page: open it already signed in, then paste the code it shows back here.
-  const claudeBody = claudeSigning
-    ? claudeSigning.waiting
-      ? <>
-        {indent(claudeSigning.note ?? words.claudeSignInNote, t.muted)}
-        <View style={[styles.code, { backgroundColor: t.group }]}>
-          <Button kind="filled" disabled={!claudeSigning.url} label={words.claudeOpen} onPress={openClaude} />
+  /** One account's card body: its sign-in while it runs, otherwise how the account is doing when chosen. Claude signs in on its own page: open it already signed in, then paste the code it shows back here. */
+  const body = (key: CloudKey) => {
+    const copy = ACCOUNT_COPY[key];
+    const cloud = key === 'claude' ? claude : gpt;
+    const resting = !!cloud?.resting;
+    const signing = signIn?.key === key ? signIn.state : null;
+    if (signing?.waiting) return <>
+      {indent(key === 'claude' ? signing.note ?? words.claudeSignInNote : words.signInNote, t.muted)}
+      {key === 'claude'
+        ? <View style={[styles.code, { backgroundColor: t.group }]}>
+          <Button kind="filled" disabled={!signing.url} label={words.claudeOpen} onPress={openClaude} />
           <TextInput
             testID="claude-paste"
             accessibilityLabel={words.claudePasteField}
@@ -238,31 +193,49 @@ export default function SourceScreen() {
             <Text style={[type.note, { color: t.muted }]}>{words.waiting}</Text>
           </View>
         </View>
-        <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
-        <Text style={[type.note, styles.indent, { color: t.muted }]}>{say('terms.grey', { name: CLAUDE_NAME, company: 'Anthropic' })}</Text>
-      </>
-      : <>
-        {indent(claudeSigning.note ?? words.failed)}
-        <View style={styles.actions}>
-          <Button kind="filled" label={words.tryAgain} onPress={() => beginSignIn('claude')} />
-          <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
-        </View>
-      </>
-    : source === 'claude'
-      ? <>
-        {claude?.signedIn
-          ? <View style={styles.status}>
-            {!claudeResting && <CheckIcon size={18} color={t.primary} />}
-            <Text style={[type.note, styles.words, { color: t.text }]}>{claude.note ?? say('status.ready', { name: CLAUDE_NAME })}</Text>
+        : <>
+          <View style={[styles.code, { backgroundColor: t.group }]}>
+            {signing.code && <>
+              <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
+              <Text testID="sign-in-code" accessibilityLabel={`${words.yourCode} ${signing.code.split('').join(' ')}`} style={[type.headline, styles.codeText, { color: t.text }]}>{signing.code}</Text>
+            </>}
+            <View style={styles.waiting}>
+              <ActivityIndicator size="small" color={t.primary} />
+              <Text style={[type.note, { color: t.muted }]}>{signing.code ? words.waiting : signing.note ?? words.waiting}</Text>
+            </View>
           </View>
-          : <>
-            {indent(say('status.needsAgain', { name: CLAUDE_NAME }))}
-            <View style={styles.indent}><Button kind="filled" label={words.claudeButton} onPress={() => beginSignIn('claude')} /></View>
-          </>}
-        {phoneCan && indent(claudeResting || !claude?.signedIn ? words.restingPhone : words.claudePhoneBackup, t.muted)}
-        {claude?.signedIn && <View style={styles.signOut}><Button kind="text" label={words.claudeSignOut} onPress={() => signOut('claude')} /></View>}
-      </>
-      : null;
+          <Button kind="filled" disabled={!signing.code} label={words.copyAndOpen} onPress={copyAndOpen} />
+        </>}
+      <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
+      <Text style={[type.note, styles.indent, { color: t.muted }]}>{say('terms.grey', { name: copy.name, company: copy.company })}</Text>
+    </>;
+    if (signing) return <>
+      {indent(signing.note ?? words.failed)}
+      <View style={styles.actions}>
+        <Button kind="filled" label={words.tryAgain} onPress={() => beginSignIn(key)} />
+        <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
+      </View>
+    </>;
+    if (source !== key) return null;
+    return <>
+      {cloud?.signedIn
+        ? <View style={styles.status}>
+          {!resting && <CheckIcon size={18} color={t.primary} />}
+          <Text style={[type.note, styles.words, { color: t.text }]}>{cloud.note ?? copy.ready}</Text>
+        </View>
+        : <>
+          {indent(say('status.needsAgain', { name: copy.name }))}
+          <View style={styles.indent}><Button kind="filled" label={copy.button} onPress={() => beginSignIn(key)} /></View>
+        </>}
+      {phoneCan && indent(resting || !cloud?.signedIn ? words.restingPhone : copy.phoneBackup, t.muted)}
+      {key === 'chatgpt'
+        ? <View style={[styles.inner, { backgroundColor: t.group }]}>
+          <Row title={words.phoneOnlyApps} subtitle={stays ? appsLine(stays) : undefined} onPress={() => router.push('/phone-apps')} />
+          {cloud?.signedIn && <View style={styles.signOut}><Button kind="text" label={copy.signOut} onPress={() => signOut(key)} /></View>}
+        </View>
+        : cloud?.signedIn && <View style={styles.signOut}><Button kind="text" label={copy.signOut} onPress={() => signOut(key)} /></View>}
+    </>;
+  };
 
   // What happens to the writing, for the chosen option only: nothing chosen means nothing is written or sent.
   // Each reads as a short headline first, with the full sentence under it; the read log opens its own screen.
@@ -278,7 +251,7 @@ export default function SourceScreen() {
       {source !== undefined && phone !== null && <View style={styles.options} accessibilityRole="radiogroup">
         {phone === 'cant'
           ? <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable
-            reason={<>
+            reason={chosen === 'claude' && !stays?.length ? undefined : <>
               <Text style={[type.note, styles.indent, { color: t.text }]}>{chosen === 'claude' ? words.claudeCantWriteNote : words.phoneCantWhy}</Text>
               {chosen === 'claude' && <Text style={[type.note, styles.indent, { color: t.muted }]}>{words.claudeCantWriteFix}</Text>}
               {chosen !== 'chatgpt' && chosen !== 'claude' && !signIn && <View style={styles.indent}><Button kind="filled" label={words.gptButton} onPress={pickChatGpt} /></View>}
@@ -287,10 +260,10 @@ export default function SourceScreen() {
             {source === 'phone' && !signIn ? <PhoneWriter /> : null}
           </SourceOption>}
         <SourceOption icon={icon(ChatIcon)} title={words.srcGpt} subtitle={words.srcGptSub} selected={source === 'chatgpt' || signIn?.key === 'chatgpt'} onPress={pickChatGpt}>
-          {gptBody}
+          {body('chatgpt')}
         </SourceOption>
         <SourceOption icon={icon(ChatIcon)} title={words.srcClaude} subtitle={words.srcGptSub} selected={source === 'claude' || signIn?.key === 'claude'} onPress={pickClaude}>
-          {claudeBody}
+          {body('claude')}
         </SourceOption>
       </View>}
       {problem && <Text style={[type.body, { color: t.text }]}>{problem}</Text>}
@@ -313,12 +286,12 @@ export default function SourceScreen() {
       </View>
     </Page>
     {confirm && <View style={StyleSheet.absoluteFill}>
-      <Sheet title={SWITCH_COPY[confirm].title} mood="listening" onClose={() => setConfirm(null)}>
+      <Sheet title={ACCOUNT_COPY[confirm].title} mood="listening" onClose={() => setConfirm(null)}>
         <View style={styles.sheet}>
-          <Text style={[type.body, { color: t.text }]}>{SWITCH_COPY[confirm].body}</Text>
-          <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: SWITCH_COPY[confirm].name, company: SWITCH_COPY[confirm].company })}</Text>
+          <Text style={[type.body, { color: t.text }]}>{ACCOUNT_COPY[confirm].body}</Text>
+          <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: ACCOUNT_COPY[confirm].name, company: ACCOUNT_COPY[confirm].company })}</Text>
           <View style={styles.sheetActions}>
-            <Button kind="filled" large label={SWITCH_COPY[confirm].yes} onPress={() => { choose(confirm); setConfirm(null); }} />
+            <Button kind="filled" large label={ACCOUNT_COPY[confirm].yes} onPress={() => { choose(confirm); setConfirm(null); }} />
             <Button kind="text" label={chosen === 'phone' ? words.switchNo : words.cancel} onPress={() => setConfirm(null)} />
           </View>
         </View>
