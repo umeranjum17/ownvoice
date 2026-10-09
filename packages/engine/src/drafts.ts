@@ -238,9 +238,9 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
     'You write reply drafts for one person, from the text on their phone screen. The screen may include app labels, counts and buttons; ignore those.',
     'First work out what the last message asks or says, and what kind of place it is: a private chat, an email, a public post or a comment.',
     'Every draft must respond to everything the latest message asks or offers (for example both the day and who brings what).',
-    single ? 'Write one draft they could send as is, filling this slot:' : 'Write 3 drafts they could send as is, each filling one of these slots:',
+    single ? 'Write one draft they could send as is, filling this slot:' : 'Write 3 drafts they could send as is, one for each slot below, in this exact order. Draft 1 must do only what slot 1 asks, Draft 2 only what slot 2 asks, Draft 3 only what slot 3 asks. Never swap two slots or repeat one slot in two drafts:',
     slotList(slots),
-    single ? 'If the latest message is news, thanks or a feeling, stay warm and kind.' : 'If the latest message is news, thanks or a feeling, all three stay warm and kind: 1 is short, 2 adds one concrete thing from the screen, 3 asks one friendly question.',
+    single ? 'If the latest message is news, thanks or a feeling, stay warm and kind.' : 'If the latest message is news, thanks or a feeling, keep every draft warm and kind, but each still does only its own slot\'s job: the agree draft still agrees, the different-answer draft still offers a gentle alternative, the question draft still asks.',
     'Never put words in their mouth:',
     '- Don\'t invent anything about them: past experience, what they tried or built, numbers, prices, plans, customers, team, dates, schedule clashes, or facts about their product beyond the screen and their note.',
     '- If an honest answer would need a fact only they know, ask a short question back or reply without it.',
@@ -264,9 +264,9 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
 const phoneReplyInstructions = (slots: [string, string, string]) => [
   'Write reply drafts from this screen.',
   'Every draft must respond to everything the latest message asks or offers.',
-  'Draft 1:, Draft 2:, Draft 3:, each different:',
+  'Draft 1:, Draft 2:, Draft 3:, each the slot below, in this exact order, never swapped:',
   slotList(slots),
-  'If news, thanks or feelings, stay warm: 1 short, 2 adds a detail, 3 asks a question.',
+  'If news, thanks or feelings, stay warm and kind.',
   'Never invent facts, times or dates: use only the screen. A change reuses only screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
 ].join('\n');
 
@@ -314,7 +314,32 @@ export function stripControlLines(text: string, controls: string[]): string {
 export const echoKey = (text: string) =>
   text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
 
-export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = [], point = ''): (string | null)[] {
+// A draft whose opening plainly does the opposite of its slot's job: a decline/other-view
+// slot that opens by agreeing, or an agree/accept slot that opens by refusing. Deliberately
+// narrow - only leading wording that leaves no doubt - so a soft alternative that opens with
+// a real fact ("Saturday is tricky, could we do Sunday?") is never mistaken for an agreement.
+const opensAgree = /^(?:(?:yes|yeah|yep|yup|sure|okay|ok|definitely|absolutely|of course|sounds good|works for me|happy to|gladly|will do|no problem|consider it done)\b)/i;
+const opensDecline = /^(?:(?:no|nope|nah|sorry|afraid|unfortunately|can'?t|won'?t|couldn'?t|not able|never)\b)/i;
+
+/**
+ * True when `draft` contradicts the job its `slot` instruction names, using only the slot's own
+ * words: a slot asking to decline, disagree, push back or give another view must not open by
+ * agreeing; a slot asking to agree, accept or confirm must not open by refusing. Every other
+ * slot (asking a question, a neutral answer) is never judged here. A dropped draft is re-asked
+ * once through the caller's existing per-slot retry.
+ */
+export function slotContradiction(slot: string, draft: string): boolean {
+  const s = slot.toLowerCase();
+  const d = draft.trim();
+  if (!d) return false;
+  const declineSlot = /push back|disagree|decline|different answer|another view|counterpoint|differ|rethink|blocker/.test(s);
+  const agreeSlot = /agree|accept|confirm|say yes|yes or agree/.test(s);
+  if (declineSlot) return opensAgree.test(d) && !opensDecline.test(d);
+  if (agreeSlot) return opensDecline.test(d);
+  return false;
+}
+
+export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = [], point = '', slots: string[] = []): (string | null)[] {
   const accepted: (string | null)[] = Array(count).fill(null);
   // A card that still uses a never-say phrase is dropped, so the caller's existing per-slot retry
   // asks once more; a second break stays empty (the bottom-level check remains the backstop).
@@ -324,12 +349,14 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   // 'Shipping offline notes') is dropped the same way, so the same retry re-asks once.
   const echo = echoKey(point);
   const echoes = (text: string) => echo.length > 0 && echoKey(text) === echo;
+  // A card that plainly does the opposite of its slot's job is dropped for the same re-ask.
+  const contradicts = (text: string, slot: number) => slots.length > slot && slotContradiction(slots[slot], text);
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
     const clean = stripControlLines(text, controls);
     const draft = dashes === 'remove' ? undash(clean) : clean;
-    if (!draft || breaks(draft) || echoes(draft)) return;
+    if (!draft || breaks(draft) || echoes(draft) || contradicts(draft, slot)) return;
     if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
   };
   for (const candidate of candidates) {
