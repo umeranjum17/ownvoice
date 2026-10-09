@@ -32,16 +32,24 @@ const sentence = (parts: string[]) => parts.map(part => part.replace(/\.$/, ''))
 
 const GLOSS = [words.fitWhySkipped, words.fitWhyVague, words.fitWhyGood, words.fitWhyStrong] as const;
 
-/** Whether the bar shows for this card: a judged or abstained fit, or a rule flag on its own.
- *  The panel hides the engagement row exactly when this is true, so a card never shows two levels. */
+/** Whether the bar shows for this card: a judged or abstained fit, or a rule flag on its own. */
 export function fitBarVisible(fit: Fit | undefined, ratings: Ratings | null): boolean {
   if (!fit) return false;
   if (fitFlag(ratings)) return true;
   return fit.level != null || fit.words === UNSURE;
 }
 
+/** Whether the bar carries a real verdict that replaces the engagement row: a rule flag or a level.
+ *  A bare "Not sure" bar sits alongside the text checks instead of hiding them, so the person still
+ *  sees what the text itself shows. The panel hides the engagement row exactly when this is true, so
+ *  a card never shows two fit levels. */
+export function fitHidesEngagement(fit: Fit | undefined, ratings: Ratings | null): boolean {
+  if (!fit) return false;
+  return !!fitFlag(ratings) || fit.level != null;
+}
+
 /** Grow mode's only fit display: four segments and the level in words, with one reason line under
- *  it. The bar fills in when the fit lands (no fit yet, or still can't rate and nothing flagged:
+ *  it. The bar fills in when the fit lands (no fit yet, or still plainly not sure and nothing flagged:
  *  nothing shows). A rule flag always shows the bottom level and says why, even over a level.
  *  No number is ever shown or spoken: the spoken label is the level words alone. */
 export function FitBar({ fit, ratings }: { fit: Fit | undefined; ratings: Ratings | null }) {

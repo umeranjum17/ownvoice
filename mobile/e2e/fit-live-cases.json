@@ -1,0 +1,26 @@
+{
+  "x": [
+    { "post": "Shipped a focus timer that only counts minutes you actually spend in the editor. Week 12 of building one small app a week.", "reply": "Does it stop counting when you alt-tab to a PDF? My worst lost hours are in the browser while I call it research." },
+    { "post": "Week 11: I deleted the social feed from my own app. Signups dipped for two days, then came back higher.", "reply": "Did retention hold after the dip came back, or did it settle lower than before you cut the feed?" },
+    { "post": "The best onboarding change this year was removing the tour. New users just type the first note now.", "reply": "How do you show what the app can do once the tour is gone, without turning the empty screen into a manual?" },
+    { "post": "I price at $4 a month because $3 felt cheap and $5 made people hesitate in testing.", "reply": "Did you test the hesitation in a paid flow or a survey? Surveys usually overstate price sensitivity." },
+    { "post": "Every weekly release this year shipped one thing people asked for and one thing nobody did. The second kind taught me more.", "reply": "Which nobody-asked-for change actually stuck? I want to know how you judged it before the data came in." },
+    { "post": "I keep a plain text file of every user complaint, tagged by week. It is the only roadmap I trust.", "reply": "Do you re-read the old tags when you plan, or only the recent ones? I forget the older complaints fast." },
+    { "post": "Shipping a tiny fix every week beats one big launch. Week 9: a timer that pauses when you leave the app.", "reply": "The pause is clever, but reading a document in another app is still work. Would a short allow-list help?" },
+    { "post": "My landing page converts better since I cut it to one sentence and one button.", "reply": "What was the sentence before? The cut is the interesting part, not the final wording." },
+    { "post": "I answer support email myself. The wording people use for the same bug tells me which fix matters.", "reply": "Do you keep a running list of the exact phrases, or just remember them? The exact words are the useful bit." },
+    { "post": "Local-first notes app, no account, no sync yet. Export is one button because lock-in is a bad habit.", "reply": "What format does export use, and can it come back in? A one-way export is only half the promise." }
+  ],
+  "reddit": [
+    { "post": "r/androidapps: I made a timer that counts focused minutes. It pauses when you leave the app. How should I handle reading a PDF in another app? No promotion or vote requests please.", "reply": "Let people pick a small list of allowed apps, like their PDF reader. Keep the pause on for everything else so opening a feed still stops the timer." },
+    { "post": "r/androidapps: Best way to store notes offline without an account? I want export to be a real format, not a dump.", "reply": "Markdown files in a folder the user picks. Export is then just the folder, and it comes back in without a conversion step." },
+    { "post": "r/androidapps: My widget shows the wrong count after midnight. Anyone seen a widget that keeps a stale date?", "reply": "Widgets cache their RemoteViews. Update on ACTION_DATE_CHANGED and ACTION_TIME_TICK, not only on data changes, and the midnight case goes away." },
+    { "post": "r/androidapps: Is a $4 monthly subscription reasonable for a simple notes app, or should it be one-time?", "reply": "One-time for a local notes app unless you run a server. Subscriptions fit sync and storage, not a file format on the device." },
+    { "post": "r/androidapps: How do you test accessibility without a second phone?", "reply": "TalkBack on one device plus a large-font pass covers most of it. Add a keyboard-only run to catch focus order bugs before release." },
+    { "post": "r/androidapps: My app got a one-star review saying it drains battery in the background. How do I check?", "reply": "Battery Historian over a normal day, then look for wake locks and background location. Most drain reports trace to a periodic sync or a missing Doze exemption." },
+    { "post": "r/androidapps: Do you gate features behind a rating prompt, or ask once and stop?", "reply": "Ask once after a real success, never on launch, and never gate anything behind it. Gating turns a rating into a hostage note." },
+    { "post": "r/androidapps: Export gives a JSON file nobody can open. What format should notes use?", "reply": "Markdown plus a plain folder. It opens in any editor and imports back cleanly. JSON is for machines, not for the person who owns the notes." },
+    { "post": "r/androidapps: How much onboarding is too much for a three-screen app?", "reply": "If a screen can be shown in context instead, do that. A tour is a manual you make people read before they have a reason to." },
+    { "post": "r/androidapps: Users keep asking for sync. I do not want an account system. Any middle ground?", "reply": "Folder-based sync through the user's own storage provider. No account for you, and the files stay theirs to move." }
+  ]
+}

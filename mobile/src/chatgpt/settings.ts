@@ -167,19 +167,26 @@ const JEV_KEY = process.env.EXPO_PUBLIC_JEV_KEY ?? '';
 // Emulator acceptance only (EXPO_PUBLIC_E2E_JEV_BASE): Jev's requests go to a host stand-in instead.
 const JEV_BASE = process.env.EXPO_PUBLIC_E2E_JEV_BASE;
 
-/** Fit ratings run on Jev, and only under the same consent as a ChatGPT send for this app: the
- *  post and drafts leave the phone only when the writer's would. No key, no backend: the cards say
- *  the fit can't be rated. Checked before sending and again at dispatch. */
-export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch } = {}): Backend[] {
-  const key = o.key ?? JEV_KEY;
-  if (!key) return [];
-  const send = o.fetch ?? globalThis.fetch;
+/** Fit ratings run on the person's signed-in ChatGPT plan by default, under the same consent as a
+ *  ChatGPT send for this app: the post and drafts leave the phone only when the writer's would.
+ *  Jev is used only when this build carries `EXPO_PUBLIC_JEV_KEY` (emulator stand-in proof builds).
+ *  Checked before sending and again at dispatch; a blocked call abstains with the plain unsure read. */
+export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent'> } = {}): Backend[] {
   const bubble = chatgptConsent(app);
   const remote = agentChatgptConsent();
-  const allowed = async () => (await getSource()) === 'chatgpt' && await bubble.beforeSend() && await remote.beforeSend()
-    && store.peek<Source>(SOURCE_KEY) === 'chatgpt' && bubble.beforeFetch() && remote.beforeFetch();
-  return [jev({ key, fetch: async (url, init) => {
-    if (!(await allowed())) throw new SendVeto(words.phoneWrote);
-    return send(JEV_BASE ? String(url).replace('https://api.typesafe.ai', JEV_BASE) : url, init);
-  } })];
+  const beforeSend = async () => (await getSource()) === 'chatgpt' && await bubble.beforeSend() && await remote.beforeSend();
+  const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && bubble.beforeFetch() && remote.beforeFetch();
+  const key = o.key ?? JEV_KEY;
+  if (key) {
+    const send = o.fetch ?? globalThis.fetch;
+    return [jev({ key, fetch: async (url, init) => {
+      if (!(await beforeSend()) || !beforeFetch()) throw new SendVeto(words.phoneWrote);
+      await o.on?.started?.();
+      const response = await send(JEV_BASE ? String(url).replace('https://api.typesafe.ai', JEV_BASE) : url, init);
+      await o.on?.sent?.();
+      return response;
+    } })];
+  }
+  // The plan's default fit transport, over the same `accounts.respond` the writer uses.
+  return [require('./responses').fitBackend({ ...o.on, beforeSend, beforeFetch }, o.fetch)];
 }

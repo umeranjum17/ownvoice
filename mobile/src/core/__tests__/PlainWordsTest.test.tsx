@@ -1,4 +1,4 @@
-import { LEVELS, UNAVAILABLE, UNSURE } from '../../grow/fit';
+import { LEVELS, UNSURE } from '../../grow/fit';
 import { ERROR_CODES, message } from '../nano';
 import { words, CHATGPT_TERMS, technicalWords } from '../words';
 import { offeredApps } from '../onboarding';
@@ -246,7 +246,7 @@ describe('panel copy', () => {
 
 
 test('fit levels use plain words', () => {
-  assertPlain([...LEVELS, UNSURE, UNAVAILABLE]);
+  assertPlain([...LEVELS, UNSURE]);
 });
 
 test('growthWords', () => { const keys = ['checkinAsk', 'checkinOn', 'checkinReplies', 'checkinLikes', 'checkinQuiet', 'checkinSkipped', 'weeklyTitle', 'weeklyNote', 'weeklyX', 'weeklyReddit', 'weeklySave', 'weeklySaved', 'growthOpen', 'growthTitle', 'growthNote', 'growthUp', 'growthSame', 'growthDown', 'growthNew', 'growthEmpty', 'weeklyReminder', 'countFormat', 'growthUpChecked', 'growthSameChecked', 'growthDownChecked']; expect(keys.filter(k => !(k in words))).toEqual([]); const shown = keys.map(k => words[k as keyof typeof words]); assertPlain(shown); expect(shown.join(' ')).not.toMatch(/\d/); expect(shown.join(' ')).not.toMatch(/viral|will get|\bscore\b/i); });

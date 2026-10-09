@@ -7,7 +7,7 @@ import { space, type, useTheme } from './theme';
 const ICON = 18;
 
 /** One rating: a warning or a neutral dot that never carries the meaning alone, its name, its level in words, then the reasons.
- *  Only Jev's fit level can rate a draft up, and even then there is no tick. */
+ *  Only the fit level can rate a draft up, and even then there is no tick. */
 function Row({ title, label, bad, lines }: { title: string; label: string; bad: boolean; lines: string[] }) {
   const t = useTheme();
   const tint = bad ? t.attention : t.muted;
@@ -29,7 +29,7 @@ const texts = (signals: Signal[]) => signals.map(s => s.text);
 const sentence = (title: string, label: string, lines: string[]) => [`${title}: ${label}`, ...lines].join('. ') + '.';
 
 /** A card's engagement rating and, apart from it, its stock-wording rating; read out as one label.
- *  With Jev's fit level the engagement rating is that level; without one it stays the text checks.
+ *  With the fit level the engagement rating is that level; without one it stays the text checks.
  *  In grow mode the fit bar below carries the level and the findings, so the panel hides this row
  *  there instead of showing two verdicts. A row appears only when it found something, and nothing
  *  appears when it found nothing. */
@@ -39,7 +39,7 @@ export function Ratings({ ratings, fit, hideEngagement }: { ratings: Value | nul
   const judged = fit?.level != null;
   const notes = texts(e.signals);
   const stockLines = texts(s.signals);
-  // Nothing found means nothing shown: a row of "Nothing flagged" and "can't rate the fit" on every
+  // Nothing found means nothing shown: a row of "Nothing flagged" and a plain "Not sure" fit on every
   // card is noise, and it says nothing about the draft. A real level or a real finding earns the row.
   const discloses = e.unknown.includes(POST_UNREAD);
   if (hideEngagement && !stockLines.length) return null;

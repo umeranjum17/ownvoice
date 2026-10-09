@@ -3,7 +3,7 @@ import { store } from '../../core/store';
 import { fitBackends } from '../settings';
 import { status } from '../accounts';
 import * as Switch from '../../core/switch';
-import { judgeFit, rated, LEVELS, UNAVAILABLE, UNSURE } from '../../grow/fit';
+import { judgeFit, rated, LEVELS, UNSURE } from '../../grow/fit';
 import { platformForApp } from '../../core/platforms';
 import Native from '../../../modules/ownvoice-native';
 import { signOut } from '../accounts';
@@ -71,12 +71,27 @@ const consent = () => {
 };
 const jevReply = (answers: object) => jest.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ answers, usage: { input_tokens: 9, output_tokens: 2 } })));
 
-test('no Jev key: no backend, no fetch, and every card says the fit cannot be rated', async () => {
+test('no Jev key: the fit runs on the signed-in ChatGPT plan backend', async () => {
   consent();
   const fetcher = jevReply({});
-  expect(fitBackends('com.twitter.android', { key: '', fetch: fetcher })).toEqual([]);
-  expect((await evaluate(fetcher, '')).map(f => f.words)).toEqual([UNAVAILABLE, UNAVAILABLE]);
-  expect(fetcher).not.toHaveBeenCalled();
+  const backends = fitBackends('com.twitter.android', { key: '', fetch: fetcher });
+  expect(backends).toHaveLength(1);
+  expect(backends[0].name).toBe('chatgpt');
+  expect(backends[0].leaves).toBe(true);
+});
+
+test('a fit request marks its own tap Sent through the read-log hooks it was given', async () => {
+  consent();
+  const sent = jest.fn();
+  const unsent = jest.fn();
+  const fetcher = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'Too many requests', body: null } as unknown as Response));
+  const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    const [backend] = fitBackends('com.twitter.android', { on: { sent, unsent }, fetch: fetcher });
+    await expect(backend.ask({}, {}, new AbortController().signal)).rejects.toThrow();
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(unsent).not.toHaveBeenCalled();
+  } finally { log.mockRestore(); }
 });
 
 test('a key turns it on: one Jev request with the rubric, its probabilities become the levels', async () => {
@@ -126,7 +141,7 @@ test('the same call carries the selected samples as a Sounds-like-you yes/no per
   expect(await judgeFit({ ...options, samples, backends: fitBackends('com.twitter.android', { key: 'fixture-jev-key', fetch: quiet }) }))
     .toEqual([
       { level: 3, words: LEVELS[3], probability: 0.65, voice: null },
-      { level: null, words: UNAVAILABLE, probability: null, voice: null },
+      { level: null, words: UNSURE, probability: null, voice: null },
     ]);
 });
 
@@ -157,7 +172,7 @@ test('LinkedIn has its own rubric: a strong reply, a skipped one and an abstain'
 });
 test.each([
   ['phone-listed', 'on'], ['switch off', 'off'], ['unknown switch', null], ['phone source', 'on'], ['paused', 'on'], ['bubble off', 'on'], ['signed out', 'on'], ['signing out', 'on'],
-])('%s sends nothing to Jev and says the fit cannot be rated', async (scenario, value) => {
+])('%s sends no fit call and abstains with the plain unsure read', async (scenario, value) => {
   jest.spyOn(Switch, 'chatgptEnabled').mockResolvedValue(value === 'on');
   jest.spyOn(Switch, 'currentSwitch').mockResolvedValue(value ? { seq: 1, chatgpt: value, fetchedAt: Date.now() } as Switch.SwitchState : null);
   if (scenario === 'phone-listed') store.set(PHONE_ONLY_KEY, ['com.twitter.android']);
@@ -174,7 +189,7 @@ test.each([
   }
   const fetcher = jest.fn(async () => { throw new Error('Must not fetch'); });
   try {
-    expect((await evaluate(fetcher)).map(f => f.words)).toEqual([UNAVAILABLE, UNAVAILABLE]);
+    expect((await evaluate(fetcher)).map(f => f.words)).toEqual([UNSURE, UNSURE]);
     expect(fetcher).not.toHaveBeenCalled();
   } finally { release?.(); await leaving; }
 });

@@ -11,7 +11,7 @@ import type { Source } from './source';
 /** `samples`: the same selected replies the fit call judges as "Sounds like you"; the phone prompts fit the shortest that hold. */
 export type DraftRequest = { conversation: string; written: string; nodes?: ScreenText[]; fieldTop?: number; typed: string; point?: string; guide?: string; never?: string[]; samples?: string[]; dashes?: 'keep' | 'remove'; avoid?: string[]; platform?: Platform; /** A new post of his own, written from what he typed: a one-line topic is the instruction, not text to polish. */ newPost?: boolean };
 export type WriterState = 'downloading' | 'writing';
-export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
+export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; fallback?: () => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
 /** `unchanged`: no drafts because the writer gave their text back as it was, so it already reads well. */
 export type Choice = { drafts: string[]; reason?: string; unchanged?: boolean; declined?: boolean };
 export interface Writer { write(request: DraftRequest, on?: WriterEvents): Promise<Choice> }
@@ -53,6 +53,7 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
     const reason = error instanceof SendVeto ? error.message
       : classify(message)?.kind === 'network' ? words.offlinePhone
       : (await fallbackNote?.().catch(() => null)) ?? words.fallback;
+    on?.fallback?.();
     return { ...(await phone.write(request, on)), reason };
   }
 }

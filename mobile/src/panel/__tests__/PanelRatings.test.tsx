@@ -9,7 +9,7 @@ import Panel from '../Panel';
 import { technicalWords, words } from '../../core/words';
 import * as FitModule from '../../grow/fit';
 import { LEVELS, UNSURE, type Fit } from '../../grow/fit';
-import type { DraftRequest, WriterEvents } from '../../core/writers';
+import { withPhoneFallback, type DraftRequest, type Writer, type WriterEvents } from '../../core/writers';
 import Native, { type Capture } from '../../../modules/ownvoice-native';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
@@ -44,16 +44,15 @@ const capture = (over: Partial<Capture> = {}): Capture => ({
   app: 'com.twitter.android', label: 'X', at: 0, id: 'tap-x', hasField: true, ...over,
 });
 
-const open = async (value: Capture, drafts = DRAFTS) => {
-  native.capture.mockResolvedValue(value);
-  const write = async (_request: DraftRequest, on: WriterEvents = {}) => {
+const open = async (value: Capture, drafts = DRAFTS, writer: Writer = { write: async (_request: DraftRequest, on: WriterEvents = {}) => {
     await new Promise(resolve => setTimeout(resolve, 1));
     drafts.forEach((text, slot) => on.landed?.(text, slot));
     return { drafts: [...drafts] };
-  };
+  } }) => {
+  native.capture.mockResolvedValue(value);
   const screen = await render(
     <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-      <Panel writer={{ write }} />
+      <Panel writer={writer} />
     </SafeAreaProvider>);
   await waitFor(() => expect(screen.getAllByRole('button', { name: value.typed.trim() ? 'Use this' : 'Insert' }).length).toBeGreaterThan(0));
   return screen;
@@ -117,7 +116,8 @@ test('a new post with nothing on screen makes no parent comparison and reports n
 test('a card with four engagement signals reads all four aloud in its bar, bottom level', async () => {
   const draft = `@stranger what do you think? See https://example.com ${'x'.repeat(300)}`;
   const screen = await open(capture(), [draft]);
-  await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(1));
+  // Yours carries a bare "Not sure" bar; the flagged draft carries the bottom level and its findings.
+  await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(2));
   expect(screen.getAllByLabelText(LEVELS[0])).toHaveLength(1);
   expect(screen.queryAllByLabelText(/^Engagement on /)).toEqual([]);
   expect(screen.getByText("Has a link. Too long for X. Tags people who aren't in the post. Asks a question.")).toBeTruthy();
@@ -186,6 +186,32 @@ describe('grow fit bar', () => {
     } finally { spy.mockRestore(); }
   });
 
+  test('after a ChatGPT failure the phone-written drafts are not judged, and the typed reply still is', async () => {
+    const failing: Writer = { write: async () => { throw new Error('ChatGPT could not answer.'); } };
+    const phone: Writer = { write: async (_request, on) => { CLEAN.forEach((text, slot) => on?.landed?.(text, slot)); return { drafts: [...CLEAN] }; } };
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
+    try {
+      const screen = await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, on, undefined, 'ready') });
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(CLEAN.length + 1));
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy.mock.calls[0][0].candidates).toEqual([TYPED]);
+      expect(spy.mock.calls[0][0].backends.length).toBeGreaterThan(0);
+      expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(1);
+      expect(screen.getAllByLabelText(UNSURE)).toHaveLength(CLEAN.length);
+    } finally { spy.mockRestore(); }
+  });
+
+  test('a phone write that fails after landing a draft still keeps that draft out of fit', async () => {
+    const failing: Writer = { write: async () => { throw new Error('ChatGPT could not answer.'); } };
+    const phone: Writer = { write: async (_request, on) => { on?.landed?.(CLEAN[0], 0); throw new Error('phone model stopped'); } };
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
+    try {
+      await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, on, undefined, 'ready') });
+      await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+      expect(spy.mock.calls[0][0].candidates).toEqual([TYPED]);
+    } finally { spy.mockRestore(); }
+  });
+
   test('an abstained card says it is not sure, with an empty bar', async () => {
     const spy = jest.spyOn(FitModule, 'judgeFit')
       .mockResolvedValue([fit({ level: null, words: UNSURE, probability: null }), fit({ level: 2, words: LEVELS[2] })]);
@@ -251,13 +277,29 @@ describe('grow fit bar', () => {
     } finally { spy.mockRestore(); }
   });
 
-  test('an unrateable card carries no bar at all', async () => {
+  test('a typed reply still gets its fit read when the writer fails', async () => {
+    // The 2026-10-01 failure: the writer failed and the panel showed only its fallback, no fit read.
+    const spy = jest.spyOn(FitModule, 'judgeFit');
+    try {
+      native.capture.mockResolvedValue(capture());
+      const screen = await render(
+        <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
+          <Panel writer={{ write: async () => { throw new Error('no writer'); } }} />
+        </SafeAreaProvider>);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar').length).toBeGreaterThan(0));
+      expect(screen.getAllByLabelText(UNSURE).length).toBeGreaterThan(0);
+    } finally { spy.mockRestore(); }
+  });
+
+  test('a card the fit cannot judge still shows the plain unsure read', async () => {
     const spy = jest.spyOn(FitModule, 'judgeFit');
     try {
       const screen = await open(capture(), ['Purple turbines whisper banana logistics.']);
       await waitFor(() => expect(spy).toHaveBeenCalled());
       await act(async () => { await spy.mock.results[0].value; });
-      expect(screen.queryByTestId('fit-bar')).toBeNull();
+      // Every grow card carries an honest fit read: a bare "Not sure" bar when nothing was judged.
+      expect(screen.getAllByTestId('fit-bar').length).toBeGreaterThan(0);
+      expect(screen.getAllByLabelText(UNSURE).length).toBeGreaterThan(0);
     } finally { spy.mockRestore(); }
   });
 });

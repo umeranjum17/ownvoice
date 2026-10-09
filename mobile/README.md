@@ -64,37 +64,47 @@ Setup asks **How should Ownvoice write?**, and Home's **How Ownvoice writes** ro
 
 The lab-only compose-from-request script asks its text writer for a single-field JSON object, `{"note":"finished message"}`. It decodes only a complete envelope with exactly one nonblank string field named `note`, optionally enclosed in a JSON fence; other text stays intact, including literal brackets, stars and backticks. The extracted note is the same text displayed, checked and offered for approval. The shared writing instructions require task facts and requested tone changes to be preserved, plain text with `•` for requested lists, unknown recipient names to be omitted, and signatures only when supplied by the task. Capability explanations belong outside the note and only when an action such as sending is requested; the script's text-only writing call omits them entirely. These are instructions to the writer, not enforced prose guarantees. Local writing-rule and number checks do not establish prose faithfulness; live outputs still need inspection. `EXPO_PUBLIC_PHONE_AGENT=1` remains required for the lab screen, and real lab QA uses an isolated adapter without E2E writer or account flags.
 
-**Privacy:** For an enabled app, ChatGPT drafting sends the text being rewritten or replied to, visible screen context and writing rules to OpenAI. Phone-only drafting does not send that content. The read log stores one native tap fact per bubble tap (app, time, what was read and whether a ChatGPT request reached the server — marked only once the server answers, so a vetoed or offline-before-connect request leaves no Sent mark), not the screen or message text, for up to 30 days. Checking the public remote switch makes a GET to GitHub without app-added identifiers; the request still exposes ordinary connection information such as the device's IP address to the host. The signed switch accepts newer verified choices, retains the last verified choice if fetching fails, and is checked again before sending; before any verified flag, it defaults to on. If saving a verified choice fails, that choice lasts only until the process restarts; after a restart with no network, an older saved choice may apply. The signed switch is published at `switch/chatgpt.json` on the default branch. A switch permitting ChatGPT never overrides the chosen source or the phone-only list. Immediately before starting a ChatGPT request, the app checks its latest source, sign-in, pause, phone-only and switch state; withdrawing consent before this last check keeps drafts on the phone. The selection rewrite sends through the same latest sign-in, pause and switch checks plus its stored writing choice; it rewrites text from any app, so no phone-only choice applies to it.
+**Privacy:** For an enabled app, ChatGPT drafting sends the text being rewritten or replied to, visible screen context and writing rules to OpenAI. Phone-only drafting does not send that content. The reply fit on X, LinkedIn and Reddit sends the post and the cards it rates under the same consent (see **Reply fit**). The read log stores one native tap fact per bubble tap (app, time, what was read and whether a ChatGPT request reached the server — marked only once the server answers, so a vetoed or offline-before-connect request leaves no Sent mark), not the screen or message text, for up to 30 days. Checking the public remote switch makes a GET to GitHub without app-added identifiers; the request still exposes ordinary connection information such as the device's IP address to the host. The signed switch accepts newer verified choices, retains the last verified choice if fetching fails, and is checked again before sending; before any verified flag, it defaults to on. If saving a verified choice fails, that choice lasts only until the process restarts; after a restart with no network, an older saved choice may apply. The signed switch is published at `switch/chatgpt.json` on the default branch. A switch permitting ChatGPT never overrides the chosen source or the phone-only list. Immediately before starting a ChatGPT request, the app checks its latest source, sign-in, pause, phone-only and switch state; withdrawing consent before this last check keeps drafts on the phone. The selection rewrite sends through the same latest sign-in, pause and switch checks plus its stored writing choice; it rewrites text from any app, so no phone-only choice applies to it.
 
 Live proofs run through the app on the signed-in test emulator, using its byokit sign-in. Never read or copy another tool's credentials for a proof. See the [current release A/B report](reports/accounts-090-live-ab.md) for candidate evidence; the [earlier in-app proof](reports/live-proof-p9.md) records the reverted transport's history.
 
 To produce a switch flag offline, keep a 32-byte private signing key as hex outside this repository and, from `mobile/`, run `SWITCH_SEQ=1 node --experimental-strip-types scripts/sign-switch.ts /path/to/private-key off` (increment the sequence for later flags). This prints the signed JSON; it does not publish it. Never commit the private key.
 
-### Reply fit (Jev)
+### Reply fit
 
-`src/grow/fit.ts` asks Jev, through the published `@byokit/decide` `jev()`, one
+`src/grow/fit.ts` asks one judge call, through the published `@byokit/decide`, for one
 score question per shown text on X, LinkedIn and Reddit replies: the platform rubric is the
-question and Jev's most probable level (`LEVELS`) becomes the card's engagement
-level. Below decide's 0.6 floor the card says it isn't sure; when nothing answered
-(no key, no consent, offline, the 20 second deadline) it says it can't rate the fit
-and keeps the text checks below, unless the card has no other finding and nothing to disclose, when no row appears at all. The level is never adjusted by hand rules. The
-panel asks once per tap after the cards land, never per keystroke, and never for
-an edited text; each call uses a fresh in-memory cache.
+question and the model's most probable level (`LEVELS`) becomes the card's engagement
+level. Below decide's 0.6 floor, or when nothing answered (no backend, no consent,
+offline, the 20 second deadline), the card abstains with the plain **Not sure about this
+one** bar; the panel never shows a number and never predicts reach. The level is never
+adjusted by hand rules. The panel asks once per tap after the writer settles, never per
+keystroke, and never for an edited text; each call uses a fresh in-memory cache.
+
+By default the fit runs on the person's **signed-in ChatGPT plan** through the same
+`accounts.respond` the writer uses, so no Jev key ships in the app. A build with
+`EXPO_PUBLIC_JEV_KEY` uses Jev instead (billed per use to that key), which the emulator
+stand-in proofs set. `fitBackends(app)` in `src/chatgpt/settings.ts` sends only under the
+same consent as a ChatGPT send for that app (source, visibility, pause, phone-only,
+sign-out epoch, remote switch), checked again at dispatch. Drafts the phone wrote are
+never sent. The fit uses the same ChatGPT plan as the writer, so a rate limit on either
+pauses both until the plan recovers.
 
 A reply typed under an X, LinkedIn or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
 the writer gets their text as `point` (with `typed` empty) so the replies start from it,
 **Yours** keeps their text, and once the fit answers the cards are listed highest level first,
 unrated ones last and ties in slot order. Each card keeps its `slot`, so its tag still names
-what it is for. With no fit answer the cards stay in slot order. Elsewhere typed text is polished.
+what it is for. With no fit answer the cards stay in slot order. The fit runs once the
+writer settles either way, so when the writer fails the typed reply still shows its honest
+fit read instead of only the writer's fallback line. Elsewhere typed text is polished.
 
-`fitBackends(app)` in `src/chatgpt/settings.ts` builds the Jev backend from the
-build's `EXPO_PUBLIC_JEV_KEY` (no key: no backend) and sends only under the same
-consent as a ChatGPT send for that app (source, visibility, pause, phone-only,
-sign-out epoch, remote switch), checked again at dispatch. Drafts the phone wrote
-are never sent. Jev is billed per use to that key.
+Live proof on the signed-in ChatGPT plan: `ANDROID_SERIAL=emulator-NNNN node e2e/fit-live-proof.mjs e2e/fit-live-cases.json [out] [limit]`
+on a throwaway emulator with a signed-in ChatGPT build. It host-maps x.com and reddit.com to lab
+pages and reads each panel's `ownvoice-fit` log line (levels and probabilities, never text); `DARK=1`
+adds a dark capture per platform.
 
-Proof without a key: `node e2e/jev-standin.mjs serve` answers Jev's wire format
-from a local model's token probabilities (ollama, `OLLAMA`/`MODEL`), and
+Jev stand-in proof, for builds that carry `EXPO_PUBLIC_JEV_KEY`: `node e2e/jev-standin.mjs serve`
+answers Jev's wire format from a local model's token probabilities (ollama, `OLLAMA`/`MODEL`), and
 `node e2e/jev-standin.mjs rate e2e/jev-cases.json` runs the 10 posts x 3 replies
 through `judgeFit` and `jev()`. On an emulator, build with `EXPO_PUBLIC_E2E_GPT=1
 EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_JEV_KEY=stand-in
@@ -102,13 +112,13 @@ EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18610` and run `node e2e/jev-proof.mjs
 e2e/jev-cases.json [out]` after setup with ChatGPT and Chrome switched on: Chrome
 maps x.com to the script's lab page, and each panel's levels and probabilities
 are read from the `ownvoice-fit` log line (no text is logged). Load the model first: a
-cold load outlasts the 20 second deadline and the cards then say they can't rate.
+cold load outlasts the 20 second deadline and the cards then read plainly Not sure.
 
 ### Card ratings
 
 On feed apps (X, Reddit and the other known platforms) a draft card shows the
 checks that found something and nothing when they found nothing: an engagement
-rating, which on X, LinkedIn and Reddit replies is Jev's fit level (above), and otherwise
+rating, which on X, LinkedIn and Reddit replies is the fit level (above), and otherwise
 the concerns the text shows on that platform from
 `packages/engine/src/ratings.ts`; where it appears it always says text alone
 can't predict reach. Apart from it sits a separate stock-wording rating from the
@@ -116,7 +126,7 @@ shared slop rules, shown only when there is stock wording to name. The same four
 rows on every card, mostly reading "Nothing flagged" and "None found", was noise
 and said nothing about the draft. A reply whose post couldn't be read
 says so instead of comparing, even on an otherwise clean card with no other rows. **Edit** opens a card's text; the ratings follow the
-edited text (text checks only; Jev isn't asked again), **Insert** puts exactly that text in the box and nothing is posted.
+edited text (text checks only; the fit isn't asked again), **Insert** puts exactly that text in the box and nothing is posted.
 
 Known limit: the read-screen → rated card → edit → insert flow has not been proven
 on the native X app. No demo device with X installed and signed in exists, so the
