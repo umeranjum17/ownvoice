@@ -9,7 +9,7 @@ import Panel from '../Panel';
 import { technicalWords, words } from '../../core/words';
 import * as FitModule from '../../grow/fit';
 import { LEVELS, UNSURE, type Fit } from '../../grow/fit';
-import { withPhoneFallback, type DraftRequest, type Writer, type WriterEvents } from '../../core/writers';
+import { cloudWords, withPhoneFallback, type DraftRequest, type Writer, type WriterEvents } from '../../core/writers';
 import Native, { type Capture } from '../../../modules/ownvoice-native';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
@@ -191,7 +191,7 @@ describe('grow fit bar', () => {
     const phone: Writer = { write: async (_request, on) => { CLEAN.forEach((text, slot) => on?.landed?.(text, slot)); return { drafts: [...CLEAN] }; } };
     const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
     try {
-      const screen = await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, on, undefined, 'ready') });
+      const screen = await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, on, undefined, 'ready', cloudWords('chatgpt')) });
       await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(CLEAN.length + 1));
       expect(spy).toHaveBeenCalledTimes(1);
       expect(spy.mock.calls[0][0].candidates).toEqual([TYPED]);
@@ -206,7 +206,7 @@ describe('grow fit bar', () => {
     const phone: Writer = { write: async (_request, on) => { on?.landed?.(CLEAN[0], 0); throw new Error('phone model stopped'); } };
     const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
     try {
-      await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, on, undefined, 'ready') });
+      await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, on, undefined, 'ready', cloudWords('chatgpt')) });
       await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
       expect(spy.mock.calls[0][0].candidates).toEqual([TYPED]);
     } finally { spy.mockRestore(); }

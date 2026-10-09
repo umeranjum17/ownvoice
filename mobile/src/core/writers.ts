@@ -33,14 +33,14 @@ export const cloudWords = (key: CloudKey): CloudWords => key === 'claude'
   : { off: CHATGPT_OFF, offNoPhone: words.gptOffNoPhone, failedNoPhone: words.gptFailedNoPhone, fallback: words.fallback, needNote: words.needWriterNote, switchUnavailable: words.switchUnavailable };
 
 /** The one plain line for a failed cloud call on a phone that cannot write instead. */
-export function noPhoneLine(error: unknown, lines: CloudWords = cloudWords('chatgpt')): string {
+export function noPhoneLine(error: unknown, lines: CloudWords): string {
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof SendVeto && message === lines.off) return lines.offNoPhone;
   if (classify(message)?.kind === 'network') return words.offlineNoPhone;
   return lines.failedNoPhone;
 }
 
-export async function withPhoneFallback(primary: Writer, phone: Writer, request: DraftRequest, on?: WriterEvents, fallbackNote?: () => Promise<string | null>, phoneStatus?: PhoneCanWrite, lines: CloudWords = cloudWords('chatgpt')): Promise<Choice> {
+export async function withPhoneFallback(primary: Writer, phone: Writer, request: DraftRequest, on: WriterEvents | undefined, fallbackNote: (() => Promise<string | null>) | undefined, phoneStatus: PhoneCanWrite | undefined, lines: CloudWords): Promise<Choice> {
   try {
     const { drafts, unchanged, declined } = await primary.write(request, on);
     // A successful refusal is not a transport failure: don't ask another writer to polish it.
@@ -73,9 +73,8 @@ export type WriterRoute = { writer: Writer; note: string | null };
  *  fallback only when it can; otherwise the panel gets the no-phone line for the failure. `note` is
  *  byokit's own line for resting or a plan that doesn't include this, or the sign-in line when signed
  *  out, and `lines` is the provider's own plain wording. */
-export function routeWriters(options: { source: Source; signedIn: boolean; phoneOnlyApp: boolean; enabled: boolean; note?: string | null; phone: PhoneCanWrite; chatgpt: () => Writer; phoneWriter: Writer; fallbackNote?: () => Promise<string | null>; lines?: CloudWords }): WriterRoute {
-  const { phoneWriter } = options;
-  const lines = options.lines ?? cloudWords('chatgpt');
+export function routeWriters(options: { source: Source; signedIn: boolean; phoneOnlyApp: boolean; enabled: boolean; note?: string | null; phone: PhoneCanWrite; chatgpt: () => Writer; phoneWriter: Writer; fallbackNote?: () => Promise<string | null>; lines: CloudWords }): WriterRoute {
+  const { phoneWriter, lines } = options;
   if (options.source === 'phone') return { writer: phoneWriter, note: null };
   if (options.source == null) return { writer: needWriter, note: null };
   // An app kept on this phone never goes to the cloud, even where the phone can't write: say how to change it.

@@ -211,5 +211,4 @@ export function cloudWriter(cloud: CloudKey): Writer {
     },
   };
 }
-export const chatgptWriter: Writer = cloudWriter('chatgpt');
 

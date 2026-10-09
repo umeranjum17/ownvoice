@@ -1,4 +1,4 @@
-import { withPhoneFallback } from '../../core/writers';
+import { cloudWords, withPhoneFallback } from '../../core/writers';
 jest.mock('../../core/polish', () => ({
   ...jest.requireActual('../../core/polish'),
   canPolish: jest.fn(async () => true),
@@ -23,11 +23,12 @@ jest.mock('../accounts', () => {
   return { ...actual, codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })), reportFailure: jest.fn(async () => ({})) };
 });
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
-import { chatgptWriter, streamResponses, streamSelectionRewrite } from '../responses';
+import { cloudWriter, streamResponses, streamSelectionRewrite } from '../responses';
 import { platformForApp } from '../../core/platforms';
 import { accounts, codexAuth, reportFailure } from '../accounts';
 import { words } from '../../core/words';
 import type { DraftRequest } from '../../core/writers';
+const chatgptWriter = cloudWriter('chatgpt');
 
 const event = (item: object) => `data: ${JSON.stringify(item)}`;
 const body = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(controller) {
@@ -597,7 +598,7 @@ test.each([
   const reset = jest.fn();
   const landed = jest.fn();
   try {
-    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, { reset, landed }, undefined, 'cant')).toEqual({ drafts });
+    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, { reset, landed }, undefined, 'cant', cloudWords('chatgpt'))).toEqual({ drafts });
     expect(landed.mock.calls.map(([, slot]) => slot)).toEqual([1, 2]);
     expect(reset).not.toHaveBeenCalled();
     expect(phone.write).not.toHaveBeenCalled();
@@ -619,7 +620,7 @@ test('captured nonsense is declined before any alternate can land or trigger pho
   const phone = { write: jest.fn(async () => ({ drafts: [bad] })) };
   const landed = jest.fn();
   try {
-    expect(await withPhoneFallback(chatgptWriter, phone, { typed, conversation: '', written: '' }, { landed }, undefined, 'cant'))
+    expect(await withPhoneFallback(chatgptWriter, phone, { typed, conversation: '', written: '' }, { landed }, undefined, 'cant', cloudWords('chatgpt')))
       .toEqual({ drafts: [], declined: true });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(JSON.stringify((global.fetch as jest.Mock).mock.calls[0])).toContain(typed);
@@ -634,7 +635,7 @@ test('an unreadable point check remains a transient failure, allowing fallback r
   global.fetch = fetcher(body(event({ type: 'response.output_text.delta', delta: 'not sure' }) + '\n\n' + event({ type: 'response.completed' })));
   const phone = { write: jest.fn(async () => ({ drafts: ['autosave locally. Make export easy.'] })) };
   try {
-    const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' });
+    const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' }, undefined, undefined, undefined, cloudWords('chatgpt'));
     expect(choice).toEqual({ drafts: ['autosave locally. Make export easy.'], reason: words.fallback });
     expect(choice.declined).toBeUndefined();
     expect(phone.write).toHaveBeenCalledTimes(1);

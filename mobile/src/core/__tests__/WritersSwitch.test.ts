@@ -1,4 +1,4 @@
-import { withPhoneFallback, Writer } from '../writers';
+import { cloudWords, withPhoneFallback, Writer } from '../writers';
 import { CACHE_MS, chatgptEnabled, currentSwitch, Flag, SwitchState, SwitchStore, verify } from '../switch';
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha512';
@@ -36,10 +36,10 @@ test('seal verifies noble-signed flags byte-compatibly; tampered payload and wro
 test('phone fallback reports a readable reason and preserves the primary on success', async () => {
   const req = { conversation: '', written: '', typed: '' };
   const phone: Writer = { write: async () => ({ drafts: ['phone draft'] }) };
-  const failed = await withPhoneFallback({ write: async () => { throw Error('secret'); } }, phone, req);
+  const failed = await withPhoneFallback({ write: async () => { throw Error('secret'); } }, phone, req, undefined, undefined, undefined, cloudWords('chatgpt'));
   expect(failed).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
-  expect(await withPhoneFallback({ write: async () => ({ drafts: ['main'] }) }, phone, req)).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
-  expect(await withPhoneFallback({ write: async () => ({ drafts: ['one', 'two', 'three'] }) }, phone, req)).toEqual({ drafts: ['one', 'two', 'three'] });
+  expect(await withPhoneFallback({ write: async () => ({ drafts: ['main'] }) }, phone, req, undefined, undefined, undefined, cloudWords('chatgpt'))).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
+  expect(await withPhoneFallback({ write: async () => ({ drafts: ['one', 'two', 'three'] }) }, phone, req, undefined, undefined, undefined, cloudWords('chatgpt'))).toEqual({ drafts: ['one', 'two', 'three'] });
 });
 
 test('fallback replaces partial primary cards before showing phone cards', async () => {
@@ -58,7 +58,7 @@ test('fallback replaces partial primary cards before showing phone cards', async
     on?.landed?.('phone one', 0);
     return { drafts: ['phone one'] };
   } };
-  expect(await withPhoneFallback(primary, phone, req, events)).toEqual({ drafts: ['phone one'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
+  expect(await withPhoneFallback(primary, phone, req, events, undefined, undefined, cloudWords('chatgpt'))).toEqual({ drafts: ['phone one'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
   expect(cards).toEqual(['phone one', null, null]);
 });
 

@@ -142,7 +142,7 @@ export default function SourceScreen() {
       setState(key, next);
       setPhone(can);
       if (source === key) choose(can === 'cant' ? null : 'phone');
-    }).catch(() => { if (live.current) setProblem(key === 'claude' ? words.claudePageFailed : words.gptSignOutFailed); });
+    }).catch(() => { if (live.current) setProblem(words.gptSignOutFailed); });
   };
 
   const copyAndOpen = () => {
