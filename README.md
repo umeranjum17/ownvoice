@@ -10,7 +10,7 @@
 
 <p align="center">
   <strong>Polish your words. Written on your phone.</strong><br/>
-  Ownvoice is a small bubble that sits over your chats. Tap it to polish what you already typed, or tidy any text you select. Reply ideas are unavailable for now. It writes on the phone itself, or with the ChatGPT plan you already pay for. It tells you plainly how each draft reads, and you always press Send yourself.
+  Ownvoice is a small bubble that sits over your chats. Tap it to polish what you already typed, or tidy any text you select. Reply ideas are unavailable for now. It writes on the phone itself, or with the ChatGPT or Claude plan you already pay for. It tells you plainly how each draft reads, and you always press Send yourself.
 </p>
 
 <h3 align="center"><a href="#get-started"><ins>Get started</ins></a></h3>
@@ -120,7 +120,7 @@ Ownvoice reads the screen only when you tap its bubble, never in the background,
   <img src="docs/readme/reads.webp" alt="What Ownvoice read: one entry, 'Suggested replies in Ownvoice, read the chat on screen, Today', and Wipe everything" width="300" />
 </p>
 
-The exact data flows, including the one-time download and the remote on/off switch for ChatGPT, are written down in [mobile/README.md](mobile/README.md#how-ownvoice-writes).
+The exact data flows, including the one-time download and the remote on/off switch for cloud writing (ChatGPT and Claude), are written down in [mobile/README.md](mobile/README.md#how-ownvoice-writes).
 
 ## Download / Install
 
