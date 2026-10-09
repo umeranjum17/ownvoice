@@ -80,6 +80,20 @@ test('no Jev key: the fit runs on the signed-in ChatGPT plan backend', async () 
   expect(backends[0].leaves).toBe(true);
 });
 
+test('a fit request marks its own tap Sent through the read-log hooks it was given', async () => {
+  consent();
+  const sent = jest.fn();
+  const unsent = jest.fn();
+  const fetcher = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'Too many requests', body: null } as unknown as Response));
+  const log = jest.spyOn(console, 'log').mockImplementation(() => {});
+  try {
+    const [backend] = fitBackends('com.twitter.android', { on: { sent, unsent }, fetch: fetcher });
+    await expect(backend.ask('rate the options', new AbortController().signal)).rejects.toThrow();
+    expect(sent).toHaveBeenCalledTimes(1);
+    expect(unsent).not.toHaveBeenCalled();
+  } finally { log.mockRestore(); }
+});
+
 test('a key turns it on: one Jev request with the rubric, its probabilities become the levels', async () => {
   consent();
   const fetcher = jevReply({

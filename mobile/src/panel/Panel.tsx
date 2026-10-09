@@ -174,6 +174,14 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   };
   const run = useRef(0);
   const startedTap = useRef<string | null>(null);
+  const readLog = (id: string) => {
+    let sent = false;
+    return {
+      started: () => { startedTap.current = id; },
+      sent: async () => { if (!sent) { await Native.markTapSent(id); sent = true; } },
+      unsent: async () => { if (sent && startedTap.current !== id) { await Native.unmarkTapSent(id); sent = false; } },
+    };
+  };
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
   const kind = useRef<{ message: boolean } | null>(null);
@@ -262,7 +270,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       catch { path = { writer: phoneWriter, note: words.phoneWrote }; }
       if (run.current !== id) return;
       leaves.current = path.writer !== phoneWriter;
-      let sent = false;
       // One selection per run: the writer's guide line and the fit call share these samples.
       const picked = selectedGuide(rules, post);
 
@@ -283,9 +290,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           dashes: dashesFor(rules, value.typed),
           avoid,
         }, {
-          sent: async () => { if (!sent) { await Native.markTapSent(value.id); sent = true; } },
-          unsent: async () => { if (sent && startedTap.current !== value.id) { await Native.unmarkTapSent(value.id); sent = false; } },
-          started: () => { startedTap.current = value.id; },
+          ...readLog(value.id),
+          fallback: () => { if (run.current === id) shownOnPhone.current = true; },
           state: state => {
             if (run.current !== id) return;
             setNote(state === 'downloading' ? words.gettingReady : words.writing);
@@ -302,7 +308,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           },
         });
         if (run.current !== id) return;
-        shownOnPhone.current = !!choice.onPhone;
         setFraction(null);
         setUnchanged(!!choice.unchanged && !choice.drafts.length);
         setDeclined(!!choice.declined);
@@ -357,7 +362,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const texts = [...(yours?.text ? [yours.text] : []), ...shown.map(draft => draft.text)];
     if (!texts.length) return;
     fitFor.current = id;
-    const backends = leaves.current ? fitBackends(capture.app) : [];
+    const backends = leaves.current ? fitBackends(capture.app, { on: readLog(capture.id) }) : [];
     // Yours comes first in texts, so when the phone wrote the shown drafts only the typed reply is judged.
     const judged = shownOnPhone.current ? texts.slice(0, yours?.text ? 1 : 0) : texts;
     const unsure: Fit = { level: null, words: UNSURE, probability: null, voice: null };

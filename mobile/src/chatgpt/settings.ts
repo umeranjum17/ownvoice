@@ -171,7 +171,7 @@ const JEV_BASE = process.env.EXPO_PUBLIC_E2E_JEV_BASE;
  *  ChatGPT send for this app: the post and drafts leave the phone only when the writer's would.
  *  Jev is used only when this build carries `EXPO_PUBLIC_JEV_KEY` (emulator stand-in proof builds).
  *  Checked before sending and again at dispatch; a blocked call abstains with the plain unsure read. */
-export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch } = {}): Backend[] {
+export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent'> } = {}): Backend[] {
   const bubble = chatgptConsent(app);
   const remote = agentChatgptConsent();
   const beforeSend = async () => (await getSource()) === 'chatgpt' && await bubble.beforeSend() && await remote.beforeSend();
@@ -181,9 +181,12 @@ export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch
     const send = o.fetch ?? globalThis.fetch;
     return [jev({ key, fetch: async (url, init) => {
       if (!(await beforeSend()) || !beforeFetch()) throw new SendVeto(words.phoneWrote);
-      return send(JEV_BASE ? String(url).replace('https://api.typesafe.ai', JEV_BASE) : url, init);
+      await o.on?.started?.();
+      const response = await send(JEV_BASE ? String(url).replace('https://api.typesafe.ai', JEV_BASE) : url, init);
+      await o.on?.sent?.();
+      return response;
     } })];
   }
   // The plan's default fit transport, over the same `accounts.respond` the writer uses.
-  return [require('./responses').fitBackend({ beforeSend, beforeFetch }, o.fetch)];
+  return [require('./responses').fitBackend({ ...o.on, beforeSend, beforeFetch }, o.fetch)];
 }

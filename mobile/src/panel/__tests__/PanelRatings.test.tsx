@@ -201,6 +201,17 @@ describe('grow fit bar', () => {
     } finally { spy.mockRestore(); }
   });
 
+  test('a phone write that fails after landing a draft still keeps that draft out of fit', async () => {
+    const failing: Writer = { write: async () => { throw new Error('ChatGPT could not answer.'); } };
+    const phone: Writer = { write: async (_request, on) => { on?.landed?.(CLEAN[0], 0); throw new Error('phone model stopped'); } };
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
+    try {
+      await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, on, undefined, 'ready') });
+      await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
+      expect(spy.mock.calls[0][0].candidates).toEqual([TYPED]);
+    } finally { spy.mockRestore(); }
+  });
+
   test('an abstained card says it is not sure, with an empty bar', async () => {
     const spy = jest.spyOn(FitModule, 'judgeFit')
       .mockResolvedValue([fit({ level: null, words: UNSURE, probability: null }), fit({ level: 2, words: LEVELS[2] })]);
