@@ -2,7 +2,7 @@
 import { platformLine, slotsFor, CHAT_SLOTS, type Platform } from './platforms.ts';
 import type { Rules } from './slop.ts';
 import { addedNumbers, inventedTimes, matcher } from './slop.ts';
-import { MAX_GUIDE_LENGTH, selectExamples } from './samples.ts';
+import { MAX_GUIDE_LENGTH, rulesOnly, selectExamples } from './samples.ts';
 
 // ---- Cleanup of raw model output (moved from the phone writer; behaviour unchanged, spec 5.5) ----
 
@@ -270,19 +270,26 @@ const phoneReplyInstructions = (slots: [string, string, string]) => [
   'Never invent facts, times or dates: use only the screen. A change reuses only screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
 ].join('\n');
 
-// The two or three shortest samples that still hold the instruction budget ride along, labelled;
-// the rest drop before the budget breaks, so the floor never moves.
-const sampleBlock = (fixed: string, samples?: string[]): string => {
-  if (!samples?.length) return '';
-  const line = selectExamples(samples, '', Math.max(0, MAX_GUIDE_LENGTH - fixed.length - 1)).line;
-  return line ? `\n${line}` : '';
+// The rules half of the selected guide (dash/ending rules, never-say phrases and the note) rides
+// the phone prompt too, with the shortest samples that still hold the instruction budget after it,
+// so a phrase the person banned never reaches a phone card. The rules win the room: samples drop
+// before the rules do, and the rules only overrun the budget when they alone are longer than it.
+const ruleBlock = (fixed: string, input: { guide?: string; samples?: string[] }): string => {
+  const rules = rulesOnly(input.guide ?? '');
+  if (!rules) {
+    if (!input.samples?.length) return '';
+    const line = selectExamples(input.samples, '', Math.max(0, MAX_GUIDE_LENGTH - fixed.length - 1)).line;
+    return line ? `\n${line}` : '';
+  }
+  const line = selectExamples(input.samples ?? [], rules, Math.max(0, MAX_GUIDE_LENGTH - fixed.length - 1)).line;
+  return `\n${line || rules}`;
 };
 
 /** The condensed phone prompt: instructions (≤ 700 characters) plus the input block. */
 export function phoneReplyPrompt(input: Omit<ReplyInput, 'dashes' | 'avoid'>): string {
   const lines = [platformLine(input.platform), pointLine(input.point)].filter(Boolean).map(line => `\n${line}`).join('');
   const fixed = `${phoneReplyInstructions(slotsFor(input.platform))}${lines}`;
-  return `${fixed}${sampleBlock(fixed, input.samples)}\n\n${inputBlock(input)}`;
+  return `${fixed}${ruleBlock(fixed, input)}\n\n${inputBlock(input)}`;
 }
 
 /** One extra call for one empty slot, with everything already shown as off-limits. */
@@ -297,7 +304,7 @@ export function phoneSlotPrompt(slot: string, input: Omit<ReplyInput, 'dashes' |
     'Don\'t invent facts about them; ask a short question back instead. Use only times, dates and facts on the screen: if it gives no time or date, never add one. If you suggest a different time, use only one from the screen, otherwise ask when suits them. Match their language and tone; plain words, short sentences. No flattery openers, hashtags, emoji or long dashes.',
   ].filter(Boolean).join('\n');
   const out = 'Output only the reply text.';
-  return `${fixed}${sampleBlock(`${fixed}\n${out}`, input.samples)}\n${out}\n\n${inputBlock(input)}`;
+  return `${fixed}${ruleBlock(`${fixed}\n${out}`, input)}\n${out}\n\n${inputBlock(input)}`;
 }
 
 /** ChatGPT's one-slot retry: the C2 template narrowed to a single slot plus the avoid list. */
