@@ -69,7 +69,7 @@ test('waitingShowsTheCodeToTypeAndThePageToOpen', () => {
   const view = stateOf({ state: 'waiting', via: 'code', code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' }, null);
   expect(view).toMatchObject({ signedIn: false, waiting: true, code: 'KQPT-MXVD', url: 'https://chatgpt.com/code' });
   expect(view.note).toContain('ChatGPT page');
-  expect(stateOf({ state: 'waiting', code: 'KQPT-MXVD' }, { account: 'owner', name: 'ChatGPT', state: 'signing', words: 'Signing in' }).signedIn).toBe(false);
+  expect(stateOf({ state: 'waiting', code: 'KQPT-MXVD' }, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state: 'signing', words: 'Signing in' }).signedIn).toBe(false);
   expect(stateOf({ state: 'waiting' }, null).note).toContain('Opening');
 });
 
@@ -92,17 +92,17 @@ test.each([
 });
 
 test('a connected account is shown as connected, a resting one says why', () => {
-  const ready = stateOf(null, { account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
+  const ready = stateOf(null, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
   expect(ready).toEqual({ ...nothing, signedIn: true, note: 'ChatGPT is connected.' });
-  const resting = stateOf(null, { account: 'owner', name: 'ChatGPT', state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' });
+  const resting = stateOf(null, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' });
   expect(resting.signedIn).toBe(true);
   expect(resting.resting).toBe('ChatGPT is resting until 3:40pm.');
   for (const state of ['signed_out', 'needs_again', 'signing'] as const)
-    expect(stateOf(null, { account: 'owner', name: 'ChatGPT', state, words: words.failed }).signedIn).toBe(false);
+    expect(stateOf(null, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state, words: words.failed }).signedIn).toBe(false);
 });
 
 test('a plan that does not include this says so', () => {
-  const view = stateOf(null, { account: 'owner', name: 'ChatGPT', state: 'not_included', words: "Your ChatGPT plan doesn't include this yet." });
+  const view = stateOf(null, { id: 'chatgpt', provider: 'chatgpt', account: 'owner', name: 'ChatGPT', state: 'not_included', words: "Your ChatGPT plan doesn't include this yet." });
   expect(view.signedIn).toBe(true);
   expect(view.resting).toBe("Your ChatGPT plan doesn't include this yet.");
 });
