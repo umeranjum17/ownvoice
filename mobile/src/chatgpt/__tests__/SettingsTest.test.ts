@@ -35,10 +35,6 @@ jest.mock('../accounts', () => {
   status: mockStatus,
   cancelSignIn: mockCancelSignIn,
   signInChatGPT: () => mockSignIn('chatgpt'),
-  signOutChatGPT: () => mockSignOut('chatgpt'),
-  signInStateChatGPT: () => mockSignInState('chatgpt'),
-  statusChatGPT: () => mockStatus('chatgpt'),
-  cancelSignInChatGPT: () => mockCancelSignIn('chatgpt'),
 }; });
 
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['phone one', 'phone two', 'phone three'] })) } }));

@@ -58,10 +58,6 @@ export const paste = (provider: string, text: string) => getInstance().paste(mem
 export const signInClaude = () => getInstance().login(member, 'claude');
 // Legacy ChatGPT-specific wrappers for existing code
 export const signInChatGPT = () => signIn('chatgpt');
-export const signOutChatGPT = () => signOut('chatgpt');
-export const signInStateChatGPT = () => signInState('chatgpt');
-export const cancelSignInChatGPT = () => cancelSignIn('chatgpt');
-export const statusChatGPT = () => status('chatgpt');
 export async function codexAuth(): Promise<{ access: string; accountId: string }> {
   const runtime = await getInstance().runtime(member);
   const auth = await runtime.getAuth('openai-codex');

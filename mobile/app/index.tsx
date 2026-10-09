@@ -177,12 +177,14 @@ export default function Home() {
   const problem = stopped ? words.readyStopped : null;
   // No writer at all for those apps: this phone really can't write (the panel says phoneOnlyCant there). Unknown is not can't.
   const cantWrite = model?.phase === 'unsupported' ? keptLine : null;
+  const cantWriteNote = viaClaude ? words.claudeCantWriteNote : words.cantWriteNote;
+  const cantWriteFix = viaClaude ? words.claudeCantWriteFix : words.cantWriteFix;
   // Never ready from missing data: wait until the writer, its apps and this phone's answer are known.
   const checking = source === undefined || rules === null || viaPhone && model === null || viaGpt && (gpt === null || apps === null || model === null) || viaClaude && (claude === null || apps === null || model === null);
   const green = !needs && on && !paused && problem === null && !ask && !gptLine && !cantWrite && !checking;
   const headline = needs ? words.needWriter : !on ? words.statusOff : ask ? keptLine ?? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : cantWrite ?? (checking ? words.statusChecking : words.statusReady));
   const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : !on ? words.statusOffNote : ask ? (keptLine ? words.cantWriteReadyNote : words.readyNote) : problem
-    ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : cantWrite ? words.cantWriteNote : checking ? null : words.statusReadyNote);
+    ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : cantWrite ? cantWriteNote : checking ? null : words.statusReadyNote);
   const mood = needs ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (cloudState?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : cantWrite ? 'check' : checking ? 'idle' : 'ready';
   const signIn = needs && !phoneCan || on && !!cloud && !!cloudState && !cloudState.signedIn;
   const onCard = green ? t.onPrimaryContainer : t.text;
@@ -213,7 +215,7 @@ export default function Home() {
         {!needs && on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="filled" label={words.tryAgain} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="text" label={words.useMobileData} onPress={() => start(true)} />}
-        {!needs && on && (cantWrite || ask && keptLine) && <Button kind={cantWrite ? 'filled' : 'text'} label={words.cantWriteFix} onPress={() => router.push('/phone-apps')} />}
+        {!needs && on && (cantWrite || ask && keptLine) && <Button kind={cantWrite ? 'filled' : 'text'} label={cantWriteFix} onPress={() => router.push('/phone-apps')} />}
         {service === 'stuck' && <Button kind="filled" label={words.turnBackOn} onPress={() => router.push('/setup')} />}
       </View>}
     </View>

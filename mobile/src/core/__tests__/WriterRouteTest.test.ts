@@ -108,7 +108,7 @@ test('an unchanged answer from ChatGPT is kept, not passed to the phone as a fai
 
 test('the read log says when a screen went to ChatGPT, and never says what it said', () => {
   const chat = 'Sam: Are we still on for Saturday?';
-  expect(summary('REPLY', chat, '', true)).toBe('Suggested replies. Read the chat on screen. Sent to ChatGPT.');
+  expect(summary('REPLY', chat, '', true)).toBe('Suggested replies. Read the chat on screen. Sent to your AI account.');
   expect(summary('COMPOSE', '', 'my post', false)).toBe('Polished your message. Read your message.');
   for (const sent of [true, false]) expect(summary('REPLY', chat, 'mine', sent)).not.toContain('Sam');
 });

@@ -102,6 +102,8 @@ const claudeWords = {
   claudeOffNoPhone: 'Claude is turned off for now. Try again later.',
   claudeNeedNote: "This phone can't write drafts on its own. Sign in with your Claude to use Ownvoice here.",
   claudeSwitchUnavailable: 'Claude could not be reached this time. This phone wrote these.',
+  claudeCantWriteNote: 'This phone can\'t write, and you kept writing there on this phone. Let Claude write there instead.',
+  claudeCantWriteFix: 'Choose where Claude writes',
 } as const;
 
 export const words = {

@@ -77,7 +77,7 @@ test('one tap keeps one native fact after a repeated send and phone fallback', a
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   const rows = await syncReadLog();
   expect(rows).toHaveLength(1);
-  expect(rows[0]).toMatchObject({ id: 'tap-1', app: 'com.twitter.android', summary: 'Suggested replies. Read the chat on screen. Sent to ChatGPT.' });
+  expect(rows[0]).toMatchObject({ id: 'tap-1', app: 'com.twitter.android', summary: 'Suggested replies. Read the chat on screen. Sent to your AI account.' });
   expect(await syncReadLog()).toEqual(rows);
   expect(sentTap()).toEqual(['tap-1']);
   expect(kv.has('reads')).toBe(false);
@@ -128,7 +128,7 @@ test('a final veto unmarks the native tap before phone fallback', async () => {
   const veto: Writer = { write: async (_request, on) => { await on?.sent?.(); await on?.unsent?.(); throw new Error(words.phoneWrote); } };
   const screen = await open({ chatgpt: () => veto });
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
-  expect((await syncReadLog())[0].summary).not.toContain('Sent to ChatGPT');
+  expect((await syncReadLog())[0].summary).not.toContain('Sent to your AI account');
   expect(native.unmarkTapSent).toHaveBeenCalledWith('tap-1');
 });
 
