@@ -7,6 +7,12 @@ jest.mock('react-native-safe-area-context', () => {
 
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(async () => {}), deleteItemAsync: jest.fn(async () => {}) }));
 jest.mock('expo-file-system', () => ({ File: { pickFileAsync: jest.fn() } }));
+// Only the Claude sign-in's crypto adapter runs under jest; deterministic bytes are enough for it.
+jest.mock('expo-crypto', () => ({
+  CryptoDigestAlgorithm: { SHA256: 'SHA-256' },
+  getRandomValues: (array) => { for (let i = 0; i < array.length; i++) array[i] = i; return array; },
+  digest: async (_algorithm, data) => { const bytes = data instanceof Uint8Array ? data : new Uint8Array(data instanceof ArrayBuffer ? data : data.buffer); const out = new Uint8Array(32); for (let i = 0; i < out.length; i++) out[i] = bytes[i % bytes.length]; return out.buffer; },
+}));
 
 // Jest has no native module behind expo-router's dynamic colours, so stand in a fixed
 // Material 3 baseline table (one light, one dark). Tests flip the scheme with

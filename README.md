@@ -75,7 +75,7 @@ Select text in any app, choose **Ownvoice** from the selection menu (or share th
 
 ### Your choice of writer
 
-Pick who writes your drafts, and change it any time. **On this phone** is private and free: nothing you read or write leaves the phone, and it works without internet. Phones that need it get a one-time download of about 2 to 3 GB, on Wi-Fi, and only after you say yes. **With your ChatGPT** uses the plan you already pay for: sharper and usually quicker, but what's on screen goes to ChatGPT when you tap the bubble.
+Pick who writes your drafts, and change it any time. **On this phone** is private and free: nothing you read or write leaves the phone, and it works without internet. Phones that need it get a one-time download of about 2 to 3 GB, on Wi-Fi, and only after you say yes. **With your ChatGPT** and **With your Claude** use the plan you already pay for: sharper and usually quicker, but what's on screen goes to that service when you tap the bubble.
 
 <p align="center">
   <img src="docs/readme/choose.webp" alt="How should Ownvoice write? On this phone, private and free, and With your ChatGPT, with their trade-offs and 'Get this phone ready to write: it needs about 2 to 3 GB, once, on Wi-Fi'" width="300" />
@@ -112,7 +112,7 @@ Home shows at a glance whether Ownvoice is ready, and holds every setting: how O
 Ownvoice reads the screen only when you tap its bubble, never in the background, and only in apps you switched on. It never taps Send, posts or acts for you. The one exception is a switch you have to turn on yourself, described below.
 
 - **On this phone**, nothing you read or write leaves the phone. Ownvoice has no server of its own.
-- **With your ChatGPT**, the chat on screen, what you typed and your writing rules go to ChatGPT, only when you tap the bubble. Text you select and send to **Make it better** goes to ChatGPT too. Ownvoice keeps no copy.
+- **With your ChatGPT** or **With your Claude**, the chat on screen, what you typed and your writing rules go to that service, only when you tap the bubble. Text you select and send to **Make it better** goes there too. Ownvoice keeps no copy.
 - **Check my spelling as I type** is off unless you switch it on in Home. When it's on, Ownvoice also reads the message box you're typing in each time you stop typing for a moment, in apps you switched on, and a number on the bubble shows how many things look worth checking: spelling, common slips like "its" for "it's", and stock phrases. The check runs on the phone, even when you chose ChatGPT: nothing you type goes anywhere, nothing is kept, and these checks don't show up in What Ownvoice read. Tap the bubble to see them; each has its own **Fix**, and nothing changes until you tap it.
 - **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once, along with Your voice, saved reply records (including check-in answers), the reply-text saving choice, and your growth counts.
 
@@ -144,6 +144,7 @@ Then setup takes about a minute:
 2. **Choose how Ownvoice writes.**
    - **On this phone**: pick it and tap **Continue**. If the phone first needs its one-time download, the button reads **Get it ready** (about 2 to 3 GB, once, on Wi-Fi).
    - **With your ChatGPT**: pick it and tap **Continue**, then **Copy code and open ChatGPT**, and type the code on the ChatGPT page. Come back to Ownvoice and tap **Continue**.
+   - **With your Claude** (added from Home's **How Ownvoice writes**, not first-run setup): pick it, tap **Open the Claude page**, sign in there with the account you already have, then copy the code that page shows and paste it into Ownvoice.
 
    If your phone can't write on its own, Ownvoice says so and the button reads **Continue with ChatGPT**.
 3. **Let Ownvoice see your chats, only when you tap.** Tap **Turn on**. In the phone's settings, in **Downloaded apps** tap **Ownvoice**, switch on **Use Ownvoice**, and tap **Allow**. Ownvoice comes back by itself. If the switch is greyed out, tap **Switch greyed out?** in Ownvoice: on Android 13 and later, apps installed from a file need **Allow restricted settings** in App info first.

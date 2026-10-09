@@ -22,12 +22,15 @@ jest.mock('../../modules/ownvoice-native', () => ({
 
 jest.mock('../../src/chatgpt/session', () => ({
   NAME: 'ChatGPT',
+  CLAUDE_NAME: 'Claude',
   GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
   nothing: { signedIn: false, waiting: false, code: null, url: null, note: null, resting: null },
   sessionNow: jest.fn(() => ({ signedIn: false })),
+  claudeNow: jest.fn(() => ({ signedIn: false })),
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
   session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
+  claudeSession: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
 }));
 const gpt = session as jest.Mocked<typeof session>;
 

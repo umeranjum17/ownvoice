@@ -1,8 +1,10 @@
 import { say } from '@byokit/accounts';
 import type { SignIn, Status } from '@byokit/accounts';
 import { store } from '../core/store';
+import { words } from '../core/words';
 
 export const NAME = 'ChatGPT';
+export const CLAUDE_NAME = 'Claude';
 export const GPT_APPS_KEY = 'chatgpt-apps';
 
 export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
@@ -19,7 +21,7 @@ const MOCK_WAIT_MS = 9000;
 
 export type GptState = {
   signedIn: boolean;
-  /** Waiting for the person to type the code on the ChatGPT page. */
+  /** Waiting for the person to finish on the provider's page: typing ChatGPT's code, or pasting Claude's back here. */
   waiting: boolean;
   code: string | null;
   url: string | null;
@@ -31,10 +33,10 @@ export type GptState = {
 
 export const nothing: GptState = { signedIn: false, waiting: false, code: null, url: null, note: null, resting: null };
 
-/** The sign-in screen's state, in byokit's own sentences. */
-export function stateOf(view: SignIn | null, status: Status | null): GptState {
+/** The sign-in screen's state, in byokit's own sentences; `waitingNote` covers the paste-back flow Claude needs. */
+export function stateOf(view: SignIn | null, status: Status | null, name: string = NAME, waitingNote: string = say('signIn.opening', { name })): GptState {
   if (view?.state === 'waiting')
-    return { signedIn: signed(status), waiting: true, code: view.code ?? null, url: view.url ?? null, note: view.code ? say('signIn.waitingUrl', { name: NAME }) : say('signIn.opening', { name: NAME }), resting: null };
+    return { signedIn: signed(status), waiting: true, code: view.code ?? null, url: view.url ?? null, note: view.code ? say('signIn.waitingUrl', { name }) : view.url ? waitingNote : say('signIn.opening', { name }), resting: null };
   if (view?.state === 'failed')
     return { ...nothing, note: view.error ?? null };
   const ready = signed(status);
@@ -117,4 +119,38 @@ export const session: Session = {
   start: async () => { lastSession = nothing; const state = await underlying.start(); lastSession = state; return state; },
   cancel: async () => { lastSession = nothing; const state = await underlying.cancel(); lastSession = state; return state; },
   signOut: async () => { lastSession = nothing; const state = await underlying.signOut(); lastSession = state; return state; },
+};
+
+// Claude's own sign-in state, the same shape: the page opens, the person pastes its code back.
+// No stand-in exists for it, so it is always the real flow, even in stub builds.
+const claudeState = (view: SignIn | null, status: Status | null) => stateOf(view, status, CLAUDE_NAME, words.claudeSignInNote);
+const claudeReal: Session = {
+  current: async () => {
+    if (signingOut) return nothing;
+    const a = live();
+    await a.refresh().catch(() => {});
+    const state = claudeState(a.signInState('claude'), await a.status('claude').catch(() => null));
+    return signingOut ? nothing : state;
+  },
+  start: async () => {
+    const a = live();
+    await a.signInClaude();
+    return claudeState(a.signInState('claude'), await a.status('claude').catch(() => null));
+  },
+  cancel: async () => {
+    live().cancelSignIn('claude');
+    return { ...nothing, note: say('signIn.cancelled', { name: CLAUDE_NAME }) };
+  },
+  signOut: () => leaving(async () => {
+    await live().signOut('claude');
+    return { ...nothing, note: say('status.signedOut', { name: CLAUDE_NAME }) };
+  }),
+};
+let lastClaude: GptState = nothing;
+export const claudeNow = () => lastClaude;
+export const claudeSession: Session = {
+  current: async () => { const state = await claudeReal.current(); lastClaude = state; return state; },
+  start: async () => { lastClaude = nothing; const state = await claudeReal.start(); lastClaude = state; return state; },
+  cancel: async () => { lastClaude = nothing; const state = await claudeReal.cancel(); lastClaude = state; return state; },
+  signOut: async () => { lastClaude = nothing; const state = await claudeReal.signOut(); lastClaude = state; return state; },
 };

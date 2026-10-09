@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { say } from '@byokit/accounts';
 import { Badge } from '../src/ui/Badge';
@@ -9,28 +9,31 @@ import { PhoneWriter } from '../src/ui/PhoneWriter';
 import { Row } from '../src/ui/Row';
 import { Sheet } from '../src/ui/Sheet';
 import { SourceOption } from '../src/ui/SourceOption';
-import { ChatIcon, CheckIcon, ChevIcon, EyeIcon, LockIcon, PhoneIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, ChevIcon, ClaudeIcon, EyeIcon, LockIcon, PhoneIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
-import { getSource, phoneOnly, setSource, type Source } from '../src/core/source';
+import { getSource, phoneOnly, setSource, type CloudKey, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
-import { NAME, nothing, session, type GptState } from '../src/chatgpt/session';
+import { CLAUDE_NAME, claudeSession, NAME, nothing, session, type GptState } from '../src/chatgpt/session';
 import { appsLine } from './index';
 import Native from '../modules/ownvoice-native';
 
-/** How Ownvoice writes: this phone or the person's ChatGPT, as two cards. The chosen card says how it
- *  is doing and what can be changed; switching to ChatGPT asks first (or signs in right here), switching
- *  back to the phone is immediate. `start=chatgpt` (from Home's card) begins that switch on arrival. */
+/** How Ownvoice writes: this phone, or one of the person's cloud accounts (ChatGPT, Claude), as cards.
+ *  The chosen card says how it is doing and what can be changed; switching to an account asks first (or
+ *  signs in right here), switching back to the phone is immediate. `start=chatgpt|claude` (from Home's
+ *  card) begins that switch on arrival. */
 export default function SourceScreen() {
   const t = useTheme();
   const { start } = useLocalSearchParams<{ start?: string }>();
   const [source, setShown] = useState<Source | undefined>(undefined);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
   const [gpt, setGpt] = useState<GptState | null>(null);
-  // The ChatGPT sign-in, shown inside its card: null unless the person is signing in here.
-  const [signIn, setSignIn] = useState<GptState | null>(null);
-  const [confirm, setConfirm] = useState(false);
+  const [claude, setClaude] = useState<GptState | null>(null);
+  // An account's sign-in, shown inside its card: null unless the person is signing in here.
+  const [signIn, setSignIn] = useState<{ key: CloudKey; state: GptState } | null>(null);
+  const [pasted, setPasted] = useState('');
+  const [confirm, setConfirm] = useState<CloudKey | null>(null);
   const [stays, setStays] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const attempt = useRef(0);
@@ -38,6 +41,8 @@ export default function SourceScreen() {
   const live = useRef(true);
   const latest = useRef(signIn);
   latest.current = signIn;
+  const cloudSession = (key: CloudKey) => key === 'claude' ? claudeSession : session;
+  const setState = (key: CloudKey, next: GptState) => (key === 'claude' ? setClaude : setGpt)(next);
 
   const choose = (next: Source) => {
     try { setSource(next); setShown(next); setProblem(null); } catch { setProblem(words.gptAppsSaveFailed); }
@@ -47,6 +52,7 @@ export default function SourceScreen() {
     void getSource().then(now => { if (live.current) setShown(now); }).catch(() => { if (live.current) setShown(null); });
     void phoneCanWrite().then(can => { if (live.current) setPhone(can); });
     void session.current().then(now => { if (live.current) setGpt(now); }).catch(() => { if (live.current) setGpt(nothing); });
+    void claudeSession.current().then(now => { if (live.current) setClaude(now); }).catch(() => { if (live.current) setClaude(nothing); });
     void Promise.all([Native.launcherApps(null), Native.bubbleRules()]).then(([apps, rules]) => {
       const listed = phoneOnly();
       if (live.current) setStays(appsLine(apps.filter(({ app }) => listed.includes(app) && showsBubble(app, rules)).map(({ label }) => label)));
@@ -59,76 +65,95 @@ export default function SourceScreen() {
       live.current = false;
       // Leaving mid sign-in keeps nothing: the waiting code is dropped.
       attempt.current++;
-      if (latest.current?.waiting) void session.cancel().catch(() => {});
+      if (latest.current?.state.waiting) void cloudSession(latest.current.key).cancel().catch(() => {});
     };
   }, []);
   useFocusEffect(reload);
 
   /** Answers from a sign-in the person has since left are dropped. */
-  const shown = (at: number, next: GptState) => {
+  const shown = (key: CloudKey, at: number, next: GptState) => {
     if (!live.current || at !== attempt.current) return;
-    if (next.signedIn) { setSignIn(null); setGpt(next); choose('chatgpt'); } else setSignIn(next);
+    if (next.signedIn) { setSignIn(null); setState(key, next); choose(key); } else setSignIn({ key, state: next });
   };
 
-  const beginSignIn = () => {
+  const beginSignIn = (key: CloudKey) => {
     const at = ++attempt.current;
+    const s = cloudSession(key);
     setProblem(null);
-    setSignIn({ ...nothing, waiting: true });
-    void session.start()
+    setPasted('');
+    setSignIn({ key, state: { ...nothing, waiting: true } });
+    void s.start()
       // Left while the code was being made: drop it, unless a newer sign-in is already waiting (that one is the same session's).
-      .then(async next => { if (at !== attempt.current && (!live.current || !latest.current)) await session.cancel(); return next; })
-      .then(next => shown(at, next))
-      .catch(() => shown(at, { ...nothing, note: words.failed }));
+      .then(async next => { if (at !== attempt.current && (!live.current || !latest.current)) await s.cancel(); return next; })
+      .then(next => shown(key, at, next))
+      .catch(() => shown(key, at, { ...nothing, note: words.failed }));
+  };
+
+  /** The code the Claude page shows, handed back through the kit's own paste seam. */
+  const connectClaude = () => {
+    const text = pasted.trim();
+    if (!text || signIn?.key !== 'claude') return;
+    try { require('../src/chatgpt/accounts').paste('claude', text); } catch { setProblem(words.gptAppsSaveFailed); return; }
+    setPasted('');
   };
 
   const leaveSignIn = () => {
     attempt.current++;
-    if (signIn?.waiting) void session.cancel().catch(() => {});
+    if (signIn?.state.waiting) void cloudSession(signIn.key).cancel().catch(() => {});
     setSignIn(null);
   };
 
-  // The approval happens on the ChatGPT page, so the card looks again while a code waits.
+  // The approval happens on the provider's own page, so the card looks again while it waits.
   useEffect(() => {
-    if (!signIn?.waiting) return;
+    if (!signIn?.state.waiting) return;
+    const key = signIn.key;
     const at = attempt.current;
-    const id = setInterval(() => { void session.current().then(next => shown(at, next)).catch(() => {}); }, 1000);
+    const id = setInterval(() => { void cloudSession(key).current().then(next => shown(key, at, next)).catch(() => {}); }, 1000);
     return () => clearInterval(id);
-  }, [signIn?.waiting]);
+  }, [signIn?.state.waiting, signIn?.key]);
 
-  /** ChatGPT picked: ask first when already signed in, otherwise sign in right here. */
-  const pickChatGpt = () => {
-    if (source === 'chatgpt' || signIn) return;
-    if (gpt?.signedIn) setConfirm(true); else beginSignIn();
+  /** An account picked: ask first when already signed in, otherwise sign in right here. */
+  const pickCloud = (key: CloudKey) => {
+    if (source === key || signIn) return;
+    if ((key === 'claude' ? claude : gpt)?.signedIn) setConfirm(key); else beginSignIn(key);
   };
+  const pickChatGpt = () => pickCloud('chatgpt');
+  const pickClaude = () => pickCloud('claude');
 
-  /** This phone picked: the private direction, so no question. ChatGPT stays signed in until Sign out. */
+  /** This phone picked: the private direction, so no question. A signed-in account stays signed in until Sign out. */
   const pickPhone = () => {
     if (signIn) leaveSignIn();
     if (source !== 'phone') choose('phone');
   };
 
   useEffect(() => {
-    if (start !== 'chatgpt' || started.current || source === undefined || !gpt || source === 'chatgpt') return;
+    const key = start === 'claude' || start === 'chatgpt' ? start : null;
+    if (!key || started.current || source === undefined || !(key === 'claude' ? claude : gpt) || source === key) return;
     started.current = true;
-    pickChatGpt();
-  }, [start, source, gpt]);
+    pickCloud(key);
+  }, [start, source, gpt, claude]);
 
-  const signOut = () => {
+  const signOut = (key: CloudKey) => {
     setProblem(null);
-    void session.signOut().then(async next => {
-      // Signed out while ChatGPT wrote: this phone takes over where it can, otherwise nothing is chosen.
+    void cloudSession(key).signOut().then(async next => {
+      // Signed out while that account wrote: this phone takes over where it can, otherwise nothing is chosen.
       const can = await phoneCanWrite();
       if (!live.current) return;
-      setGpt(next);
+      setState(key, next);
       setPhone(can);
-      if (source === 'chatgpt') choose(can === 'cant' ? null : 'phone');
-    }).catch(() => { if (live.current) setProblem(words.gptSignOutFailed); });
+      if (source === key) choose(can === 'cant' ? null : 'phone');
+    }).catch(() => { if (live.current) setProblem(key === 'claude' ? words.claudePageFailed : words.gptSignOutFailed); });
   };
 
   const copyAndOpen = () => {
-    if (!signIn?.code) return;
-    void Native.copy(signIn.code).catch(() => {});
-    if (signIn.url) void Linking.openURL(signIn.url).catch(() => { if (live.current) setSignIn(current => current && { ...current, note: words.gptPageFailed }); });
+    if (signIn?.key !== 'chatgpt' || !signIn.state.code) return;
+    void Native.copy(signIn.state.code).catch(() => {});
+    if (signIn.state.url) void Linking.openURL(signIn.state.url).catch(() => { if (live.current) setSignIn(current => current && current.key === 'chatgpt' ? { ...current, state: { ...current.state, note: words.gptPageFailed } } : current); });
+  };
+
+  const openClaude = () => {
+    if (signIn?.key !== 'claude' || !signIn.state.url) return;
+    void Linking.openURL(signIn.state.url).catch(() => { if (live.current) setSignIn(current => current && current.key === 'claude' ? { ...current, state: { ...current.state, note: words.claudePageFailed } } : current); });
   };
 
   const phoneCan = phone !== null && phone !== 'cant';
@@ -137,29 +162,32 @@ export default function SourceScreen() {
   const icon = (Icon: typeof ChatIcon) => <Icon size={22} color={t.onPrimaryContainer} />;
   const indent = (text: string, color = t.text) => <Text style={[type.note, styles.indent, { color }]}>{text}</Text>;
   const resting = !!gpt?.resting;
+  const gptSigning = signIn?.key === 'chatgpt' ? signIn.state : null;
+  const claudeSigning = signIn?.key === 'claude' ? signIn.state : null;
+  const claudeResting = !!claude?.resting;
 
-  const gptBody = signIn
-    ? signIn.waiting
+  const gptBody = gptSigning
+    ? gptSigning.waiting
       ? <>
         {indent(words.signInNote, t.muted)}
         <View style={[styles.code, { backgroundColor: t.group }]}>
-          {signIn.code && <>
+          {gptSigning.code && <>
             <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
-            <Text testID="sign-in-code" accessibilityLabel={`${words.yourCode} ${signIn.code.split('').join(' ')}`} style={[type.headline, styles.codeText, { color: t.text }]}>{signIn.code}</Text>
+            <Text testID="sign-in-code" accessibilityLabel={`${words.yourCode} ${gptSigning.code.split('').join(' ')}`} style={[type.headline, styles.codeText, { color: t.text }]}>{gptSigning.code}</Text>
           </>}
           <View style={styles.waiting}>
             <ActivityIndicator size="small" color={t.primary} />
-            <Text style={[type.note, { color: t.muted }]}>{signIn.code ? words.waiting : signIn.note ?? words.waiting}</Text>
+            <Text style={[type.note, { color: t.muted }]}>{gptSigning.code ? words.waiting : gptSigning.note ?? words.waiting}</Text>
           </View>
         </View>
-        <Button kind="filled" disabled={!signIn.code} label={words.copyAndOpen} onPress={copyAndOpen} />
+        <Button kind="filled" disabled={!gptSigning.code} label={words.copyAndOpen} onPress={copyAndOpen} />
         <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
-        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: NAME, company: 'OpenAI' })}</Text>
+        <Text style={[type.note, styles.indent, { color: t.muted }]}>{say('terms.grey', { name: NAME, company: 'OpenAI' })}</Text>
       </>
       : <>
-        {indent(signIn.note ?? words.failed)}
+        {indent(gptSigning.note ?? words.failed)}
         <View style={styles.actions}>
-          <Button kind="filled" label={words.tryAgain} onPress={beginSignIn} />
+          <Button kind="filled" label={words.tryAgain} onPress={() => beginSignIn('chatgpt')} />
           <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
         </View>
       </>
@@ -172,13 +200,63 @@ export default function SourceScreen() {
           </View>
           : <>
             {indent(say('status.needsAgain', { name: NAME }))}
-            <View style={styles.indent}><Button kind="filled" label={words.gptButton} onPress={beginSignIn} /></View>
+            <View style={styles.indent}><Button kind="filled" label={words.gptButton} onPress={() => beginSignIn('chatgpt')} /></View>
           </>}
         {phoneCan && indent(resting || !gpt?.signedIn ? words.restingPhone : words.phoneBackup, t.muted)}
         <View style={[styles.inner, { backgroundColor: t.group }]}>
           <Row title={words.phoneOnlyApps} subtitle={stays ?? undefined} onPress={() => router.push('/phone-apps')} />
-          {gpt?.signedIn && <View style={styles.signOut}><Button kind="text" label={words.gptSignOut} onPress={signOut} /></View>}
+          {gpt?.signedIn && <View style={styles.signOut}><Button kind="text" label={words.gptSignOut} onPress={() => signOut('chatgpt')} /></View>}
         </View>
+      </>
+      : null;
+
+  // Claude signs in on its own page: open it already signed in, then paste the code it shows back here.
+  const claudeBody = claudeSigning
+    ? claudeSigning.waiting
+      ? <>
+        {indent(claudeSigning.note ?? words.claudeSignInNote, t.muted)}
+        <View style={[styles.code, { backgroundColor: t.group }]}>
+          <Button kind="filled" disabled={!claudeSigning.url} label={words.claudeOpen} onPress={openClaude} />
+          <TextInput
+            testID="claude-paste"
+            accessibilityLabel={words.claudePasteField}
+            value={pasted}
+            onChangeText={setPasted}
+            placeholder={words.claudePasteField}
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={[styles.paste, { color: t.text, borderColor: t.line }]}
+            placeholderTextColor={t.muted}
+          />
+          <Button kind="filled" disabled={!pasted.trim()} label={words.claudeConnect} onPress={connectClaude} />
+          <View style={styles.waiting}>
+            <ActivityIndicator size="small" color={t.primary} />
+            <Text style={[type.note, { color: t.muted }]}>{words.waiting}</Text>
+          </View>
+        </View>
+        <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
+        <Text style={[type.note, styles.indent, { color: t.muted }]}>{say('terms.grey', { name: CLAUDE_NAME, company: 'Anthropic' })}</Text>
+      </>
+      : <>
+        {indent(claudeSigning.note ?? words.failed)}
+        <View style={styles.actions}>
+          <Button kind="filled" label={words.tryAgain} onPress={() => beginSignIn('claude')} />
+          <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
+        </View>
+      </>
+    : source === 'claude'
+      ? <>
+        {claude?.signedIn
+          ? <View style={styles.status}>
+            {!claudeResting && <CheckIcon size={18} color={t.primary} />}
+            <Text style={[type.note, styles.words, { color: t.text }]}>{claude.note ?? say('status.ready', { name: CLAUDE_NAME })}</Text>
+          </View>
+          : <>
+            {indent(say('status.needsAgain', { name: CLAUDE_NAME }))}
+            <View style={styles.indent}><Button kind="filled" label={words.claudeButton} onPress={() => beginSignIn('claude')} /></View>
+          </>}
+        {phoneCan && indent(claudeResting || !claude?.signedIn ? words.restingPhone : words.phoneBackup, t.muted)}
+        {claude?.signedIn && <View style={styles.signOut}><Button kind="text" label={words.claudeSignOut} onPress={() => signOut('claude')} /></View>}
       </>
       : null;
 
@@ -186,6 +264,7 @@ export default function SourceScreen() {
   // Each reads as a short headline first, with the full sentence under it; the read log opens its own screen.
   const notes: [typeof LockIcon, string, string, (() => void)?][] = [
     ...(chosen === 'chatgpt' ? [[LockIcon, words.headGpt, words.privacyGpt], [ChatIcon, words.headSwitch, words.switchNote]] as [typeof LockIcon, string, string][]
+      : chosen === 'claude' ? [[LockIcon, words.headClaude, words.privacyClaude], [ClaudeIcon, words.headSwitch, words.switchNoteClaude]] as [typeof LockIcon, string, string][]
       : chosen === 'phone' ? [[LockIcon, words.headPhone, words.privacyPhone]] as [typeof LockIcon, string, string][] : []),
     [EyeIcon, words.headReads, words.readsNote, () => router.push('/reads')],
   ];
@@ -202,8 +281,11 @@ export default function SourceScreen() {
           : <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneSub} selected={source === 'phone' && !signIn} onPress={pickPhone}>
             {source === 'phone' && !signIn ? <PhoneWriter /> : null}
           </SourceOption>}
-        <SourceOption icon={icon(ChatIcon)} title={words.srcGpt} subtitle={words.srcGptSub} selected={source === 'chatgpt' || !!signIn} onPress={pickChatGpt}>
+        <SourceOption icon={icon(ChatIcon)} title={words.srcGpt} subtitle={words.srcGptSub} selected={source === 'chatgpt' || signIn?.key === 'chatgpt'} onPress={pickChatGpt}>
           {gptBody}
+        </SourceOption>
+        <SourceOption icon={icon(ClaudeIcon)} title={words.srcClaude} subtitle={words.srcGptSub} selected={source === 'claude' || signIn?.key === 'claude'} onPress={pickClaude}>
+          {claudeBody}
         </SourceOption>
       </View>}
       {problem && <Text style={[type.body, { color: t.text }]}>{problem}</Text>}
@@ -226,13 +308,13 @@ export default function SourceScreen() {
       </View>
     </Page>
     {confirm && <View style={StyleSheet.absoluteFill}>
-      <Sheet title={words.switchTitle} mood="listening" onClose={() => setConfirm(false)}>
+      <Sheet title={confirm === 'claude' ? words.claudeSwitchTitle : words.switchTitle} mood="listening" onClose={() => setConfirm(null)}>
         <View style={styles.sheet}>
-          <Text style={[type.body, { color: t.text }]}>{words.switchBody}</Text>
-          <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: NAME, company: 'OpenAI' })}</Text>
+          <Text style={[type.body, { color: t.text }]}>{confirm === 'claude' ? words.claudeSwitchBody : words.switchBody}</Text>
+          <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: confirm === 'claude' ? CLAUDE_NAME : NAME, company: confirm === 'claude' ? 'Anthropic' : 'OpenAI' })}</Text>
           <View style={styles.sheetActions}>
-            <Button kind="filled" large label={words.switchYes} onPress={() => { choose('chatgpt'); setConfirm(false); }} />
-            <Button kind="text" label={chosen === 'phone' ? words.switchNo : words.cancel} onPress={() => setConfirm(false)} />
+            <Button kind="filled" large label={confirm === 'claude' ? words.claudeSwitchYes : words.switchYes} onPress={() => { choose(confirm); setConfirm(null); }} />
+            <Button kind="text" label={chosen === 'phone' ? words.switchNo : words.cancel} onPress={() => setConfirm(null)} />
           </View>
         </View>
       </Sheet>
@@ -247,6 +329,7 @@ const styles = StyleSheet.create({
   words: { flex: 1 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 56 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s, paddingLeft: 56 },
+  paste: { borderWidth: 1, borderRadius: shape.group, paddingVertical: 10, paddingHorizontal: 12, marginTop: space.s },
   inner: { borderRadius: shape.group, overflow: 'hidden', paddingVertical: space.xs },
   // The text button's own padding lines its label up with the row's title above.
   signOut: { alignItems: 'flex-start', marginLeft: space.l - 24, paddingBottom: space.s },

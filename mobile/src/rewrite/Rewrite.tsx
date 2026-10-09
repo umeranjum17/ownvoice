@@ -4,16 +4,16 @@ import { classify } from '@byokit/accounts';
 import Native from '../../modules/ownvoice-native';
 import { askLocal } from '../core/localModel';
 import { streamSelectionRewrite } from '../chatgpt/responses';
-import { chatgptConsent } from '../chatgpt/settings';
+import { cloudConsent } from '../chatgpt/settings';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import * as Voice from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
-import { getSource, SOURCE_KEY, type Source } from '../core/source';
+import { getSource, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { store } from '../core/store';
-import { SendVeto, type WriterEvents } from '../core/writers';
+import { cloudWords, SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
 import { preserveFragment, cleanSelection } from '../core/drafts';
 import { fixedSentenceSplits } from '../core/typing';
@@ -56,12 +56,16 @@ export default function Rewrite() {
     setNote(value?.text.trim() ? "Pick how you'd like it. You'll see it before anything changes." : 'Select some text first, then choose Ownvoice.');
   }, []);
 
-  /** The consent the ChatGPT rewrite sends under: the chosen source plus the panel's full guard set (sign-in, pause, switch, never mid-sign-out); the sheet works in any app, so no per-app row applies. */
-  const consent = (): WriterEvents => {
-    const guards = chatgptConsent(null);
+  /** The consent the cloud rewrite sends under: the chosen source plus the panel's full guard set (sign-in, pause, switch, never mid-sign-out); the sheet works in any app, so no per-app row applies. */
+  const cloud = (): CloudKey | null => {
+    const chosen = store.peek<Source>(SOURCE_KEY);
+    return chosen === 'claude' || chosen === 'chatgpt' ? chosen : null;
+  };
+  const consent = (key: CloudKey): WriterEvents => {
+    const guards = cloudConsent(key, null);
     return {
-      beforeSend: async () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && await guards.beforeSend(),
-      beforeFetch: () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && guards.beforeFetch(),
+      beforeSend: async () => cloud() === key && await guards.beforeSend(),
+      beforeFetch: () => cloud() === key && guards.beforeFetch(),
     };
   };
 
@@ -96,12 +100,14 @@ export default function Rewrite() {
     try {
       const source = await getSource().catch(() => null);
       const canWrite = await phoneCanWrite() !== 'cant';
-      if (stub !== null || source !== 'chatgpt') {
+      const key: CloudKey | null = source === 'claude' || source === 'chatgpt' ? source : null;
+      if (stub !== null || key === null) {
         await showResult(await phoneRewrite(), canWrite);
         return;
       }
+      const lines = cloudWords(key);
       try {
-        await showResult(await finish(await streamSelectionRewrite(input.text, how, guide, consent())), canWrite);
+        await showResult(await finish(await streamSelectionRewrite(key, input.text, how, guide, consent(key))), canWrite);
       } catch (error) {
         if (id !== run.current) return;
         const veto = error instanceof SendVeto ? error.message : null;
@@ -111,10 +117,10 @@ export default function Rewrite() {
           try { shown = await showResult(await phoneRewrite(), true); }
           catch (fallback) { if (id !== run.current) return; setNote(message(errorCode(fallback))); return; }
           if (!shown || id !== run.current) return;
-          setNote(veto ?? (offline ? words.offlinePhone : words.fallback));
+          setNote(veto ?? (offline ? words.offlinePhone : lines.fallback));
           return;
         }
-        setNote(veto ? words.gptOffNoPhone : offline ? words.offlineNoPhone : words.chatgptFailed);
+        setNote(veto ? lines.offNoPhone : offline ? words.offlineNoPhone : lines.failedNoPhone);
       }
     } catch (error) {
       if (id !== run.current) return;

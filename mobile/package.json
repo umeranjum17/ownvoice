@@ -11,7 +11,7 @@
     "floor": "node ../scripts/floor-guard.mjs"
   },
   "dependencies": {
-    "@byokit/accounts": "0.18.0",
+    "@byokit/accounts": "0.19.0",
     "@byokit/decide": "0.6.1",
     "@byokit/infer": "^0.1.0",
     "@byokit/overlay": "0.3.0",
@@ -20,6 +20,7 @@
     "expo": "~57.0.0",
     "expo-asset": "~57.0.18",
     "expo-build-properties": "~1.0.0",
+    "expo-crypto": "~57.0.3",
     "expo-file-system": "^57.0.7",
     "expo-router": "*",
     "expo-secure-store": "^57.0.4",

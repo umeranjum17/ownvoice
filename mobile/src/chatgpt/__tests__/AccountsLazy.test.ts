@@ -25,6 +25,7 @@ jest.mock('@byokit/accounts', () => {
     offered: jest.fn(),
     portable: {},
     secureStore: jest.fn(() => ({})),
+    PROVIDERS: { claude: { models: { strong: 'claude-fixture' } } },
     __calls: calls,
   };
 });

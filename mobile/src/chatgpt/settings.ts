@@ -1,15 +1,15 @@
 import { jev, type Backend } from '@byokit/decide';
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
-import { getSource, isOwnApp, phoneListed, SOURCE_KEY, type Source } from '../core/source';
+import { getSource, isOwnApp, phoneListed, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { modelStatus } from '../core/phoneDownload';
-import { CHATGPT_OFF, chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
+import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
 import { store } from '../core/store';
-import { needWriter, routeWriters, SendVeto, thrower, type WriterEvents, type WriterRoute } from '../core/writers';
+import { cloudWords, needWriter, routeWriters, SendVeto, thrower, type WriterEvents, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
-import { mocked, session, sessionNow, signOutGuard } from './session';
+import { claudeNow, claudeSession, mocked, session, sessionNow, signOutGuard, type Session } from './session';
 const stubbed = process.env.EXPO_PUBLIC_E2E_STUB === '1';
 type BubbleRules = Awaited<ReturnType<typeof Native.bubbleRules>>;
 let rulesNow: BubbleRules | null = null;
@@ -36,55 +36,64 @@ const switchStore = {
 
 type Guard = { active: boolean; epoch: number };
 
+/** The chosen cloud account's own session and its synchronous mirror, one per key. */
+const cloudSession = (key: CloudKey): Session => key === 'claude' ? claudeSession : session;
+const cloudNow = (key: CloudKey) => (key === 'claude' ? claudeNow : sessionNow)();
+
 /** Still signed in under the same sign-out epoch the send started with. */
 function guardOk(before: Guard, signedIn: boolean): boolean {
   const after = signOutGuard();
   return signedIn && !after.active && after.epoch === before.epoch;
 }
 
-/** The remote-switch plus sign-in tail every ChatGPT send ends with: an unknown switch
- *  stops nothing here (the panel resolved it at route time); off refuses with CHATGPT_OFF. */
-async function switchAndSession(before: Guard): Promise<boolean> {
+/** The remote-switch plus sign-in tail every cloud send ends with: an unknown switch
+ *  stops nothing here (the panel resolved it at route time); off refuses with the provider's own line. */
+async function switchAndSession(before: Guard, key: CloudKey = 'chatgpt'): Promise<boolean> {
   if (before.active) return false;
   if (!mocked) {
-    const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(words.switchUnavailable); });
+    const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(cloudWords(key).switchUnavailable); });
     switchNow = choice;
-    if (choice?.chatgpt === 'off') throw new SendVeto(CHATGPT_OFF);
+    if (choice?.chatgpt === 'off') throw new SendVeto(cloudWords(key).off);
   }
-  return guardOk(before, (await session.current()).signedIn);
+  return guardOk(before, (await cloudSession(key).current()).signedIn);
 }
 
 /** The fetch-time recheck: no sign-out since the send, still signed in, switch not off. */
-function fetchCore(epoch: number): boolean {
+function fetchCore(epoch: number, key: CloudKey = 'chatgpt'): boolean {
   const guard = signOutGuard();
-  return !guard.active && guard.epoch === epoch && sessionNow().signedIn && switchNow?.chatgpt !== 'off';
+  return !guard.active && guard.epoch === epoch && cloudNow(key).signedIn && switchNow?.chatgpt !== 'off';
 }
 
 /** Lab-agent consent (phone-agent §4.3): the same sign-out epoch and remote-switch checks the
  *  panel route uses, without any app's bubble visibility (the agent runs in no app). Unlike the
- *  panel, an unknown switch also sends nothing and refuses with `switchUnavailable`. */
-export function agentChatgptConsent(): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
+ *  panel, an unknown switch also sends nothing and refuses with the provider's own line. */
+export function agentConsent(key: CloudKey): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
   const beforeSend = async () => {
     const before = signOutGuard();
     if (before.active) return false;
-    const signedIn = (await session.current()).signedIn;
+    const signedIn = (await cloudSession(key).current()).signedIn;
     if (!signedIn) return false;
     if (!mocked) {
       await chatgptEnabled(switchStore).catch(() => false);
       const choice = await currentSwitch(switchStore).catch(() => null);
       switchNow = choice;
-      if (!choice) throw new SendVeto(words.switchUnavailable);
-      if (choice.chatgpt === 'off') throw new SendVeto(CHATGPT_OFF);
+      if (!choice) throw new SendVeto(cloudWords(key).switchUnavailable);
+      if (choice.chatgpt === 'off') throw new SendVeto(cloudWords(key).off);
     }
     return guardOk(before, signedIn);
   };
   const epoch = signOutGuard().epoch;
-  const beforeFetch = () => fetchCore(epoch) && (mocked || switchNow?.chatgpt === 'on');
+  const beforeFetch = () => fetchCore(epoch, key) && (mocked || switchNow?.chatgpt === 'on');
   return { beforeSend, beforeFetch };
 }
 
-/** The consent every ChatGPT request sends under, re-checked immediately before sending: still signed in, never mid-sign-out, not paused, the app still on ChatGPT routing and the switch not off (`app` is null for the app-agnostic rewrite sheet). */
-export function chatgptConsent(app: string | null): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
+/** The lab agent's ChatGPT consent: the agent brain runs on the ChatGPT key. */
+export function agentChatgptConsent(): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
+  return agentConsent('chatgpt');
+}
+
+/** The consent every cloud request sends under, re-checked immediately before sending: still signed in, never mid-sign-out, not paused, the app still on that account's routing and the switch not off (`app` is null for the app-agnostic rewrite sheet). */
+export function cloudConsent(key: CloudKey, app: string | null): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
   const practice = app != null && isOwnApp(app);
   const beforeSend = async () => {
     const before = signOutGuard();
@@ -94,17 +103,23 @@ export function chatgptConsent(app: string | null): Required<Pick<WriterEvents, 
     const current = await Native.bubbleRules().catch(() => null);
     if (version === rulesVersion && !pending && !rulesPending) rulesNow = current;
     if (!practice && (!current || current.paused || (app != null && (!showsBubble(app, current) || phoneListed(app))))) return false;
-    return switchAndSession(before);
+    return switchAndSession(before, key);
   };
   const epoch = signOutGuard().epoch;
-  const beforeFetch = () => fetchCore(epoch)
+  const beforeFetch = () => fetchCore(epoch, key)
     && (practice || (!!rulesNow && !rulesNow.paused && (app == null || (showsBubble(app, rulesNow) && !phoneListed(app)))));
   return { beforeSend, beforeFetch };
 }
 
+/** The consent every ChatGPT request sends under: the cloud consent for the ChatGPT key. */
+export function chatgptConsent(app: string | null): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
+  return cloudConsent('chatgpt', app);
+}
+
 /** Who writes this app's drafts, and the one plain line the panel says above them. The route comes
- *  from the chosen source: phone chosen means never ChatGPT, even when signed in; ChatGPT chosen means
- *  ChatGPT unless this app stays on the phone, nobody is signed in, or it is switched off remotely. */
+ *  from the chosen source: phone chosen means never the cloud, even when signed in; a cloud source
+ *  (ChatGPT, Claude) means that account unless this app stays on the phone, nobody is signed in to it,
+ *  or it is switched off remotely. */
 export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<WriterRoute> {
   const source = await getSource();
   // This phone was chosen but can no longer write: the panel says to choose again, as Home does
@@ -112,7 +127,8 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   if (source === 'phone') return !stubbed && (await modelStatus().catch(() => null))?.phase === 'unsupported' ? { writer: needWriter, note: null } : { writer: phoneWriter, note: null };
   const practice = isOwnApp(app);
   if (source == null) return practice ? { writer: phoneWriter, note: null } : { writer: needWriter, note: null };
-  const state = await session.current();
+  const key: CloudKey = source === 'claude' ? 'claude' : 'chatgpt';
+  const state = await cloudSession(key).current();
   const version = rulesVersion;
   const pending = rulesPending;
   const rules = await Native.bubbleRules().catch(() => null);
@@ -124,8 +140,8 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   if (enabled && !mocked) switchNow = await currentSwitch(switchStore).catch(() => null);
   const phone = await phoneCanWrite();
   if (switchFailed) return phone === 'cant'
-    ? { writer: thrower(words.gptFailedNoPhone), note: null }
-    : { writer: phoneWriter, note: words.switchUnavailable };
+    ? { writer: thrower(cloudWords(key).failedNoPhone), note: null }
+    : { writer: phoneWriter, note: cloudWords(key).switchUnavailable };
   const route = routeWriters({
     source,
     signedIn: state.signedIn,
@@ -133,9 +149,10 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
     enabled,
     note: state.resting ?? (!state.signedIn ? state.note : null),
     phone,
+    lines: cloudWords(key),
     chatgpt: () => ({ write: async (request, on = {}) => {
       const beforeSend = async () => {
-        if ((await getSource()) !== 'chatgpt') return false;
+        if ((await getSource()) !== key) return false;
         const before = signOutGuard();
         if (before.active) return false;
         const version = rulesVersion;
@@ -143,20 +160,20 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
         const current = await Native.bubbleRules().catch(() => null);
         if (version === rulesVersion && !pending && !rulesPending) rulesNow = current;
         if (!practice && (!current || current.paused || !showsBubble(app, current) || phoneListed(app))) return false;
-        return switchAndSession(before);
+        return switchAndSession(before, key);
       };
       if (mocked) {
         if (!(await beforeSend())) throw new SendVeto(words.phoneWrote);
         return require('../panel/stubWriter').stubWriter().write(request, on);
       }
-      const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && fetchCore(epoch)
+      const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === key && fetchCore(epoch, key)
         && (practice || (!!rulesNow && !rulesNow.paused && showsBubble(app, rulesNow) && !phoneListed(app)));
       const epoch = signOutGuard().epoch;
-      return require('./responses').chatgptWriter.write(request, { ...on, beforeSend, beforeFetch });
+      return require('./responses').cloudWriter(key).write(request, { ...on, beforeSend, beforeFetch });
     } }),
     fallbackNote: async () => {
-      const current = await require('./accounts').status('chatgpt');
-      return ['resting', 'not_included', 'needs_again', 'signed_out'].includes(current.state) ? current.words : null;
+      const current = await require('./accounts').status(key).catch(() => null);
+      return current && ['resting', 'not_included', 'needs_again', 'signed_out'].includes(current.state) ? current.words : null;
     },
     phoneWriter,
   });
@@ -172,10 +189,12 @@ const JEV_BASE = process.env.EXPO_PUBLIC_E2E_JEV_BASE;
  *  Jev is used only when this build carries `EXPO_PUBLIC_JEV_KEY` (emulator stand-in proof builds).
  *  Checked before sending and again at dispatch; a blocked call abstains with the plain unsure read. */
 export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent'> } = {}): Backend[] {
-  const bubble = chatgptConsent(app);
-  const remote = agentChatgptConsent();
-  const beforeSend = async () => (await getSource()) === 'chatgpt' && await bubble.beforeSend() && await remote.beforeSend();
-  const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && bubble.beforeFetch() && remote.beforeFetch();
+  // The fit backend follows the chosen cloud source, so the ratings reach whichever account writes.
+  const cloud: CloudKey = store.peek<Source>(SOURCE_KEY) === 'claude' ? 'claude' : 'chatgpt';
+  const bubble = cloudConsent(cloud, app);
+  const remote = agentConsent(cloud);
+  const beforeSend = async () => (await getSource()) === cloud && await bubble.beforeSend() && await remote.beforeSend();
+  const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === cloud && bubble.beforeFetch() && remote.beforeFetch();
   const key = o.key ?? JEV_KEY;
   if (key) {
     const send = o.fetch ?? globalThis.fetch;
@@ -187,6 +206,6 @@ export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch
       return response;
     } })];
   }
-  // The plan's default fit transport, over the same `accounts.respond` the writer uses.
-  return [require('./responses').fitBackend({ ...o.on, beforeSend, beforeFetch }, o.fetch)];
+  // The plan's default fit transport, over the same `askCloud` boundary the writer uses.
+  return [require('./responses').fitBackend(cloud, { ...o.on, beforeSend, beforeFetch }, o.fetch)];
 }

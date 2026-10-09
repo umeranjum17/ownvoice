@@ -61,7 +61,10 @@ export default function Setup() {
   const [typing, setTyping] = useState(false);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
   const [picked, setPicked] = useState<'phone' | string | null>(null);
-  const plans = accounts.providers;
+  // This wizard drives a device-code sign-in: it shows a code to type and opens the page. Claude's
+  // paste-back flow needs its own field (see Home's How Ownvoice writes), and key/host routes cannot
+  // be finished here, so the first run offers ChatGPT only; other accounts are added after setup.
+  const plans = accounts.providers.filter(p => p.key === 'chatgpt');
   const defaultPlan = plans[0]?.key ?? 'chatgpt';
   const pick = picked ?? (phone === 'cant' ? defaultPlan : 'phone');
   // Plan sign-in state, shown inside the choice step: null while the options show.

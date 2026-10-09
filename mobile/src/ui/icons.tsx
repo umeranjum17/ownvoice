@@ -39,6 +39,13 @@ export function ChatIcon({ size, color }: Props) {
     fill="none" stroke={color} strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" /></Svg>;
 }
 
+// The "With your Claude" writing option: a small spark, its own mark beside the chat bubble.
+export function ClaudeIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path
+    d="M12,3 l1.7,5.6 L19,10.3 l-5.3,1.7 L12,17.6 l-1.7,-5.6 L5,10.3 l5.3,-1.7 z M18.2,15.2 l0.7,2.2 2.2,0.7 -2.2,0.7 -0.7,2.2 -0.7,-2.2 -2.2,-0.7 2.2,-0.7 z"
+    fill="none" stroke={color} strokeWidth={1.6} strokeLinejoin="round" /></Svg>;
+}
+
 // The "On this phone" writing option.
 export function PhoneIcon({ size, color }: Props) {
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path

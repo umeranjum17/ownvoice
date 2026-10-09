@@ -3,6 +3,8 @@ import { GPT_APPS_KEY, session } from '../chatgpt/session';
 import { CHATGPT_DEFAULT_OFF, DEFAULT_ON, showsBubble } from './privacy';
 import { store } from './store';
 
+/** The accounts the app can write with, as chosen in How Ownvoice writes. */
+export type CloudKey = 'chatgpt' | 'claude';
 /** The chosen writing source: 'phone' for on-device, a plan provider key ('claude', 'chatgpt', etc.) for cloud, or null when not chosen. */
 export type Source = 'phone' | string | null;
 export const SOURCE_KEY = 'writer-source';
