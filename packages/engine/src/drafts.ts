@@ -321,6 +321,39 @@ export function stripControlLines(text: string, controls: string[]): string {
 export const echoKey = (text: string) =>
   text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
 
+/**
+ * A card that opens with a slot instruction leaks the writer's prompt, not a reply (seen
+ * live: cards that were only "Agree and add one concrete detail from the post.", or opened
+ * with it before a newline or a colon). Strip a leading instruction line or prefix, matched
+ * with echoKey so re-capitalisation and punctuation changes still count; any passed slot's
+ * instruction goes, because a swapped slot leaks the same way. A card that is only an
+ * instruction then empties out and is dropped, so the per-slot retry re-asks once.
+ */
+/**
+ * A card that is only a draft label leaks the prompt's scaffolding, not a reply (seen live:
+ * an agree card whose whole text was "Draft"). Strip a leading label line or prefix - bare
+ * "Draft" or unnumbered/unpunctuated "Draft 1" - the same way; a label-only card empties out
+ * and is dropped, so the per-slot retry re-asks once.
+ */
+function stripDraftLabel(text: string): string {
+  const label = /^\s*(?:draft|option|version)\s*[1-3]?\s*[.):]?\s*/i;
+  const stripped = text.replace(label, '');
+  return stripped === text ? text : stripped.trim();
+}
+
+function stripSlotInstruction(text: string, slots: string[]): string {
+  const lines = text.split(/\r?\n/);
+  const first = echoKey(lines[0]);
+  if (first && slots.some(slot => echoKey(slot) === first)) return lines.slice(1).join('\n').trim();
+  for (const slot of slots) {
+    const head = slot.replace(/\s*[.!?:;]+\s*$/, '');
+    if (!head || text.slice(0, head.length).toLowerCase() !== head.toLowerCase()) continue;
+    const rest = text.slice(head.length);
+    if (/^\s*(?:[.:]\s*|\s+)\S/.test(rest)) return rest.replace(/^\s*(?:[.:]\s*|\s+)/, '').trim();
+  }
+  return text;
+}
+
 // A draft whose opening plainly does the opposite of its slot's job: a decline/other-view
 // slot that opens by agreeing, or an agree/accept slot that opens by refusing. Deliberately
 // narrow - only leading wording that leaves no doubt - so a soft alternative that opens with
@@ -361,7 +394,9 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
-    const clean = stripControlLines(text, controls);
+    // Instruction line first (the prompt prints it above the reply), then any label the model
+    // left as the reply itself: 'Agree and add ... from the post.\nDraft' must empty out.
+    const clean = stripDraftLabel(stripSlotInstruction(stripControlLines(text, controls), slots));
     const draft = dashes === 'remove' ? undash(clean) : clean;
     if (!draft || breaks(draft) || echoes(draft) || contradicts(draft, slot)) return;
     if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
