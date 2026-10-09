@@ -598,7 +598,7 @@ test.each([
   const reset = jest.fn();
   const landed = jest.fn();
   try {
-    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, { reset, landed }, undefined, 'cant', cloudWords('chatgpt'))).toEqual({ drafts });
+    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, cloudWords('chatgpt'), { reset, landed }, undefined, 'cant')).toEqual({ drafts });
     expect(landed.mock.calls.map(([, slot]) => slot)).toEqual([1, 2]);
     expect(reset).not.toHaveBeenCalled();
     expect(phone.write).not.toHaveBeenCalled();
@@ -620,7 +620,7 @@ test('captured nonsense is declined before any alternate can land or trigger pho
   const phone = { write: jest.fn(async () => ({ drafts: [bad] })) };
   const landed = jest.fn();
   try {
-    expect(await withPhoneFallback(chatgptWriter, phone, { typed, conversation: '', written: '' }, { landed }, undefined, 'cant', cloudWords('chatgpt')))
+    expect(await withPhoneFallback(chatgptWriter, phone, { typed, conversation: '', written: '' }, cloudWords('chatgpt'), { landed }, undefined, 'cant'))
       .toEqual({ drafts: [], declined: true });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(JSON.stringify((global.fetch as jest.Mock).mock.calls[0])).toContain(typed);
@@ -635,7 +635,7 @@ test('an unreadable point check remains a transient failure, allowing fallback r
   global.fetch = fetcher(body(event({ type: 'response.output_text.delta', delta: 'not sure' }) + '\n\n' + event({ type: 'response.completed' })));
   const phone = { write: jest.fn(async () => ({ drafts: ['autosave locally. Make export easy.'] })) };
   try {
-    const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' }, undefined, undefined, undefined, cloudWords('chatgpt'));
+    const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' }, cloudWords('chatgpt'));
     expect(choice).toEqual({ drafts: ['autosave locally. Make export easy.'], reason: words.fallback });
     expect(choice.declined).toBeUndefined();
     expect(phone.write).toHaveBeenCalledTimes(1);

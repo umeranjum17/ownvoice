@@ -40,7 +40,7 @@ export function noPhoneLine(error: unknown, lines: CloudWords): string {
   return lines.failedNoPhone;
 }
 
-export async function withPhoneFallback(primary: Writer, phone: Writer, request: DraftRequest, on: WriterEvents | undefined, fallbackNote: (() => Promise<string | null>) | undefined, phoneStatus: PhoneCanWrite | undefined, lines: CloudWords): Promise<Choice> {
+export async function withPhoneFallback(primary: Writer, phone: Writer, request: DraftRequest, lines: CloudWords, on?: WriterEvents, fallbackNote?: () => Promise<string | null>, phoneStatus?: PhoneCanWrite): Promise<Choice> {
   try {
     const { drafts, unchanged, declined } = await primary.write(request, on);
     // A successful refusal is not a transport failure: don't ask another writer to polish it.
@@ -90,5 +90,5 @@ export function routeWriters(options: { source: Source; signedIn: boolean; phone
   if (options.note) return options.phone === 'cant'
     ? { writer: thrower(options.note), note: null }
     : { writer: phoneWriter, note: options.note };
-  return { writer: { write: (request, on) => withPhoneFallback(options.chatgpt(), phoneWriter, request, on, options.fallbackNote, options.phone, lines) }, note: null };
+  return { writer: { write: (request, on) => withPhoneFallback(options.chatgpt(), phoneWriter, request, lines, on, options.fallbackNote, options.phone) }, note: null };
 }

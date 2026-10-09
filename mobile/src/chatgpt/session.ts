@@ -1,5 +1,6 @@
 import { say } from '@byokit/accounts';
 import type { SignIn, Status } from '@byokit/accounts';
+import type { CloudKey } from '../core/source';
 import { store } from '../core/store';
 import { words } from '../core/words';
 
@@ -8,13 +9,13 @@ export const CLAUDE_NAME = 'Claude';
 export const GPT_APPS_KEY = 'chatgpt-apps';
 
 export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
-let signingOut = 0;
-let signOutEpoch = 0;
-export const signOutGuard = () => ({ active: signingOut > 0, epoch: signOutEpoch });
-const leaving = async (run: () => Promise<GptState>): Promise<GptState> => {
-  signingOut++;
-  signOutEpoch++;
-  try { return await run(); } finally { signingOut--; }
+const signingOut: Record<CloudKey, number> = { chatgpt: 0, claude: 0 };
+const signOutEpoch: Record<CloudKey, number> = { chatgpt: 0, claude: 0 };
+export const signOutGuard = (key: CloudKey) => ({ active: signingOut[key] > 0, epoch: signOutEpoch[key] });
+const leaving = async (key: CloudKey, run: () => Promise<GptState>): Promise<GptState> => {
+  signingOut[key]++;
+  signOutEpoch[key]++;
+  try { return await run(); } finally { signingOut[key]--; }
 };
 const MOCK_CODE = 'KQPT-MXVD';
 const MOCK_WAIT_MS = 9000;
@@ -55,37 +56,12 @@ export type Session = {
 // Required lazily: the real session pulls in the phone's secure storage, which no jest run has.
 const live = () => require('./accounts') as typeof import('./accounts');
 
-const real: Session = {
-  current: async () => {
-    if (signingOut) return nothing;
-    const a = live();
-    await a.refresh().catch(() => {});
-    const state = stateOf(a.signInStateChatGPT(), await a.statusChatGPT().catch(() => null));
-    return signingOut ? nothing : state;
-  },
-  start: async () => {
-    store.set(GPT_APPS_KEY, null);
-    const a = live();
-    await a.signInChatGPT();
-    return stateOf(a.signInStateChatGPT(), await a.statusChatGPT().catch(() => null));
-  },
-  cancel: async () => {
-    live().cancelSignInChatGPT();
-    return { ...nothing, note: say('signIn.cancelled', { name: NAME }) };
-  },
-  signOut: () => leaving(async () => {
-    try { store.set(GPT_APPS_KEY, null); } catch {}
-    await live().signOutChatGPT();
-    return { ...nothing, note: say('status.signedOut', { name: NAME }) };
-  }),
-};
-
 let startedAt = 0;
 let connectedAt = 0;
 
 const mock: Session = {
   current: async () => {
-    if (signingOut || !startedAt) return { ...nothing };
+    if (signingOut.chatgpt || !startedAt) return { ...nothing };
     if (Date.now() - startedAt < MOCK_WAIT_MS) return waiting();
     connectedAt = startedAt;
     return connected();
@@ -100,7 +76,7 @@ const mock: Session = {
     startedAt = 0;
     return { ...nothing, note: say('signIn.cancelled', { name: NAME }) };
   },
-  signOut: () => leaving(async () => {
+  signOut: () => leaving('chatgpt', async () => {
     startedAt = 0;
     connectedAt = 0;
     store.set(GPT_APPS_KEY, null);
@@ -111,46 +87,53 @@ const mock: Session = {
 const waiting = (): GptState => ({ signedIn: false, waiting: true, code: MOCK_CODE, url: null, note: say('signIn.waitingUrl', { name: NAME }), resting: null });
 const connected = (): GptState => ({ signedIn: !!connectedAt, waiting: false, code: null, url: null, note: say('status.ready', { name: NAME }), resting: null });
 
-const underlying = mocked ? mock : real;
-let lastSession: GptState = nothing;
-export const sessionNow = () => lastSession;
-export const session: Session = {
-  current: async () => { const state = await underlying.current(); lastSession = state; return state; },
-  start: async () => { lastSession = nothing; const state = await underlying.start(); lastSession = state; return state; },
-  cancel: async () => { lastSession = nothing; const state = await underlying.cancel(); lastSession = state; return state; },
-  signOut: async () => { lastSession = nothing; const state = await underlying.signOut(); lastSession = state; return state; },
+// Each account's sign-in is the kit's own, keyed by provider; Claude's is the paste-back flow, and
+// it has no stand-in, so it is always the real one even in stub builds.
+const accountSession = (key: CloudKey): Session => {
+  const name = key === 'claude' ? CLAUDE_NAME : NAME;
+  const readState = async (a: ReturnType<typeof live>) => stateOf(a.signInState(key), await a.status(key).catch(() => null), name, key === 'claude' ? words.claudeSignInNote : undefined);
+  return {
+    current: async () => {
+      if (signingOut[key]) return nothing;
+      const a = live();
+      await a.refresh().catch(() => {});
+      const state = await readState(a);
+      return signingOut[key] ? nothing : state;
+    },
+    start: async () => {
+      if (key === 'chatgpt') store.set(GPT_APPS_KEY, null);
+      const a = live();
+      await (key === 'claude' ? a.signInClaude() : a.signInChatGPT());
+      return readState(a);
+    },
+    cancel: async () => {
+      live().cancelSignIn(key);
+      return { ...nothing, note: say('signIn.cancelled', { name }) };
+    },
+    signOut: () => leaving(key, async () => {
+      if (key === 'chatgpt') {
+        try { store.set(GPT_APPS_KEY, null); } catch {}
+      }
+      await live().signOut(key);
+      return { ...nothing, note: say('status.signedOut', { name }) };
+    }),
+  };
 };
 
-// Claude's own sign-in state, the same shape: the page opens, the person pastes its code back.
-// No stand-in exists for it, so it is always the real flow, even in stub builds.
-const claudeState = (view: SignIn | null, status: Status | null) => stateOf(view, status, CLAUDE_NAME, words.claudeSignInNote);
-const claudeReal: Session = {
-  current: async () => {
-    if (signingOut) return nothing;
-    const a = live();
-    await a.refresh().catch(() => {});
-    const state = claudeState(a.signInState('claude'), await a.status('claude').catch(() => null));
-    return signingOut ? nothing : state;
-  },
-  start: async () => {
-    const a = live();
-    await a.signInClaude();
-    return claudeState(a.signInState('claude'), await a.status('claude').catch(() => null));
-  },
-  cancel: async () => {
-    live().cancelSignIn('claude');
-    return { ...nothing, note: say('signIn.cancelled', { name: CLAUDE_NAME }) };
-  },
-  signOut: () => leaving(async () => {
-    await live().signOut('claude');
-    return { ...nothing, note: say('status.signedOut', { name: CLAUDE_NAME }) };
-  }),
+const tracked = (underlying: Session) => {
+  let last: GptState = nothing;
+  const session: Session = {
+    current: async () => { const state = await underlying.current(); last = state; return state; },
+    start: async () => { last = nothing; const state = await underlying.start(); last = state; return state; },
+    cancel: async () => { last = nothing; const state = await underlying.cancel(); last = state; return state; },
+    signOut: async () => { last = nothing; const state = await underlying.signOut(); last = state; return state; },
+  };
+  return { session, now: () => last };
 };
-let lastClaude: GptState = nothing;
-export const claudeNow = () => lastClaude;
-export const claudeSession: Session = {
-  current: async () => { const state = await claudeReal.current(); lastClaude = state; return state; },
-  start: async () => { lastClaude = nothing; const state = await claudeReal.start(); lastClaude = state; return state; },
-  cancel: async () => { lastClaude = nothing; const state = await claudeReal.cancel(); lastClaude = state; return state; },
-  signOut: async () => { lastClaude = nothing; const state = await claudeReal.signOut(); lastClaude = state; return state; },
-};
+
+const chatgpt = tracked(mocked ? mock : accountSession('chatgpt'));
+const claude = tracked(accountSession('claude'));
+export const sessionNow = chatgpt.now;
+export const session = chatgpt.session;
+export const claudeNow = claude.now;
+export const claudeSession = claude.session;

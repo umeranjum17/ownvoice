@@ -41,8 +41,8 @@ const cloudSession = (key: CloudKey): Session => key === 'claude' ? claudeSessio
 const cloudNow = (key: CloudKey) => (key === 'claude' ? claudeNow : sessionNow)();
 
 /** Still signed in under the same sign-out epoch the send started with. */
-function guardOk(before: Guard, signedIn: boolean): boolean {
-  const after = signOutGuard();
+function guardOk(key: CloudKey, before: Guard, signedIn: boolean): boolean {
+  const after = signOutGuard(key);
   return signedIn && !after.active && after.epoch === before.epoch;
 }
 
@@ -55,12 +55,12 @@ async function switchAndSession(before: Guard, key: CloudKey = 'chatgpt'): Promi
     switchNow = choice;
     if (choice?.chatgpt === 'off') throw new SendVeto(cloudWords(key).off);
   }
-  return guardOk(before, (await cloudSession(key).current()).signedIn);
+  return guardOk(key, before, (await cloudSession(key).current()).signedIn);
 }
 
 /** The fetch-time recheck: no sign-out since the send, still signed in, switch not off. */
 function fetchCore(epoch: number, key: CloudKey = 'chatgpt'): boolean {
-  const guard = signOutGuard();
+  const guard = signOutGuard(key);
   return !guard.active && guard.epoch === epoch && cloudNow(key).signedIn && switchNow?.chatgpt !== 'off';
 }
 
@@ -69,7 +69,7 @@ function fetchCore(epoch: number, key: CloudKey = 'chatgpt'): boolean {
  *  panel, an unknown switch also sends nothing and refuses with the provider's own line. */
 export function agentConsent(key: CloudKey): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
   const beforeSend = async () => {
-    const before = signOutGuard();
+    const before = signOutGuard(key);
     if (before.active) return false;
     const signedIn = (await cloudSession(key).current()).signedIn;
     if (!signedIn) return false;
@@ -80,9 +80,9 @@ export function agentConsent(key: CloudKey): Required<Pick<WriterEvents, 'before
       if (!choice) throw new SendVeto(cloudWords(key).switchUnavailable);
       if (choice.chatgpt === 'off') throw new SendVeto(cloudWords(key).off);
     }
-    return guardOk(before, signedIn);
+    return guardOk(key, before, signedIn);
   };
-  const epoch = signOutGuard().epoch;
+  const epoch = signOutGuard(key).epoch;
   const beforeFetch = () => fetchCore(epoch, key) && (mocked || switchNow?.chatgpt === 'on');
   return { beforeSend, beforeFetch };
 }
@@ -96,7 +96,7 @@ export function agentChatgptConsent(): Required<Pick<WriterEvents, 'beforeSend' 
 export function cloudConsent(key: CloudKey, app: string | null): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
   const practice = app != null && isOwnApp(app);
   const beforeSend = async () => {
-    const before = signOutGuard();
+    const before = signOutGuard(key);
     if (before.active) return false;
     const version = rulesVersion;
     const pending = rulesPending;
@@ -105,7 +105,7 @@ export function cloudConsent(key: CloudKey, app: string | null): Required<Pick<W
     if (!practice && (!current || current.paused || (app != null && (!showsBubble(app, current) || phoneListed(app))))) return false;
     return switchAndSession(before, key);
   };
-  const epoch = signOutGuard().epoch;
+  const epoch = signOutGuard(key).epoch;
   const beforeFetch = () => fetchCore(epoch, key)
     && (practice || (!!rulesNow && !rulesNow.paused && (app == null || (showsBubble(app, rulesNow) && !phoneListed(app)))));
   return { beforeSend, beforeFetch };
@@ -148,7 +148,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
     chatgpt: () => ({ write: async (request, on = {}) => {
       const beforeSend = async () => {
         if ((await getSource()) !== key) return false;
-        const before = signOutGuard();
+        const before = signOutGuard(key);
         if (before.active) return false;
         const version = rulesVersion;
         const pending = rulesPending;
@@ -163,7 +163,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
       }
       const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === key && fetchCore(epoch, key)
         && (practice || (!!rulesNow && !rulesNow.paused && showsBubble(app, rulesNow) && !phoneListed(app)));
-      const epoch = signOutGuard().epoch;
+      const epoch = signOutGuard(key).epoch;
       return require('./responses').cloudWriter(key).write(request, { ...on, beforeSend, beforeFetch });
     } }),
     fallbackNote: async () => {

@@ -95,15 +95,15 @@ test('the off switch and a resting plan both hand the writing to the phone, with
 
 test('without a phone status the fallback still reaches the phone', async () => {
   const short: Writer = { write: async () => ({ drafts: ['only one'] }) };
-  expect(await withPhoneFallback(short, phone, request, undefined, undefined, undefined, cloudWords('chatgpt'))).toEqual({ drafts: phoneDrafts, reason: words.fallback });
+  expect(await withPhoneFallback(short, phone, request, cloudWords('chatgpt'))).toEqual({ drafts: phoneDrafts, reason: words.fallback });
 });
 
 test('an unchanged answer from ChatGPT is kept, not passed to the phone as a failure', async () => {
   const same: Writer = { write: async () => ({ drafts: [], unchanged: true }) };
   const failing: Writer = { write: async () => { throw new Error(words.chatgptFailed); } };
-  expect(await withPhoneFallback(same, failing, request, undefined, undefined, undefined, cloudWords('chatgpt'))).toEqual({ drafts: [], unchanged: true });
+  expect(await withPhoneFallback(same, failing, request, cloudWords('chatgpt'))).toEqual({ drafts: [], unchanged: true });
   const none: Writer = { write: async () => ({ drafts: [] }) };
-  expect(await withPhoneFallback(none, phone, request, undefined, undefined, undefined, cloudWords('chatgpt'))).toEqual({ drafts: (await phone.write(request)).drafts, reason: words.fallback });
+  expect(await withPhoneFallback(none, phone, request, cloudWords('chatgpt'))).toEqual({ drafts: (await phone.write(request)).drafts, reason: words.fallback });
 });
 
 test('the read log says when a screen went to ChatGPT, and never says what it said', () => {
@@ -120,7 +120,7 @@ test.each([1, 2, 3])('polish retains %i usable primary cards without phone fallb
   const phone = { write: jest.fn(async () => ({ drafts: phoneDrafts })) };
   const reset = jest.fn();
   for (const status of ['ready', 'cant'] as const) {
-    expect(await withPhoneFallback(primary, phone, { ...request, typed: 'Please bring the stove.' }, { reset }, undefined, status, cloudWords('chatgpt'))).toEqual({ drafts });
+    expect(await withPhoneFallback(primary, phone, { ...request, typed: 'Please bring the stove.' }, cloudWords('chatgpt'), { reset }, undefined, status)).toEqual({ drafts });
   }
   expect(phone.write).not.toHaveBeenCalled();
   expect(reset).not.toHaveBeenCalled();
@@ -129,9 +129,9 @@ test.each([1, 2, 3])('polish retains %i usable primary cards without phone fallb
 test('empty or blank polish still falls back and partial replies stay incomplete', async () => {
   const primary = (drafts: string[]): Writer => ({ write: async () => ({ drafts }) });
   for (const drafts of [[], ['good', ' ']]) {
-    expect((await withPhoneFallback(primary(drafts), phone, { ...request, typed: 'Please bring the stove.' }, undefined, undefined, undefined, cloudWords('chatgpt'))).reason).toBe(words.fallback);
+    expect((await withPhoneFallback(primary(drafts), phone, { ...request, typed: 'Please bring the stove.' }, cloudWords('chatgpt'))).reason).toBe(words.fallback);
   }
   for (const typed of ['', '  ']) {
-    expect((await withPhoneFallback(primary(['one', 'two']), phone, { ...request, typed }, undefined, undefined, undefined, cloudWords('chatgpt'))).reason).toBe(words.fallback);
+    expect((await withPhoneFallback(primary(['one', 'two']), phone, { ...request, typed }, cloudWords('chatgpt'))).reason).toBe(words.fallback);
   }
 });
