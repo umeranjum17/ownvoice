@@ -97,7 +97,7 @@ const claudeWords = {
   claudeSwitchBody: 'From now on, when you tap the bubble, the chat on screen and what you typed go to Claude to write your drafts.',
   claudeSwitchYes: 'Switch to Claude',
   claudePhoneBackup: "If Claude can't answer, this phone writes instead.",
-  claudePlanLimit: "Claude's plan limit is reached for now.",
+  claudePlanLimit: 'Claude limit reached',
   claudeFailed: "Claude didn't answer this time.",
   claudeFallback: "Claude didn't answer. This phone wrote these instead.",
   claudeOff: 'Claude is turned off for now. This phone wrote these.',

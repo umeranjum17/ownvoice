@@ -13,6 +13,17 @@ import type { CloudKey } from '../core/source';
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
 export { CHATGPT_MODEL } from './accounts';
 
+/** Epoch ms when the cloud account last said its limit resets, from a 429's retry-after; 0 when unknown. */
+let limitResetAt = 0;
+/** A Cloud plan-limit line, with the reset time when the provider gave one. */
+const limitLine = (base: string): string => {
+  const at = limitResetAt;
+  if (!(at > Date.now())) return `${base}.`;
+  const when = new Date(at);
+  const clock = when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  const time = when.toDateString() === new Date().toDateString() ? clock : `${when.toLocaleDateString('en-US', { weekday: 'short' })} ${clock}`;
+  return `${base} - resets at ${time}.`;
+};
 const REPLY_INSTRUCTIONS = 'Return the requested reply drafts as JSON.';
 const VERSION_INSTRUCTIONS = 'Return the requested rewrite versions as JSON.';
 
@@ -36,7 +47,13 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
       if (on?.beforeFetch && !on.beforeFetch()) throw new SendVeto(words.phoneWrote);
       started = true;
       on?.started?.();
+      // Emulator-only stand-in (EXPO_PUBLIC_E2E_CLAUDE_429), like the ChatGPT stand-in: never a release build.
+      if (process.env.EXPO_PUBLIC_E2E_CLAUDE_429 === '1' && cloud === 'claude') { limitResetAt = Date.now() + 3600_000; throw new ResponseError('Claude limit reached.', 'rate_limit'); }
       const response = await fetcher(url, init);
+      if (cloud === 'claude' && response.status === 429) {
+        const retryAfter = Number(response.headers.get('retry-after'));
+        limitResetAt = Number.isFinite(retryAfter) && retryAfter > 0 ? Date.now() + retryAfter * 1000 : 0;
+      }
       // An answer, even a refusal or an empty stream, means the text went out.
       // An offline throw above leaves the read log unmarked.
       await on?.sent?.();
@@ -60,7 +77,7 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
     // The kit's wrapped message is generic; its ResponseError keeps the real kind, so a plan
     // limit (rate limit) is told apart from a sign-out and the phone writes instead.
     const planLimit = cloudWords(cloud).planLimit;
-    if (error instanceof ResponseError && error.kind === 'rate_limit' && planLimit) throw new PlanLimit(planLimit);
+    if (error instanceof ResponseError && error.kind === 'rate_limit' && planLimit) throw new PlanLimit(limitLine(planLimit));
     const message = error instanceof Error ? error.message : String(error);
     if (!started && classify(message)?.kind !== 'network') {
       if (__DEV__) console.log(`Ownvoice ${cloud} pre-dispatch failure: ${message}`);

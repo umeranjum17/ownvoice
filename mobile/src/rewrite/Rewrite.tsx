@@ -110,6 +110,8 @@ export default function Rewrite() {
         const veto = error instanceof SendVeto ? error.message : null;
         const offline = classify(error instanceof Error ? error.message : String(error))?.kind === 'network';
         const limit = error instanceof PlanLimit ? error.message : null;
+        // A plan limit is not a transient slip: say the limit and its reset rather than retrying.
+        if (limit) { setNote(limit); return; }
         if (canWrite) {
           let shown = false;
           try { shown = await showResult(await phoneRewrite(), true); }

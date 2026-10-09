@@ -57,14 +57,20 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
     return { drafts };
   } catch (error) {
     on?.reset?.();
-    if (phoneStatus === 'cant') throw new Error(noPhoneLine(error, lines));
+    const limit = error instanceof PlanLimit ? error.message : null;
+    if (phoneStatus === 'cant') throw new Error(limit ?? noPhoneLine(error, lines));
     const message = error instanceof Error ? error.message : String(error);
     const reason = error instanceof SendVeto ? error.message
-      : error instanceof PlanLimit ? error.message
-      : classify(message)?.kind === 'network' ? words.offlinePhone
-      : (await fallbackNote?.().catch(() => null)) ?? lines.fallback;
+      : limit ?? (classify(message)?.kind === 'network' ? words.offlinePhone
+      : (await fallbackNote?.().catch(() => null)) ?? lines.fallback);
     on?.fallback?.();
-    return { ...(await phone.write(request, on)), reason };
+    try {
+      return { ...(await phone.write(request, on)), reason };
+    } catch (fallback) {
+      // The next writer could not write either: keep the plan-limit line instead of a dead-end error.
+      if (limit) throw new Error(limit);
+      throw fallback;
+    }
   }
 }
 
