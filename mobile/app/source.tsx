@@ -252,7 +252,7 @@ export default function SourceScreen() {
         {phone === 'cant'
           ? <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable
             reason={<>
-              <Text style={[type.note, styles.indent, { color: t.text }]}>{words.phoneCantWhy}</Text>
+              <Text style={[type.note, styles.indent, { color: t.text }]}>{chosen === 'claude' ? words.claudePhoneCantWhy : words.phoneCantWhy}</Text>
               {chosen !== 'chatgpt' && chosen !== 'claude' && !signIn && <View style={styles.indent}><Button kind="filled" label={words.gptButton} onPress={pickChatGpt} /></View>}
             </>} />
           : <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneSub} selected={source === 'phone' && !signIn} onPress={pickPhone}>

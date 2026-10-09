@@ -107,6 +107,7 @@ const claudeWords = {
   claudeSwitchUnavailable: 'Claude could not be reached this time. This phone wrote these.',
   claudeCantWriteNote: 'This phone can\'t write, and you kept writing there on this phone. Let Claude write there instead.',
   claudeCantWriteFix: 'Choose where Claude writes',
+  claudePhoneCantWhy: 'Writing right on the phone needs a newer phone with its own built-in writer. This phone doesn’t have one, so Ownvoice writes with your Claude instead. You still pick each draft and press Send yourself.',
 } as const;
 
 export const words = {
