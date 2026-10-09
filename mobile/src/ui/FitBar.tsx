@@ -49,7 +49,7 @@ export function fitHidesEngagement(fit: Fit | undefined, ratings: Ratings | null
 }
 
 /** Grow mode's only fit display: four segments and the level in words, with one reason line under
- *  it. The bar fills in when the fit lands (no fit yet, or still can't rate and nothing flagged:
+ *  it. The bar fills in when the fit lands (no fit yet, or still plainly not sure and nothing flagged:
  *  nothing shows). A rule flag always shows the bottom level and says why, even over a level.
  *  No number is ever shown or spoken: the spoken label is the level words alone. */
 export function FitBar({ fit, ratings }: { fit: Fit | undefined; ratings: Ratings | null }) {

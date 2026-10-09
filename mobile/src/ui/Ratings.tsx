@@ -39,7 +39,7 @@ export function Ratings({ ratings, fit, hideEngagement }: { ratings: Value | nul
   const judged = fit?.level != null;
   const notes = texts(e.signals);
   const stockLines = texts(s.signals);
-  // Nothing found means nothing shown: a row of "Nothing flagged" and "can't rate the fit" on every
+  // Nothing found means nothing shown: a row of "Nothing flagged" and a plain "Not sure" fit on every
   // card is noise, and it says nothing about the draft. A real level or a real finding earns the row.
   const discloses = e.unknown.includes(POST_UNREAD);
   if (hideEngagement && !stockLines.length) return null;

@@ -12,7 +12,7 @@ import { prefillFor, prefillUrl } from '../core/prefill';
 import { feedRead } from '../core/feed';
 import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
-import { judgeFit, rated, UNSURE, type Fit } from '../grow/fit';
+import { abstain, judgeFit, rated, type Fit } from '../grow/fit';
 import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
@@ -365,14 +365,13 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const backends = leaves.current ? fitBackends(capture.app, { on: readLog(capture.id) }) : [];
     // Yours comes first in texts, so when the phone wrote the shown drafts only the typed reply is judged.
     const judged = shownOnPhone.current ? texts.slice(0, yours?.text ? 1 : 0) : texts;
-    const unsure: Fit = { level: null, words: UNSURE, probability: null, voice: null };
     void judgeFit({ post: postOf.current ?? '', candidates: judged, platform: platformOf.current, samples: samplesOf.current, backends })
-      .catch(() => judged.map(() => unsure))
+      .catch(() => judged.map(abstain))
       .then(found => {
         if (run.current !== id) return;
         // Levels and probabilities only, never the text: what the proof reads from the device log.
         console.log(`ownvoice-fit ${JSON.stringify(found)}`);
-        setFits(new Map(texts.map((text, i) => [text, i < judged.length ? found[i] : unsure])));
+        setFits(new Map(texts.map((text, i) => [text, i < judged.length ? found[i] : abstain()])));
       });
   });
 

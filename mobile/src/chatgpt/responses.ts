@@ -57,6 +57,7 @@ async function ask(prompt: string, instructions: string, key: 'drafts' | 'versio
   } catch (error) {
     if (!started && marked) await on?.unsent?.();
     if (error instanceof SendVeto) throw error;
+    if (signal?.aborted) throw error;
     if (error instanceof IncompleteError) throw new Error(words.chatgptFailed);
     const message = error instanceof Error ? error.message : String(error);
     if (!started && classify(message)?.kind !== 'network') {

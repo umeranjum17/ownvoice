@@ -88,7 +88,7 @@ test('a fit request marks its own tap Sent through the read-log hooks it was giv
   const log = jest.spyOn(console, 'log').mockImplementation(() => {});
   try {
     const [backend] = fitBackends('com.twitter.android', { on: { sent, unsent }, fetch: fetcher });
-    await expect(backend.ask('rate the options', new AbortController().signal)).rejects.toThrow();
+    await expect(backend.ask({}, {}, new AbortController().signal)).rejects.toThrow();
     expect(sent).toHaveBeenCalledTimes(1);
     expect(unsent).not.toHaveBeenCalled();
   } finally { log.mockRestore(); }
