@@ -12,6 +12,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: { bubbleRules: jest.fn(async () => null), setBubbleRules: jest.fn(async () => {}) },
 }));
+jest.mock('@byokit/accounts', () => ({ ...jest.requireActual('@byokit/accounts'), offered: () => [] }));
 jest.mock('../../chatgpt/accounts', () => {
   const actual = jest.requireActual('../../chatgpt/accounts');
   actual.accounts.runtime = jest.fn(async () => ({

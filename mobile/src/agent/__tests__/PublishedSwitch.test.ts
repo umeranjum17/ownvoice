@@ -21,11 +21,15 @@ jest.mock('../../chatgpt/session', () => ({
   accountSessions: { chatgpt: { session: { current: jest.fn(async () => ({ signedIn: true })) }, now: jest.fn(() => ({ signedIn: true })) } },
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
 }));
-jest.mock('../../chatgpt/accounts', () => ({
-  accounts: { respond: jest.fn(async () => ({ text: 'Hello Umer.', output: [] })) },
-  codexAuth: jest.fn(async () => ({ access: 'fixture', accountId: 'fixture' })),
-  reportFailure: jest.fn(),
-}));
+jest.mock('../../chatgpt/accounts', () => {
+  const respond = jest.fn(async () => ({ text: 'Hello Umer.', output: [] }));
+  return {
+    accounts: { respond },
+    respond,
+    codexAuth: jest.fn(async () => ({ access: 'fixture', accountId: 'fixture' })),
+    reportFailure: jest.fn(),
+  };
+});
 jest.mock('expo/fetch', () => ({ fetch: jest.fn() }));
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'ready' })), agreedToDownload: jest.fn(() => false) }));
 
