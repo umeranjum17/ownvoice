@@ -1,7 +1,7 @@
 import { jev, type Backend } from '@byokit/decide';
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
-import { getSource, isOwnApp, phoneListed, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
+import { cloudOf, getSource, isOwnApp, phoneListed, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { modelStatus } from '../core/phoneDownload';
 import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
@@ -111,11 +111,6 @@ export function cloudConsent(key: CloudKey, app: string | null): Required<Pick<W
   return { beforeSend, beforeFetch };
 }
 
-/** The consent every ChatGPT request sends under: the cloud consent for the ChatGPT key. */
-export function chatgptConsent(app: string | null): Required<Pick<WriterEvents, 'beforeSend' | 'beforeFetch'>> {
-  return cloudConsent('chatgpt', app);
-}
-
 /** Who writes this app's drafts, and the one plain line the panel says above them. The route comes
  *  from the chosen source: phone chosen means never the cloud, even when signed in; a cloud source
  *  (ChatGPT, Claude) means that account unless this app stays on the phone, nobody is signed in to it,
@@ -127,7 +122,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   if (source === 'phone') return !stubbed && (await modelStatus().catch(() => null))?.phase === 'unsupported' ? { writer: needWriter, note: null } : { writer: phoneWriter, note: null };
   const practice = isOwnApp(app);
   if (source == null) return practice ? { writer: phoneWriter, note: null } : { writer: needWriter, note: null };
-  const key: CloudKey = source === 'claude' ? 'claude' : 'chatgpt';
+  const key: CloudKey = cloudOf(source) ?? 'chatgpt';
   const state = await cloudSession(key).current();
   const version = rulesVersion;
   const pending = rulesPending;
@@ -190,7 +185,7 @@ const JEV_BASE = process.env.EXPO_PUBLIC_E2E_JEV_BASE;
  *  Checked before sending and again at dispatch; a blocked call abstains with the plain unsure read. */
 export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent'> } = {}): Backend[] {
   // The fit backend follows the chosen cloud source, so the ratings reach whichever account writes.
-  const cloud: CloudKey = store.peek<Source>(SOURCE_KEY) === 'claude' ? 'claude' : 'chatgpt';
+  const cloud: CloudKey = cloudOf(store.peek<Source>(SOURCE_KEY)) ?? 'chatgpt';
   const bubble = cloudConsent(cloud, app);
   const remote = agentConsent(cloud);
   const beforeSend = async () => (await getSource()) === cloud && await bubble.beforeSend() && await remote.beforeSend();

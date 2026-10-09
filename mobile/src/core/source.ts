@@ -7,6 +7,8 @@ import { store } from './store';
 export type CloudKey = 'chatgpt' | 'claude';
 /** The chosen writing source: 'phone' for on-device, a plan provider key ('claude', 'chatgpt', etc.) for cloud, or null when not chosen. */
 export type Source = 'phone' | string | null;
+/** The cloud account a source names, or null for phone, not chosen, or anything else. */
+export const cloudOf = (source: Source | undefined): CloudKey | null => source === 'chatgpt' || source === 'claude' ? source : null;
 export const SOURCE_KEY = 'writer-source';
 export const PHONE_ONLY_KEY = 'chatgpt-phone-only';
 // "Not chosen" on purpose (signed out on a phone that can't write): kept, never migrated again.

@@ -13,7 +13,7 @@ import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, store, type CheckinAnswer, type Outcome } from '../src/core/store';
-import { getSource, isOwnApp, phoneListed, setSource, storedSource, type CloudKey, type Source } from '../src/core/source';
+import { cloudOf, getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
 import { CLAUDE_NAME, claudeSession, NAME, session, type GptState } from '../src/chatgpt/session';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
@@ -157,10 +157,10 @@ export default function Home() {
   const phoneCan = model?.phase !== 'unsupported';
   // Nothing chosen: the card says so and offers the one way that works here, never a dead end.
   const needs = source === null;
-  const viaGpt = source === 'chatgpt';
-  const viaClaude = source === 'claude';
+  const cloud = cloudOf(source);
+  const viaGpt = cloud === 'chatgpt';
+  const viaClaude = cloud === 'claude';
   const viaPhone = source === 'phone';
-  const cloud: CloudKey | null = viaGpt ? 'chatgpt' : viaClaude ? 'claude' : null;
   const cloudState = viaClaude ? claude : gpt;
   const cloudName = viaClaude ? CLAUDE_NAME : NAME;
   // A cloud account chosen but not writing right now: signed out, or resting (in byokit's own words).

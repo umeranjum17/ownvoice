@@ -11,7 +11,7 @@ import * as Voice from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
-import { getSource, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
+import { cloudOf, getSource, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { store } from '../core/store';
 import { cloudWords, SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
@@ -57,10 +57,7 @@ export default function Rewrite() {
   }, []);
 
   /** The consent the cloud rewrite sends under: the chosen source plus the panel's full guard set (sign-in, pause, switch, never mid-sign-out); the sheet works in any app, so no per-app row applies. */
-  const cloud = (): CloudKey | null => {
-    const chosen = store.peek<Source>(SOURCE_KEY);
-    return chosen === 'claude' || chosen === 'chatgpt' ? chosen : null;
-  };
+  const cloud = (): CloudKey | null => cloudOf(store.peek<Source>(SOURCE_KEY));
   const consent = (key: CloudKey): WriterEvents => {
     const guards = cloudConsent(key, null);
     return {
@@ -100,7 +97,7 @@ export default function Rewrite() {
     try {
       const source = await getSource().catch(() => null);
       const canWrite = await phoneCanWrite() !== 'cant';
-      const key: CloudKey | null = source === 'claude' || source === 'chatgpt' ? source : null;
+      const key = cloudOf(source);
       if (stub !== null || key === null) {
         await showResult(await phoneRewrite(), canWrite);
         return;
