@@ -40,7 +40,11 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
     // A successful refusal is not a transport failure: don't ask another writer to polish it.
     if (declined) return { drafts: [], declined: true };
     if (unchanged && !drafts.length) return { drafts, unchanged };
-    if (!drafts.length || (!request.typed.trim() && drafts.length !== 3) || drafts.some(draft => !draft.trim())) throw new Error('empty');
+    // Grow-mode feed replies (a point is set) may fill two or three slots; a repeated, echo or
+    // never-say card is dropped and the retry can still leave fewer, and showing them beats throwing
+    // the whole answer away. A typed-empty request with no point keeps the legacy fixed-three rule.
+    const threeSlots = request.point == null && !request.typed.trim();
+    if (!drafts.length || (threeSlots && drafts.length !== 3) || drafts.some(draft => !draft.trim())) throw new Error('empty');
     return { drafts };
   } catch (error) {
     on?.reset?.();
