@@ -135,6 +135,19 @@ test('acceptReplies drops a card that only echoes their line, so the empty slot 
   expect(acceptReplies(['Ask one sharp question about the post.'], [], 3, 'remove', [], [], '', xSlots)).toEqual([]);
   // An instruction wrapping their own echoed line still drops: only the echo remains.
   expect(acceptReplies(['Push back kindly, with one reason from the post.\nshipping offline notes'], [], 3, 'remove', [], [], 'shipping offline notes', xSlots)).toEqual([]);
+  // A card that is only the prompt's own draft label, or opens with one, is stripped the same
+  // way (live: an agree card whose whole text was "Draft"); a label-only card drops and the
+  // slot is asked once more.
+  expect(acceptReplies(['Draft'], [], 3, 'remove', [], [], '', xSlots)).toEqual([]);
+  expect(acceptReplies(['draft 1'], [], 3, 'remove', [], [], '', xSlots)).toEqual([]);
+  expect(acceptReplies(['Draft 1:'], [], 3, 'remove', [], [], '', xSlots)).toEqual([]);
+  expect(acceptReplies(['Draft 1: It caches every article, so a tunnel cannot stop you.'], [], 3, 'remove', [], [], '', xSlots))
+    .toEqual(['It caches every article, so a tunnel cannot stop you.']);
+  expect(acceptReplies(['Draft 1\nIt caches every article, so a tunnel cannot stop you.'], [], 3, 'remove', [], [], '', xSlots))
+    .toEqual(['It caches every article, so a tunnel cannot stop you.']);
+  // A label before a slot instruction strips both, leaving the reply.
+  expect(acceptReplies(['Draft 1: Agree and add one concrete detail from the post. It caches every article.'], [], 3, 'remove', [], [], '', xSlots))
+    .toEqual(['It caches every article.']);
   // A reply that never quotes an instruction still lands untouched.
   expect(acceptReplies(['Totally agree, the offline cache is the real win.'], [], 3, 'remove', [], [], '', xSlots))
     .toEqual(['Totally agree, the offline cache is the real win.']);

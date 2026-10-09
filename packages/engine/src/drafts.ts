@@ -329,6 +329,18 @@ export const echoKey = (text: string) =>
  * instruction goes, because a swapped slot leaks the same way. A card that is only an
  * instruction then empties out and is dropped, so the per-slot retry re-asks once.
  */
+/**
+ * A card that is only a draft label leaks the prompt's scaffolding, not a reply (seen live:
+ * an agree card whose whole text was "Draft"). Strip a leading label line or prefix - bare
+ * "Draft" or unnumbered/unpunctuated "Draft 1" - the same way; a label-only card empties out
+ * and is dropped, so the per-slot retry re-asks once.
+ */
+function stripDraftLabel(text: string): string {
+  const label = /^\s*(?:draft|option|version)\s*[1-3]?\s*[.):]?\s*/i;
+  const stripped = text.replace(label, '');
+  return stripped === text ? text : stripped.trim();
+}
+
 function stripSlotInstruction(text: string, slots: string[]): string {
   const lines = text.split(/\r?\n/);
   const first = echoKey(lines[0]);
@@ -382,7 +394,7 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
-    const clean = stripSlotInstruction(stripControlLines(text, controls), slots);
+    const clean = stripSlotInstruction(stripDraftLabel(stripControlLines(text, controls)), slots);
     const draft = dashes === 'remove' ? undash(clean) : clean;
     if (!draft || breaks(draft) || echoes(draft) || contradicts(draft, slot)) return;
     if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
