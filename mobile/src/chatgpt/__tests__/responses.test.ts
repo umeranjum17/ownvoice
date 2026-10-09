@@ -1,4 +1,5 @@
 import { ResponseError } from '@byokit/accounts';
+import { Rewrite } from '../../core/judge';
 import { cloudWords, PlanLimit, withPhoneFallback } from '../../core/writers';
 jest.mock('../../core/polish', () => ({
   ...jest.requireActual('../../core/polish'),
@@ -13,6 +14,8 @@ jest.mock('../../core/speller', () => {
   const spell = nspell(fs.readFileSync(`${dictionary}/en-affixes.aff`, 'utf8'), fs.readFileSync(`${dictionary}/en-words.dic`, 'utf8'));
   return { speller: async () => spell };
 });
+// The app's accounts wrapper uses the kit-driven instance once the kit offers providers; these tests drive the fallback instance the mocks below target.
+jest.mock('@byokit/accounts', () => ({ ...jest.requireActual('@byokit/accounts'), offered: () => [] }));
 jest.mock('../accounts', () => {
   const actual = jest.requireActual('../accounts');
   actual.accounts.runtime = jest.fn(async () => ({
@@ -227,7 +230,7 @@ test('a transmitted request that fails stays marked as sent', async () => {
 
 test('a Claude plan limit on a selection rewrite is the plan-limit line', async () => {
   (accounts.respond as jest.Mock).mockRejectedValueOnce(new ResponseError('Claude is over its limit.', 'rate_limit'));
-  const failure = await streamSelectionRewrite('claude', 'Hi there, thanks for the note.', 'Shorter', '').then(() => null, (error: unknown) => error);
+  const failure = await streamSelectionRewrite('claude', 'Hi there, thanks for the note.', Rewrite.TIGHTEN, '').then(() => null, (error: unknown) => error);
   expect(failure).toBeInstanceOf(PlanLimit);
   expect((failure as Error).message).toBe(`${words.claudePlanLimit}.`);
 });

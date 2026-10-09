@@ -22,6 +22,8 @@ jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState
 import { askLocal, localModelState } from '../../core/localModel';
 const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
 const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
+// The app's accounts wrapper uses the kit-driven instance once the kit offers providers; these tests drive the fallback instance the mocks below target.
+jest.mock('@byokit/accounts', () => ({ ...jest.requireActual('@byokit/accounts'), offered: () => [] }));
 jest.mock('../../chatgpt/accounts', () => {
   const actual = jest.requireActual('../../chatgpt/accounts');
   actual.accounts.runtime = jest.fn(async () => ({
