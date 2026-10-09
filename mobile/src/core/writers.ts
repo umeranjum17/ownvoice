@@ -58,7 +58,7 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
   } catch (error) {
     on?.reset?.();
     const limit = error instanceof PlanLimit ? error.message : null;
-    if (phoneStatus === 'cant') throw new Error(limit ?? noPhoneLine(error, lines));
+    if (phoneStatus === 'cant') throw new Error(noPhoneLine(error, lines));
     const message = error instanceof Error ? error.message : String(error);
     const reason = error instanceof SendVeto ? error.message
       : limit ?? (classify(message)?.kind === 'network' ? words.offlinePhone

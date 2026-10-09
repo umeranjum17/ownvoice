@@ -92,7 +92,7 @@ const claudeWords = {
   homeClaude: 'Writes with your Claude.',
   headClaude: 'Your chat goes to Claude only when you tap',
   privacyClaude: 'When you tap the bubble, the chat on screen, what you typed and your writing rules go to Claude. Ownvoice keeps no copy.',
-  switchNoteClaude: 'Ownvoice checks now and then whether Claude is allowed to write. That check carries no name and no message.',
+  switchNoteClaude: 'Ownvoice checks now and then whether its online writers are allowed to write. That check carries no name and no message.',
   claudeSwitchTitle: 'Write with Claude?',
   claudeSwitchBody: 'From now on, when you tap the bubble, the chat on screen and what you typed go to Claude to write your drafts.',
   claudeSwitchYes: 'Switch to Claude',

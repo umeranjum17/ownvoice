@@ -117,10 +117,10 @@ export default function Rewrite() {
           try { shown = await showResult(await phoneRewrite(), true); }
           catch (fallback) { if (id !== run.current) return; setNote(message(errorCode(fallback))); return; }
           if (!shown || id !== run.current) return;
-          setNote(veto ?? limit ?? (offline ? words.offlinePhone : lines.fallback));
+          setNote(veto ?? (offline ? words.offlinePhone : lines.fallback));
           return;
         }
-        setNote(veto ? lines.offNoPhone : limit ?? (offline ? words.offlineNoPhone : lines.failedNoPhone));
+        setNote(veto ? lines.offNoPhone : (offline ? words.offlineNoPhone : lines.failedNoPhone));
       }
     } catch (error) {
       if (id !== run.current) return;

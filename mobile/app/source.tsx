@@ -9,7 +9,7 @@ import { PhoneWriter } from '../src/ui/PhoneWriter';
 import { Row } from '../src/ui/Row';
 import { Sheet } from '../src/ui/Sheet';
 import { SourceOption } from '../src/ui/SourceOption';
-import { ChatIcon, CheckIcon, ChevIcon, ClaudeIcon, EyeIcon, LockIcon, PhoneIcon } from '../src/ui/icons';
+import { ChatIcon, CheckIcon, ChevIcon, EyeIcon, LockIcon, PhoneIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
@@ -92,8 +92,8 @@ export default function SourceScreen() {
   const connectClaude = () => {
     const text = pasted.trim();
     if (!text || signIn?.key !== 'claude') return;
-    try { require('../src/chatgpt/accounts').paste('claude', text); } catch { setProblem(words.claudePasteFailed); return; }
-    setPasted('');
+    require('../src/chatgpt/accounts').paste('claude', text)
+      .then(() => setPasted(''), () => setProblem(words.claudePasteFailed));
   };
 
   const leaveSignIn = () => {
@@ -263,7 +263,7 @@ export default function SourceScreen() {
   // Each reads as a short headline first, with the full sentence under it; the read log opens its own screen.
   const notes: [typeof LockIcon, string, string, (() => void)?][] = [
     ...(chosen === 'chatgpt' ? [[LockIcon, words.headGpt, words.privacyGpt], [ChatIcon, words.headSwitch, words.switchNote]] as [typeof LockIcon, string, string][]
-      : chosen === 'claude' ? [[LockIcon, words.headClaude, words.privacyClaude], [ClaudeIcon, words.headSwitch, words.switchNoteClaude]] as [typeof LockIcon, string, string][]
+      : chosen === 'claude' ? [[LockIcon, words.headClaude, words.privacyClaude], [ChatIcon, words.headSwitch, words.switchNoteClaude]] as [typeof LockIcon, string, string][]
       : chosen === 'phone' ? [[LockIcon, words.headPhone, words.privacyPhone]] as [typeof LockIcon, string, string][] : []),
     [EyeIcon, words.headReads, words.readsNote, () => router.push('/reads')],
   ];
@@ -283,7 +283,7 @@ export default function SourceScreen() {
         <SourceOption icon={icon(ChatIcon)} title={words.srcGpt} subtitle={words.srcGptSub} selected={source === 'chatgpt' || signIn?.key === 'chatgpt'} onPress={pickChatGpt}>
           {gptBody}
         </SourceOption>
-        <SourceOption icon={icon(ClaudeIcon)} title={words.srcClaude} subtitle={words.srcGptSub} selected={source === 'claude' || signIn?.key === 'claude'} onPress={pickClaude}>
+        <SourceOption icon={icon(ChatIcon)} title={words.srcClaude} subtitle={words.srcGptSub} selected={source === 'claude' || signIn?.key === 'claude'} onPress={pickClaude}>
           {claudeBody}
         </SourceOption>
       </View>}
