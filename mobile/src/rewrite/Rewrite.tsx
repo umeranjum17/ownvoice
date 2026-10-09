@@ -13,7 +13,7 @@ import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { cloudOf, getSource, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { store } from '../core/store';
-import { cloudWords, SendVeto, type WriterEvents } from '../core/writers';
+import { cloudWords, PlanLimit, SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
 import { preserveFragment, cleanSelection } from '../core/drafts';
 import { fixedSentenceSplits } from '../core/typing';
@@ -109,15 +109,16 @@ export default function Rewrite() {
         if (id !== run.current) return;
         const veto = error instanceof SendVeto ? error.message : null;
         const offline = classify(error instanceof Error ? error.message : String(error))?.kind === 'network';
+        const limit = error instanceof PlanLimit ? error.message : null;
         if (canWrite) {
           let shown = false;
           try { shown = await showResult(await phoneRewrite(), true); }
           catch (fallback) { if (id !== run.current) return; setNote(message(errorCode(fallback))); return; }
           if (!shown || id !== run.current) return;
-          setNote(veto ?? (offline ? words.offlinePhone : lines.fallback));
+          setNote(veto ?? limit ?? (offline ? words.offlinePhone : lines.fallback));
           return;
         }
-        setNote(veto ? lines.offNoPhone : offline ? words.offlineNoPhone : lines.failedNoPhone);
+        setNote(veto ? lines.offNoPhone : limit ?? (offline ? words.offlineNoPhone : lines.failedNoPhone));
       }
     } catch (error) {
       if (id !== run.current) return;

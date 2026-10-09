@@ -1,4 +1,5 @@
-import { cloudWords, withPhoneFallback } from '../../core/writers';
+import { ResponseError } from '@byokit/accounts';
+import { cloudWords, PlanLimit, withPhoneFallback } from '../../core/writers';
 jest.mock('../../core/polish', () => ({
   ...jest.requireActual('../../core/polish'),
   canPolish: jest.fn(async () => true),
@@ -222,6 +223,13 @@ test('a transmitted request that fails stays marked as sent', async () => {
     expect(accounts.failed).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(expect.stringContaining('kind=rate_limit'));
   } finally { global.fetch = originalFetch; log.mockRestore(); }
+});
+
+test('a Claude plan limit on a selection rewrite is the plan-limit line', async () => {
+  (accounts.respond as jest.Mock).mockRejectedValueOnce(new ResponseError('Claude is over its limit.', 'rate_limit'));
+  const failure = await streamSelectionRewrite('claude', 'Hi there, thanks for the note.', 'shorter', '').then(() => null, (error: unknown) => error);
+  expect(failure).toBeInstanceOf(PlanLimit);
+  expect((failure as Error).message).toBe(words.claudePlanLimit);
 });
 
 test('a network failure throws without the no-answer log', async () => {

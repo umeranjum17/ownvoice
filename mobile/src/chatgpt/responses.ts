@@ -57,6 +57,10 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
     if (error instanceof SendVeto) throw error;
     if (signal?.aborted) throw error;
     if (error instanceof IncompleteError) throw new Error(cloudWords(cloud).failedNoPhone);
+    // The kit's wrapped message is generic; its ResponseError keeps the real kind, so a plan
+    // limit (rate limit) is told apart from a sign-out and the phone writes instead.
+    const planLimit = cloudWords(cloud).planLimit;
+    if (error instanceof ResponseError && error.kind === 'rate_limit' && planLimit) throw new PlanLimit(planLimit);
     const message = error instanceof Error ? error.message : String(error);
     if (!started && classify(message)?.kind !== 'network') {
       if (__DEV__) console.log(`Ownvoice ${cloud} pre-dispatch failure: ${message}`);
@@ -86,6 +90,7 @@ export const streamSelectionRewrite = (cloud: CloudKey, text: string, how: Rewri
   ask(cloud, selectionRewritePrompt(text, how, guide), REWRITE_INSTRUCTIONS, 'text', 1, on).then(([line]) => line ?? '');
 
 const accountFailure = (error: unknown) => {
+  if (error instanceof PlanLimit) return true;
   const message = error instanceof Error ? error.message : String(error);
   const kind = error instanceof ResponseError ? error.kind ?? classify(message)?.kind : classify(message)?.kind;
   return kind != null && kind !== 'network';
@@ -199,18 +204,14 @@ export function cloudWriter(cloud: CloudKey): Writer {
       try {
         return request.typed.trim() ? await polish(cloud, request, on) : { drafts: await replies(cloud, request, on) };
       } catch (error) {
-        if (error instanceof SendVeto) throw error;
+        if (error instanceof SendVeto || error instanceof PlanLimit) throw error;
         const message = error instanceof Error ? error.message : String(error);
         const kind = classify(message)?.kind;
         if (kind === 'network') throw error;
         // Developer log only, never on screen: the panel line stays plain while the
         // next QA can tell a refusal from a dead stream in logcat.
         console.log(`Ownvoice ${cloud} no-answer kind=${kind ?? 'unknown'} message=${message}`);
-        const lines = cloudWords(cloud);
-        // The kit's wrapped message is generic; its ResponseError keeps the real kind, so a plan
-        // limit (rate limit) is told apart from a sign-out and the phone writes instead.
-        if (error instanceof ResponseError && error.kind === 'rate_limit' && lines.planLimit) throw new PlanLimit(lines.planLimit);
-        throw new Error(lines.failedNoPhone);
+        throw new Error(cloudWords(cloud).failedNoPhone);
       }
     },
   };
