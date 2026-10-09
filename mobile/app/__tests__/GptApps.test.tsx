@@ -12,7 +12,7 @@ jest.mock('../../src/chatgpt/session', () => ({
   GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
-  session: { current: jest.fn(async () => ({ signedIn: true })) },
+  accountSessions: { chatgpt: { session: { current: jest.fn(async () => ({ signedIn: true })) } } },
 }));
 
 jest.mock('../../modules/ownvoice-native', () => ({

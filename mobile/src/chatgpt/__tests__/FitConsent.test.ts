@@ -7,7 +7,8 @@ import { judgeFit, rated, LEVELS, UNSURE } from '../../grow/fit';
 import { platformForApp } from '../../core/platforms';
 import Native from '../../../modules/ownvoice-native';
 import { signOut } from '../accounts';
-import { session } from '../session';
+import { accountSessions } from '../session';
+const session = accountSessions.chatgpt.session;
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,

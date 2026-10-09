@@ -2,7 +2,8 @@ import { getSource, PHONE_ONLY_KEY, phoneOnly, setSource, SOURCE_KEY, storedSour
 import { CHATGPT_DEFAULT_OFF } from '../privacy';
 import { store } from '../store';
 import Native from '../../../modules/ownvoice-native';
-import { session } from '../../chatgpt/session';
+import { accountSessions } from '../../chatgpt/session';
+const session = accountSessions.chatgpt.session;
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
@@ -10,7 +11,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({
 }));
 jest.mock('../../chatgpt/session', () => ({
   GPT_APPS_KEY: 'chatgpt-apps',
-  session: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })) },
+  accountSessions: { chatgpt: { session: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })) } } },
 }));
 
 const native = Native as jest.Mocked<typeof Native>;

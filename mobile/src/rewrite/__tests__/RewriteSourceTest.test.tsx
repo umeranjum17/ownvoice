@@ -9,7 +9,8 @@ import { words } from '../../core/words';
 import { CHATGPT_OFF } from '../../core/switch';
 import { SOURCE_KEY } from '../../core/source';
 import { store } from '../../core/store';
-import { session } from '../../chatgpt/session';
+import { accountSessions } from '../../chatgpt/session';
+const session = accountSessions.chatgpt.session;
 import { wipeVoice } from '../../core/voiceStore';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
@@ -34,8 +35,7 @@ jest.mock('../../chatgpt/accounts', () => {
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => (global.fetch as typeof fetch)(...args) }));
 jest.mock('../../chatgpt/session', () => ({
   signOutGuard: () => ({ active: false, epoch: 0 }),
-  sessionNow: () => ({ signedIn: true }),
-  session: { current: jest.fn(async () => ({ signedIn: true })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
+  accountSessions: { chatgpt: { session: { current: jest.fn(async () => ({ signedIn: true })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: () => ({ signedIn: true }) } },
 }));
 
 const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock; bubbleRules: jest.Mock };

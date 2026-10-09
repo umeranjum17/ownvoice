@@ -1,5 +1,6 @@
 import { Accounts, memoryStore } from '@byokit/accounts';
-import { stateOf, nothing, session } from '../session';
+import { stateOf, nothing, accountSessions } from '../session';
+const session = accountSessions.chatgpt.session;
 import { store } from '../../core/store';
 
 jest.mock('../accounts', () => {

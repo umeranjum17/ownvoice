@@ -5,8 +5,8 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: {} }));
 jest.mock('../../core/source', () => ({
   getSource: jest.fn(async () => 'chatgpt'),
-  cloudSession: () => require('../../chatgpt/session').session,
-  cloudNow: () => require('../../chatgpt/session').sessionNow(),
+  cloudSession: () => require('../../chatgpt/session').accountSessions.chatgpt.session,
+  cloudNow: () => require('../../chatgpt/session').accountSessions.chatgpt.now(),
 }));
 jest.mock('../../core/store', () => {
   const values = new Map<string, unknown>();
@@ -18,8 +18,7 @@ jest.mock('../../core/store', () => {
 });
 jest.mock('../../chatgpt/session', () => ({
   mocked: false,
-  session: { current: jest.fn(async () => ({ signedIn: true })) },
-  sessionNow: jest.fn(() => ({ signedIn: true })),
+  accountSessions: { chatgpt: { session: { current: jest.fn(async () => ({ signedIn: true })) }, now: jest.fn(() => ({ signedIn: true })) } },
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
 }));
 jest.mock('../../chatgpt/accounts', () => ({

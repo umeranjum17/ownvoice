@@ -3,7 +3,8 @@ import { Linking } from 'react-native';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import Source from '../source';
-import { session, nothing, type GptState } from '../../src/chatgpt/session';
+import { accountSessions, nothing, type GptState } from '../../src/chatgpt/session';
+const session = accountSessions.chatgpt.session;
 import { setSource, storedSource } from '../../src/core/source';
 import { words, technicalWords } from '../../src/core/words';
 import Native from '../../modules/ownvoice-native';
@@ -16,11 +17,11 @@ jest.mock('../../src/chatgpt/session', () => ({
   GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
   nothing: { signedIn: false, waiting: false, code: null, url: null, note: null, resting: null },
-  sessionNow: jest.fn(() => ({ signedIn: false })),
-  claudeNow: jest.fn(() => ({ signedIn: false })),
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
-  session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
-  claudeSession: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
+  accountSessions: {
+    chatgpt: { session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
+    claude: { session: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
+  },
 }));
 jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,

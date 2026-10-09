@@ -131,9 +131,7 @@ const tracked = (underlying: Session) => {
   return { session, now: () => last };
 };
 
-const chatgpt = tracked(mocked ? mock : accountSession('chatgpt'));
-const claude = tracked(accountSession('claude'));
-export const sessionNow = chatgpt.now;
-export const session = chatgpt.session;
-export const claudeNow = claude.now;
-export const claudeSession = claude.session;
+export const accountSessions: Record<CloudKey, { session: Session; now: () => GptState }> = {
+  chatgpt: tracked(mocked ? mock : accountSession('chatgpt')),
+  claude: tracked(accountSession('claude')),
+};

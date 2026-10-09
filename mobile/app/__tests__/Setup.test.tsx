@@ -7,7 +7,8 @@ import Setup from '../setup';
 import Home from '../index';
 import Native from '../../modules/ownvoice-native';
 import { words, technicalWords } from '../../src/core/words';
-import { session, nothing, type GptState } from '../../src/chatgpt/session';
+import { accountSessions, nothing, type GptState } from '../../src/chatgpt/session';
+const session = accountSessions.chatgpt.session;
 import { AGREED_KEY } from '../../src/core/phoneDownload';
 
 jest.mock('../../modules/ownvoice-native', () => ({
@@ -18,10 +19,10 @@ jest.mock('../../modules/ownvoice-native', () => ({
     openAccessibilitySettings: jest.fn(), openAppInfo: jest.fn(), addListener: jest.fn(), copy: jest.fn(), typingCheck: jest.fn(async () => false),
   },
 }));
-jest.mock('../../src/chatgpt/session', () => ({
-  ...jest.requireActual('../../src/chatgpt/session'),
-  session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
-}));
+jest.mock('../../src/chatgpt/session', () => {
+  const actual = jest.requireActual('../../src/chatgpt/session');
+  return { ...actual, accountSessions: { ...actual.accountSessions, chatgpt: { ...actual.accountSessions.chatgpt, session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() } } } };
+});
 
 const native = Native as jest.Mocked<typeof Native>;
 jest.mock('../../src/core/localModel', () => ({
