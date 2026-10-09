@@ -254,7 +254,7 @@ export default function SourceScreen() {
             {indent(say('status.needsAgain', { name: CLAUDE_NAME }))}
             <View style={styles.indent}><Button kind="filled" label={words.claudeButton} onPress={() => beginSignIn('claude')} /></View>
           </>}
-        {phoneCan && indent(claudeResting || !claude?.signedIn ? words.restingPhone : words.phoneBackup, t.muted)}
+        {phoneCan && indent(claudeResting || !claude?.signedIn ? words.restingPhone : words.claudePhoneBackup, t.muted)}
         {claude?.signedIn && <View style={styles.signOut}><Button kind="text" label={words.claudeSignOut} onPress={() => signOut('claude')} /></View>}
       </>
       : null;

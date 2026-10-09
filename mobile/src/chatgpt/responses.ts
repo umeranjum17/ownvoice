@@ -7,7 +7,7 @@ import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, rep
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, writerVersions, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
 import { canPolish, polishAcceptor } from '../core/polish';
-import { cloudWords, SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
+import { cloudWords, PlanLimit, SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 import type { CloudKey } from '../core/source';
 
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
@@ -206,7 +206,11 @@ export function cloudWriter(cloud: CloudKey): Writer {
         // Developer log only, never on screen: the panel line stays plain while the
         // next QA can tell a refusal from a dead stream in logcat.
         console.log(`Ownvoice ${cloud} no-answer kind=${kind ?? 'unknown'} message=${message}`);
-        throw new Error(cloudWords(cloud).failedNoPhone);
+        const lines = cloudWords(cloud);
+        // The kit's wrapped message is generic; its ResponseError keeps the real kind, so a plan
+        // limit (rate limit) is told apart from a sign-out and the phone writes instead.
+        if (error instanceof ResponseError && error.kind === 'rate_limit' && lines.planLimit) throw new PlanLimit(lines.planLimit);
+        throw new Error(lines.failedNoPhone);
       }
     },
   };

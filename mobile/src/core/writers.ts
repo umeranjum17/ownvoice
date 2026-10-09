@@ -16,6 +16,8 @@ export type WriterEvents = { state?: (state: WriterState) => void; landed?: (tex
 export type Choice = { drafts: string[]; reason?: string; unchanged?: boolean; declined?: boolean };
 export interface Writer { write(request: DraftRequest, on?: WriterEvents): Promise<Choice> }
 export class SendVeto extends Error {}
+/** The account's plan limit (a rate limit) was reached: the phone writes instead, with the plan's own line. */
+export class PlanLimit extends Error {}
 
 /** No writer chosen yet: the panel says to choose first instead of drafting. */
 export const needWriter: Writer = { write: async () => { throw new Error(words.needWriterPanel); } };
@@ -27,14 +29,15 @@ export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.of
 export const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });
 
 /** The plain lines one cloud provider's route says; ChatGPT's stay the exact shipped strings. */
-export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string };
+export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string };
 export const cloudWords = (key: CloudKey): CloudWords => key === 'claude'
-  ? { off: words.claudeOff, offNoPhone: words.claudeOffNoPhone, failedNoPhone: words.claudeFailed, fallback: words.claudeFallback, needNote: words.claudeNeedNote, switchUnavailable: words.claudeSwitchUnavailable }
+  ? { off: words.claudeOff, offNoPhone: words.claudeOffNoPhone, failedNoPhone: words.claudeFailed, fallback: words.claudeFallback, needNote: words.claudeNeedNote, switchUnavailable: words.claudeSwitchUnavailable, planLimit: words.claudePlanLimit }
   : { off: CHATGPT_OFF, offNoPhone: words.gptOffNoPhone, failedNoPhone: words.gptFailedNoPhone, fallback: words.fallback, needNote: words.needWriterNote, switchUnavailable: words.switchUnavailable };
 
 /** The one plain line for a failed cloud call on a phone that cannot write instead. */
 export function noPhoneLine(error: unknown, lines: CloudWords): string {
   const message = error instanceof Error ? error.message : String(error);
+  if (error instanceof PlanLimit) return message;
   if (error instanceof SendVeto && message === lines.off) return lines.offNoPhone;
   if (classify(message)?.kind === 'network') return words.offlineNoPhone;
   return lines.failedNoPhone;
@@ -57,6 +60,7 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
     if (phoneStatus === 'cant') throw new Error(noPhoneLine(error, lines));
     const message = error instanceof Error ? error.message : String(error);
     const reason = error instanceof SendVeto ? error.message
+      : error instanceof PlanLimit ? error.message
       : classify(message)?.kind === 'network' ? words.offlinePhone
       : (await fallbackNote?.().catch(() => null)) ?? lines.fallback;
     on?.fallback?.();
