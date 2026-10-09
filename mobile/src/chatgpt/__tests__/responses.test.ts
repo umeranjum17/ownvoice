@@ -543,7 +543,9 @@ test('reply retries accept the requested one-slot JSON array', async () => {
     .mockResolvedValueOnce(response(['Yes please']))
     .mockResolvedValueOnce(response(['What time?']));
   try {
-    await expect(chatgptWriter.write({ conversation: 'Sam: Saturday?', written: 'Sam: Saturday?', typed: '' })).resolves.toEqual({ drafts: ['No thanks', 'Yes please', 'What time?'] });
+    // The all-decline first answer cannot fill the "Say yes" slot, so it is re-asked; the decline
+    // lands in its own slot, keeping every card true to its label.
+    await expect(chatgptWriter.write({ conversation: 'Sam: Saturday?', written: 'Sam: Saturday?', typed: '' })).resolves.toEqual({ drafts: ['Yes please', 'No thanks', 'What time?'] });
     expect(global.fetch).toHaveBeenCalledTimes(3);
   } finally { global.fetch = originalFetch; }
 });

@@ -123,6 +123,20 @@ test('acceptReplies drops a card that only echoes their line, so the empty slot 
 
 // ---- 5.2 Keep the writer's formatting ----
 
+test('acceptReplies drops a card that contradicts its label, so that slot is asked once more', () => {
+  const slots = ['Say yes or agree, and answer each point.', 'Give a different answer: decline or suggest a change, kindly.', 'Not sure yet: a short honest reply that asks the one thing needed.'];
+  // A decline word in the say-yes slot is dropped; a real decline in the decline slot lands.
+  expect(acceptReplies(['Draft 1: No, sorry, that does not work.'], [], 3, 'remove', [], [], '', slots)).toEqual([]);
+  expect(acceptReplies(['Draft 2: No, sorry, that does not work.'], [], 3, 'remove', [], [], '', slots)).toEqual([null, 'No, sorry, that does not work.']);
+  // An agreement in the decline slot is dropped; a soft alternative that states a real fact is kept.
+  expect(acceptReplies(['Draft 2: Yes, Saturday works!'], [], 3, 'remove', [], [], '', slots)).toEqual([]);
+  expect(acceptReplies(['Draft 2: Saturday is tricky, could we do Sunday?'], [], 3, 'remove', [], [], '', slots)).toEqual([null, 'Saturday is tricky, could we do Sunday?']);
+  // The ask slot is never judged: a refusal there is a legitimate honest answer.
+  expect(acceptReplies(['Draft 3: No, not sure yet.'], [], 3, 'remove', [], [], '', slots)).toEqual([null, null, 'No, not sure yet.']);
+});
+
+// ---- 5.2 Keep the writer's formatting ----
+
 test('layoutKept: a list stays a list with the same markers', () => {
   const qa = 'I can bring the stove.\n1. I will bring the stove.\n2. You can bring the tent.';
   expect(layoutKept(qa, 'I can bring the stove.\n1. I will bring the stove.\n2. You can bring the tent.')).toBe(true);
