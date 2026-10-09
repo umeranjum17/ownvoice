@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Share, View } from 'react-native';
+import { Linking, Share, View } from 'react-native';
 import { classify } from '@byokit/accounts';
 import Native from '../../modules/ownvoice-native';
 import { askLocal } from '../core/localModel';
@@ -13,7 +13,7 @@ import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { cloudOf, getSource, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { store } from '../core/store';
-import { cloudWords, PlanLimit, SendVeto, type WriterEvents } from '../core/writers';
+import { cloudWords, isPlanLimitLine, PlanLimit, SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
 import { preserveFragment, cleanSelection } from '../core/drafts';
 import { fixedSentenceSplits } from '../core/typing';
@@ -131,6 +131,8 @@ export default function Rewrite() {
   };
 
   const exportBlocked = result?.meaning?.ok === false;
+  /** A plan limit is not stuck: leave for the writer list so the person can pick another writer. */
+  const openSource = () => { void Linking.openURL('ownvoice://source').catch(() => {}).finally(() => { void Native.finishRewrite(null, false).catch(() => {}); }); };
   const enabled = !!input?.text.trim();
   return <Sheet title="Make it better" note={enabled ? note : undefined} mood={enabled ? (busy ? 'thinking' : result ? 'ready' : 'idle') : undefined} onClose={() => { void Native.finishRewrite(null, false); }}>
     {!enabled ? (input ? <Empty mood="check" text={note} /> : null) : <>
@@ -138,6 +140,7 @@ export default function Rewrite() {
       <View style={{ marginVertical: space.m }}>
         <Choices options={Object.values(Judge.Rewrite)} value={choice} onPick={how => { void rewrite(how); }} />
       </View>
+      {isPlanLimitLine(note) ? <View style={{ marginBottom: space.m }}><Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /></View> : null}
       {busy ? <Placeholder /> : null}
       {result ? <>
         <Card variant="outlined" label={choice ?? undefined}>

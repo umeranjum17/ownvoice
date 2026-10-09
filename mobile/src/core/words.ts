@@ -98,6 +98,7 @@ const claudeWords = {
   claudeSwitchYes: 'Switch to Claude',
   claudePhoneBackup: "If Claude can't answer, this phone writes instead.",
   claudePlanLimit: 'Claude limit reached',
+  claudeChooseWriter: 'Choose another writer',
   claudeFailed: "Claude didn't answer this time.",
   claudeFallback: "Claude didn't answer. This phone wrote these instead.",
   claudeOff: 'Claude is turned off for now. This phone wrote these.',

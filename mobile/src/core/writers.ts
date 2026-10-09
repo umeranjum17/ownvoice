@@ -28,6 +28,9 @@ export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.of
 /** A writer that never drafts: the panel shows its line instead. */
 export const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });
 
+/** Whether a shown line is a cloud plan limit: the person can still pick another writer. */
+export const isPlanLimitLine = (line: string | null | undefined): boolean => !!line && line.startsWith(words.claudePlanLimit);
+
 /** The plain lines one cloud provider's route says; ChatGPT's stay the exact shipped strings. */
 export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string };
 export const cloudWords = (key: CloudKey): CloudWords => key === 'claude'

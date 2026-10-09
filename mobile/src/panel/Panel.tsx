@@ -17,7 +17,7 @@ import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
-import { retryLines, type Writer, type WriterRoute } from '../core/writers';
+import { isPlanLimitLine, retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
@@ -55,6 +55,8 @@ type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
 /** Lines only Ownvoice itself can fix (choosing a writer, signing in, the phone's one-time download): the panel offers to open it. */
 const opensApp: Set<string> = new Set([words.needWriterPanel, words.needWriterNote, words.phoneOnlyCant, words.readyPanel]);
 const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
+/** A plan limit is not stuck: open the writer list so the person can pick another writer. */
+const openSource = () => { void Linking.openURL('ownvoice://source').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
 
 /** Prefill hand-off: the app's own compose opens with this text, or the share
  *  sheet when it has no compose link; either way the person presses Send. */
@@ -582,9 +584,13 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       ? <Empty text={mainNote}>
         {phase === 'ready' && !declined && mode !== 'empty' && mode !== 'own' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
         {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
+        {phase === 'failed' && isPlanLimitLine(mainNote) ? <Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
       </Empty>
       : null}
-    {reason && shown.length ? <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{reason}</Text> : null}
+    {reason && shown.length ? <>
+      <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{reason}</Text>
+      {isPlanLimitLine(reason) ? <Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
+    </> : null}
   </Sheet>;
 }
 
