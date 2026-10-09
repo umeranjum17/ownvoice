@@ -89,7 +89,9 @@ test('a fit request marks its own tap Sent through the read-log hooks it was giv
   try {
     const [backend] = fitBackends('com.twitter.android', { on: { sent, unsent }, fetch: fetcher });
     await expect(backend.ask({}, {}, new AbortController().signal)).rejects.toThrow();
-    expect(sent).toHaveBeenCalledTimes(1);
+    // decide retries HTTP 429, so each dispatched request is a real send and gets its own read-log mark.
+    expect(fetcher.mock.calls.length).toBeGreaterThan(1);
+    expect(sent).toHaveBeenCalledTimes(fetcher.mock.calls.length);
     expect(unsent).not.toHaveBeenCalled();
   } finally { log.mockRestore(); }
 });
