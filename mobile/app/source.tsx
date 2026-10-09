@@ -251,9 +251,8 @@ export default function SourceScreen() {
       {source !== undefined && phone !== null && <View style={styles.options} accessibilityRole="radiogroup">
         {phone === 'cant'
           ? <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable
-            reason={chosen === 'claude' && !stays?.length ? undefined : <>
-              <Text style={[type.note, styles.indent, { color: t.text }]}>{chosen === 'claude' ? words.claudeCantWriteNote : words.phoneCantWhy}</Text>
-              {chosen === 'claude' && <Text style={[type.note, styles.indent, { color: t.muted }]}>{words.claudeCantWriteFix}</Text>}
+            reason={<>
+              <Text style={[type.note, styles.indent, { color: t.text }]}>{words.phoneCantWhy}</Text>
               {chosen !== 'chatgpt' && chosen !== 'claude' && !signIn && <View style={styles.indent}><Button kind="filled" label={words.gptButton} onPress={pickChatGpt} /></View>}
             </>} />
           : <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneSub} selected={source === 'phone' && !signIn} onPress={pickPhone}>
