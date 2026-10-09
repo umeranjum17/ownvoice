@@ -229,7 +229,7 @@ test('a Claude plan limit on a selection rewrite is the plan-limit line', async 
   (accounts.respond as jest.Mock).mockRejectedValueOnce(new ResponseError('Claude is over its limit.', 'rate_limit'));
   const failure = await streamSelectionRewrite('claude', 'Hi there, thanks for the note.', 'Shorter', '').then(() => null, (error: unknown) => error);
   expect(failure).toBeInstanceOf(PlanLimit);
-  expect((failure as Error).message).toBe(words.claudePlanLimit);
+  expect((failure as Error).message).toBe(`${words.claudePlanLimit}.`);
 });
 
 test('a network failure throws without the no-answer log', async () => {
