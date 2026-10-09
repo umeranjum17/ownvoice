@@ -112,7 +112,8 @@ const accountSession = (key: CloudKey): Session => {
     },
     signOut: () => leaving(key, async () => {
       if (key === 'chatgpt') {
-        try { store.set(GPT_APPS_KEY, null); } catch {}
+        // Best effort: the kit's signOut below revokes the account, and start() clears any consent this could not.
+        try { store.set(GPT_APPS_KEY, null); } catch { /* sign-out must still revoke when storage fails */ }
       }
       await live().signOut(key);
       return { ...nothing, note: say('status.signedOut', { name }) };

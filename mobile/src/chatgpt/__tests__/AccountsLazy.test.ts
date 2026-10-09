@@ -75,11 +75,15 @@ test('an empty kit list keeps the fallback until plans appear', () => {
   expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt']);
 });
 
-test('ChatGPT sign-in addresses the chatgpt plan', () => {
+test('ChatGPT sign-in, status and cancel address the chatgpt plan', () => {
   const { accounts, mocked } = load();
   mocked.offered.mockReturnValue([{ key: 'claude' }, { key: 'chatgpt' }]);
   accounts.signIn('chatgpt');
+  accounts.status('chatgpt');
+  accounts.cancelSignIn('chatgpt');
   expect(mocked.__calls).toContainEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'code' }] });
+  expect(mocked.__calls).toContainEqual({ method: 'status', args: ['owner', 'chatgpt'] });
+  expect(mocked.__calls).toContainEqual({ method: 'cancel', args: ['owner', 'chatgpt'] });
 });
 
 test('a generic plan addresses its own provider key', () => {
