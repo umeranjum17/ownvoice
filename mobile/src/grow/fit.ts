@@ -41,9 +41,8 @@ export async function judgeFit(o: { post: string; candidates: string[]; platform
     const f = a[`fit_${i}`];
     const v = a[`voice_${i}`];
     // A failed, vetoed or slow backend abstains with no probabilities: nothing was judged.
-    const voice = !v || (v.abstained && !v.probabilities) || v.abstained ? null : v.answer === true;
-    if (!f || (f.abstained && !f.probabilities)) return { ...abstain(), voice };
-    if (f.abstained) return { ...abstain(), voice };
+    const voice = !v || v.abstained ? null : v.answer === true;
+    if (!f || f.abstained) return { ...abstain(), voice };
     const level = Number(f.answer);
     return { level, words: LEVELS[level], probability: f.probabilities?.[String(level)] ?? f.confidence, voice };
   });
