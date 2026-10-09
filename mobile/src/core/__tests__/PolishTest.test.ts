@@ -18,6 +18,24 @@ test('original-point admission requires an explicit clear answer, never a fluent
   expect(await canPolish('autosave locally and make export easy.', async () => 'CLEAR')).toBe(true);
 });
 
+// Live phone 2026-10-09 (a4b93ea2, Qwen2.5-1.5B): the old point-check prompt answered UNCLEAR for
+// 'see you at 6' and 'will do', so the panel refused short everyday replies. The fix declines wordless
+// input mechanically and asks the writer a narrow real-message-or-mash question with a few examples.
+test('a message with no words is declined without asking the writer', async () => {
+  const ask = jest.fn(async () => 'CLEAR');
+  for (const text of ['\u{1F44D}', '...?!', '   ', '\u{1F389}\u{1F388}']) expect(await canPolish(text, ask)).toBe(false);
+  expect(ask).not.toHaveBeenCalled();
+});
+
+test('the clarity question admits short everyday replies and declines keyboard mash', async () => {
+  const prompts: string[] = [];
+  const answer = (raw: string) => async (prompt: string) => { prompts.push(prompt); return raw; };
+  for (const text of ['see you at 6', 'got it, thanks', 'will do']) expect(await canPolish(text, answer('CLEAR'))).toBe(true);
+  for (const text of ['asdf qwer zxcv', 'qwerty asdf zxcvb']) expect(await canPolish(text, answer('UNCLEAR'))).toBe(false);
+  expect(prompts[0]).toContain(`Text:\nsee you at 6`);
+  expect(prompts[0]).toMatch(/keyboard mash/i);
+});
+
 // Main279 actual SHORTER capture, candidate 54df2b7: a newly split sentence kept lowercase.
 test.each(['accept', 'fix'] as const)('polish %s cases the captured newly split sentence before showing it', async method => {
   const acceptor = await polishAcceptor('autosave locally and make export easy.', 'keep', [], spell);
