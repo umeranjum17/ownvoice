@@ -24,3 +24,4 @@ Drive the grow-mode journey the way `mobile/e2e/jev-proof.mjs` sets it up: a sel
 - A forced stop unbinds the accessibility service; re-enable `enabled_accessibility_services` and check `accessibility_enabled` is 1 before reading the bubble (see [Android developer notes](../../../../mobile/README.md#android-build-and-device-checks)).
 - `uiautomator dump` unbinds the service; use the driver's probe, which sets `FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES`.
 - This proof drives the ChatGPT route; it does not prove the on-device model's prose quality (that is the writer eval gate).
+- The cloud writer needs a signed-in plan with quota. A plan at its usage limit (for example the ChatGPT test plan, `kind=rate_limit` in logcat) leaves the panel on the phone-writer message, so the draft generation half cannot be captured until the limit resets or another provider is wired; the never-say **mark** on the person's own text still renders and can be captured.
