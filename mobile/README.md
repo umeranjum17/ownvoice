@@ -87,7 +87,7 @@ By default the fit runs on the person's **signed-in ChatGPT plan** through the s
 stand-in proofs set. `fitBackends(app)` in `src/chatgpt/settings.ts` sends only under the
 same consent as a ChatGPT send for that app (source, visibility, pause, phone-only,
 sign-out epoch, remote switch), checked again at dispatch. Drafts the phone wrote are
-never sent.
+never sent. The fit uses the same ChatGPT plan as the writer, so a rate limit on either pauses both until the plan recovers.
 
 A reply typed under an X, LinkedIn or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
 the writer gets their text as `point` (with `typed` empty) so the replies start from it,

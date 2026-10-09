@@ -155,6 +155,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [fits, setFits] = useState<Map<string, Fit>>(new Map());
   const fitFor = useRef(0);
   const leaves = useRef(false);
+  const shownOnPhone = useRef(false);
   const [limited, setLimited] = useState(false);
   const [spelling, setSpelling] = useState<{ text: string; slips: Typing.Slip[] }>({ text: '', slips: [] });
   const slips = yours?.text === spelling.text ? spelling.slips : [];
@@ -224,6 +225,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setFits(new Map());
     fitFor.current = 0;
     leaves.current = false;
+    shownOnPhone.current = false;
     setUnchanged(false);
     setDeclined(false);
     setReason(null);
@@ -300,7 +302,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           },
         });
         if (run.current !== id) return;
-        if (choice.onPhone) leaves.current = false;
+        shownOnPhone.current = !!choice.onPhone;
         setFraction(null);
         setUnchanged(!!choice.unchanged && !choice.drafts.length);
         setDeclined(!!choice.declined);
@@ -356,13 +358,16 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (!texts.length) return;
     fitFor.current = id;
     const backends = leaves.current ? fitBackends(capture.app) : [];
-    void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, samples: samplesOf.current, backends })
-      .catch(() => texts.map(() => ({ level: null, words: UNSURE, probability: null, voice: null })))
+    // Yours comes first in texts, so when the phone wrote the shown drafts only the typed reply is judged.
+    const judged = shownOnPhone.current ? texts.slice(0, yours?.text ? 1 : 0) : texts;
+    const unsure: Fit = { level: null, words: UNSURE, probability: null, voice: null };
+    void judgeFit({ post: postOf.current ?? '', candidates: judged, platform: platformOf.current, samples: samplesOf.current, backends })
+      .catch(() => judged.map(() => unsure))
       .then(found => {
         if (run.current !== id) return;
         // Levels and probabilities only, never the text: what the proof reads from the device log.
         console.log(`ownvoice-fit ${JSON.stringify(found)}`);
-        setFits(new Map(texts.map((text, i) => [text, found[i]])));
+        setFits(new Map(texts.map((text, i) => [text, i < judged.length ? found[i] : unsure])));
       });
   });
 
