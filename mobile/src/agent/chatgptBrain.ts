@@ -2,7 +2,7 @@
 // tools through BYOKit, guarded before every step exactly like the panel route.
 import { fetch as expoFetch } from 'expo/fetch';
 import { classify, IncompleteError, isFunctionCall, ResponseError } from '@byokit/accounts';
-import { accounts, codexAuth, reportFailure } from '../chatgpt/accounts';
+import { codexAuth, reportFailure, respond } from '../chatgpt/accounts';
 import { withResponseFetch } from '../chatgpt/responseFetch';
 import { CHATGPT_MODEL } from '../chatgpt/responses';
 import { agentConsent } from '../chatgpt/settings';
@@ -47,7 +47,7 @@ export function chatgptBrain(o: {
           // if it starts during that wait, just as on the panel route.
           if (!consent.beforeFetch()) throw new Error(words.chatgptFailed);
           return doFetch(url, init);
-        }, signal => accounts.respond('owner', {
+        }, signal => respond('owner', {
           model, instructions, input: items, tools, tool_choice: 'auto',
           parallelToolCalls: false, signal, onText,
           reasoning: { effort: 'none' }, text: { verbosity: 'low' },

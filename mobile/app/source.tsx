@@ -23,6 +23,11 @@ import Native from '../modules/ownvoice-native';
  *  The chosen card says how it is doing and what can be changed; switching to an account asks first (or
  *  signs in right here), switching back to the phone is immediate. `start=chatgpt|claude` (from Home's
  *  card) begins that switch on arrival. */
+const SWITCH_COPY: Record<CloudKey, { title: string; body: string; name: string; company: string; yes: string }> = {
+  chatgpt: { title: words.switchTitle, body: words.switchBody, name: NAME, company: 'OpenAI', yes: words.switchYes },
+  claude: { title: words.claudeSwitchTitle, body: words.claudeSwitchBody, name: CLAUDE_NAME, company: 'Anthropic', yes: words.claudeSwitchYes },
+};
+
 export default function SourceScreen() {
   const t = useTheme();
   const { start } = useLocalSearchParams<{ start?: string }>();
@@ -307,12 +312,12 @@ export default function SourceScreen() {
       </View>
     </Page>
     {confirm && <View style={StyleSheet.absoluteFill}>
-      <Sheet title={confirm === 'claude' ? words.claudeSwitchTitle : words.switchTitle} mood="listening" onClose={() => setConfirm(null)}>
+      <Sheet title={SWITCH_COPY[confirm].title} mood="listening" onClose={() => setConfirm(null)}>
         <View style={styles.sheet}>
-          <Text style={[type.body, { color: t.text }]}>{confirm === 'claude' ? words.claudeSwitchBody : words.switchBody}</Text>
-          <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: confirm === 'claude' ? CLAUDE_NAME : NAME, company: confirm === 'claude' ? 'Anthropic' : 'OpenAI' })}</Text>
+          <Text style={[type.body, { color: t.text }]}>{SWITCH_COPY[confirm].body}</Text>
+          <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: SWITCH_COPY[confirm].name, company: SWITCH_COPY[confirm].company })}</Text>
           <View style={styles.sheetActions}>
-            <Button kind="filled" large label={confirm === 'claude' ? words.claudeSwitchYes : words.switchYes} onPress={() => { choose(confirm); setConfirm(null); }} />
+            <Button kind="filled" large label={SWITCH_COPY[confirm].yes} onPress={() => { choose(confirm); setConfirm(null); }} />
             <Button kind="text" label={chosen === 'phone' ? words.switchNo : words.cancel} onPress={() => setConfirm(null)} />
           </View>
         </View>

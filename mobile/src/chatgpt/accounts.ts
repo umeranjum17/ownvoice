@@ -51,6 +51,7 @@ export const refresh = () => getInstance().keepFresh([member]);
 export const signInState = (provider: string) => getInstance().view(member, provider);
 export const cancelSignIn = (provider: string) => getInstance().cancel(member, provider);
 export const status = (provider: string) => getInstance().status(member, provider);
+export const respond = ((member: string, ask: any) => getInstance().respond(member, ask)) as Accounts['respond'];
 export const reportFailure = (provider: string, error: string) => getInstance().failed(member, provider, error);
 // The code a provider's own page showed, handed back through the kit's paste seam (Claude's PKCE flow).
 export const paste = (provider: string, text: string) => getInstance().paste(member, provider, text);
@@ -82,10 +83,10 @@ function jsonBody(text: string): string {
  *  refresh, resting and sign-out stay the kit's; only the ask shape differs per provider. */
 export async function askCloud(key: CloudKey, ask: CloudAsk): Promise<string> {
   if (key === 'claude') {
-    const text = await accounts.respond(member, { provider: 'claude', model: CLAUDE_MODEL, max_tokens: 8192,
+    const text = await respond(member, { provider: 'claude', model: CLAUDE_MODEL, max_tokens: 8192,
       system: ask.instructions, messages: [{ role: 'user', content: ask.input }], onText: ask.onText, signal: ask.signal });
     return ask.json ? jsonBody(text) : text;
   }
-  return accounts.respond(member, { instructions: ask.instructions, input: ask.input, model: CHATGPT_MODEL, signal: ask.signal, onText: ask.onText,
+  return respond(member, { instructions: ask.instructions, input: ask.input, model: CHATGPT_MODEL, signal: ask.signal, onText: ask.onText,
     text: ask.json ? { verbosity: 'low', format: { type: 'json_object' } } : { verbosity: 'low' } });
 }
