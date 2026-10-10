@@ -62,10 +62,10 @@ export default function Setup() {
   const [typing, setTyping] = useState(false);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
   const [picked, setPicked] = useState<'phone' | string | null>(null);
-  // The first run offers the person's cloud accounts too: ChatGPT's device-code sign-in fits the step's
-  // code box, and Claude signs in on its own page with its code pasted back (the kit's paste seam, the
-  // same piece as How Ownvoice writes). Key/host routes cannot be finished here and stay out.
-  const plans = accounts.providers.filter(p => p.key === 'chatgpt' || p.key === 'claude');
+  // The first run offers the person's cloud accounts too: ChatGPT first (it stays the listed-first
+  // default the wizard always had), then Claude, which signs in on its own page with its code pasted
+  // back (the kit's paste seam, the same shared piece as How Ownvoice writes). Key/host routes stay out.
+  const plans = ['chatgpt', 'claude'].flatMap(key => accounts.providers.filter(p => p.key === key));
   const defaultPlan = plans[0]?.key ?? 'chatgpt';
   const pick = picked ?? (phone === 'cant' ? defaultPlan : 'phone');
   // Plan sign-in state, shown inside the choice step: null while the options show.
