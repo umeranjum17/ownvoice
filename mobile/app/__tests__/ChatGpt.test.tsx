@@ -14,6 +14,7 @@ import Native from '../../modules/ownvoice-native';
 jest.mock('../../src/chatgpt/session', () => ({
   NAME: 'ChatGPT',
   CLAUDE_NAME: 'Claude',
+  OPENROUTER_NAME: 'OpenRouter',
   GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
   nothing: { signedIn: false, waiting: false, code: null, url: null, note: null, resting: null },
@@ -21,6 +22,7 @@ jest.mock('../../src/chatgpt/session', () => ({
   accountSessions: {
     chatgpt: { session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
     claude: { session: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
+    openrouter: { session: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
   },
 }));
 jest.mock('../../modules/ownvoice-native', () => ({

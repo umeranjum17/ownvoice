@@ -6,11 +6,12 @@ import { words } from '../core/words';
 
 export const NAME = 'ChatGPT';
 export const CLAUDE_NAME = 'Claude';
+export const OPENROUTER_NAME = 'OpenRouter';
 export const GPT_APPS_KEY = 'chatgpt-apps';
 
 export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
-const signingOut: Record<CloudKey, number> = { chatgpt: 0, claude: 0 };
-const signOutEpoch: Record<CloudKey, number> = { chatgpt: 0, claude: 0 };
+const signingOut: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0 };
+const signOutEpoch: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0 };
 export const signOutGuard = (key: CloudKey) => ({ active: signingOut[key] > 0, epoch: signOutEpoch[key] });
 const leaving = async (key: CloudKey, run: () => Promise<GptState>): Promise<GptState> => {
   signingOut[key]++;
@@ -132,7 +133,26 @@ const tracked = (underlying: Session) => {
   return { session, now: () => last };
 };
 
+// OpenRouter is a key route, not a plan sign-in: the person pastes their own key here and the kit
+// checks it on the first request. There is no page to open, no code and nothing to wait for.
+const openRouterSession = (): Session => ({
+  current: async () => {
+    if (signingOut.openrouter) return nothing;
+    const a = live();
+    await a.refresh().catch(() => {});
+    const state = stateOf(null, await a.status('openrouter').catch(() => null), OPENROUTER_NAME);
+    return signingOut.openrouter ? nothing : state;
+  },
+  start: async () => ({ ...nothing, waiting: true, note: words.openrouterKeyNote }),
+  cancel: async () => ({ ...nothing, note: say('signIn.cancelled', { name: OPENROUTER_NAME }) }),
+  signOut: () => leaving('openrouter', async () => {
+    await live().signOutOpenRouter();
+    return { ...nothing, note: say('status.signedOut', { name: OPENROUTER_NAME }) };
+  }),
+});
+
 export const accountSessions: Record<CloudKey, { session: Session; now: () => GptState }> = {
   chatgpt: tracked(mocked ? mock : accountSession('chatgpt')),
   claude: tracked(accountSession('claude')),
+  openrouter: tracked(openRouterSession()),
 };

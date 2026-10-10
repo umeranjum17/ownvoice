@@ -23,7 +23,7 @@ export class PlanLimit extends Error {}
 export const needWriter: Writer = { write: async () => { throw new Error(words.needWriterPanel); } };
 
 /** Failed lines worth a Try again button: sending again can work once the network, the account or its switch recovers. */
-export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.offlineNoPhone, words.gptOffNoPhone, words.claudeFailed, words.claudeOffNoPhone]);
+export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.offlineNoPhone, words.gptOffNoPhone, words.claudeFailed, words.claudeOffNoPhone, words.openrouterFailed, words.openrouterOffNoPhone]);
 
 /** A writer that never drafts: the panel shows its line instead. */
 export const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });
@@ -35,6 +35,8 @@ export const isPlanLimitLine = (line: string | null | undefined): boolean => !!l
 export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string };
 export const cloudWords = (key: CloudKey): CloudWords => key === 'claude'
   ? { off: words.claudeOff, offNoPhone: words.claudeOffNoPhone, failedNoPhone: words.claudeFailed, fallback: words.claudeFallback, needNote: words.claudeNeedNote, switchUnavailable: words.claudeSwitchUnavailable, planLimit: words.claudePlanLimit }
+  : key === 'openrouter'
+  ? { off: words.openrouterOff, offNoPhone: words.openrouterOffNoPhone, failedNoPhone: words.openrouterFailed, fallback: words.openrouterFallback, needNote: words.openrouterNeedNote, switchUnavailable: words.openrouterSwitchUnavailable }
   : { off: CHATGPT_OFF, offNoPhone: words.gptOffNoPhone, failedNoPhone: words.gptFailedNoPhone, fallback: words.fallback, needNote: words.needWriterNote, switchUnavailable: words.switchUnavailable };
 
 /** The one plain line for a failed cloud call on a phone that cannot write instead. */
