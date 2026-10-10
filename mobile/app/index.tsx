@@ -15,6 +15,7 @@ import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, store, type CheckinAnswer, type Outcome } from '../src/core/store';
 import { cloudOf, cloudSession, getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
 import { CLAUDE_NAME, NAME, OPENROUTER_NAME, type GptState } from '../src/chatgpt/session';
+import { openRouterReady } from '../src/chatgpt/accounts';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
 import { readLog, syncReadLog } from '../src/core/readLog';
@@ -189,7 +190,7 @@ export default function Home() {
   const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : !on ? words.statusOffNote : ask ? (keptLine ? words.cantWriteReadyNote : words.readyNote) : problem
     ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : cantWrite ? cantWriteNote : checking ? null : words.statusReadyNote);
   const mood = needs ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (cloudState?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : cantWrite ? 'check' : checking ? 'idle' : 'ready';
-  const signIn = needs && !phoneCan || on && !!cloud && !!cloudState && !cloudState.signedIn;
+  const signIn = (needs && !phoneCan || on && !!cloud && !!cloudState && !cloudState.signedIn) && !(viaOpenRouter && !openRouterReady());
   const onCard = green ? t.onPrimaryContainer : t.text;
   const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
   const shown = (apps ?? []).filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);

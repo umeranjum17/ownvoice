@@ -154,6 +154,28 @@ test('the emulator stand-in drafts without marking a send', async () => {
   }
 });
 
+test('the emulator stand-in never writes in place of the real OpenRouter writer', async () => {
+  const originalFlag = process.env.EXPO_PUBLIC_E2E_GPT;
+  const originalFetch = global.fetch;
+  let mockRoute!: typeof gptRoute;
+  try {
+    process.env.EXPO_PUBLIC_E2E_GPT = '1';
+    jest.isolateModules(() => { mockRoute = require('../settings').gptRoute; });
+    store.set(SOURCE_KEY, 'openrouter');
+    global.fetch = jest.fn(async () => { throw new Error('no network'); });
+    const route = await mockRoute('com.twitter.android');
+    const choice = await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: 'hello there' }, {});
+    // The stand-in's fixed, typed-derived versions must never stand in for OpenRouter's real answer.
+    expect(choice.drafts).not.toContain('Hello there.');
+    expect(choice.drafts).toEqual(['phone one', 'phone two', 'phone three']);
+  } finally {
+    if (originalFlag === undefined) delete process.env.EXPO_PUBLIC_E2E_GPT;
+    else process.env.EXPO_PUBLIC_E2E_GPT = originalFlag;
+    global.fetch = originalFetch;
+    store.set(SOURCE_KEY, 'chatgpt');
+  }
+});
+
 test('a workplace chat stays with the phone unless it leaves the phone-only list', async () => {
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.Slack'], off: [] });
   const before = await gptRoute('com.Slack', offline);
