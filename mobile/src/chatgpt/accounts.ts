@@ -1,6 +1,6 @@
 import { responseFetch } from './responseFetch';
 import * as SecureStore from 'expo-secure-store';
-import { Accounts, offered, portable, PROVIDERS, secureStore } from '@byokit/accounts';
+import { Accounts, offered, portable, PROVIDERS, route, secureStore } from '@byokit/accounts';
 import { withKeys } from '@byokit/accounts/keys';
 import { nativeStore } from '@byokit/secrets/native';
 import { CryptoDigestAlgorithm, digest as sha256, getRandomValues } from 'expo-crypto';
@@ -22,16 +22,20 @@ const claudePlan = { crypto: { getRandomValues, subtle: { digest: (_algorithm: s
 
 // Start with hardcoded list to avoid calling offered() at module scope (RN crash).
 // Wrapper functions will delegate to a lazily-initialized instance with kit-driven list.
-const fallback = new Accounts({ offer: ['claude', 'chatgpt', 'openrouter'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, ...(authBase ? { authBase } : {}) }, withKeys(portable));
+const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, ...(authBase ? { authBase } : {}) }, withKeys(portable));
 let realInstance: Accounts | undefined;
+
+/** Whether the kit reports this phone's OpenRouter key route ready. Offered only then; the kit decides, not Ownvoice. */
+export const openRouterReady = () => route('openrouter:key', { platform: 'rn' }).readiness === 'ready';
 
 function kitInstance(): Accounts | undefined {
   if (realInstance) return realInstance;
   try {
     const plans = offered().map(p => p.key);
     if (!plans.length) return undefined;
-    const planOrder = ['claude', ...plans.filter(k => k !== 'claude'), 'openrouter'].filter((k, i, all) => all.indexOf(k) === i);
-    realInstance = new Accounts({ offer: planOrder, app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, ...(authBase ? { authBase} : {}) }, withKeys(portable));
+    const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
+    const offer = openRouterReady() ? [...planOrder, 'openrouter'] : planOrder;
+    realInstance = new Accounts({ offer, app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, ...(authBase ? { authBase} : {}) }, withKeys(portable));
     return realInstance;
   } catch {
     return undefined;

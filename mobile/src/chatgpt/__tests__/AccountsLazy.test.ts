@@ -23,6 +23,7 @@ jest.mock('@byokit/accounts', () => {
   return {
     Accounts,
     offered: jest.fn(),
+    route: jest.fn(() => ({ readiness: 'ready' })),
     portable: {},
     secureStore: jest.fn(() => ({})),
     PROVIDERS: { claude: { models: { strong: 'claude-fixture' } } },
@@ -30,7 +31,7 @@ jest.mock('@byokit/accounts', () => {
   };
 });
 
-type KitMock = { offered: jest.Mock; __calls: Array<{ method: string; args: unknown[] }> };
+type KitMock = { offered: jest.Mock; route: jest.Mock; __calls: Array<{ method: string; args: unknown[] }> };
 
 // Fresh module registry per load, with handles to THAT load's mock instance:
 // jest.resetModules() re-runs the factory, so top-level handles would go stale.
@@ -55,10 +56,17 @@ test('providers comes from the kit with Claude first', () => {
   expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt', 'other', 'openrouter']);
 });
 
+test('OpenRouter is offered only when the kit reports its key route ready', () => {
+  const { accounts, mocked } = load();
+  mocked.offered.mockReturnValue([{ key: 'claude' }, { key: 'chatgpt' }]);
+  mocked.route.mockReturnValue({ readiness: 'needs_host' });
+  expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt']);
+});
+
 test('a throwing kit keeps the fallback working and retries later', () => {
   const { accounts, mocked } = load();
   mocked.offered.mockImplementationOnce(() => { throw new Error('RN not ready'); });
-  expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt', 'openrouter']);
+  expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt']);
   // The wrappers still delegate somewhere callable instead of crashing.
   accounts.signIn('chatgpt');
   expect(mocked.__calls.at(-1)).toEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'code' }] });
@@ -70,7 +78,7 @@ test('a throwing kit keeps the fallback working and retries later', () => {
 test('an empty kit list keeps the fallback until plans appear', () => {
   const { accounts, mocked } = load();
   mocked.offered.mockReturnValueOnce([]);
-  expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt', 'openrouter']);
+  expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt']);
   mocked.offered.mockReturnValue([{ key: 'claude' }, { key: 'chatgpt' }]);
   expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt', 'openrouter']);
 });

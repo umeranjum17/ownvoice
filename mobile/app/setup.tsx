@@ -10,7 +10,6 @@ import { Badge } from '../src/ui/Badge';
 import { ChatIcon, CheckIcon, HandIcon, LockIcon, PhoneIcon, WarnIcon } from '../src/ui/icons';
 import { SourceOption } from '../src/ui/SourceOption';
 import { ClaudeSignIn } from '../src/ui/ClaudeSignIn';
-import { OpenRouterKey } from '../src/ui/OpenRouterKey';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
 import { say, type Provider, type SignIn, type Status, type WordKey } from '@byokit/accounts';
 import { words } from '../src/core/words';
@@ -19,7 +18,7 @@ import type { Step } from '../src/core/onboarding';
 import { store } from '../src/core/store';
 import { completeSetup } from '../src/core/setup-completion';
 import { saveBubbleRules } from '../src/chatgpt/settings';
-import { accounts, signIn, signInClaude, paste, connectOpenRouter as connectOpenRouterKey, signInState, status, cancelSignIn, refresh } from '../src/chatgpt/accounts';
+import { accounts, signIn, signInClaude, paste, signInState, status, cancelSignIn, refresh } from '../src/chatgpt/accounts';
 import { getSource, setSource, storedSource, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
 import { getReady, resume } from '../src/core/phoneDownload';
@@ -65,9 +64,8 @@ export default function Setup() {
   const [picked, setPicked] = useState<'phone' | string | null>(null);
   // The first run offers the person's cloud accounts too: ChatGPT first (it stays the listed-first
   // default the wizard always had), then Claude, which signs in on its own page with its code pasted
-  // back (the kit's paste seam, the same shared piece as How Ownvoice writes), and OpenRouter, whose
-  // own key is pasted straight in (its key route, billed per use). Other key/host routes stay out.
-  const plans = ['chatgpt', 'claude', 'openrouter'].flatMap(key => accounts.providers.filter(p => p.key === key));
+  // back (the kit's paste seam, the same shared piece as How Ownvoice writes). Key/host routes stay out.
+  const plans = ['chatgpt', 'claude'].flatMap(key => accounts.providers.filter(p => p.key === key));
   const defaultPlan = plans[0]?.key ?? 'chatgpt';
   const pick = picked ?? (phone === 'cant' ? defaultPlan : 'phone');
   // Plan sign-in state, shown inside the choice step: null while the options show.
@@ -173,9 +171,8 @@ export default function Setup() {
   }, [step]);
 
   // The approval happens on the provider's page, so the step looks again while a code waits.
-  // OpenRouter has no page or code to poll: its form waits for the pasted key, not for the kit.
   useEffect(() => {
-    if (!planState?.waiting || !planState.provider || planState.provider === 'openrouter') return;
+    if (!planState?.waiting || !planState.provider) return;
     const at = signing.current;
     const provider = planState.provider;
     const id = setInterval(() => { void checkPlanState(provider, at).catch(() => {}); }, 1000);
@@ -267,9 +264,7 @@ export default function Setup() {
   const startPlanSignIn = (provider: string) => {
     const at = ++signing.current;
     fresh.current = false;
-    setPlanState({ provider, signedIn: false, waiting: true, code: null, url: null, note: provider === 'openrouter' ? words.openrouterKeyNote : null, reason: null });
-    // OpenRouter is a key route: no page to open and nothing to poll. The person pastes their own key.
-    if (provider === 'openrouter') return;
+    setPlanState({ provider, signedIn: false, waiting: true, code: null, url: null, note: null, reason: null });
     void refresh().catch(() => {})
       .then(() => status(provider).catch(() => null))
       .then(async stat => {
@@ -334,22 +329,6 @@ export default function Setup() {
     }
   };
 
-  /** OpenRouter's key route: the pasted key is saved on this phone, then the step checks it connected. */
-  const connectOpenRouter = async (key: string): Promise<boolean> => {
-    const current = planState;
-    if (current?.provider !== 'openrouter' || !key.trim()) return false;
-    const at = signing.current;
-    try { await connectOpenRouterKey(key.trim()); }
-    catch {
-      if (mounted.current && at === signing.current)
-        setPlanState(prev => prev && prev.provider === 'openrouter' ? { ...prev, waiting: false, note: words.openrouterKeyFailed, reason: null } : prev);
-      return false;
-    }
-    const state = planStateOf('openrouter', signInState('openrouter'), await status('openrouter').catch(() => null));
-    if (mounted.current && at === signing.current) setPlanState(state);
-    return true;
-  };
-
   const choose = (chosen: 'phone' | string) => {
     try { setSource(chosen); } catch { return; }
     // Picking this phone where it still needs its one-time download is the yes to that download.
@@ -372,10 +351,9 @@ export default function Setup() {
   const planOptions = plans.map(plan => {
     const icon = <ChatIcon size={22} color={t.onPrimaryContainer} />;
     const title = words.srcPlan.replace('{name}', plan.name);
-    // OpenRouter is billed per use, not a plan, so its subtitle and middle line say so instead.
-    const subtitle = plan.key === 'openrouter' ? words.srcOpenRouterSub : words.srcGptSub;
+    const subtitle = words.srcGptSub;
     const tradeoffs = [{ text: words.tradeGpt1, good: true },
-      { text: plan.key === 'openrouter' ? words.openrouterTrade : words.tradePlan2.replace('{name}', plan.name), good: false },
+      { text: words.tradePlan2.replace('{name}', plan.name), good: false },
       { text: words.tradePlan3.replace('{name}', plan.name), good: false }];
     return <SourceOption key={plan.key} icon={icon} title={title} subtitle={subtitle} selected={pick === plan.key} onPress={() => setPicked(plan.key)}
       lines={tradeoffs} />;
@@ -392,8 +370,6 @@ export default function Setup() {
       <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>
     </>}
     {step === 'CHOOSE' && planState?.waiting && planState.provider === 'claude' &&
-      <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>}
-    {step === 'CHOOSE' && planState?.waiting && planState.provider === 'openrouter' &&
       <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>}
     {step === 'CHOOSE' && planState?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => planState.provider && choose(planState.provider)} />}
     {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <>
@@ -450,13 +426,6 @@ export default function Setup() {
       <ClaudeSignIn url={planState.url} onOpen={openClaude} onConnect={connectClaude} />
       <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
         <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: planName('claude'), company: plans.find(p => p.key === 'claude')?.company ?? '' })}</Text>
-      </View>
-    </>}
-    {step === 'CHOOSE' && planState?.waiting && planState.provider === 'openrouter' && <>
-      <Head title={words.signInTo.replace('{name}', planName('openrouter'))} note={words.openrouterKeyNote} />
-      <OpenRouterKey onConnect={connectOpenRouter} />
-      <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
-        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: planName('openrouter'), company: plans.find(p => p.key === 'openrouter')?.company ?? '' })}</Text>
       </View>
     </>}
     {step === 'CHOOSE' && planState?.signedIn && <>
