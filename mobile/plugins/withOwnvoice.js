@@ -8,6 +8,26 @@ module.exports = config => {
     return config;
   });
   return withAppBuildGradle(config, config => {
+    // Expo/Metro inlines EXPO_PUBLIC_* values into the JS at bundle time, but the
+    // createBundle<Variant>JsAndAssets task does not list them as inputs, so Gradle
+    // reuses the last JS bundle: a release build right after a flagged one ships the
+    // stand-in (Expo's Gradle gap). Register every EXPO_PUBLIC_* value as a task input,
+    // so a flag change re-bundles. One place, all flags; new flags need no change here.
+    const flagInputs = `
+// Expo/Metro inlines EXPO_PUBLIC_* values into the JS at bundle time. Without these as
+// task inputs Gradle reuses the last bundle, and a release build after a flagged build
+// ships that build's stand-in. Adding them as inputs makes a flag change re-bundle.
+tasks.configureEach { task ->
+    if (task.name.startsWith("createBundle") && task.name.endsWith("JsAndAssets")) {
+        System.getenv().each { name, value ->
+            if (name.startsWith("EXPO_PUBLIC_")) task.inputs.property("expoPublic." + name, value)
+        }
+    }
+}
+`;
+    if (!config.modResults.contents.includes('task.inputs.property("expoPublic."')) {
+      config.modResults.contents += flagInputs;
+    }
     // Read credentials only in Gradle's build process, never bake them into config.
     const signing = `
 // Dedicated release signing; local builds keep Expo's development key.
