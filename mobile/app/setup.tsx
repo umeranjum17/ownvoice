@@ -555,7 +555,7 @@ function Screen({ step, footer, children }: { step: Step; footer: ReactNode; chi
 /** A short bottom fade above the footer, drawn as steps of the sheet colour so no gradient library is
  *  needed; only shown while the step's words continue below it. */
 function ScrollCue({ color }: { color: string }) {
-  return <View pointerEvents="none" style={styles.cue}>
+  return <View testID="scroll-cue" pointerEvents="none" style={styles.cue}>
     {[0, 0.05, 0.12, 0.22, 0.35, 0.52, 0.72, 1].map((o, i) => <View key={i} style={{ flex: 1, backgroundColor: color, opacity: o }} />)}
   </View>;
 }

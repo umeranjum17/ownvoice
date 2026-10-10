@@ -26,6 +26,7 @@ const claudeName = 'Claude';
 
 beforeEach(() => {
   jest.clearAllMocks();
+  (accounts.signInState as jest.Mock).mockReturnValue(null);
   kv.clear();
   // Seed the first run at the writer step, so the screen opens on the choice.
   kv.set('setup', JSON.stringify({ step: 'CHOOSE', inserted: false }));
@@ -49,4 +50,18 @@ test('choosing Claude signs in on its own page and shows the paste field', async
   expect(accounts.signIn).not.toHaveBeenCalled();
   expect(await screen.findByText(words.claudeOpen)).toBeTruthy();
   expect(screen.getByPlaceholderText(words.claudePasteField)).toBeTruthy();
+});
+
+test('scroll cue shows only while the writer words run past the fold', async () => {
+  await act(async () => { render(<Setup />); });
+  await screen.findByText(words.srcPlan.replace('{name}', claudeName));
+  // Scroll events bubble from the step's content up to the ScrollView that owns the handlers.
+  const scroll = screen.getByTestId('setup-steps');
+  // Viewport 500 dp and content 400 dp: the words fit, so no cue.
+  fireEvent(scroll, 'layout', { nativeEvent: { layout: { height: 500 } } });
+  fireEvent(scroll, 'contentSizeChange', 300, 400);
+  await waitFor(() => expect(screen.queryByTestId('scroll-cue')).toBeNull());
+  // Content grows to 900 dp: the words run past the fold, so the cue shows.
+  fireEvent(scroll, 'contentSizeChange', 300, 900);
+  await waitFor(() => expect(screen.getByTestId('scroll-cue')).toBeTruthy());
 });
