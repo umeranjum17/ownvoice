@@ -84,7 +84,7 @@ internal fun insertSelectionSettled(selection: FieldSelection?, expected: String
 // unchanged caret only counts once the retries are spent, so an editor that applies the caret
 // asynchronously (Chromium) still gets every retry to settle before it is accepted.
 internal fun insertCaretIgnored(selectionSet: Boolean, before: FieldSelection?, actual: FieldSelection?, finalAttempt: Boolean): Boolean =
-  !selectionSet || (finalAttempt && actual == before)
+  !selectionSet || (finalAttempt && before != null && actual == before)
 
 class OwnvoiceService : AccessibilityService() {
   companion object {

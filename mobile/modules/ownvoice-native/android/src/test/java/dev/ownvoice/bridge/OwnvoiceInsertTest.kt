@@ -110,6 +110,8 @@ class OwnvoiceInsertTest {
     assertTrue(accepted(selectionSet = true, actual = before, finalAttempt = true))
     // An action the editor rejects is accepted at once, as the caret cannot settle.
     assertTrue(accepted(selectionSet = false, actual = FieldSelection(0, 0), finalAttempt = false))
+    // A caret that was never readable cannot be proven unchanged, so the final retry does not accept it.
+    assertFalse(insertCaretIgnored(selectionSet = true, before = null, actual = null, finalAttempt = true))
   }
 
   @Test fun invalidationStopsRetryAndSettlesOnceWithoutCopyOrDroppingTheNextCapture() {
