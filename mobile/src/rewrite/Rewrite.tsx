@@ -4,16 +4,16 @@ import { classify } from '@byokit/accounts';
 import Native from '../../modules/ownvoice-native';
 import { askLocal } from '../core/localModel';
 import { streamSelectionRewrite } from '../chatgpt/responses';
-import { chatgptConsent } from '../chatgpt/settings';
+import { cloudConsent } from '../chatgpt/settings';
 import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import * as Voice from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
-import { getSource, SOURCE_KEY, type Source } from '../core/source';
+import { cloudOf, getSource, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { store } from '../core/store';
-import { SendVeto, type WriterEvents } from '../core/writers';
+import { cloudWords, isPlanLimitLine, PlanLimit, SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
 import { preserveFragment, cleanSelection } from '../core/drafts';
 import { fixedSentenceSplits } from '../core/typing';
@@ -56,12 +56,13 @@ export default function Rewrite() {
     setNote(value?.text.trim() ? "Pick how you'd like it. You'll see it before anything changes." : 'Select some text first, then choose Ownvoice.');
   }, []);
 
-  /** The consent the ChatGPT rewrite sends under: the chosen source plus the panel's full guard set (sign-in, pause, switch, never mid-sign-out); the sheet works in any app, so no per-app row applies. */
-  const consent = (): WriterEvents => {
-    const guards = chatgptConsent(null);
+  /** The consent the cloud rewrite sends under: the chosen source plus the panel's full guard set (sign-in, pause, switch, never mid-sign-out); the sheet works in any app, so no per-app row applies. */
+  const cloud = (): CloudKey | null => cloudOf(store.peek<Source>(SOURCE_KEY));
+  const consent = (key: CloudKey): WriterEvents => {
+    const guards = cloudConsent(key, null);
     return {
-      beforeSend: async () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && await guards.beforeSend(),
-      beforeFetch: () => store.peek<Source>(SOURCE_KEY) === 'chatgpt' && guards.beforeFetch(),
+      beforeSend: async () => cloud() === key && await guards.beforeSend(),
+      beforeFetch: () => cloud() === key && guards.beforeFetch(),
     };
   };
 
@@ -96,25 +97,30 @@ export default function Rewrite() {
     try {
       const source = await getSource().catch(() => null);
       const canWrite = await phoneCanWrite() !== 'cant';
-      if (stub !== null || source !== 'chatgpt') {
+      const key = cloudOf(source);
+      if (stub !== null || key === null) {
         await showResult(await phoneRewrite(), canWrite);
         return;
       }
+      const lines = cloudWords(key);
       try {
-        await showResult(await finish(await streamSelectionRewrite(input.text, how, guide, consent())), canWrite);
+        await showResult(await finish(await streamSelectionRewrite(key, input.text, how, guide, consent(key))), canWrite);
       } catch (error) {
         if (id !== run.current) return;
         const veto = error instanceof SendVeto ? error.message : null;
         const offline = classify(error instanceof Error ? error.message : String(error))?.kind === 'network';
+        const limit = error instanceof PlanLimit ? error.message : null;
+        // A plan limit is not a transient slip: say the limit and its reset rather than retrying.
+        if (limit) { setNote(limit); return; }
         if (canWrite) {
           let shown = false;
           try { shown = await showResult(await phoneRewrite(), true); }
           catch (fallback) { if (id !== run.current) return; setNote(message(errorCode(fallback))); return; }
           if (!shown || id !== run.current) return;
-          setNote(veto ?? (offline ? words.offlinePhone : words.fallback));
+          setNote(veto ?? (offline ? words.offlinePhone : lines.fallback));
           return;
         }
-        setNote(veto ? words.gptOffNoPhone : offline ? words.offlineNoPhone : words.chatgptFailed);
+        setNote(veto ? lines.offNoPhone : (offline ? words.offlineNoPhone : lines.failedNoPhone));
       }
     } catch (error) {
       if (id !== run.current) return;
@@ -125,6 +131,8 @@ export default function Rewrite() {
   };
 
   const exportBlocked = result?.meaning?.ok === false;
+  /** A plan limit is not stuck: leave for the writer list so the person can pick another writer. */
+  const openSource = () => { void Native.openRoute('ownvoice://source').catch(() => {}).finally(() => { void Native.finishRewrite(null, false).catch(() => {}); }); };
   const enabled = !!input?.text.trim();
   return <Sheet title="Make it better" note={enabled ? note : undefined} mood={enabled ? (busy ? 'thinking' : result ? 'ready' : 'idle') : undefined} onClose={() => { void Native.finishRewrite(null, false); }}>
     {!enabled ? (input ? <Empty mood="check" text={note} /> : null) : <>
@@ -132,6 +140,7 @@ export default function Rewrite() {
       <View style={{ marginVertical: space.m }}>
         <Choices options={Object.values(Judge.Rewrite)} value={choice} onPick={how => { void rewrite(how); }} />
       </View>
+      {isPlanLimitLine(note) ? <View style={{ marginBottom: space.m }}><Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /></View> : null}
       {busy ? <Placeholder /> : null}
       {result ? <>
         <Card variant="outlined" label={choice ?? undefined}>

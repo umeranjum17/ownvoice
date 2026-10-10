@@ -1,4 +1,6 @@
-import { withPhoneFallback } from '../../core/writers';
+import { ResponseError } from '@byokit/accounts';
+import { Rewrite } from '../../core/judge';
+import { cloudWords, PlanLimit, withPhoneFallback } from '../../core/writers';
 jest.mock('../../core/polish', () => ({
   ...jest.requireActual('../../core/polish'),
   canPolish: jest.fn(async () => true),
@@ -12,6 +14,8 @@ jest.mock('../../core/speller', () => {
   const spell = nspell(fs.readFileSync(`${dictionary}/en-affixes.aff`, 'utf8'), fs.readFileSync(`${dictionary}/en-words.dic`, 'utf8'));
   return { speller: async () => spell };
 });
+// The app's accounts wrapper uses the kit-driven instance once the kit offers providers; these tests drive the fallback instance the mocks below target.
+jest.mock('@byokit/accounts', () => ({ ...jest.requireActual('@byokit/accounts'), offered: () => [] }));
 jest.mock('../accounts', () => {
   const actual = jest.requireActual('../accounts');
   actual.accounts.runtime = jest.fn(async () => ({
@@ -23,11 +27,12 @@ jest.mock('../accounts', () => {
   return { ...actual, codexAuth: jest.fn(async () => ({ access: 'fixture-access', accountId: 'fixture-account' })), reportFailure: jest.fn(async () => ({})) };
 });
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
-import { chatgptWriter, streamResponses, streamSelectionRewrite } from '../responses';
+import { cloudWriter, streamResponses, streamSelectionRewrite } from '../responses';
 import { platformForApp } from '../../core/platforms';
 import { accounts, codexAuth, reportFailure } from '../accounts';
 import { words } from '../../core/words';
 import type { DraftRequest } from '../../core/writers';
+const chatgptWriter = cloudWriter('chatgpt');
 
 const event = (item: object) => `data: ${JSON.stringify(item)}`;
 const body = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(controller) {
@@ -97,7 +102,7 @@ test('accepts CRLF events split across chunks and a final unterminated completio
   const complete = event({ type: 'response.completed' });
   const fetch = fetcher(body(first + '\r', '\n\r\n' + second + '\r\n\r\n' + event({ type: 'response.output_text.done', text: '{"versions":["A","B","C"]}' }) + '\r\n\r\n' + complete));
   const deltas: string[] = [];
-  await expect(streamResponses('C2 prompt', text => deltas.push(text), fetch)).resolves.toEqual(['A', 'B', 'C']);
+  await expect(streamResponses('chatgpt', 'C2 prompt', text => deltas.push(text), fetch)).resolves.toEqual(['A', 'B', 'C']);
   expect(deltas).toEqual(['{"versions":[', '"A","B","C"]}']);
   expect(fetch).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({ method: 'POST', headers: expect.objectContaining({ authorization: 'Bearer fixture-access', 'content-type': 'application/json', 'chatgpt-account-id': 'fixture-account', originator: 'ownvoice', 'OpenAI-Beta': 'responses=experimental', accept: 'text/event-stream' }) }));
 });
@@ -107,7 +112,7 @@ test('accepts bare-CR data lines and event boundaries across chunks', async () =
   const second = event({ type: 'response.output_text.delta', delta: '"A","B","C"]}' });
   const complete = event({ type: 'response.completed' });
   const deltas: string[] = [];
-  await expect(streamResponses('C2 prompt', text => deltas.push(text), fetcher(body(first.slice(0, -1), first.slice(-1) + second + '\r\r' + complete)))).resolves.toEqual(['A', 'B', 'C']);
+  await expect(streamResponses('chatgpt', 'C2 prompt', text => deltas.push(text), fetcher(body(first.slice(0, -1), first.slice(-1) + second + '\r\r' + complete)))).resolves.toEqual(['A', 'B', 'C']);
   expect(deltas).toEqual(['{"versions":[', '"A","B","C"]}']);
 });
 
@@ -221,6 +226,13 @@ test('a transmitted request that fails stays marked as sent', async () => {
     expect(accounts.failed).toHaveBeenCalledTimes(1);
     expect(log).toHaveBeenCalledWith(expect.stringContaining('kind=rate_limit'));
   } finally { global.fetch = originalFetch; log.mockRestore(); }
+});
+
+test('a Claude plan limit on a selection rewrite is the plan-limit line', async () => {
+  (accounts.respond as jest.Mock).mockRejectedValueOnce(new ResponseError('Claude is over its limit.', 'rate_limit'));
+  const failure = await streamSelectionRewrite('claude', 'Hi there, thanks for the note.', Rewrite.TIGHTEN, '').then(() => null, (error: unknown) => error);
+  expect(failure).toBeInstanceOf(PlanLimit);
+  expect((failure as Error).message).toBe(`${words.claudePlanLimit}.`);
 });
 
 test('a network failure throws without the no-answer log', async () => {
@@ -392,7 +404,7 @@ test.each([
 test('streamed drafts win over a conflicting completed envelope', async () => {
   const originalFetch = global.fetch;
   global.fetch = fetcher(body(event({ type: 'response.output_text.delta', delta: '{"versions":["A","B","C"]}' }) + '\n\n' + event({ type: 'response.completed', response: { output: [{ type: 'message', content: [{ type: 'output_text', text: '{"versions":["wrong"]}' }] }] } })));
-  try { await expect(streamResponses('polish')).resolves.toEqual(['A', 'B', 'C']); }
+  try { await expect(streamResponses('chatgpt', 'polish')).resolves.toEqual(['A', 'B', 'C']); }
   finally { global.fetch = originalFetch; }
 });
 
@@ -403,8 +415,8 @@ test('drafts require JSON while the selection rewrite stays plain text', async (
     .mockResolvedValueOnce({ ok: true, body: body(event({ type: 'response.output_text.delta', delta: 'Tuesday works.' }) + '\n\n' + event({ type: 'response.completed' })) });
   global.fetch = fetch;
   try {
-    await streamResponses('polish');
-    await expect(streamSelectionRewrite('I think Tuesday works.', 'Shorter', '')).resolves.toBe('Tuesday works.');
+    await streamResponses('chatgpt', 'polish');
+    await expect(streamSelectionRewrite('chatgpt', 'I think Tuesday works.', 'Shorter', '')).resolves.toBe('Tuesday works.');
     expect(JSON.parse(fetch.mock.calls[0][1].body).text).toEqual({ verbosity: 'low', format: { type: 'json_object' } });
     expect(JSON.parse(fetch.mock.calls[1][1].body).text).toEqual({ verbosity: 'low' });
     expect(accounts.respond).toHaveBeenCalledTimes(2);
@@ -416,7 +428,7 @@ test('selection rewrite rejects an empty answered stream', async () => {
   global.fetch = fetcher(body(event({ type: 'response.completed' })));
   const sent = jest.fn();
   try {
-    await expect(streamSelectionRewrite('Tuesday works.', 'Shorter', '', { sent })).rejects.toThrow();
+    await expect(streamSelectionRewrite('chatgpt', 'Tuesday works.', 'Shorter', '', { sent })).rejects.toThrow();
     expect(sent).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
@@ -430,7 +442,7 @@ test('incomplete selection text fails plainly and keeps the transmitted read mar
   const sent = jest.fn();
   const unsent = jest.fn();
   try {
-    await expect(streamSelectionRewrite('Can we meet on Saturday afternoon?', 'Shorter', '', { sent, unsent })).rejects.toThrow(words.chatgptFailed);
+    await expect(streamSelectionRewrite('chatgpt', 'Can we meet on Saturday afternoon?', 'Shorter', '', { sent, unsent })).rejects.toThrow(words.chatgptFailed);
     expect(sent).toHaveBeenCalledTimes(1);
     expect(unsent).not.toHaveBeenCalled();
     expect(accounts.failed).not.toHaveBeenCalled();
@@ -461,7 +473,7 @@ test.each([
     }
     expect(accounts.failed).not.toHaveBeenCalled();
     if (mode === 'versions') {
-      await expect(streamResponses('polish', undefined, fetcher(body(
+      await expect(streamResponses('chatgpt', 'polish', undefined, fetcher(body(
         event({ type: 'response.output_text.delta', delta: JSON.stringify(partial) }) + '\n\n' + event({ type: 'response.incomplete' }),
       )))).rejects.toThrow(words.chatgptFailed);
     }
@@ -522,11 +534,11 @@ test('concurrent calls keep independent consent checks and send marks', async ()
   const blockedSent = jest.fn();
   const sent = jest.fn();
   try {
-    const blocked = streamSelectionRewrite('I think Tuesday works.', 'Shorter', '', { beforeFetch: () => allowed, sent: blockedSent });
+    const blocked = streamSelectionRewrite('chatgpt', 'I think Tuesday works.', 'Shorter', '', { beforeFetch: () => allowed, sent: blockedSent });
     const rejected = expect(blocked).rejects.toThrow(words.phoneWrote);
     await waiting;
     allowed = false;
-    await expect(streamSelectionRewrite('I think Tuesday works.', 'Shorter', '', { beforeFetch: () => true, sent })).resolves.toBe('Tuesday works.');
+    await expect(streamSelectionRewrite('chatgpt', 'I think Tuesday works.', 'Shorter', '', { beforeFetch: () => true, sent })).resolves.toBe('Tuesday works.');
     release();
     await rejected;
     expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -597,7 +609,7 @@ test.each([
   const reset = jest.fn();
   const landed = jest.fn();
   try {
-    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, { reset, landed }, undefined, 'cant')).toEqual({ drafts });
+    expect(await withPhoneFallback(chatgptWriter, phone, { ...request, conversation: '', written: '' }, cloudWords('chatgpt'), { reset, landed }, undefined, 'cant')).toEqual({ drafts });
     expect(landed.mock.calls.map(([, slot]) => slot)).toEqual([1, 2]);
     expect(reset).not.toHaveBeenCalled();
     expect(phone.write).not.toHaveBeenCalled();
@@ -619,7 +631,7 @@ test('captured nonsense is declined before any alternate can land or trigger pho
   const phone = { write: jest.fn(async () => ({ drafts: [bad] })) };
   const landed = jest.fn();
   try {
-    expect(await withPhoneFallback(chatgptWriter, phone, { typed, conversation: '', written: '' }, { landed }, undefined, 'cant'))
+    expect(await withPhoneFallback(chatgptWriter, phone, { typed, conversation: '', written: '' }, cloudWords('chatgpt'), { landed }, undefined, 'cant'))
       .toEqual({ drafts: [], declined: true });
     expect(global.fetch).toHaveBeenCalledTimes(1);
     expect(JSON.stringify((global.fetch as jest.Mock).mock.calls[0])).toContain(typed);
@@ -634,7 +646,7 @@ test('an unreadable point check remains a transient failure, allowing fallback r
   global.fetch = fetcher(body(event({ type: 'response.output_text.delta', delta: 'not sure' }) + '\n\n' + event({ type: 'response.completed' })));
   const phone = { write: jest.fn(async () => ({ drafts: ['autosave locally. Make export easy.'] })) };
   try {
-    const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' });
+    const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' }, cloudWords('chatgpt'));
     expect(choice).toEqual({ drafts: ['autosave locally. Make export easy.'], reason: words.fallback });
     expect(choice.declined).toBeUndefined();
     expect(phone.write).toHaveBeenCalledTimes(1);

@@ -13,7 +13,7 @@ import { words } from '../core/words';
 import { getSource } from '../core/source';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { loadVoice } from '../core/voiceStore';
-import { noPhoneLine, retryLines } from '../core/writers';
+import { cloudWords, noPhoneLine, retryLines } from '../core/writers';
 import { runAgent, type Brain, type Call } from './loop';
 import { instructions } from './prompt';
 import { checkVoice, shareNote } from './tools';
@@ -48,7 +48,7 @@ function draftOf(call: Call): string {
 function failLine(error: unknown): string {
   if (error instanceof Error && error.message === words.needWriterPanel) return words.needWriterPanel;
   if ((error as { kind?: unknown } | null)?.kind === 'network') return words.offlineNoPhone;
-  return noPhoneLine(error);
+  return noPhoneLine(error, cloudWords('chatgpt'));
 }
 
 type Phase = 'idle' | 'working' | 'asking' | 'done' | 'failed';

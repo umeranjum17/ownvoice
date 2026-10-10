@@ -24,7 +24,8 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 
 - [Engine protocol](./engine-protocol.md) — host CLI: `check`, `voice.parse`, error envelopes, bounded input.
 - [Reply drafts](./reply-drafts.md) — Android: bubble tap offers replies; Insert puts one in the field.
-- [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert.
+- [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert. (First run offers ChatGPT only; other accounts come from the account screen.)
+- [Account choices](./account-choices.md) — Android: Home's How Ownvoice writes lists phone, ChatGPT and Claude; sign-in and writer/rating routing per chosen account.
 - [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
 - [Local reply outcomes](./reply-outcomes.md) — Android: insert → real local store → read-back, text opt-in and failed append.
 - [Fit calibration](./fit-calibration.md) — host: seeded local outcome files → G9 verdicts; [scope and input contract](../../../../mobile/eval/README.md#fit-calibration-g9-local-only).

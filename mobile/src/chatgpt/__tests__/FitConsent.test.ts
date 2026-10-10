@@ -7,12 +7,15 @@ import { judgeFit, rated, LEVELS, UNSURE } from '../../grow/fit';
 import { platformForApp } from '../../core/platforms';
 import Native from '../../../modules/ownvoice-native';
 import { signOut } from '../accounts';
-import { session } from '../session';
+import { accountSessions } from '../session';
+const session = accountSessions.chatgpt.session;
 
 jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}) },
 }));
+// The app's accounts wrapper uses the kit-driven instance once the kit offers providers; these tests drive the fallback instance the mocks below target.
+jest.mock('@byokit/accounts', () => ({ ...jest.requireActual('@byokit/accounts'), offered: () => [] }));
 jest.mock('../accounts', () => {
   const actual = jest.requireActual('../accounts');
   actual.accounts.runtime = jest.fn(async () => ({ getAuth: async () => ({ auth: { apiKey: 'fixture-access' } }), readCredential: async () => ({ type: 'oauth', accountId: 'fixture-account' }) }));
@@ -32,11 +35,6 @@ jest.mock('../accounts', () => {
   signInState: mockSignInState,
   status: mockStatus,
   cancelSignIn: mockCancelSignIn,
-  signInChatGPT: () => mockSignIn('chatgpt'),
-  signOutChatGPT: () => mockSignOut('chatgpt'),
-  signInStateChatGPT: () => mockSignInState('chatgpt'),
-  statusChatGPT: () => mockStatus('chatgpt'),
-  cancelSignInChatGPT: () => mockCancelSignIn('chatgpt'),
 }; });
 
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['phone one', 'phone two', 'phone three'] })) } }));

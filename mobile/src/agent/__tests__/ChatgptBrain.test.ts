@@ -2,7 +2,8 @@ import { getSource } from '../../core/source';
 import { chatgptEnabled, currentSwitch } from '../../core/switch';
 import { words } from '../../core/words';
 import { accounts, codexAuth, reportFailure } from '../../chatgpt/accounts';
-import { session, sessionNow, signOutGuard } from '../../chatgpt/session';
+import { accountSessions, signOutGuard } from '../../chatgpt/session';
+const session = accountSessions.chatgpt.session;
 import { chatgptBrain } from '../chatgptBrain';
 import { runAgent, type Spec } from '../loop';
 import { IncompleteError, ResponseError } from '@byokit/accounts';
@@ -11,6 +12,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: { bubbleRules: jest.fn(async () => null), setBubbleRules: jest.fn(async () => {}) },
 }));
+jest.mock('@byokit/accounts', () => ({ ...jest.requireActual('@byokit/accounts'), offered: () => [] }));
 jest.mock('../../chatgpt/accounts', () => {
   const actual = jest.requireActual('../../chatgpt/accounts');
   actual.accounts.runtime = jest.fn(async () => ({
@@ -28,11 +30,14 @@ jest.mock('../../chatgpt/accounts', () => {
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'ready' })), agreedToDownload: jest.fn(() => false) }));
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['a', 'b', 'c'] })) } }));
-jest.mock('../../core/source', () => ({ getSource: jest.fn(async () => 'chatgpt') }));
+jest.mock('../../core/source', () => ({
+  getSource: jest.fn(async () => 'chatgpt'),
+  cloudSession: () => require('../../chatgpt/session').accountSessions.chatgpt.session,
+  cloudNow: () => require('../../chatgpt/session').accountSessions.chatgpt.now(),
+}));
 jest.mock('../../chatgpt/session', () => ({
   mocked: false,
-  session: { current: jest.fn(async () => ({ signedIn: true })) },
-  sessionNow: jest.fn(() => ({ signedIn: true })),
+  accountSessions: { chatgpt: { session: { current: jest.fn(async () => ({ signedIn: true })) }, now: jest.fn(() => ({ signedIn: true })) } },
   signOutGuard: jest.fn(() => ({ active: false, epoch: 7 })),
 }));
 jest.mock('../../core/switch', () => ({
@@ -43,7 +48,7 @@ jest.mock('../../core/switch', () => ({
 
 const mockSource = getSource as jest.Mock;
 const mockCurrent = session.current as jest.Mock;
-const mockNow = sessionNow as jest.Mock;
+const mockNow = accountSessions.chatgpt.now as jest.Mock;
 const mockGuard = signOutGuard as jest.Mock;
 const mockEnabled = chatgptEnabled as jest.Mock;
 const mockSwitch = currentSwitch as jest.Mock;

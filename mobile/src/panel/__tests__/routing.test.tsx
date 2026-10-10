@@ -7,7 +7,7 @@ import Native, { type Capture, type TapFact } from '../../../modules/ownvoice-na
 import { syncReadLog } from '../../core/readLog';
 import { words } from '../../core/words';
 import { CHATGPT_OFF } from '../../core/switch';
-import { routeWriters, SendVeto, type Writer } from '../../core/writers';
+import { cloudWords, routeWriters, SendVeto, type Writer } from '../../core/writers';
 
 jest.mock('../phoneWriter', () => ({ phoneWriter: { write: async (_request: unknown, on?: { landed?: (text: string, slot: number) => void }) => {
   const drafts = ['Phone one', 'Phone two', 'Phone three'];
@@ -49,7 +49,7 @@ const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'>
     ...capture,
   });
   const screen = await render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
-    <Panel select={select ?? (async () => routeWriters({ source: 'chatgpt', signedIn: true, phoneOnlyApp: false, enabled: true, phone: 'ready', phoneWriter: writer('Phone'), ...options }))} />
+    <Panel select={select ?? (async () => routeWriters({ source: 'chatgpt', signedIn: true, phoneOnlyApp: false, enabled: true, phone: 'ready', phoneWriter: writer('Phone'), lines: cloudWords('chatgpt'), ...options }))} />
   </SafeAreaProvider>);
   await waitFor(() => expect(native.capture).toHaveBeenCalled());
   return screen;
@@ -77,7 +77,7 @@ test('one tap keeps one native fact after a repeated send and phone fallback', a
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   const rows = await syncReadLog();
   expect(rows).toHaveLength(1);
-  expect(rows[0]).toMatchObject({ id: 'tap-1', app: 'com.twitter.android', summary: 'Suggested replies. Read the chat on screen. Sent to ChatGPT.' });
+  expect(rows[0]).toMatchObject({ id: 'tap-1', app: 'com.twitter.android', summary: 'Suggested replies. Read the chat on screen. Sent to your AI account.' });
   expect(await syncReadLog()).toEqual(rows);
   expect(sentTap()).toEqual(['tap-1']);
   expect(kv.has('reads')).toBe(false);
@@ -128,7 +128,7 @@ test('a final veto unmarks the native tap before phone fallback', async () => {
   const veto: Writer = { write: async (_request, on) => { await on?.sent?.(); await on?.unsent?.(); throw new Error(words.phoneWrote); } };
   const screen = await open({ chatgpt: () => veto });
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
-  expect((await syncReadLog())[0].summary).not.toContain('Sent to ChatGPT');
+  expect((await syncReadLog())[0].summary).not.toContain('Sent to your AI account');
   expect(native.unmarkTapSent).toHaveBeenCalledWith('tap-1');
 });
 
@@ -156,7 +156,7 @@ test('the off switch keeps the drafts on the phone and says which wrote them', a
 });
 
 test('with no source the panel says to choose first and marks nothing sent', async () => {
-  const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => routeWriters({ source: null, signedIn: false, phoneOnlyApp: false, enabled: true, phone: 'cant', chatgpt: () => writer('ChatGPT'), phoneWriter: writer('Phone') }));
+  const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => routeWriters({ source: null, signedIn: false, phoneOnlyApp: false, enabled: true, phone: 'cant', chatgpt: () => writer('ChatGPT'), phoneWriter: writer('Phone'), lines: cloudWords('chatgpt') }));
   await waitFor(() => expect(shown(screen)).toContain(words.needWriterPanel));
   expect(shown(screen)).not.toContain('Phone one');
   expect(shown(screen)).not.toContain('ChatGPT one');
@@ -167,7 +167,7 @@ test('with no source the panel says to choose first and marks nothing sent', asy
 test('choosing first offers to open Ownvoice, which closes the panel', async () => {
   const openURL = jest.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   native.closePanel.mockResolvedValue(undefined);
-  const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => routeWriters({ source: null, signedIn: false, phoneOnlyApp: false, enabled: true, phone: 'cant', chatgpt: () => writer('ChatGPT'), phoneWriter: writer('Phone') }));
+  const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => routeWriters({ source: null, signedIn: false, phoneOnlyApp: false, enabled: true, phone: 'cant', chatgpt: () => writer('ChatGPT'), phoneWriter: writer('Phone'), lines: cloudWords('chatgpt') }));
   await waitFor(() => expect(shown(screen)).toContain(words.openOwnvoice));
   expect(shown(screen)).not.toContain(words.tryAgain);
   fireEvent.press(screen.getByText(words.openOwnvoice));

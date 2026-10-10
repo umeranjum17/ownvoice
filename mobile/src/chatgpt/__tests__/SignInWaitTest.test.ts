@@ -1,4 +1,4 @@
-import { Accounts } from '@byokit/accounts';
+import { Accounts, memoryStore } from '@byokit/accounts';
 
 // P7: a device-code sign-in must survive the browser step. While the person types
 // the code in Chrome, Android cuts a backgrounded app's network within seconds
@@ -41,7 +41,7 @@ afterEach(() => { global.fetch = realFetch; });
 test('dropped polls while the code waits do not fail the sign-in', async () => {
   const { fetch, approve } = script({ drops: 3 });
   global.fetch = fetch as unknown as typeof global.fetch;
-  const byokit = new Accounts({ offer: ['chatgpt'], signInMs: 25_000 });
+  const byokit = new Accounts({ offer: ['chatgpt'], signInMs: 25_000, store: () => memoryStore() });
   const shown = await byokit.login('owner', 'chatgpt', { via: 'code' });
   expect(shown?.state).toBe('waiting');
   expect(shown?.code).toBe('ABCD-EFGH');
@@ -59,7 +59,7 @@ test('a declined code still fails with its own sentence', async () => {
   global.fetch = fetch as unknown as typeof global.fetch;
   const error = jest.spyOn(console, 'error').mockImplementation(() => {});
   try {
-    const byokit = new Accounts({ offer: ['chatgpt'], signInMs: 25_000 });
+    const byokit = new Accounts({ offer: ['chatgpt'], signInMs: 25_000, store: () => memoryStore() });
     const shown = await byokit.login('owner', 'chatgpt', { via: 'code' });
     expect(shown?.state).toBe('waiting');
     await byokit.finished('owner', 'chatgpt');

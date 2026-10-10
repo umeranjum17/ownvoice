@@ -17,7 +17,7 @@ test('native facts are displayed once per tap, newest first, with no JS history 
   const rows = await syncReadLog();
   expect(rows).toHaveLength(2);
   expect(rows.map(r => r.id)).toEqual([newer.id, older.id]);
-  expect(rows[0].summary).toBe('Suggested replies. Read the chat on screen. Sent to ChatGPT.');
+  expect(rows[0].summary).toBe('Suggested replies. Read the chat on screen. Sent to your AI account.');
   expect(rows[1].summary).not.toContain('ChatGPT');
   expect(readLog(NOW)).toEqual(rows);
   expect(recordFacts([older, newer], NOW)).toEqual(rows);

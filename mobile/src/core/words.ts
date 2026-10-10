@@ -77,8 +77,41 @@ const homeWords = {
   changeFailed:'Couldn\'t confirm that change. Check the setting or try again.',
 } as const;
 
+// The Claude account: the same promises and failures as the ChatGPT ones, named for the plan the person pays for.
+const claudeWords = {
+  claudeButton: 'Continue with Claude',
+  claudeSignInNote: 'Sign in on the Claude page, then copy the code it shows and paste it here.',
+  claudePasteField: 'Paste the code from the Claude page',
+  claudeConnect: 'Connect',
+  claudeOpen: 'Open the Claude page',
+  claudeSignOut: 'Sign out of Claude',
+  claudePageFailed: 'Couldn’t open the Claude page. Try the button again.',
+  claudePasteFailed: 'Claude sign-in ended. Start it again.',
+  srcClaude: 'With your Claude',
+  rowSourceClaude: 'With your Claude',
+  homeClaude: 'Writes with your Claude.',
+  headClaude: 'Your chat goes to Claude only when you tap',
+  privacyClaude: 'When you tap the bubble, the chat on screen, what you typed and your writing rules go to Claude. Ownvoice keeps no copy.',
+  switchNoteClaude: 'Ownvoice checks now and then whether its online writers are allowed to write. That check carries no name and no message.',
+  claudeSwitchTitle: 'Write with Claude?',
+  claudeSwitchBody: 'From now on, when you tap the bubble, the chat on screen and what you typed go to Claude to write your drafts.',
+  claudeSwitchYes: 'Switch to Claude',
+  claudePhoneBackup: "If Claude can't answer, this phone writes instead.",
+  claudePlanLimit: 'Claude limit reached',
+  claudeChooseWriter: 'Choose another writer',
+  claudeFailed: "Claude didn't answer this time.",
+  claudeFallback: "Claude didn't answer. This phone wrote these instead.",
+  claudeOff: 'Claude is turned off for now. This phone wrote these.',
+  claudeOffNoPhone: 'Claude is turned off for now. Try again later.',
+  claudeNeedNote: "This phone can't write drafts on its own. Sign in with your Claude to use Ownvoice here.",
+  claudeSwitchUnavailable: 'Claude could not be reached this time. This phone wrote these.',
+  claudeCantWriteNote: 'This phone can\'t write, and you kept writing there on this phone. Let Claude write there instead.',
+  claudeCantWriteFix: 'Choose where Claude writes',
+  claudePhoneCantWhy: 'Writing right on the phone needs a newer phone with its own built-in writer. This phone doesn’t have one, so Ownvoice writes with your Claude instead. You still pick each draft and press Send yourself.',
+} as const;
+
 export const words = {
-  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...growthWords, ...homeWords,
+  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...growthWords, ...homeWords, ...claudeWords,
   keepReplies: 'Keep my replies to learn from',
   keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
   outcomeTitle: 'Replies you inserted',

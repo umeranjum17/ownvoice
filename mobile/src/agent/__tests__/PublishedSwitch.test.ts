@@ -3,7 +3,11 @@ import { resolve } from 'node:path';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {} }));
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: {} }));
-jest.mock('../../core/source', () => ({ getSource: jest.fn(async () => 'chatgpt') }));
+jest.mock('../../core/source', () => ({
+  getSource: jest.fn(async () => 'chatgpt'),
+  cloudSession: () => require('../../chatgpt/session').accountSessions.chatgpt.session,
+  cloudNow: () => require('../../chatgpt/session').accountSessions.chatgpt.now(),
+}));
 jest.mock('../../core/store', () => {
   const values = new Map<string, unknown>();
   return { store: {
@@ -14,15 +18,18 @@ jest.mock('../../core/store', () => {
 });
 jest.mock('../../chatgpt/session', () => ({
   mocked: false,
-  session: { current: jest.fn(async () => ({ signedIn: true })) },
-  sessionNow: jest.fn(() => ({ signedIn: true })),
+  accountSessions: { chatgpt: { session: { current: jest.fn(async () => ({ signedIn: true })) }, now: jest.fn(() => ({ signedIn: true })) } },
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
 }));
-jest.mock('../../chatgpt/accounts', () => ({
-  accounts: { respond: jest.fn(async () => ({ text: 'Hello Umer.', output: [] })) },
-  codexAuth: jest.fn(async () => ({ access: 'fixture', accountId: 'fixture' })),
-  reportFailure: jest.fn(),
-}));
+jest.mock('../../chatgpt/accounts', () => {
+  const respond = jest.fn(async () => ({ text: 'Hello Umer.', output: [] }));
+  return {
+    accounts: { respond },
+    respond,
+    codexAuth: jest.fn(async () => ({ access: 'fixture', accountId: 'fixture' })),
+    reportFailure: jest.fn(),
+  };
+});
 jest.mock('expo/fetch', () => ({ fetch: jest.fn() }));
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'ready' })), agreedToDownload: jest.fn(() => false) }));
 

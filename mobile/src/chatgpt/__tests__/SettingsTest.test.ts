@@ -6,7 +6,8 @@ import { accounts, status } from '../accounts';
 import { CHATGPT_OFF } from '../../core/switch';
 import Native from '../../../modules/ownvoice-native';
 import { codexAuth, reportFailure, signOut } from '../accounts';
-import { session } from '../session';
+import { accountSessions } from '../session';
+const session = accountSessions.chatgpt.session;
 import { phoneWriter } from '../../panel/phoneWriter';
 import { words } from '../../core/words';
 
@@ -14,6 +15,8 @@ jest.mock('../../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: { bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: ['com.reddit.frontpage'] })), setBubbleRules: jest.fn(async () => {}) },
 }));
+// The app's accounts wrapper uses the kit-driven instance once the kit offers providers; these tests drive the fallback instance the mocks below target.
+jest.mock('@byokit/accounts', () => ({ ...jest.requireActual('@byokit/accounts'), offered: () => [] }));
 jest.mock('../accounts', () => {
   const actual = jest.requireActual('../accounts');
   actual.accounts.runtime = jest.fn(async () => ({ getAuth: async () => ({ auth: { apiKey: 'fixture-access' } }), readCredential: async () => ({ type: 'oauth', accountId: 'fixture-account' }) }));
@@ -33,11 +36,6 @@ jest.mock('../accounts', () => {
   signInState: mockSignInState,
   status: mockStatus,
   cancelSignIn: mockCancelSignIn,
-  signInChatGPT: () => mockSignIn('chatgpt'),
-  signOutChatGPT: () => mockSignOut('chatgpt'),
-  signInStateChatGPT: () => mockSignInState('chatgpt'),
-  statusChatGPT: () => mockStatus('chatgpt'),
-  cancelSignInChatGPT: () => mockCancelSignIn('chatgpt'),
 }; });
 
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['phone one', 'phone two', 'phone three'] })) } }));
@@ -131,12 +129,12 @@ test('the emulator stand-in drafts without marking a send', async () => {
   const originalFetch = global.fetch;
   const start = Date.now();
   let mockRoute!: typeof gptRoute;
-  let mockSession!: typeof import('../session').session;
+  let mockSession!: typeof import('../session').accountSessions.chatgpt.session;
   try {
     process.env.EXPO_PUBLIC_E2E_GPT = '1';
     jest.isolateModules(() => {
       mockRoute = require('../settings').gptRoute;
-      mockSession = require('../session').session;
+      mockSession = require('../session').accountSessions.chatgpt.session;
     });
     await mockSession.start();
     const now = jest.spyOn(Date, 'now').mockReturnValue(start + 10_000);

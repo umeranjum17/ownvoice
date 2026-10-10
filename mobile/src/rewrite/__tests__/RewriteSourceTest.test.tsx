@@ -9,7 +9,8 @@ import { words } from '../../core/words';
 import { CHATGPT_OFF } from '../../core/switch';
 import { SOURCE_KEY } from '../../core/source';
 import { store } from '../../core/store';
-import { session } from '../../chatgpt/session';
+import { accountSessions } from '../../chatgpt/session';
+const session = accountSessions.chatgpt.session;
 import { wipeVoice } from '../../core/voiceStore';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
@@ -21,6 +22,8 @@ jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState
 import { askLocal, localModelState } from '../../core/localModel';
 const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
 const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
+// The app's accounts wrapper uses the kit-driven instance once the kit offers providers; these tests drive the fallback instance the mocks below target.
+jest.mock('@byokit/accounts', () => ({ ...jest.requireActual('@byokit/accounts'), offered: () => [] }));
 jest.mock('../../chatgpt/accounts', () => {
   const actual = jest.requireActual('../../chatgpt/accounts');
   actual.accounts.runtime = jest.fn(async () => ({
@@ -34,8 +37,7 @@ jest.mock('../../chatgpt/accounts', () => {
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => (global.fetch as typeof fetch)(...args) }));
 jest.mock('../../chatgpt/session', () => ({
   signOutGuard: () => ({ active: false, epoch: 0 }),
-  sessionNow: () => ({ signedIn: true }),
-  session: { current: jest.fn(async () => ({ signedIn: true })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() },
+  accountSessions: { chatgpt: { session: { current: jest.fn(async () => ({ signedIn: true })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: () => ({ signedIn: true }) } },
 }));
 
 const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock; bubbleRules: jest.Mock };

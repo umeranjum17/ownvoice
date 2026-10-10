@@ -1,10 +1,17 @@
 import Native from '../../modules/ownvoice-native';
-import { GPT_APPS_KEY, session } from '../chatgpt/session';
+import { accountSessions, GPT_APPS_KEY } from '../chatgpt/session';
 import { CHATGPT_DEFAULT_OFF, DEFAULT_ON, showsBubble } from './privacy';
 import { store } from './store';
 
+/** The accounts the app can write with, as chosen in How Ownvoice writes. */
+export type CloudKey = 'chatgpt' | 'claude';
 /** The chosen writing source: 'phone' for on-device, a plan provider key ('claude', 'chatgpt', etc.) for cloud, or null when not chosen. */
 export type Source = 'phone' | string | null;
+/** The cloud account a source names, or null for phone, not chosen, or anything else. */
+export const cloudOf = (source: Source | undefined): CloudKey | null => source === 'chatgpt' || source === 'claude' ? source : null;
+/** The chosen cloud account's own session, and its synchronous mirror. */
+export const cloudSession = (key: CloudKey) => accountSessions[key].session;
+export const cloudNow = (key: CloudKey) => accountSessions[key].now();
 export const SOURCE_KEY = 'writer-source';
 export const PHONE_ONLY_KEY = 'chatgpt-phone-only';
 // "Not chosen" on purpose (signed out on a phone that can't write): kept, never migrated again.
@@ -22,7 +29,7 @@ export async function getSource(): Promise<Source> {
   if (saved !== undefined) return saved;
   const setup = !!store.get<boolean>('setup-done');
   const on = setup ? store.get<{ on: string[] }>(GPT_APPS_KEY)?.on ?? [] : [];
-  if (on.length && (await session.current()).signedIn) {
+  if (on.length && (await cloudSession('chatgpt').current()).signedIn) {
     const rules = await Native.bubbleRules().catch(() => ({ paused: false, on: [], off: [] }));
     const bubble = new Set([...DEFAULT_ON, ...rules.on]);
     // Apps that used to keep the phone keep it now; everything else the bubble shows follows ChatGPT.
