@@ -46,7 +46,7 @@ On X, LinkedIn and Reddit, the panel names the platform beside its heading. A ne
 Already typed something? The same tap shows your text with the stock phrases marked, then a few better versions of it. **Use this** swaps your text for one of them. **Cleaned up** fixes clear spelling slips, clear missing apostrophes such as “dont”, accidental repeats of “the”, “a” or “an” starting with a lowercase copy, and “Its” before “a”, “an” or “the”. For example, “Its a good plan, I shoud be there by the the evening.” becomes “It's a good plan, I should be there by the evening.” This card uses only your own text and those clear fixes; the writer supplies the other versions. Other suspected slips appear under **Check these** when spelling checks are on; each has its own **Fix**. When no different version is found, Ownvoice keeps your text and asks you to read it over before sending. That does not approve the writing.
 
 <p align="center">
-  <img src="docs/readme/polish.webp" alt="Polish your message over the practice chat: the typed reply with the canned phrases 'circle back', 'touch base' and 'at the end of the day' marked, then two labeled versions, Cleaned up (which turns 'shoud' into 'should') and Shorter, each with Use this" width="300" />
+  <img src="docs/readme/polish.webp" alt="Polish your message over the practice chat: the typed reply 'Saturday is tricky, but at the end of the day should we do Sunday instead?' with 'at the end of the day' marked, then two labeled versions, Cleaned up (which turns 'shoud' into 'should') and Shorter, each with Use this" width="300" />
 </p>
 
 ### Start a post from a blank composer
