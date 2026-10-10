@@ -1,6 +1,6 @@
 # Reply drafts
 
-> Known limit in 1.0.3: generic reply cards are withheld per the accepted scope cut (see [Reply ideas, one tap away](../../../../README.md#reply-ideas-one-tap-away)). The procedure below describes earlier behavior, not this release.
+> Known limit in 1.0.3: generic reply cards are withheld per the accepted scope cut (see [Reply ideas are unavailable for now](../../../../README.md#reply-ideas-are-unavailable-for-now)). The procedure below describes earlier behavior, not this release.
 
 Tap the bubble over a chat with an empty message field and Ownvoice offers short replies shaped to the app underneath; cards stream in as drafts land and each can be edited before use, rated, or sent through the app's own compose screen, and **Why?** explains a card's checks. **Insert** puts one in the field, **Copy** copies it (both Copy and the compose hand-off stay disabled while a missing-fact warning shows). With the emulator stub build, three fixed drafts are written without changing device settings.
 
