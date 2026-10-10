@@ -144,7 +144,8 @@ Then setup takes about a minute:
 2. **Choose how Ownvoice writes.**
    - **On this phone**: pick it and tap **Continue**. If the phone first needs its one-time download, the button reads **Get it ready** (about 2 to 3 GB, once, on Wi-Fi).
    - **With your ChatGPT**: pick it and tap **Continue**, then **Copy code and open ChatGPT**, and type the code on the ChatGPT page. Come back to Ownvoice and tap **Continue**.
-   If your phone can't write on its own, Ownvoice says so and the button reads **Continue with ChatGPT**. Setup offers ChatGPT only; to add **With your Claude** later, open Home's **How Ownvoice writes**, tap **Open the Claude page**, sign in there with the account you already have, then paste back the code that page shows.
+   - **With your Claude**: pick it and tap **Continue**, then **Open the Claude page**, sign in there with the account you already have, and paste back the code that page shows.
+   If your phone can't write on its own, Ownvoice says so, ChatGPT is picked for you, and the button reads **Sign in**; the two accounts are still both offered.
 3. **Let Ownvoice see your chats, only when you tap.** Tap **Turn on**. In the phone's settings, in **Downloaded apps** tap **Ownvoice**, switch on **Use Ownvoice**, and tap **Allow**. Ownvoice comes back by itself. If the switch is greyed out, tap **Switch greyed out?** in Ownvoice: on Android 13 and later, apps installed from a file need **Allow restricted settings** in App info first.
 4. **Try it.** A practice chat opens with the bubble at the right edge. Write your own reply first, then tap the bubble to polish it and choose **Use this**, or tap **Skip**. Empty-field reply ideas are unavailable.
 5. **Where should I help?** Switch on the apps you want and tap **Done**. (If none of X, LinkedIn, Reddit, Slack, WhatsApp or Gmail is on the phone, this step is skipped.)
