@@ -175,6 +175,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     }).catch(() => {});
   };
   const run = useRef(0);
+  // Whether this run already landed a usable card: a later writer failure must not hide it.
+  const landedAny = useRef(false);
   const startedTap = useRef<string | null>(null);
   const readLog = (id: string) => {
     let sent = false;
@@ -217,6 +219,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const start = useCallback((value: Capture, avoid?: string[]) => {
     const id = ++run.current;
+    landedAny.current = false;
     setLimited(!!value.typingLimited);
     const rules = voice.current = loadVoice();
     const platform = platformForApp(value.app, value.nodes);
@@ -300,9 +303,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             if (state === 'writing') setFraction(null);
           },
           fraction: value2 => { if (run.current === id) setFraction(value2); },
-          reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
+          reset: () => { if (run.current === id) { landedAny.current = false; setCards([null, null, null]); setWhy(null); } },
           landed: (text, slot, label) => {
             if (run.current !== id) return;
+            landedAny.current = true;
             const scores = Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform);
             const meaning = label ? Judge.meaning(value.typed, text, null) : null;
             const ratings = rate(text, platform, shownPost, rules);
@@ -319,6 +323,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       } catch (error) {
         if (run.current !== id) return;
         setFraction(null);
+        // A writer that fails after landing a card (for example the on-device model's later
+        // versions) must not turn a usable result into a false "Something went wrong".
+        if (landedAny.current) { setNote(null); setPhase('ready'); return; }
         setNote(error instanceof Error ? error.message : words.failed);
         setPhase('failed');
       }
