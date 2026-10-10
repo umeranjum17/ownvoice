@@ -1,7 +1,7 @@
 // Demo setup walk: fresh install to Home with ChatGPT chosen and the mock sign-in connected,
-// driven by probe node labels (no OCR). first-run.mjs still expects the old two-option choice
-// screen, while main now offers three providers (d8cdc1f), so it cannot walk setup; this script
-// covers what the D1-D2 captures need. Lane emulator only, never the test phone.
+// driven by probe node labels (no OCR). The writer step now offers this phone, ChatGPT and Claude,
+// and first-run.mjs is stale on that step, so it cannot walk setup; this script covers what the
+// D1-D2 captures need. Lane emulator only, never the test phone.
 //
 //   ANDROID_SERIAL=emulator-XXXX OWNVOICE_AVD_NAME=<avd> JAVA_HOME=<jdk> node e2e/demo-setup.mjs <release-apk>
 import { execFileSync } from 'node:child_process';
@@ -76,7 +76,7 @@ adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 await wait(75000); // cold start on a loaded host: taps before the JS settles land nowhere
 await waitLabel(/write replies that sound like you/i, 30); // welcome
 await tapLabel(/continue/i);
-await waitLabel(/how should ownvoice write/i); // choice, now three providers
+await waitLabel(/how should ownvoice write/i); // choice: this phone, ChatGPT or Claude
 await tapLabel(/with your chatgpt/i);
 shot('02-picked');
 for (let i = 0; i < 20; i++) {
