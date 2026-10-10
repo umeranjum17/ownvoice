@@ -525,14 +525,38 @@ function Screen({ step, footer, children }: { step: Step; footer: ReactNode; chi
   const t = useTheme();
   const { top, bottom } = useSafeAreaInsets();
   const at = STEPPED.indexOf(step);
+  // A scroll cue: while the step's words run past the fold, a short fade at the bottom of the scroll
+  // area shows there is more to see, so the last card is not left hidden under the button.
+  const [below, setBelow] = useState(false);
+  const content = useRef(0);
+  const view = useRef(0);
+  const offset = useRef(0);
+  const updateCue = () => {
+    const more = content.current - view.current - offset.current > 2;
+    setBelow(seen => seen === more ? seen : more);
+  };
   return <View style={{ flex: 1, backgroundColor: t.sheet, paddingTop: top + space.l }}>
-    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="always">
-      <View testID="setup-steps" style={styles.steps} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: STEPPED.length, now: at + 1 }}>
-        {STEPPED.map((s, i) => <View key={s} style={[styles.stepBar, { backgroundColor: i <= at ? t.primary : t.yours }]} />)}
-      </View>
-      {children}
-    </ScrollView>
+    <View style={{ flex: 1 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="always" scrollEventThrottle={16}
+        onScroll={event => { const m = event.nativeEvent; offset.current = m.contentOffset.y; view.current = m.layoutMeasurement.height; content.current = m.contentSize.height; updateCue(); }}
+        onLayout={event => { view.current = event.nativeEvent.layout.height; updateCue(); }}
+        onContentSizeChange={(_width, height) => { content.current = height; updateCue(); }}>
+        <View testID="setup-steps" style={styles.steps} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: STEPPED.length, now: at + 1 }}>
+          {STEPPED.map((s, i) => <View key={s} style={[styles.stepBar, { backgroundColor: i <= at ? t.primary : t.yours }]} />)}
+        </View>
+        {children}
+      </ScrollView>
+      {below && <ScrollCue color={t.sheet} />}
+    </View>
     <View style={[styles.footer, { paddingBottom: bottom + space.l }]}>{footer}</View>
+  </View>;
+}
+
+/** A short bottom fade above the footer, drawn as steps of the sheet colour so no gradient library is
+ *  needed; only shown while the step's words continue below it. */
+function ScrollCue({ color }: { color: string }) {
+  return <View pointerEvents="none" style={styles.cue}>
+    {[0, 0.05, 0.12, 0.22, 0.35, 0.52, 0.72, 1].map((o, i) => <View key={i} style={{ flex: 1, backgroundColor: color, opacity: o }} />)}
   </View>;
 }
 
@@ -628,6 +652,7 @@ const styles = StyleSheet.create({
   headNote: { flexDirection: 'row', alignItems: 'flex-start', gap: space.s, marginTop: space.s },
   tick: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   footer: { paddingHorizontal: space.xl, paddingTop: space.m, gap: space.xs },
+  cue: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 24, flexDirection: 'column' },
   // Text buttons are 40 dp; the 4 dp of padding lets their hit slop reach the 48 dp touch target.
   actions: { flexDirection: 'row', justifyContent: 'center', gap: space.xs, flexWrap: 'wrap', paddingVertical: space.xs },
   guide: { borderWidth: 1, borderRadius: shape.group, paddingHorizontal: space.l, paddingVertical: space.m },
