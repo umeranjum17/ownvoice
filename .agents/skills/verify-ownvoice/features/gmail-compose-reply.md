@@ -1,6 +1,6 @@
 # Gmail compose and reply
 
-Tap into a Gmail compose body or a reply box, write a line, then tap the Dot bubble: Ownvoice reads the body, offers the polish panel, and **Use this** writes the cleaned-up text back into the Gmail box and reports **Inserted**. Verified only on the test phone `a4b93ea2` with the shipped build (`isAccessibilityTool="false"`), not as a general claim for every device or Gmail version; the old ov-pm-10 report found `rootInActiveWindow` null. The compose/reply body rejects or ignores `ACTION_SET_SELECTION`, so the insert verifier accepts an unchanged caret once the exact read-back text matches, but only on the final retry (or when the action is rejected outright) — otherwise a landed draft is logged `result=failed` and the app falls back to the clipboard.
+Tap into a Gmail compose body or a reply box, write a line, then tap the Dot bubble: Ownvoice reads the body, offers the polish panel, and **Use this** writes the cleaned-up text back into the Gmail box and reports **Inserted**. Verified only on the test phone `a4b93ea2` with the shipped build (`isAccessibilityTool="false"`), not as a general claim for every device or Gmail version. The compose/reply body rejects or ignores `ACTION_SET_SELECTION`, so the insert verifier accepts an unchanged caret once the exact read-back text matches, but only on the final retry (or when the action is rejected outright) — otherwise a landed draft is logged `result=failed` and the app falls back to the clipboard.
 
 ## Sub-features
 

@@ -135,7 +135,7 @@ evidence is unit and panel tests only.
 
 ### Insertion confirmation
 
-After writing a draft, Ownvoice reads the focused field again through the same reader used at capture time. It reports **Inserted** only if the same field contains the exact draft and its selection is collapsed at the end. Missing newlines, a stale field, or an unavailable read-back copy the complete draft and show **Copied, paste it in**. **Send it yourself** accompanies confirmation only when the current screen exposes a clickable Send, Post, Reply, Publish or Tweet action. Ownvoice screens hide the bubble even if switched on in app choices; setup practice is the exception.
+After writing a draft, Ownvoice reads the focused field again through the same reader used at capture time. It reports **Inserted** only if the same field contains the exact draft and its selection is collapsed at the end, or, when the app rejects the caret move or leaves the caret unchanged (Gmail's compose body), if the exact draft is still there (on the final check for an unchanged caret). Missing newlines, a stale field, or an unavailable read-back copy the complete draft and show **Copied, paste it in**. **Send it yourself** accompanies confirmation only when the current screen exposes a clickable Send, Post, Reply, Publish or Tweet action. Ownvoice screens hide the bubble even if switched on in app choices; setup practice is the exception.
 
 ## Signed APK releases
 
