@@ -26,7 +26,7 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [Reply drafts](./reply-drafts.md) — Android: bubble tap offers replies; Insert puts one in the field.
 - [Gmail compose and reply](./gmail-compose-reply.md) — Android: bubble reads a Gmail compose/reply body, polishes it, and Use this writes it back and reports Inserted.
 - [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert. (The writer step offers ChatGPT and Claude; the account screen switches them later.)
-- [Account choices](./account-choices.md) — Android: Home's How Ownvoice writes lists phone, ChatGPT and Claude; sign-in and writer/rating routing per chosen account.
+- [Account choices](./account-choices.md) — Android: Home's How Ownvoice writes lists phone, ChatGPT, Claude and OpenRouter; sign-in and writer/rating routing per chosen account.
 - [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
 - [Local reply outcomes](./reply-outcomes.md) — Android: insert → real local store → read-back, text opt-in and failed append.
 - [Fit calibration](./fit-calibration.md) — host: seeded local outcome files → G9 verdicts; [scope and input contract](../../../../mobile/eval/README.md#fit-calibration-g9-local-only).

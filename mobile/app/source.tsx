@@ -5,6 +5,7 @@ import { say } from '@byokit/accounts';
 import { Badge } from '../src/ui/Badge';
 import { Button } from '../src/ui/Button';
 import { ClaudeSignIn } from '../src/ui/ClaudeSignIn';
+import { OpenRouterKey } from '../src/ui/OpenRouterKey';
 import { Page } from '../src/ui/Page';
 import { PhoneWriter } from '../src/ui/PhoneWriter';
 import { Row } from '../src/ui/Row';
@@ -16,17 +17,18 @@ import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
 import { cloudSession, getSource, phoneOnly, setSource, type CloudKey, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
-import { CLAUDE_NAME, NAME, nothing, type GptState } from '../src/chatgpt/session';
+import { CLAUDE_NAME, NAME, OPENROUTER_NAME, nothing, type GptState } from '../src/chatgpt/session';
 import { appsLine } from './index';
 import Native from '../modules/ownvoice-native';
 
-/** How Ownvoice writes: this phone, or one of the person's cloud accounts (ChatGPT, Claude), as cards.
+/** How Ownvoice writes: this phone, or one of the person's cloud accounts (ChatGPT, Claude, OpenRouter), as cards.
  *  The chosen card says how it is doing and what can be changed; switching to an account asks first (or
- *  signs in right here), switching back to the phone is immediate. `start=chatgpt|claude` (from Home's
+ *  signs in right here), switching back to the phone is immediate. `start=chatgpt|claude|openrouter` (from Home's
  *  card) begins that switch on arrival. */
 const ACCOUNT_COPY: Record<CloudKey, { title: string; body: string; name: string; company: string; yes: string; button: string; signOut: string; phoneBackup: string; ready: string }> = {
   chatgpt: { title: words.switchTitle, body: words.switchBody, name: NAME, company: 'OpenAI', yes: words.switchYes, button: words.gptButton, signOut: words.gptSignOut, phoneBackup: words.phoneBackup, ready: words.gptSignedInNow },
   claude: { title: words.claudeSwitchTitle, body: words.claudeSwitchBody, name: CLAUDE_NAME, company: 'Anthropic', yes: words.claudeSwitchYes, button: words.claudeButton, signOut: words.claudeSignOut, phoneBackup: words.claudePhoneBackup, ready: say('status.ready', { name: CLAUDE_NAME }) },
+  openrouter: { title: words.openrouterSwitchTitle, body: words.openrouterSwitchBody, name: OPENROUTER_NAME, company: 'OpenRouter', yes: words.openrouterSwitchYes, button: words.openrouterButton, signOut: words.openrouterSignOut, phoneBackup: words.openrouterPhoneBackup, ready: say('status.ready', { name: OPENROUTER_NAME }) },
 };
 
 export default function SourceScreen() {
@@ -36,6 +38,7 @@ export default function SourceScreen() {
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
   const [gpt, setGpt] = useState<GptState | null>(null);
   const [claude, setClaude] = useState<GptState | null>(null);
+  const [openrouter, setOpenRouter] = useState<GptState | null>(null);
   // An account's sign-in, shown inside its card: null unless the person is signing in here.
   const [signIn, setSignIn] = useState<{ key: CloudKey; state: GptState } | null>(null);
   const [confirm, setConfirm] = useState<CloudKey | null>(null);
@@ -46,7 +49,7 @@ export default function SourceScreen() {
   const live = useRef(true);
   const latest = useRef(signIn);
   latest.current = signIn;
-  const setState = (key: CloudKey, next: GptState) => (key === 'claude' ? setClaude : setGpt)(next);
+  const setState = (key: CloudKey, next: GptState) => (key === 'claude' ? setClaude : key === 'openrouter' ? setOpenRouter : setGpt)(next);
 
   const choose = (next: Source) => {
     try { setSource(next); setShown(next); setProblem(null); } catch { setProblem(words.gptAppsSaveFailed); }
@@ -57,6 +60,7 @@ export default function SourceScreen() {
     void phoneCanWrite().then(can => { if (live.current) setPhone(can); });
     void cloudSession('chatgpt').current().then(now => { if (live.current) setGpt(now); }).catch(() => { if (live.current) setGpt(nothing); });
     void cloudSession('claude').current().then(now => { if (live.current) setClaude(now); }).catch(() => { if (live.current) setClaude(nothing); });
+    void cloudSession('openrouter').current().then(now => { if (live.current) setOpenRouter(now); }).catch(() => { if (live.current) setOpenRouter(nothing); });
     void Promise.all([Native.launcherApps(null), Native.bubbleRules()]).then(([apps, rules]) => {
       const listed = phoneOnly();
       if (live.current) setStays(apps.filter(({ app }) => listed.includes(app) && showsBubble(app, rules)).map(({ label }) => label));
@@ -98,6 +102,16 @@ export default function SourceScreen() {
     try { require('../src/chatgpt/accounts').paste('claude', text); return true; } catch { setProblem(words.claudePasteFailed); return false; }
   };
 
+  /** The person's own OpenRouter key, handed to the kit's key route; a good key connects right here. */
+  const connectOpenRouter = async (secret: string): Promise<boolean> => {
+    if (signIn?.key !== 'openrouter') return false;
+    try { await require('../src/chatgpt/accounts').connectOpenRouter(secret); }
+    catch { if (live.current) setProblem(words.openrouterKeyFailed); return false; }
+    const next = await cloudSession('openrouter').current().catch(() => nothing);
+    if (live.current) shown('openrouter', attempt.current, next);
+    return true;
+  };
+
   const leaveSignIn = () => {
     attempt.current++;
     if (signIn?.state.waiting) void cloudSession(signIn.key).cancel().catch(() => {});
@@ -105,8 +119,9 @@ export default function SourceScreen() {
   };
 
   // The approval happens on the provider's own page, so the card looks again while it waits.
+  // OpenRouter has no page or code to poll: its form waits for the pasted key, not for the kit.
   useEffect(() => {
-    if (!signIn?.state.waiting) return;
+    if (!signIn?.state.waiting || signIn.key === 'openrouter') return;
     const key = signIn.key;
     const at = attempt.current;
     const id = setInterval(() => { void cloudSession(key).current().then(next => shown(key, at, next)).catch(() => {}); }, 1000);
@@ -116,10 +131,12 @@ export default function SourceScreen() {
   /** An account picked: ask first when already signed in, otherwise sign in right here. */
   const pickCloud = (key: CloudKey) => {
     if (source === key || signIn) return;
-    if ((key === 'claude' ? claude : gpt)?.signedIn) setConfirm(key); else beginSignIn(key);
+    const account = key === 'claude' ? claude : key === 'openrouter' ? openrouter : gpt;
+    if (account?.signedIn) setConfirm(key); else beginSignIn(key);
   };
   const pickChatGpt = () => pickCloud('chatgpt');
   const pickClaude = () => pickCloud('claude');
+  const pickOpenRouter = () => pickCloud('openrouter');
 
   /** This phone picked: the private direction, so no question. A signed-in account stays signed in until Sign out. */
   const pickPhone = () => {
@@ -127,12 +144,16 @@ export default function SourceScreen() {
     if (source !== 'phone') choose('phone');
   };
 
+  const openRouterOffered: boolean = require('../src/chatgpt/accounts').openRouterReady();
+
   useEffect(() => {
-    const key = start === 'claude' || start === 'chatgpt' ? start : null;
-    if (!key || started.current || source === undefined || !(key === 'claude' ? claude : gpt) || source === key) return;
+    const requested = start === 'claude' || start === 'chatgpt' || start === 'openrouter' ? start : null;
+    const key = requested === 'openrouter' && !openRouterOffered ? null : requested;
+    const account = key === 'claude' ? claude : key === 'openrouter' ? openrouter : gpt;
+    if (!key || started.current || source === undefined || !account || source === key) return;
     started.current = true;
     pickCloud(key);
-  }, [start, source, gpt, claude]);
+  }, [start, source, gpt, claude, openrouter]);
 
   const signOut = (key: CloudKey) => {
     setProblem(null);
@@ -165,13 +186,15 @@ export default function SourceScreen() {
   /** One account's card body: its sign-in while it runs, otherwise how the account is doing when chosen. Claude signs in on its own page: open it already signed in, then paste the code it shows back here. */
   const body = (key: CloudKey) => {
     const copy = ACCOUNT_COPY[key];
-    const cloud = key === 'claude' ? claude : gpt;
+    const cloud = key === 'claude' ? claude : key === 'openrouter' ? openrouter : gpt;
     const resting = !!cloud?.resting;
     const signing = signIn?.key === key ? signIn.state : null;
     if (signing?.waiting) return <>
-      {indent(key === 'claude' ? signing.note ?? words.claudeSignInNote : words.signInNote, t.muted)}
+      {indent(key === 'claude' ? signing.note ?? words.claudeSignInNote : key === 'openrouter' ? words.openrouterKeyNote : words.signInNote, t.muted)}
       {key === 'claude'
         ? <ClaudeSignIn url={signing.url ?? null} onOpen={openClaude} onConnect={connectClaude} />
+        : key === 'openrouter'
+        ? <OpenRouterKey onConnect={connectOpenRouter} />
         : <>
           <View style={[styles.code, { backgroundColor: t.group }]}>
             {signing.code && <>
@@ -221,6 +244,7 @@ export default function SourceScreen() {
   const notes: [typeof LockIcon, string, string, (() => void)?][] = [
     ...(chosen === 'chatgpt' ? [[LockIcon, words.headGpt, words.privacyGpt], [ChatIcon, words.headSwitch, words.switchNote]] as [typeof LockIcon, string, string][]
       : chosen === 'claude' ? [[LockIcon, words.headClaude, words.privacyClaude], [ChatIcon, words.headSwitch, words.switchNoteClaude]] as [typeof LockIcon, string, string][]
+      : chosen === 'openrouter' ? [[LockIcon, words.headOpenRouter, words.privacyOpenRouter], [ChatIcon, words.headSwitch, words.switchNoteOpenRouter]] as [typeof LockIcon, string, string][]
       : chosen === 'phone' ? [[LockIcon, words.headPhone, words.privacyPhone]] as [typeof LockIcon, string, string][] : []),
     [EyeIcon, words.headReads, words.readsNote, () => router.push('/reads')],
   ];
@@ -231,8 +255,8 @@ export default function SourceScreen() {
         {phone === 'cant'
           ? <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneCant} selected={false} unavailable
             reason={<>
-              <Text style={[type.note, styles.indent, { color: t.text }]}>{chosen === 'claude' ? words.claudePhoneCantWhy : words.phoneCantWhy}</Text>
-              {chosen !== 'chatgpt' && chosen !== 'claude' && !signIn && <View style={styles.indent}><Button kind="filled" label={words.gptButton} onPress={pickChatGpt} /></View>}
+              <Text style={[type.note, styles.indent, { color: t.text }]}>{chosen === 'claude' ? words.claudePhoneCantWhy : chosen === 'openrouter' ? words.openrouterPhoneCantWhy : words.phoneCantWhy}</Text>
+              {chosen !== 'chatgpt' && chosen !== 'claude' && chosen !== 'openrouter' && !signIn && <View style={styles.indent}><Button kind="filled" label={words.gptButton} onPress={pickChatGpt} /></View>}
             </>} />
           : <SourceOption icon={icon(PhoneIcon)} title={words.srcPhone} subtitle={words.srcPhoneSub} selected={source === 'phone' && !signIn} onPress={pickPhone}>
             {source === 'phone' && !signIn ? <PhoneWriter /> : null}
@@ -243,6 +267,9 @@ export default function SourceScreen() {
         <SourceOption icon={icon(ChatIcon)} title={words.srcClaude} subtitle={words.srcGptSub} selected={source === 'claude' || signIn?.key === 'claude'} onPress={pickClaude}>
           {body('claude')}
         </SourceOption>
+        {openRouterOffered && <SourceOption icon={icon(ChatIcon)} title={words.srcOpenRouter} subtitle={words.srcOpenRouterSub} selected={source === 'openrouter' || signIn?.key === 'openrouter'} onPress={pickOpenRouter}>
+          {body('openrouter')}
+        </SourceOption>}
       </View>}
       {problem && <Text style={[type.body, { color: t.text }]}>{problem}</Text>}
       <Text accessibilityRole="header" style={[type.label, styles.section, { color: t.primary }]}>{words.writingSection}</Text>
