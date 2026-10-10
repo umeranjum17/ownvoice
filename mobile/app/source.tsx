@@ -144,8 +144,11 @@ export default function SourceScreen() {
     if (source !== 'phone') choose('phone');
   };
 
+  const openRouterOffered: boolean = require('../src/chatgpt/accounts').openRouterReady();
+
   useEffect(() => {
-    const key = start === 'claude' || start === 'chatgpt' || start === 'openrouter' ? start : null;
+    const requested = start === 'claude' || start === 'chatgpt' || start === 'openrouter' ? start : null;
+    const key = requested === 'openrouter' && !openRouterOffered ? null : requested;
     const account = key === 'claude' ? claude : key === 'openrouter' ? openrouter : gpt;
     if (!key || started.current || source === undefined || !account || source === key) return;
     started.current = true;
@@ -235,7 +238,6 @@ export default function SourceScreen() {
         : cloud?.signedIn && <View style={styles.signOut}><Button kind="text" label={copy.signOut} onPress={() => signOut(key)} /></View>}
     </>;
   };
-  const openRouterOffered: boolean = require('../src/chatgpt/accounts').openRouterReady();
 
   // What happens to the writing, for the chosen option only: nothing chosen means nothing is written or sent.
   // Each reads as a short headline first, with the full sentence under it; the read log opens its own screen.

@@ -4,7 +4,7 @@ Home's **How Ownvoice writes** screen (`/source`) lists the writer options as ca
 
 ## Sub-features
 
-- `writer-list`: the screen lists this phone, ChatGPT, Claude and OpenRouter, in that order. OpenRouter's card reads **With your OpenRouter** / **Your own key, paid as you use it** (it is billed per use, not a plan), with the shared trade-off lines naming OpenRouter and its credit.
+- `writer-list`: the screen lists this phone, ChatGPT, Claude and OpenRouter, in that order. OpenRouter's card reads **With your OpenRouter** / **Your own key, paid as you use it** (it is billed per use, not a plan).
 - `writer-chatgpt`: the ChatGPT card signs in with the device code (copy and open, then Continue) and signing out falls back to the phone where it can write.
 - `writer-claude`: the Claude card opens the Claude page and pastes the code it shows back into the field; a signed-in Claude account produces drafts through the writer.
 - `writer-openrouter`: the OpenRouter card is a key route, not a plan sign-in — the person pastes their own OpenRouter key into the field and the kit saves it only in this phone's secure store (no page to open, no code to poll). The default writer is DeepSeek V4.1 Flash; a signed-in OpenRouter account produces real drafts through the kit (`Accounts.respondKey`), never a direct provider SDK or hand-rolled HTTP.

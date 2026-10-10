@@ -148,7 +148,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
         if (!practice && (!current || current.paused || !showsBubble(app, current) || phoneListed(app))) return false;
         return switchAndSession(before, key);
       };
-      if (mocked) {
+      if (mocked && key === 'chatgpt') {
         if (!(await beforeSend())) throw new SendVeto(words.phoneWrote);
         return require('../panel/stubWriter').stubWriter().write(request, on);
       }
