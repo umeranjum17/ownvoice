@@ -116,7 +116,7 @@ Ownvoice reads the screen only when you tap its bubble, never in the background,
   <img src="docs/readme/reads.webp" alt="What Ownvoice read: the 'Keep my replies to learn from' toggle, one Today entry, 'Polished your message in Ownvoice — Read the chat on screen and your message. Sent to your AI account, 3:22 PM', and Wipe everything" width="300" />
 </p>
 
-The exact data flows, including the one-time download and the remote on/off switch for cloud writing (ChatGPT and Claude), are written down in [mobile/README.md](mobile/README.md#how-ownvoice-writes).
+The exact data flows, including the one-time download and the remote on/off switch for cloud writing (ChatGPT, Claude and OpenRouter), are written down in [mobile/README.md](mobile/README.md#how-ownvoice-writes).
 
 ## Download / Install
 

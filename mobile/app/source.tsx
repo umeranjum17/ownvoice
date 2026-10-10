@@ -21,9 +21,9 @@ import { CLAUDE_NAME, NAME, OPENROUTER_NAME, nothing, type GptState } from '../s
 import { appsLine } from './index';
 import Native from '../modules/ownvoice-native';
 
-/** How Ownvoice writes: this phone, or one of the person's cloud accounts (ChatGPT, Claude), as cards.
+/** How Ownvoice writes: this phone, or one of the person's cloud accounts (ChatGPT, Claude, OpenRouter), as cards.
  *  The chosen card says how it is doing and what can be changed; switching to an account asks first (or
- *  signs in right here), switching back to the phone is immediate. `start=chatgpt|claude` (from Home's
+ *  signs in right here), switching back to the phone is immediate. `start=chatgpt|claude|openrouter` (from Home's
  *  card) begins that switch on arrival. */
 const ACCOUNT_COPY: Record<CloudKey, { title: string; body: string; name: string; company: string; yes: string; button: string; signOut: string; phoneBackup: string; ready: string }> = {
   chatgpt: { title: words.switchTitle, body: words.switchBody, name: NAME, company: 'OpenAI', yes: words.switchYes, button: words.gptButton, signOut: words.gptSignOut, phoneBackup: words.phoneBackup, ready: words.gptSignedInNow },
