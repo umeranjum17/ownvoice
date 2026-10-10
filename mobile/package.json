@@ -11,11 +11,12 @@
     "floor": "node ../scripts/floor-guard.mjs"
   },
   "dependencies": {
-    "@byokit/accounts": "0.19.0",
+    "@byokit/accounts": "0.20.0",
     "@byokit/decide": "0.6.1",
     "@byokit/infer": "^0.1.0",
     "@byokit/overlay": "0.3.0",
     "@byokit/seal": "0.3.0",
+    "@byokit/secrets": "0.5.0",
     "@dr.pogodin/react-native-fs": "^2.40.3",
     "expo": "~57.0.0",
     "expo-asset": "~57.0.18",

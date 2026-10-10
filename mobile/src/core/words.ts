@@ -110,8 +110,40 @@ const claudeWords = {
   claudePhoneCantWhy: 'Writing right on the phone needs a newer phone with its own built-in writer. This phone doesn’t have one, so Ownvoice writes with your Claude instead. You still pick each draft and press Send yourself.',
 } as const;
 
+// The OpenRouter account: a key the person pastes, billed per use rather than a plan, with the same
+// promises and failures as the other cloud writers, named for OpenRouter.
+const openRouterWords = {
+  openrouterKeyNote: 'OpenRouter is not a plan. Paste your own OpenRouter key, and Ownvoice uses it only to write for you.',
+  openrouterPasteField: 'Paste your OpenRouter key',
+  openrouterConnect: 'Connect',
+  openrouterSignOut: 'Sign out of OpenRouter',
+  openrouterButton: 'Connect with OpenRouter',
+  openrouterKeyFailed: 'That key was not accepted. Check it and try again.',
+  srcOpenRouter: 'With your OpenRouter',
+  srcOpenRouterSub: 'Your own key, paid as you use it',
+  rowSourceOpenRouter: 'With your OpenRouter',
+  homeOpenRouter: 'Writes with your OpenRouter.',
+  headOpenRouter: 'Your chat goes to OpenRouter only when you tap',
+  privacyOpenRouter: 'When you tap the bubble, the chat on screen, what you typed and your writing rules go to OpenRouter. Ownvoice keeps no copy.',
+  switchNoteOpenRouter: 'Ownvoice checks now and then whether its online writers are allowed to write. That check carries no name and no message.',
+  openrouterSwitchTitle: 'Write with OpenRouter?',
+  openrouterSwitchBody: 'From now on, when you tap the bubble, the chat on screen and what you typed go to OpenRouter to write your drafts.',
+  openrouterSwitchYes: 'Switch to OpenRouter',
+  openrouterPhoneBackup: "If OpenRouter can't answer, this phone writes instead.",
+  openrouterTrade: 'Needs internet, and uses your OpenRouter credit',
+  openrouterFailed: "OpenRouter didn't answer this time.",
+  openrouterFallback: "OpenRouter didn't answer. This phone wrote these instead.",
+  openrouterOff: 'OpenRouter is turned off for now. This phone wrote these.',
+  openrouterOffNoPhone: 'OpenRouter is turned off for now. Try again later.',
+  openrouterNeedNote: "This phone can't write drafts on its own. Connect your OpenRouter key to use Ownvoice here.",
+  openrouterSwitchUnavailable: 'OpenRouter could not be reached this time. This phone wrote these.',
+  openrouterCantWriteNote: 'This phone can\'t write, and you kept writing there on this phone. Let OpenRouter write there instead.',
+  openrouterCantWriteFix: 'Choose where OpenRouter writes',
+  openrouterPhoneCantWhy: 'Writing right on the phone needs a newer phone with its own built-in writer. This phone doesn’t have one, so Ownvoice writes with your OpenRouter instead. You still pick each draft and press Send yourself.',
+} as const;
+
 export const words = {
-  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...growthWords, ...homeWords, ...claudeWords,
+  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords,
   keepReplies: 'Keep my replies to learn from',
   keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
   outcomeTitle: 'Replies you inserted',

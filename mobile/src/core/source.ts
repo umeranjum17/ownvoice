@@ -4,11 +4,11 @@ import { CHATGPT_DEFAULT_OFF, DEFAULT_ON, showsBubble } from './privacy';
 import { store } from './store';
 
 /** The accounts the app can write with, as chosen in How Ownvoice writes. */
-export type CloudKey = 'chatgpt' | 'claude';
-/** The chosen writing source: 'phone' for on-device, a plan provider key ('claude', 'chatgpt', etc.) for cloud, or null when not chosen. */
+export type CloudKey = 'chatgpt' | 'claude' | 'openrouter';
+/** The chosen writing source: 'phone' for on-device, a plan provider key ('claude', 'chatgpt', 'openrouter') for cloud, or null when not chosen. */
 export type Source = 'phone' | string | null;
 /** The cloud account a source names, or null for phone, not chosen, or anything else. */
-export const cloudOf = (source: Source | undefined): CloudKey | null => source === 'chatgpt' || source === 'claude' ? source : null;
+export const cloudOf = (source: Source | undefined): CloudKey | null => source === 'chatgpt' || source === 'claude' || source === 'openrouter' ? source : null;
 /** The chosen cloud account's own session, and its synchronous mirror. */
 export const cloudSession = (key: CloudKey) => accountSessions[key].session;
 export const cloudNow = (key: CloudKey) => accountSessions[key].now();
