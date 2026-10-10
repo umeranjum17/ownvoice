@@ -42,13 +42,15 @@ const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
 
 const find = pred => nodes().find(pred);
 const findText = label => find(n => `${n.label} ${n.text}`.toLowerCase().includes(label.toLowerCase()));
+const screenWords = () => nodes().map(n => n.text || n.label).filter(Boolean).join(' | ').slice(0, 260);
 const waitText = async (label, tries = 40) => {
-  for (let i = 0; i < tries; i++) { const n = findText(label); if (n) return n; await wait(1000); }
-  throw new Error(`Could not see "${label}" on screen.`);
+  const wanted = Array.isArray(label) ? label : [label];
+  for (let i = 0; i < tries; i++) { const n = wanted.map(findText).find(Boolean); if (n) return n; await wait(1000); }
+  throw new Error(`Could not see "${wanted.join('" or "')}" on screen: ${screenWords()}`);
 };
 const tapText = async (label, tries = 20) => {
   for (let i = 0; i < tries; i++) { const n = findText(label); if (n) { tap(...center(n)); return n; } await wait(1000); }
-  throw new Error(`Could not find visible ${label}.`);
+  throw new Error(`Could not find visible ${label}: ${screenWords()}`);
 };
 const bubbleNode = () => find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label));
 const tapBubble = () => { const n = bubbleNode(); if (!n) throw new Error('Ownvoice bubble is not visible.'); tap(...center(n)); };
@@ -125,6 +127,7 @@ const connectOpenRouter = async tag => {
   if (!field) throw new Error('The OpenRouter key field did not open.');
   tap(...center(field)); await wait(700);
   adb('shell', 'input', 'text', `'${key}'`); await wait(700); // never logged or screenshotted
+  if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); } // hide the keyboard so Connect is visible
   await tapText('connect', 20);
   await waitText('openrouter is connected', 60);
   snap(`connected-${tag}`);
@@ -140,10 +143,10 @@ let page = null;
 const realDraft = async tag => {
   if (!page) { page = await servePage(); execFileSync('adb', ['-s', serial, 'reverse', `tcp:${page.address().port}`, `tcp:${page.address().port}`]); }
   const url = `http://127.0.0.1:${page.address().port}`;
-  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url, pkg); await wait(3500);
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url); await wait(3500);
   // A fresh Chrome shows first-run sheets; clear the one that can block the page.
-  for (let i = 0; i < 4; i++) {
-    const n = findText('use without an account') ?? findText('no thanks');
+  for (let i = 0; i < 6; i++) {
+    const n = findText('without an account') ?? findText('no thanks');
     if (!n) break; tap(...center(n)); await wait(1500);
   }
   const heading = await waitText('textarea', 20);
@@ -152,7 +155,7 @@ const realDraft = async tag => {
   type(REPLY);
   await wait(4500);
   tapBubble();
-  await waitText('polish your message', 60);
+  await waitText(['polish your message', 'polish your post'], 60);
   await waitText('pick one to use instead of what you wrote', 60);
   await wait(1500);
   const panel = nodes();
