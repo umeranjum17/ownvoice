@@ -29,6 +29,6 @@ Preconditions:
 ## Gotchas
 
 - Emulators have no phone writer: the ChatGPT/Claude stand-in leads; never claim phone-writer behavior from an emulator run.
-- The account screen (`/source`) is where Claude is added; first-run setup offers ChatGPT only.
+- The `/source` screen is where accounts are switched and added after setup; the first-run writer step (`/setup`) now offers Claude too, with the same paste-back sign-in (`src/ui/ClaudeSignIn.tsx`).
 - `pair` force-stops the app and loses the accessibility binding, and a cleared-data setup loses the account: re-run the sign-in and the off/on service toggle inside the launch command.
 - Never read or copy another tool's Claude/ChatGPT credentials; the Claude leg uses only the allocated test credential.

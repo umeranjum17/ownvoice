@@ -160,7 +160,7 @@ const run = async mode => {
 
   // 2. How Ownvoice writes. No phone writer here, so ChatGPT is picked and the phone option is dimmed.
   await tapText('Continue');
-  await waitForLine('needs your chatgpt');
+  await waitForLine('needs an account');
   await waitForLine('only some newer phones');
   await wait(600);
   expectPlain('choose');

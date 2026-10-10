@@ -9,6 +9,7 @@ import { Dot } from '../src/ui/Dot';
 import { Badge } from '../src/ui/Badge';
 import { ChatIcon, CheckIcon, HandIcon, LockIcon, PhoneIcon, WarnIcon } from '../src/ui/icons';
 import { SourceOption } from '../src/ui/SourceOption';
+import { ClaudeSignIn } from '../src/ui/ClaudeSignIn';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
 import { say, type Provider, type SignIn, type Status, type WordKey } from '@byokit/accounts';
 import { words } from '../src/core/words';
@@ -17,7 +18,7 @@ import type { Step } from '../src/core/onboarding';
 import { store } from '../src/core/store';
 import { completeSetup } from '../src/core/setup-completion';
 import { saveBubbleRules } from '../src/chatgpt/settings';
-import { accounts, signIn, signInState, status, cancelSignIn, refresh } from '../src/chatgpt/accounts';
+import { accounts, signIn, signInClaude, paste, signInState, status, cancelSignIn, refresh } from '../src/chatgpt/accounts';
 import { getSource, setSource, storedSource, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
 import { getReady, resume } from '../src/core/phoneDownload';
@@ -42,10 +43,10 @@ const readSaved = (): Saved => {
   return { step: Onboarding.known(saved?.step) ?? Onboarding.first(done), inserted: !!saved?.inserted };
 };
 
-/** The first run: the welcome, how Ownvoice writes (this phone or the person's ChatGPT, signed in right
- *  here), the permission explained kindly, a practice chat that ends in a first inserted draft, and app
- *  choices. Steps follow core/onboarding; hardware Back leaves a sign-in for the choice, and otherwise
- *  completes setup. The home switch later opens at permission (Onboarding.first). */
+/** The first run: the welcome, how Ownvoice writes (this phone, or one of the person's accounts — ChatGPT
+ *  or Claude — signed in right here), the permission explained kindly, a practice chat that ends in a
+ *  first inserted draft, and app choices. Steps follow core/onboarding; hardware Back leaves a sign-in
+ *  for the choice, and otherwise completes setup. The home switch later opens at permission (Onboarding.first). */
 export default function Setup() {
   const t = useTheme();
   const [{ step, inserted }, setSaved] = useState<Saved>(readSaved);
@@ -61,10 +62,10 @@ export default function Setup() {
   const [typing, setTyping] = useState(false);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
   const [picked, setPicked] = useState<'phone' | string | null>(null);
-  // This wizard drives a device-code sign-in: it shows a code to type and opens the page. Claude's
-  // paste-back flow needs its own field (see Home's How Ownvoice writes), and key/host routes cannot
-  // be finished here, so the first run offers ChatGPT only; other accounts are added after setup.
-  const plans = accounts.providers.filter(p => p.key === 'chatgpt');
+  // The first run offers the person's cloud accounts too: ChatGPT first (it stays the listed-first
+  // default the wizard always had), then Claude, which signs in on its own page with its code pasted
+  // back (the kit's paste seam, the same shared piece as How Ownvoice writes). Key/host routes stay out.
+  const plans = ['chatgpt', 'claude'].flatMap(key => accounts.providers.filter(p => p.key === key));
   const defaultPlan = plans[0]?.key ?? 'chatgpt';
   const pick = picked ?? (phone === 'cant' ? defaultPlan : 'phone');
   // Plan sign-in state, shown inside the choice step: null while the options show.
@@ -238,8 +239,13 @@ export default function Setup() {
   /** Convert BYOKit sign-in state to our plan state. */
   function planStateOf(provider: string, view: SignIn | null, stat: Status | null): PlanState {
     const providerName = plans.find(p => p.key === provider)?.name ?? provider;
-    if (view?.state === 'waiting')
-      return { provider, signedIn: isSignedIn(stat), waiting: true, code: view.code ?? null, url: view.url ?? null, note: view.code ? say('signIn.waitingUrl', { name: providerName }) : say('signIn.opening', { name: providerName }), reason: null };
+    if (view?.state === 'waiting') {
+      // Claude's code comes back by paste, so its own plain instruction replaces the device-code note.
+      const note = view.code ? say('signIn.waitingUrl', { name: providerName })
+        : provider === 'claude' && view.url ? words.claudeSignInNote
+        : say('signIn.opening', { name: providerName });
+      return { provider, signedIn: isSignedIn(stat), waiting: true, code: view.code ?? null, url: view.url ?? null, note, reason: null };
+    }
     if (view?.state === 'failed') {
       // The note names this screen's own button; the reason carries the kit's cause
       // (its first sentence) when the kit knows it, and nothing when it does not.
@@ -264,7 +270,8 @@ export default function Setup() {
       .then(async stat => {
         if (isSignedIn(stat) || at !== signing.current) return { view: signInState(provider), stat };
         fresh.current = true;
-        await signIn(provider);
+        // Claude's PKCE flow is paste-based and starts without the device-code `via`; ChatGPT keeps it.
+        await (provider === 'claude' ? signInClaude() : signIn(provider));
         // Left while the code was being made: drop it rather than leave it waiting.
         if (at !== signing.current) await cancelSignIn(provider);
         return { view: signInState(provider), stat: await status(provider).catch(() => null) };
@@ -301,6 +308,27 @@ export default function Setup() {
     });
   };
 
+  /** Claude signs in on its own page: open it, then the code it shows comes back through the kit's paste seam. */
+  const openClaude = () => {
+    const current = planState;
+    if (current?.provider !== 'claude' || !current.url) return;
+    const at = signing.current;
+    void Linking.openURL(current.url).catch(() => {
+      if (mounted.current && at === signing.current)
+        setPlanState(prev => prev && prev.provider === 'claude' ? { ...prev, note: words.claudePageFailed } : prev);
+    });
+  };
+
+  const connectClaude = (code: string) => {
+    const current = planState;
+    if (current?.provider !== 'claude' || !code.trim()) return false;
+    try { paste('claude', code.trim()); return true; }
+    catch {
+      setPlanState(prev => prev && prev.provider === 'claude' ? { ...prev, waiting: false, note: words.claudePasteFailed, reason: null } : prev);
+      return false;
+    }
+  };
+
   const choose = (chosen: 'phone' | string) => {
     try { setSource(chosen); } catch { return; }
     // Picking this phone where it still needs its one-time download is the yes to that download.
@@ -318,12 +346,12 @@ export default function Setup() {
   const phoneCan = phone !== null && phone !== 'cant';
   const planName = (key: string) => plans.find(p => p.key === key)?.name ?? key;
 
-  // Plan options from BYOKit accounts: one title pattern for every plan, the kit's own label
-  // as the subtitle only when the kit gives one, and the same three disclosure lines each time.
+  // Plan options from BYOKit accounts: one title pattern for every plan, and the same plain subtitle
+  // and three disclosure lines each time (the kit's tier label is a name to say, not shown here).
   const planOptions = plans.map(plan => {
     const icon = <ChatIcon size={22} color={t.onPrimaryContainer} />;
     const title = words.srcPlan.replace('{name}', plan.name);
-    const subtitle = plan.label ?? words.srcGptSub;
+    const subtitle = words.srcGptSub;
     const tradeoffs = [{ text: words.tradeGpt1, good: true },
       { text: words.tradePlan2.replace('{name}', plan.name), good: false },
       { text: words.tradePlan3.replace('{name}', plan.name), good: false }];
@@ -333,14 +361,16 @@ export default function Setup() {
   return <Screen step={step} footer={<>
     {step === 'CHOOSE' && !planState && (phone === 'cant'
       ? <>
-        <Button kind="filled" large label={words.signIn} onPress={() => startPlanSignIn(defaultPlan)} />
+        <Button kind="filled" large label={words.signIn} onPress={() => startPlanSignIn(pick)} />
         <View style={styles.skip}><Button kind="text" label={words.notNow} onPress={() => { void finish(); }} /></View>
       </>
       : <Button kind="filled" large disabled={!phone} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : startPlanSignIn(pick)} />)}
-    {step === 'CHOOSE' && planState?.waiting && <>
-      <Button kind="filled" large disabled={!planState.code} label={planState.provider === 'chatgpt' ? words.copyAndOpen : words.copyAndOpenTo.replace('{name}', planName(planState.provider))} onPress={copyAndOpen} />
+    {step === 'CHOOSE' && planState?.waiting && planState.provider === 'chatgpt' && <>
+      <Button kind="filled" large disabled={!planState.code} label={words.copyAndOpen} onPress={copyAndOpen} />
       <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>
     </>}
+    {step === 'CHOOSE' && planState?.waiting && planState.provider === 'claude' &&
+      <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>}
     {step === 'CHOOSE' && planState?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => planState.provider && choose(planState.provider)} />}
     {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <>
       <Button kind="filled" large label={words.tryAgain} onPress={() => planState.provider && startPlanSignIn(planState.provider)} />
@@ -375,8 +405,8 @@ export default function Setup() {
         <Text style={[type.note, { color: t.muted }]}>{words.readyNote}</Text>
       </View>}
     </>}
-    {step === 'CHOOSE' && planState?.waiting && <>
-      <Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={planState.provider === 'chatgpt' ? words.signInNote : words.signInNoteTo.replace('{name}', planName(planState.provider))} />
+    {step === 'CHOOSE' && planState?.waiting && planState.provider === 'chatgpt' && <>
+      <Head title={words.signInTitle} note={words.signInNote} />
       <View style={[styles.code, { backgroundColor: t.raised }]}>
         {planState.code && <>
           <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
@@ -387,9 +417,16 @@ export default function Setup() {
           <Text style={[type.note, { color: t.muted }]}>{planState.code ? words.waiting : planState.note ?? words.waiting}</Text>
         </View>
       </View>
-      {planState.provider && <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
-        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: plans.find(p => p.key === planState.provider)?.name ?? planState.provider, company: plans.find(p => p.key === planState.provider)?.company ?? '' })}</Text>
-      </View>}
+      <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
+        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: planName('chatgpt'), company: plans.find(p => p.key === 'chatgpt')?.company ?? '' })}</Text>
+      </View>
+    </>}
+    {step === 'CHOOSE' && planState?.waiting && planState.provider === 'claude' && <>
+      <Head title={words.signInTo.replace('{name}', planName('claude'))} note={words.claudeSignInNote} />
+      <ClaudeSignIn url={planState.url} onOpen={openClaude} onConnect={connectClaude} />
+      <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
+        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: planName('claude'), company: plans.find(p => p.key === 'claude')?.company ?? '' })}</Text>
+      </View>
     </>}
     {step === 'CHOOSE' && planState?.signedIn && <>
       <View style={styles.connectedDot}><Dot mood="done" size={112} /></View>
@@ -488,14 +525,38 @@ function Screen({ step, footer, children }: { step: Step; footer: ReactNode; chi
   const t = useTheme();
   const { top, bottom } = useSafeAreaInsets();
   const at = STEPPED.indexOf(step);
+  // A scroll cue: while the step's words run past the fold, a short fade at the bottom of the scroll
+  // area shows there is more to see, so the last card is not left hidden under the button.
+  const [below, setBelow] = useState(false);
+  const content = useRef(0);
+  const view = useRef(0);
+  const offset = useRef(0);
+  const updateCue = () => {
+    const more = content.current - view.current - offset.current > 2;
+    setBelow(seen => seen === more ? seen : more);
+  };
   return <View style={{ flex: 1, backgroundColor: t.sheet, paddingTop: top + space.l }}>
-    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="always">
-      <View testID="setup-steps" style={styles.steps} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: STEPPED.length, now: at + 1 }}>
-        {STEPPED.map((s, i) => <View key={s} style={[styles.stepBar, { backgroundColor: i <= at ? t.primary : t.yours }]} />)}
-      </View>
-      {children}
-    </ScrollView>
+    <View style={{ flex: 1 }}>
+      <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.page} keyboardShouldPersistTaps="always" scrollEventThrottle={16}
+        onScroll={event => { const m = event.nativeEvent; offset.current = m.contentOffset.y; view.current = m.layoutMeasurement.height; content.current = m.contentSize.height; updateCue(); }}
+        onLayout={event => { view.current = event.nativeEvent.layout.height; updateCue(); }}
+        onContentSizeChange={(_width, height) => { content.current = height; updateCue(); }}>
+        <View testID="setup-steps" style={styles.steps} accessibilityRole="progressbar" accessibilityValue={{ min: 1, max: STEPPED.length, now: at + 1 }}>
+          {STEPPED.map((s, i) => <View key={s} style={[styles.stepBar, { backgroundColor: i <= at ? t.primary : t.yours }]} />)}
+        </View>
+        {children}
+      </ScrollView>
+      {below && <ScrollCue color={t.sheet} />}
+    </View>
     <View style={[styles.footer, { paddingBottom: bottom + space.l }]}>{footer}</View>
+  </View>;
+}
+
+/** A short bottom fade above the footer, drawn as steps of the sheet colour so no gradient library is
+ *  needed; only shown while the step's words continue below it. */
+function ScrollCue({ color }: { color: string }) {
+  return <View testID="scroll-cue" pointerEvents="none" style={styles.cue}>
+    {[0, 0.05, 0.12, 0.22, 0.35, 0.52, 0.72, 1].map((o, i) => <View key={i} style={{ flex: 1, backgroundColor: color, opacity: o }} />)}
   </View>;
 }
 
@@ -591,6 +652,7 @@ const styles = StyleSheet.create({
   headNote: { flexDirection: 'row', alignItems: 'flex-start', gap: space.s, marginTop: space.s },
   tick: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   footer: { paddingHorizontal: space.xl, paddingTop: space.m, gap: space.xs },
+  cue: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 56, flexDirection: 'column' },
   // Text buttons are 40 dp; the 4 dp of padding lets their hit slop reach the 48 dp touch target.
   actions: { flexDirection: 'row', justifyContent: 'center', gap: space.xs, flexWrap: 'wrap', paddingVertical: space.xs },
   guide: { borderWidth: 1, borderRadius: shape.group, paddingHorizontal: space.l, paddingVertical: space.m },

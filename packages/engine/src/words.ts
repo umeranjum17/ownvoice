@@ -178,7 +178,7 @@ export const words = {
   // How Ownvoice writes (the choice: setup, sign-in, settings, Home, panel).
   chooseTitle:'How should Ownvoice write?',
   chooseNote:'Pick one. You can change it any time.',
-  chooseNoteCant:'This phone can\'t write drafts on its own, so Ownvoice needs your ChatGPT.',
+  chooseNoteCant:'This phone can\'t write drafts on its own, so Ownvoice needs an account you already pay for.',
   srcPhone:'On this phone',
   srcPhoneSub:'Private and free',
   srcPhoneCant:'This phone can\'t write on its own. Only some newer phones can.',
