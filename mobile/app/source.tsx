@@ -235,6 +235,7 @@ export default function SourceScreen() {
         : cloud?.signedIn && <View style={styles.signOut}><Button kind="text" label={copy.signOut} onPress={() => signOut(key)} /></View>}
     </>;
   };
+  const openRouterOffered: boolean = require('../src/chatgpt/accounts').openRouterReady();
 
   // What happens to the writing, for the chosen option only: nothing chosen means nothing is written or sent.
   // Each reads as a short headline first, with the full sentence under it; the read log opens its own screen.
@@ -264,9 +265,9 @@ export default function SourceScreen() {
         <SourceOption icon={icon(ChatIcon)} title={words.srcClaude} subtitle={words.srcGptSub} selected={source === 'claude' || signIn?.key === 'claude'} onPress={pickClaude}>
           {body('claude')}
         </SourceOption>
-        <SourceOption icon={icon(ChatIcon)} title={words.srcOpenRouter} subtitle={words.srcOpenRouterSub} selected={source === 'openrouter' || signIn?.key === 'openrouter'} onPress={pickOpenRouter}>
+        {openRouterOffered && <SourceOption icon={icon(ChatIcon)} title={words.srcOpenRouter} subtitle={words.srcOpenRouterSub} selected={source === 'openrouter' || signIn?.key === 'openrouter'} onPress={pickOpenRouter}>
           {body('openrouter')}
-        </SourceOption>
+        </SourceOption>}
       </View>}
       {problem && <Text style={[type.body, { color: t.text }]}>{problem}</Text>}
       <Text accessibilityRole="header" style={[type.label, styles.section, { color: t.primary }]}>{words.writingSection}</Text>
