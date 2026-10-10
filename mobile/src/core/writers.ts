@@ -83,7 +83,7 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
 export type WriterRoute = { writer: Writer; note: string | null };
 
 /** The route comes from the chosen source, never from sign-in plus an allow-list. Phone chosen means
- *  never the cloud, even when signed in. A cloud source (ChatGPT, Claude) means that account unless this
+ *  never the cloud, even when signed in. A cloud source (ChatGPT, Claude, OpenRouter) means that account unless this
  *  app stays on the phone, nobody is signed in, or it is switched off remotely. The phone writes as the
  *  fallback only when it can; otherwise the panel gets the no-phone line for the failure. `note` is
  *  byokit's own line for resting or a plan that doesn't include this, or the sign-in line when signed
