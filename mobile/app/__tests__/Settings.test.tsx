@@ -208,6 +208,12 @@ test('Home says who writes, and one row leads to How Ownvoice writes', async () 
   const chatgpt = await homeCopy();
   expect(chatgpt.getByText(words.homeGpt)).toBeTruthy();
   expect(chatgpt.getByText(words.rowSourceGpt)).toBeTruthy();
+  await chatgpt.unmount();
+  kv.set(SOURCE_KEY, '"openrouter"');
+  (accountSessions.openrouter.session.current as jest.Mock).mockResolvedValue(connected);
+  const openrouter = await homeCopy();
+  expect(openrouter.getByText(words.homeOpenRouter)).toBeTruthy();
+  expect(openrouter.getByText(words.rowSourceOpenRouter)).toBeTruthy();
 });
 
 test('ChatGPT chosen and connected on a phone that cannot write reads ready, never the old dead end', async () => {
