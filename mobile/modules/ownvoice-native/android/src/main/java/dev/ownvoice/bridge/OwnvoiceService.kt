@@ -540,6 +540,7 @@ class OwnvoiceService : AccessibilityService() {
     var beforeMatches = false
     var afterMatches = false
     var caretSettled = false
+    var caretIgnored = false
     try {
       if (reading == null || field == null || current == null) return false
       val identity = reading.insertField?.identity
@@ -552,16 +553,21 @@ class OwnvoiceService : AccessibilityService() {
       val before = FocusedFields.read(this) ?: return false
       beforeMatches = insertTextMatches(before.app, before.text, reading.app, text)
       if (!beforeMatches) return false
-      field.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
+      val selectionSet = field.performAction(AccessibilityNodeInfo.ACTION_SET_SELECTION, Bundle().apply {
         putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_START_INT, text.length)
         putInt(AccessibilityNodeInfo.ACTION_ARGUMENT_SELECTION_END_INT, text.length)
       })
       val actual = FocusedFields.read(this) ?: return false
       afterMatches = insertTextMatches(actual.app, actual.text, reading.app, text)
       caretSettled = insertSelectionSettled(actual.selection, text)
-      return afterMatches && caretSettled
+      // Some editors (Gmail's compose body) reject or silently ignore ACTION_SET_SELECTION, so
+      // the caret can never settle there: the same field identity and the exact read-back text
+      // above are already proof the draft landed. Treat an unaccepted action, or one that leaves
+      // the selection exactly where it was, as that case rather than a failed insert.
+      caretIgnored = !selectionSet || actual.selection == before.selection
+      return afterMatches && (caretSettled || caretIgnored)
     } finally {
-      Log.d(TAG, "insert verify app=$appMatches allowed=$permitted focus=${field != null} resourceId=${reading?.insertField?.identity != null} resource=$resourceMatches node=$nodeMatches identity=$identityMatches before=$beforeMatches after=$afterMatches caret=$caretSettled")
+      Log.d(TAG, "insert verify app=$appMatches allowed=$permitted focus=${field != null} resourceId=${reading?.insertField?.identity != null} resource=$resourceMatches node=$nodeMatches identity=$identityMatches before=$beforeMatches after=$afterMatches caret=$caretSettled ignore=$caretIgnored")
       current?.recycle()
     }
   }
