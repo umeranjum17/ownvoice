@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { say } from '@byokit/accounts';
 import { Badge } from '../src/ui/Badge';
 import { Button } from '../src/ui/Button';
+import { ClaudeSignIn } from '../src/ui/ClaudeSignIn';
 import { Page } from '../src/ui/Page';
 import { PhoneWriter } from '../src/ui/PhoneWriter';
 import { Row } from '../src/ui/Row';
@@ -37,7 +38,6 @@ export default function SourceScreen() {
   const [claude, setClaude] = useState<GptState | null>(null);
   // An account's sign-in, shown inside its card: null unless the person is signing in here.
   const [signIn, setSignIn] = useState<{ key: CloudKey; state: GptState } | null>(null);
-  const [pasted, setPasted] = useState('');
   const [confirm, setConfirm] = useState<CloudKey | null>(null);
   const [stays, setStays] = useState<string[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
@@ -84,7 +84,6 @@ export default function SourceScreen() {
     const at = ++attempt.current;
     const s = cloudSession(key);
     setProblem(null);
-    setPasted('');
     setSignIn({ key, state: { ...nothing, waiting: true } });
     void s.start()
       // Left while the code was being made: drop it, unless a newer sign-in is already waiting (that one is the same session's).
@@ -94,11 +93,9 @@ export default function SourceScreen() {
   };
 
   /** The code the Claude page shows, handed back through the kit's own paste seam. */
-  const connectClaude = () => {
-    const text = pasted.trim();
-    if (!text || signIn?.key !== 'claude') return;
-    try { require('../src/chatgpt/accounts').paste('claude', text); } catch { setProblem(words.claudePasteFailed); return; }
-    setPasted('');
+  const connectClaude = (text: string) => {
+    if (signIn?.key !== 'claude') return false;
+    try { require('../src/chatgpt/accounts').paste('claude', text); return true; } catch { setProblem(words.claudePasteFailed); return false; }
   };
 
   const leaveSignIn = () => {
@@ -174,25 +171,7 @@ export default function SourceScreen() {
     if (signing?.waiting) return <>
       {indent(key === 'claude' ? signing.note ?? words.claudeSignInNote : words.signInNote, t.muted)}
       {key === 'claude'
-        ? <View style={[styles.code, { backgroundColor: t.group }]}>
-          <Button kind="filled" disabled={!signing.url} label={words.claudeOpen} onPress={openClaude} />
-          <TextInput
-            testID="claude-paste"
-            accessibilityLabel={words.claudePasteField}
-            value={pasted}
-            onChangeText={setPasted}
-            placeholder={words.claudePasteField}
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={[styles.paste, { color: t.text, borderColor: t.line }]}
-            placeholderTextColor={t.muted}
-          />
-          <Button kind="filled" disabled={!pasted.trim()} label={words.claudeConnect} onPress={connectClaude} />
-          <View style={styles.waiting}>
-            <ActivityIndicator size="small" color={t.primary} />
-            <Text style={[type.note, { color: t.muted }]}>{words.waiting}</Text>
-          </View>
-        </View>
+        ? <ClaudeSignIn url={signing.url ?? null} onOpen={openClaude} onConnect={connectClaude} />
         : <>
           <View style={[styles.code, { backgroundColor: t.group }]}>
             {signing.code && <>
@@ -306,7 +285,6 @@ const styles = StyleSheet.create({
   words: { flex: 1 },
   status: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingLeft: 56 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s, paddingLeft: 56 },
-  paste: { borderWidth: 1, borderRadius: shape.group, paddingVertical: 10, paddingHorizontal: 12, marginTop: space.s },
   inner: { borderRadius: shape.group, overflow: 'hidden', paddingVertical: space.xs },
   // The text button's own padding lines its label up with the row's title above.
   signOut: { alignItems: 'flex-start', marginLeft: space.l - 24, paddingBottom: space.s },
