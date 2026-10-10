@@ -24,7 +24,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/readme/hero.webp" alt="Three Ownvoice screens: suggested replies to Sam's message, three polished versions of a typed message with stock phrases marked, and a selected sentence made shorter" width="900" />
+  <img src="docs/readme/hero.webp" alt="Three Ownvoice screens: Home with 'Writes with your ChatGPT' and 'Ready to help'; Polish your message over a practice chat, the typed reply's canned phrases marked and two labeled versions, Cleaned up and Shorter; and Make it better, a selected sentence made shorter" width="900" />
 </p>
 
 ## Why Ownvoice exists
@@ -35,22 +35,18 @@ Ownvoice lives where you already write. It reads the screen only when you tap it
 
 ## See it in action
 
-### Reply ideas, one tap away
+### Reply ideas are unavailable for now
 
-**Known limit in 1.0.3:** generic reply cards are withheld. Ownvoice cannot reliably check whether a new reply invents facts about you or someone else from the screen alone. An empty message box where there is something to reply to shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** A blank composer with nothing to answer asks for the one line instead (see [Start a post from a blank composer](#start-a-post-from-a-blank-composer)). No reply is generated, streamed, retried or offered to copy or insert, with either writer. Your voice notes describe style, not facts. No extra checker is used. The reply screenshots below show earlier behavior, not this release. Still open for 1.0.3: names in polished drafts keep their own check, which this release did not rerun, and the withheld path was only walked with no writer chosen, so the ChatGPT and phone writer routes are unrehearsed here.
-
-<p align="center">
-  <img src="docs/readme/replies.webp" alt="Suggested replies to Sam's question about Saturday, each with Insert, Copy and Why?" width="300" />
-</p>
+**Known limit in 1.0.3:** generic reply cards are withheld. Ownvoice cannot reliably check whether a new reply invents facts about you or someone else from the screen alone. An empty message box where there is something to reply to shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** A blank composer with nothing to answer asks for the one line instead (see [Start a post from a blank composer](#start-a-post-from-a-blank-composer)). No reply is generated, streamed, retried or offered to copy or insert, with either writer. Your voice notes describe style, not facts. No extra checker is used. Still open for 1.0.3: names in polished drafts keep their own check, which this release did not rerun, and the withheld path was only walked with no writer chosen, so the ChatGPT and phone writer routes are unrehearsed here.
 
 ### Polish what you wrote
 
-On X and Reddit, the panel names the platform beside its heading. A new post you typed shows **Polish your post · X** or **Polish your post · Reddit**. A reply you started under a post shows **Suggested replies · X** (or **· Reddit**): your text stays as **Yours**, and the suggestions build on your point, best fit first. This works in their Android apps and in Chrome when its address bar identifies the site. Replies and versions use that platform’s writing rules and length checks. Other apps keep their existing headings. While Ownvoice reads the screen, the heading says **Writing…**.
+On X, LinkedIn and Reddit, the panel names the platform beside its heading. A new post you typed shows **Polish your post · X** or **Polish your post · Reddit**. A reply you started under a post shows **Suggested replies · X** (or **· Reddit**), or names the person instead — **Reply to Sam · X** — when one name appears more than once in the messages above: your text stays as **Yours**, and the suggestions build on your point, best fit first. This works in their Android apps and in Chrome when its address bar identifies the site. Replies and versions use that platform’s writing rules and length checks. Other apps keep their existing headings. While Ownvoice reads the screen, the heading says **Writing…**.
 
 Already typed something? The same tap shows your text with the stock phrases marked, then a few better versions of it. **Use this** swaps your text for one of them. **Cleaned up** fixes clear spelling slips, clear missing apostrophes such as “dont”, accidental repeats of “the”, “a” or “an” starting with a lowercase copy, and “Its” before “a”, “an” or “the”. For example, “Its a good plan, I shoud be there by the the evening.” becomes “It's a good plan, I should be there by the evening.” This card uses only your own text and those clear fixes; the writer supplies the other versions. Other suspected slips appear under **Check these** when spelling checks are on; each has its own **Fix**. When no different version is found, Ownvoice keeps your text and asks you to read it over before sending. That does not approve the writing.
 
 <p align="center">
-  <img src="docs/readme/polish.webp" alt="Polish your message: the typed text with 'at the end of the day' marked, and three versions, one flagged 'A bit stock: 3 phrases you could say more simply'" width="300" />
+  <img src="docs/readme/polish.webp" alt="Polish your message over the practice chat: the typed reply 'Saturday is tricky, but at the end of the day should we do Sunday instead?' with 'at the end of the day' marked, then two labeled versions, Cleaned up (which turns 'shoud' into 'should') and Shorter, each with Use this" width="300" />
 </p>
 
 ### Start a post from a blank composer
@@ -70,7 +66,7 @@ A draft shows no verdict until all the deeper checks have run. Even then, Ownvoi
 Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler**, **Fix spelling**, **Friendlier** or **Firmer**. **Copy** copies the version, then paste it where you like, or **Share this text** to choose where it goes. If a new version adds a time, a number or a fact you didn't write, it says **Check this**, and **Copy** and **Share this text** stay disabled while it shows. This works without the bubble's permission.
 
 <p align="center">
-  <img src="docs/readme/rewrite.webp" alt="Make it better over the home screen: a selected sentence and its Shorter version, with Copy" width="300" />
+  <img src="docs/readme/rewrite.webp" alt="Make it better over the home screen: a selected sentence, its Shorter version, the Shorter, Simpler, Fix spelling and Friendlier buttons, and Replace, Copy and Share this text" width="300" />
 </p>
 
 ### Your choice of writer
@@ -78,21 +74,21 @@ Select text in any app, choose **Ownvoice** from the selection menu (or share th
 Pick who writes your drafts, and change it any time. **On this phone** is private and free: nothing you read or write leaves the phone, and it works without internet. Phones that need it get a one-time download of about 2 to 3 GB, on Wi-Fi, and only after you say yes. **With your ChatGPT** and **With your Claude** use the plan you already pay for: sharper and usually quicker, but what's on screen goes to that service when you tap the bubble. If Claude's plan limit is reached, Ownvoice says when it resets and writes on the phone where it can.
 
 <p align="center">
-  <img src="docs/readme/choose.webp" alt="How should Ownvoice write? On this phone, private and free, and With your ChatGPT, with their trade-offs and 'Get this phone ready to write: it needs about 2 to 3 GB, once, on Wi-Fi'" width="300" />
+  <img src="docs/readme/choose.webp" alt="How should Ownvoice write? On this phone, private and free; With your ChatGPT, selected; and With your Claude, each with its trade-offs, such as 'Free, and works without internet' or 'Needs internet, and uses your ChatGPT plan'" width="300" />
 </p>
 
 ### Your growth
 
 About a day after you insert a suggestion, Home asks how your reply did: **Got replies back**, **Some likes**, **Nothing yet**, or **Didn't post it**. The answer stays on that reply's record on your phone. Spelling fixes and **Yours** do not get this check-in. There is no automatic count read; use the answer buttons.
 
-Home also shows a plain-words reminder when you have no saved counts or a week has passed since your last save. Tap **See your growth** to enter your X follower count and Reddit karma on **Your growth**. Use whole numbers without commas or spaces; karma can be negative. You can leave either count blank. Your counts appear only on this screen, with a line since you started. Each platform compares its own last two entries: **Up since last week** (or Same / Down) only when they are about a week apart in this week and last week; otherwise it says **since you last checked**. It never claims Ownvoice caused a change. Answers and counts save locally, work offline, and call no writer. If a save fails, your answer or count inputs stay available to try again.
+Home also shows a plain-words reminder when you have no saved counts or a week has passed since your last save. Tap **See your growth** to enter your X follower count and Reddit karma on **Your growth**. Use whole numbers without commas or spaces; karma can be negative. You can leave either count blank. Your counts appear only on this screen, with a line since you started. Each platform compares its own last two entries: **Up since last week** (or **Same as last week** / **Down since last week**) only when they are about a week apart in this week and last week; otherwise it says **Up since you last checked** (or **Down since you last checked** / **Same as when you last checked**). It never claims Ownvoice caused a change. Answers and counts save locally, work offline, and call no writer. If a save fails, your answer or count inputs stay available to try again.
 
 ### Everything in one place
 
 Home shows at a glance whether Ownvoice is ready, and holds every setting: how Ownvoice writes, which apps show the bubble, your voice, and what Ownvoice read.
 
 <p align="center">
-  <img src="docs/readme/home.webp" alt="Home: 'Ready to help, tap the bubble in your chats', with rows for How Ownvoice writes, Where the bubble shows, Your voice, What Ownvoice read and Pause for now" width="300" />
+  <img src="docs/readme/home.webp" alt="Home: 'Writes with your ChatGPT' and 'Ready to help, tap the bubble in your chats', a Your counts this week card with See your growth, and rows for How Ownvoice writes, Where the bubble shows, Your voice, What Ownvoice read and Pause for now" width="300" />
 </p>
 
 **Also on your phone:**
@@ -103,8 +99,8 @@ Home shows at a glance whether Ownvoice is ready, and holds every setting: how O
 - **Your phone's look**: Ownvoice uses your phone's colours and font, and follows light and dark mode.
 
 <p align="center">
-  <img src="docs/readme/apps.webp" alt="Where the bubble shows: a search box and a switch for each app" width="240" />
-  <img src="docs/readme/voice.webp" alt="Your voice: Import from a file, No long dashes, End posts on a statement, How I write and Never say" width="240" />
+  <img src="docs/readme/apps.webp" alt="Where the bubble shows: a Find an app search box, Gmail switched on under Bubble shows in, and the other apps off" width="240" />
+  <img src="docs/readme/voice.webp" alt="Your voice: the Never say card with add-a-phrase chips, How I write with tap-to-add chips, the Rules toggles 'No long dashes' and 'End posts on a statement', and Import from a file" width="240" />
 </p>
 
 ## Your words stay yours
@@ -117,7 +113,7 @@ Ownvoice reads the screen only when you tap its bubble, never in the background,
 - **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once, along with Your voice, saved reply records (including check-in answers), the reply-text saving choice, and your growth counts.
 
 <p align="center">
-  <img src="docs/readme/reads.webp" alt="What Ownvoice read: one entry, 'Suggested replies in Ownvoice, read the chat on screen, Today', and Wipe everything" width="300" />
+  <img src="docs/readme/reads.webp" alt="What Ownvoice read: the 'Keep my replies to learn from' toggle, one Today entry, 'Polished your message in Ownvoice — Read the chat on screen and your message. Sent to your AI account, 3:22 PM', and Wipe everything" width="300" />
 </p>
 
 The exact data flows, including the one-time download and the remote on/off switch for cloud writing (ChatGPT and Claude), are written down in [mobile/README.md](mobile/README.md#how-ownvoice-writes).
@@ -153,8 +149,8 @@ Then setup takes about a minute:
 <p align="center">
   <img src="docs/readme/welcome.webp" alt="Welcome: 'Write replies that sound like you.' with Continue" width="190" />
   <img src="docs/readme/signin.webp" alt="Sign in to ChatGPT: a code to type on the ChatGPT page" width="190" />
-  <img src="docs/readme/permission.webp" alt="Let Ownvoice see your chats, only when you tap, with three promises and Turn on" width="190" />
-  <img src="docs/readme/practice.webp" alt="Try it: the practice reply inserted, 'That's it. In your apps, read it over and press Send yourself.'" width="190" />
+  <img src="docs/readme/permission.webp" alt="Let Ownvoice see your chats, only when you tap: three promises (reads only on tap, sent only on Insert, you always press Send), the steps to switch Use Ownvoice on, and Turn on" width="190" />
+  <img src="docs/readme/practice.webp" alt="Try it: a practice chat with the bubble at the right edge and 'Write a reply first, then tap the bubble to polish it. Or tap Skip.'" width="190" />
 </p>
 
 From then on: open a chat in one of your apps, write your reply in the message box, and tap the bubble. Read any version over before choosing **Use this**, and press Send yourself.
@@ -173,7 +169,7 @@ cd android
 adb install app/build/outputs/apk/release/app-release.apk
 ```
 
-This installs the Expo app shown above (`dev.ownvoice.next`) alongside the original Kotlin app (`dev.ownvoice.app`). If you already installed the downloaded APK, see [Signed APK releases](mobile/README.md#signed-apk-releases) before installing a local build.
+This installs the Expo app shown above (`dev.ownvoice.next`). The downloaded APK is this same `dev.ownvoice.next` package, so if you already installed it, see [Signed APK releases](mobile/README.md#signed-apk-releases) before installing a local build. The original Kotlin app (`dev.ownvoice.app`) is built separately from the repository root (see [Development](#development)).
 
 ## Development
 
@@ -181,7 +177,7 @@ This repository holds two Android apps plus the shared writing core:
 
 - **[`mobile/`](mobile/README.md)**: the Expo app shown in this README. Its README covers the checks, emulator tests, build flags and how Ownvoice writes. The writer's quality gate is in [`mobile/eval/`](mobile/eval/README.md).
 - **[`app/`](app/README.md)**: the original Kotlin app (`dev.ownvoice.app`), which the Expo app succeeds but does not yet fully replace. Its README covers how drafts are scored, its privacy details, and its build and device tests.
-- **[`packages/engine/`](packages/engine/README.md)**: the model-free writing core. Its README covers package usage, protocol, checks and releases. The app imports it; `mobile/src/core/` also holds app-specific adapters and local checks. For the mobile voice wrapper's compatibility behavior and deferred integration, see [Reply samples](packages/engine/README.md#reply-samples-020--protocol-2).
+- **[`packages/engine/`](packages/engine/README.md)**: the model-free writing core. Its README covers package usage, protocol, checks and releases. The app imports it; `mobile/src/core/` also holds app-specific adapters and local checks. For how the mobile voice wrapper consumes the selected guide and reply samples, see [Reply samples](packages/engine/README.md#reply-samples-020--protocol-2).
 
 For both apps' shared artwork, regeneration commands and icon previews, see the
 [Android icon guide](docs/icons/README.md).

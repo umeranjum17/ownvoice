@@ -53,8 +53,8 @@ the extractor never builds prompts, interprets instructions or makes AI calls.
 
 `Platforms.platformForApp(app, nodes)` accepts optional captured nodes. For
 Chrome it reads only `com.android.chrome:id/url_bar`, then matches the parsed
-host to X (`x.com`, `twitter.com`) or Reddit (`reddit.com`), including common
-web/mobile host aliases. Hidden, malformed or ambiguous bars return the default
+host to X (`x.com`, `twitter.com`), LinkedIn (`linkedin.com`) or Reddit
+(`reddit.com`), including common web/mobile host aliases. Hidden, malformed or ambiguous bars return the default
 platform. The Android bridge includes the browser-owned editable URL bar and
 preserves optional `viewId` and `description` metadata; other editable fields
 remain excluded. Panel integration must pass these nodes when choosing a platform.
@@ -63,8 +63,7 @@ The JSON protocol's existing six platform IDs remain unchanged.
 Verified identifiers: [Threads Android listing](https://play.google.com/store/apps/details?id=com.instagram.barcelona)
 (`com.instagram.barcelona`, cap 500), [Bluesky Android listing](https://play.google.com/store/apps/details?id=xyz.blueskyweb.app)
 (`xyz.blueskyweb.app`, cap 300), and [Chromium URL-bar layout](https://chromium.googlesource.com/chromium/src/+/refs/heads/main/chrome/android/java/res/layout/url_bar.xml)
-(`@+id/url_bar`). These platforms share X's existing feed style; F1 adds no writer
-prompt changes or panel wiring.
+(`@+id/url_bar`). These platforms share X's existing feed style.
 
 Bump `package.json` and `src/protocol.ts` together, update the lockfile and merge
 through a reviewed PR. The **Release engine** workflow (`release.yml`) only runs
@@ -88,9 +87,10 @@ line the post is about, and nothing else. Drafting starts from that line through
 the ordinary new-post path (`versionsList`, `polishAcceptor`, `rewrite`), so the
 post is written from what he actually said. A question offered as his post would
 be something he had to delete before posting, so no question prompt, slot or
-acceptance exists in this engine, and `DraftRequest` carries no own-post flag.
-`Panel.modeOf` in `mobile/` owns the decision to ask rather than draft; this
-engine only holds the words and the checks.
+acceptance exists in this engine. `Panel.modeOf` in `mobile/` owns the decision
+to ask rather than draft, and `Panel.start()` sets `DraftRequest.newPost` from
+the compose mode, which routes the line through the new-post path; this engine
+only holds the words and the checks.
 
 ### Reply samples (0.2.0 / protocol 2)
 
@@ -164,32 +164,14 @@ structural instruction/data boundary, not proof a model ignores hostile text.
 The schema's Unicode `maxLength` is a necessary bound; raw runtime additionally
 enforces the stricter UTF-16 limits (e.g. emoji cost two units).
 
-**Remaining F5 integration/proof holds:** phone reply and slot-retry prompts
-ignore the guide passed by `phoneWriter.replies`; their existing instructions
-remain unchanged (531–691 UTF-16 units across the six protocol platforms).
-Phone polish already consumes the guide through `Judge.rewrite` and
-`lineRetryPrompt`. The mobile `src/core/voice.ts` wrapper deliberately clears
-samples before calling the engine guide, preserving the old no-sample guide
-for all existing mobile callers until budget-aware writer/fit integration. Its
-parse/merge also retain legacy mobile behavior: only never-say phrases and
-dash/ending rules are previewed and imported, with no reply sample field in the
-parse result and no imported samples merged into saved rules. Both file-picker
-and shared-file imports use this boundary. Existing stored fields are preserved
-by merge. Mobile rule detection still scans the whole markdown; it does not use
-the engine's sample-section exclusion or sample validation limits.
-The engine's `Voice.guide`, `Voice.selectedGuide` and protocol still support
-explicit samples. Mobile callers must measure all other phone instructions and
-separator cost, subtract them from 700, then pass the remainder to
-`selectedGuide` when that integration lands. The existing X polish prompt has
-1,484 UTF-16 units before screen/text/guide even without samples: that is a
-pre-existing deferred phone-budget defect, not a new total-instruction pass. A
-700-unit guide is not proof the complete phone prompt is within 700. Mobile
-import preview/persistence, writer/fit wiring with identical selected examples,
-F3b never-say integration, the per-card “Sounds like you” outcome and level
-change, writer eval P01/P13/S05/R01/R07, growth eval, Android/real-model/physical
-phone proof and D3 remain later work. Engine tests satisfy none of those holds.
-BYOKit consumes this only after merged-source publication and registry/tarball
-verification of version, integrity, schema SHA-256 and source commit through main.
+**How the app uses this.** The mobile app consumes the selected guide and its
+samples through `src/core/voice.ts` — `guide()` and `selectedGuide` come from
+this engine, the app's own `parse` reads a picked file leniently and keeps the
+sample section out of the rules, and `merge` persists the samples — and through
+its drafts panel, which calls `selectedGuide` once per run, passes the selected
+samples to the writer, and shares the same samples with the fit call. The phone
+reply, the slot retry and polish all carry that guide, and the phone prompts fit
+their own instructions plus the shortest samples into the 700-unit budget.
 
 For this release, use the existing **Release engine** main-only workflow with
 `dry_run=false` after CI-green merge and confirmation the existing npm trusted
