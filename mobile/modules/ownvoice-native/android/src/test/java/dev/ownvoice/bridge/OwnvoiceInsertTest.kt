@@ -98,6 +98,20 @@ class OwnvoiceInsertTest {
     assertFalse(insertSelectionSettled(null, "draft"))
   }
 
+  @Test fun unchangedCaretIsAcceptedOnlyOnTheFinalRetry() {
+    val before = FieldSelection(0, 0)
+    fun accepted(selectionSet: Boolean, actual: FieldSelection?, finalAttempt: Boolean) =
+      insertSelectionSettled(actual, "draft") || insertCaretIgnored(selectionSet, before, actual, finalAttempt)
+    // Chromium applies the caret asynchronously: the first read still shows 0, the action returned true.
+    assertFalse(accepted(selectionSet = true, actual = FieldSelection(0, 0), finalAttempt = false))
+    assertTrue(accepted(selectionSet = true, actual = FieldSelection(5, 5), finalAttempt = false))
+    // Gmail ignores the caret: it is accepted at the end of the retries, not on the first read.
+    assertFalse(accepted(selectionSet = true, actual = before, finalAttempt = false))
+    assertTrue(accepted(selectionSet = true, actual = before, finalAttempt = true))
+    // An action the editor rejects is accepted at once, as the caret cannot settle.
+    assertTrue(accepted(selectionSet = false, actual = FieldSelection(0, 0), finalAttempt = false))
+  }
+
   @Test fun invalidationStopsRetryAndSettlesOnceWithoutCopyOrDroppingTheNextCapture() {
     val invalidate: List<(OwnvoiceService) -> Unit> = listOf(
       { it.forget() },

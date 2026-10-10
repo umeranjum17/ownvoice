@@ -99,7 +99,6 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
 }
 
 function failure(error: unknown): Error {
-  console.warn('phone writer failed', String(error), String((error as { cause?: unknown } | null)?.cause ?? ''));
   if (error instanceof Error && error.message === words.readyStopped) return error;
   if (error instanceof InferError) {
     if (error.code === 'busy') return new Error(words.busy);

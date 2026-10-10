@@ -80,6 +80,12 @@ internal fun insertTextMatches(app: String, text: String, readingApp: String, ex
 internal fun insertSelectionSettled(selection: FieldSelection?, expected: String): Boolean =
   selection?.start == expected.length && selection?.end == expected.length
 
+// Gmail's compose body rejects or ignores ACTION_SET_SELECTION, so its caret never settles. An
+// unchanged caret only counts once the retries are spent, so an editor that applies the caret
+// asynchronously (Chromium) still gets every retry to settle before it is accepted.
+internal fun insertCaretIgnored(selectionSet: Boolean, before: FieldSelection?, actual: FieldSelection?, finalAttempt: Boolean): Boolean =
+  !selectionSet || (finalAttempt && actual == before)
+
 class OwnvoiceService : AccessibilityService() {
   companion object {
     const val TAG = "OwnvoiceNative"
@@ -487,7 +493,7 @@ class OwnvoiceService : AccessibilityService() {
     if (insertCancellation !== cancellation) return
     if (result != "inserted") return finishInsert(cancellation, reading, text, result, done)
     if (capture !== reading) return finishInsert(cancellation, reading, text, "cancelled", done)
-    if (verifyInsert(reading, text)) return finishInsert(cancellation, reading, text, "verified", done)
+    if (verifyInsert(reading, text, remaining <= 1)) return finishInsert(cancellation, reading, text, "verified", done)
     if (remaining <= 1) return finishInsert(cancellation, reading, text, "failed", done)
     main.postDelayed({ confirmInsert(cancellation, reading, text, result, done, remaining - 1) }, 150)
   }
@@ -529,7 +535,7 @@ class OwnvoiceService : AccessibilityService() {
 
   /** Verify through the same focused-field reader as capture, after the panel has closed.
    * A cached node accepting SET_TEXT is not proof that the app kept the draft. */
-  private fun verifyInsert(reading: Capture?, text: String): Boolean {
+  private fun verifyInsert(reading: Capture?, text: String, finalAttempt: Boolean): Boolean {
     val appMatches = reading != null && currentApp() == reading.app
     val permitted = reading != null && allowed(reading.app)
     val field = if (appMatches && permitted) focusedField() else null
@@ -560,11 +566,9 @@ class OwnvoiceService : AccessibilityService() {
       val actual = FocusedFields.read(this) ?: return false
       afterMatches = insertTextMatches(actual.app, actual.text, reading.app, text)
       caretSettled = insertSelectionSettled(actual.selection, text)
-      // Some editors (Gmail's compose body) reject or silently ignore ACTION_SET_SELECTION, so
-      // the caret can never settle there: the same field identity and the exact read-back text
-      // above are already proof the draft landed. Treat an unaccepted action, or one that leaves
-      // the selection exactly where it was, as that case rather than a failed insert.
-      caretIgnored = !selectionSet || actual.selection == before.selection
+      // The same field identity and the exact read-back text above are proof the draft landed
+      // even when the caret cannot be moved (see insertCaretIgnored).
+      caretIgnored = insertCaretIgnored(selectionSet, before.selection, actual.selection, finalAttempt)
       return afterMatches && (caretSettled || caretIgnored)
     } finally {
       Log.d(TAG, "insert verify app=$appMatches allowed=$permitted focus=${field != null} resourceId=${reading?.insertField?.identity != null} resource=$resourceMatches node=$nodeMatches identity=$identityMatches before=$beforeMatches after=$afterMatches caret=$caretSettled ignore=$caretIgnored")

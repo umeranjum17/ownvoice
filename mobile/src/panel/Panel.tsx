@@ -303,7 +303,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             if (state === 'writing') setFraction(null);
           },
           fraction: value2 => { if (run.current === id) setFraction(value2); },
-          reset: () => { if (run.current === id) { setCards([null, null, null]); setWhy(null); } },
+          reset: () => { if (run.current === id) { landedAny.current = false; setCards([null, null, null]); setWhy(null); } },
           landed: (text, slot, label) => {
             if (run.current !== id) return;
             landedAny.current = true;
@@ -326,7 +326,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         // A writer that fails after landing a card (for example the on-device model's later
         // versions) must not turn a usable result into a false "Something went wrong".
         if (landedAny.current) { setNote(null); setPhase('ready'); return; }
-        console.warn('Could not write drafts', error);
         setNote(error instanceof Error ? error.message : words.failed);
         setPhase('failed');
       }
