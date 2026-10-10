@@ -56,7 +56,7 @@ type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
 const opensApp: Set<string> = new Set([words.needWriterPanel, words.needWriterNote, words.phoneOnlyCant, words.readyPanel]);
 const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
 /** A plan limit is not stuck: open the writer list so the person can pick another writer. */
-const openSource = () => { void Linking.openURL('ownvoice://source').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
+const openSource = () => { void Native.openRoute('ownvoice://source').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
 
 /** Prefill hand-off: the app's own compose opens with this text, or the share
  *  sheet when it has no compose link; either way the person presses Send. */

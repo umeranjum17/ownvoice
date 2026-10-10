@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Linking, Share, View } from 'react-native';
+import { Share, View } from 'react-native';
 import { classify } from '@byokit/accounts';
 import Native from '../../modules/ownvoice-native';
 import { askLocal } from '../core/localModel';
@@ -132,7 +132,7 @@ export default function Rewrite() {
 
   const exportBlocked = result?.meaning?.ok === false;
   /** A plan limit is not stuck: leave for the writer list so the person can pick another writer. */
-  const openSource = () => { void Linking.openURL('ownvoice://source').catch(() => {}).finally(() => { void Native.finishRewrite(null, false).catch(() => {}); }); };
+  const openSource = () => { void Native.openRoute('ownvoice://source').catch(() => {}).finally(() => { void Native.finishRewrite(null, false).catch(() => {}); }); };
   const enabled = !!input?.text.trim();
   return <Sheet title="Make it better" note={enabled ? note : undefined} mood={enabled ? (busy ? 'thinking' : result ? 'ready' : 'idle') : undefined} onClose={() => { void Native.finishRewrite(null, false); }}>
     {!enabled ? (input ? <Empty mood="check" text={note} /> : null) : <>

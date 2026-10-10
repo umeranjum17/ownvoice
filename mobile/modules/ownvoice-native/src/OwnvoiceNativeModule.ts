@@ -17,6 +17,8 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   openAccessibilitySettings(comeBack: boolean): Promise<void>;
   clearSetupReturn(): Promise<void>;
   openAppInfo(): Promise<void>;
+  /** Opens an ownvoice:// route the way the service's own setup link does; the panel's Linking start lands on Home. */
+  openRoute(url: string): Promise<void>;
   setPractice(on: boolean): Promise<void>;
   launcherApps(packages: string[] | null): Promise<{ app: string; label: string; icon: string | null }[]>;
   bubbleRules(): Promise<{ paused: boolean; on: string[]; off: string[] }>;

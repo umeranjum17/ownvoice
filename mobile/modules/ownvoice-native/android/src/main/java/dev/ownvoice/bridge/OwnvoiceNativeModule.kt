@@ -33,6 +33,12 @@ class OwnvoiceNativeModule : Module() {
       val me = ComponentName(context, OwnvoiceService::class.java).flattenToString()
       context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(":settings:fragment_args_key", me))
     }.runOnQueue(Queues.MAIN)
+    // The panel's own Linking start lands the app on Home; the bridge start the service itself uses
+    // for ownvoice://setup (NEW_TASK|CLEAR_TOP) is what reaches the router's screen.
+    AsyncFunction("openRoute") { url: String ->
+      context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP))
+    }.runOnQueue(Queues.MAIN)
     AsyncFunction("clearSetupReturn") {
       check(context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().remove("comeBack").commit())
     }.runOnQueue(Queues.MAIN)
