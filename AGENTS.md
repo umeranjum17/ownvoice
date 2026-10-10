@@ -3,7 +3,7 @@
 This file is the project's committed home for project-intrinsic agent knowledge: build, test, release, architecture, and sharp-edge notes that should travel with the code.
 
 - Build, install and on-device test commands: see `README.md`.
-- Build flags are in Metro's cache key via `mobile/metro.config.js`; add any new `EXPO_PUBLIC_*` flag there. Gradle doesn't see them, so a second flagged `assembleRelease` reuses the last JS bundle unless it runs `:app:createBundleReleaseJsAndAssets --rerun` too.
+- Build flags are in Metro's cache key via `mobile/metro.config.js`; add any new `EXPO_PUBLIC_*` flag there. `mobile/plugins/withOwnvoice.js` also lists every `EXPO_PUBLIC_*` value as an input of the Gradle JS bundle task on prebuild, so a second `assembleRelease` after a flagged one re-bundles instead of reusing the flagged bundle (no `--rerun` needed).
 - The on-device writer is BYOKit's `LocalModel` over llama.rn, driven from JS (`mobile/src/core/localModel.ts`); model calls need no foreground activity.
 - The on-device model setup also sets the Expo build: it needs `minSdkVersion` 26 (Expo defaults to 24) and `-Xskip-metadata-version-check` for its newer Kotlin metadata, kept in `mobile/app.config.js` and `mobile/plugins/withOwnvoice.js`. Keep both when changing the build config.
 - The bubble shows, and a tap reads, only in apps switched on in `Privacy` (defaults generated from `mobile/src/core/defaultApps.json`; Ownvoice's own package starts off), so on-device checks must switch `dev.ownvoice.app` or the target app on first. Prefs writes use `commit()` because instrumentation targeting Ownvoice kills its process right after a test.
