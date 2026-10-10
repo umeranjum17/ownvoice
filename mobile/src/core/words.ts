@@ -130,7 +130,6 @@ const openRouterWords = {
   openrouterSwitchBody: 'From now on, when you tap the bubble, the chat on screen and what you typed go to OpenRouter to write your drafts.',
   openrouterSwitchYes: 'Switch to OpenRouter',
   openrouterPhoneBackup: "If OpenRouter can't answer, this phone writes instead.",
-  openrouterTrade: 'Needs internet, and uses your OpenRouter credit',
   openrouterFailed: "OpenRouter didn't answer this time.",
   openrouterFallback: "OpenRouter didn't answer. This phone wrote these instead.",
   openrouterOff: 'OpenRouter is turned off for now. This phone wrote these.',
