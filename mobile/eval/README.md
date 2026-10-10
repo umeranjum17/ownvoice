@@ -70,6 +70,21 @@ follower total, so they cannot fill the weekly follower count without a
 baseline; weekly numbers therefore stay manual. Separately, account totals
 are never used as per-reply check-ins for G9.
 
+## Growth eval set (G01-G20, G2)
+
+Twenty grow-mode feed cases join the fixed set: ten X-style (`com.twitter.android`) and
+ten Reddit-style (`com.reddit.frontpage`), each a fictional author and post, some with
+Umer's own draft, all carrying his demo voice profile (never-say "game changer", "delve",
+"circle back"; `noDashes`; three sample replies). `scoreFeed` in `score.ts` applies the
+G2 checks to a recorded run's cards: every shown suggestion has zero never-say phrases,
+zero long dashes, and no number that is not already in the post plus the draft; his draft
+comes back as the **Yours** card untouched; and a candidate that breaks the never-say list
+(Yours included) is rated the bottom level (`Likely to be skipped`). Because local model
+servers are banned here, a live pass against a model is out of scope for this lane: the G
+set is driven by a recorded run (`results[].shown[]` suggestions with `slot`/`level`, plus
+`results[].yours` and `results[].yoursLevel`), and it is reported beside the gate, never
+inside it. The five gate cases stay P01, P13, S05, R01 and R07.
+
 ## Threshold rule
 
 A model or prompt change must not drop below the study's numbers on **P01,

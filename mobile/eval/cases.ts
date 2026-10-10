@@ -7,7 +7,11 @@ export type Case =
   | { id: string; kind: 'select'; typed: string; how: 'Shorter' | 'Simpler' | 'Fix spelling' | 'Friendlier' | 'Firmer'; keep: string[]; exact?: string; layout?: boolean; why: string }
   | { id: string; kind: 'tone'; typed: string; why: string }
   | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string }
-  | { id: string; kind: 'thread'; typed: string; app?: string; guide?: string; keep: string[]; why: string };
+  | { id: string; kind: 'thread'; typed: string; app?: string; guide?: string; keep: string[]; why: string }
+  // Grow-mode feed case: a post plus an optional draft of his own, scored by the G2 checks
+  // (never-say, long dash, invented numbers, the "Yours" card, and the bottom level for a
+  // never-say breaker) against a recorded run; see scoreFeed and the README's G-set section.
+  | { id: string; kind: 'feed'; app: string; author: string; post: string; draft?: string; voice: { never: string[]; noDashes: boolean; samples: string[] }; why: string };
 
 
 const LOWER = 'How they write: all lowercase, short, no exclamation marks.';
@@ -113,4 +117,38 @@ export const cases: Case[] = [
     typed: 'After nine years leading platform teams at two banks, I am starting my own consultancy. Lesson one from the first month on my own: say no to work that drains you, even when the money looks good.\n\nMost teams I join have the same shape. Twelve engineers, three managers, and a roadmap with forty items where only five matter. My first week is always the same: I read every ticket, sit in on standup for four days, and ask which five they would keep if they could only ship five.\n\nLast Tuesday I did this with a retail team in Leeds. Priya, their lead, told me checkout latency had doubled since January. We traced it to a single chatty call the app made on every page load. One small cache, added on Thursday, cut the slow calls from 900ms to 210ms. No rewrite, no new service, no drama.\n\nThat is the whole pitch. I find the one slow thing, fix it with the team watching, and leave notes they can keep. Marisol, who runs support there, said tickets about slow checkouts fell by half the next week.\n\nBefore Leeds I spent three weeks with a bookings team in York. Same shape: fourteen engineers, a deploy that took fifty minutes, and a test suite with two thousand tests where three hundred failed every run. We split the suite into fast and slow, ran the fast half on every push, and got the deploy down to eleven minutes by the second Friday. Their release train went from monthly to weekly in March.\n\nI charge one flat price for the four weeks, paid half up front. No day rate, no hourly meter running while you explain your stack. If the first week shows there is nothing worth fixing, I say so and you pay nothing for the rest. That has happened once, with a team in Hull, and they still send me referrals.\n\nHow it starts: a thirty minute call, no slides. You tell me what feels slow, I ask who owns it and what changed since autumn. If it sounds like a fit, I join your standup the next Monday. I bring my own laptop, I sign whatever paper your office needs, and I never keep your code.\n\nWrite to me here and mention the one screen your users complain about most. I take the next team from the first of next month, and the diary after that opens in spring.\n\nWhat I will not do: no audits that land as a fifty page deck nobody reads, no dashboards you stop opening by June, and no advice to rewrite what already earns. If your team already knows the slow thing and needs hands, not eyes, say so on the call and I will tell you straight.\n\nOne more story, since people ask for proof more than promises. A charity shop site in Sheffield raised funds every December with a page that fell over each year. Two volunteers kept it alive with nightly restarts through Christmas. Last November we moved the donate button reads to a static copy, queued the writes, and the page stayed up through the whole drive. Donations beat the prior year by a fifth, and nobody restarted anything at midnight. That evening the two volunteers went home early for the first time in years, which is the part I like best. If you are reading this on a Monday and already know which screen is slow, say so in your note and I will tell you plainly whether I have seen its shape before.',
     keep: ['nine', 'consultancy', 'Leeds', 'Priya', '900', '210', 'Marisol', 'York', 'eleven', 'Hull', 'Monday', 'spring'],
     why: 'LinkedIn post past 3000: every part within the cap, no facts added, 3 hooks' },
+  // --- Package G (§7.3): twenty feed cases, ten X-style and ten Reddit-style, scored by the
+  // G2 checks. Fictional authors and demo data only; the person is "Umer". The demo voice profile
+  // is the one the plan names: never-say "game changer", "delve", "circle back"; noDashes; three
+  // sample replies. These are reported beside the five-case gate, never part of it.
+  ...([
+    ['G01-x-notes-app', 'com.twitter.android', 'Demo Maker', 'Shipped a tiny offline-first notes app today. Local SQLite, no account, search is instant with ten thousand notes.', 'nice - does search stay fast when you paste in a huge doc?', 'X post: keep the reply concrete'],
+    ['G02-x-queue', 'com.twitter.android', 'Nadia Chen', 'Spent the weekend replacing our cron jobs with one queue. Deploys finally stopped racing each other.', undefined, 'X post: no draft, still no invented facts'],
+    ['G03-x-scope', 'com.twitter.android', 'Ravi Patel', 'Unpopular take: most side projects die from scope, not from a lack of ideas.', 'this is a game changer, most side projects die from scope.', 'X post: his draft uses a never-say phrase and is shown as Yours at the bottom level'],
+    ['G04-x-index', 'com.twitter.android', 'Tess Morgan', 'Reminder that a slow query with an index beats a clever cache you forget to invalidate.', undefined, 'X post: keep his wording out of the reply'],
+    ['G05-x-timer', 'com.twitter.android', 'Owen Brooks', 'My timer now pauses when you switch tabs. Only focused minutes count.', 'does it keep counting if i leave it on the same tab?', 'X post: a question from his draft'],
+    ['G06-x-tests', 'com.twitter.android', 'Mei Lin', 'Wrote forty tests, deleted thirty. The suite is faster and i trust it more.', undefined, 'X post: one concrete point'],
+    ['G07-x-bug', 'com.twitter.android', 'Sam Ruiz', 'Filed my first bug report in a big repo today. Maintainers were kind about it.', undefined, 'X post: warm, no invented numbers'],
+    ['G08-x-config', 'com.twitter.android', 'Kai Nakamura', 'A plain text file beat my database for a two hundred row config. Ship the boring thing.', 'yeah, i keep reaching for a db when a file would do.', 'X post: agree from his draft'],
+    ['G09-x-commits', 'com.twitter.android', 'Jules Avery', 'Reading old commit messages is the cheapest onboarding doc a team can have.', undefined, 'X post: no never-say in the reply'],
+    ['G10-x-cli', 'com.twitter.android', 'Priya Rao', 'Made a tiny CLI that renames screenshots by date. Twenty lines, saves me ten minutes a day.', undefined, 'X post: keep the reply short'],
+    ['G11-reddit-cooler', 'com.reddit.frontpage', 'u/trail_mix', 'r/CampingGear: Soft cooler or hard-sided for a weekend trip? I walk in, so weight matters.', 'soft is fine for a weekend if you are not leaving it in the sun all day.', 'Reddit thread: reasoned answer from his draft'],
+    ['G12-reddit-index', 'com.reddit.frontpage', 'u/slow_query', 'r/webdev: Do you keep indexes in migrations or just add them by hand in prod?', undefined, 'Reddit thread: one detail, no invented numbers'],
+    ['G13-reddit-pan', 'com.reddit.frontpage', 'u/spice_rack', 'r/Cooking: What is the one pan you actually use every day?', undefined, 'Reddit thread: specific, on topic'],
+    ['G14-reddit-savings', 'com.reddit.frontpage', 'u/budget_nerd', 'r/personalfinance: I automated my savings and stopped checking the balance daily.', 'same, the daily checking was the whole problem for me.', 'Reddit thread: agree from his draft'],
+    ['G15-reddit-books', 'com.reddit.frontpage', 'u/night_owl', 'r/books: I read fifty books this year and remember about five of them.', undefined, 'Reddit thread: add something the thread lacks'],
+    ['G16-reddit-plant', 'com.reddit.frontpage', 'u/desk_plant', 'r/houseplants: My monstera keeps dropping leaves. Light is fine, water is weekly. What else?', undefined, 'Reddit thread: ask one sharp question'],
+    ['G17-reddit-keys', 'com.reddit.frontpage', 'u/mech_keys', 'r/MechanicalKeyboards: Is a 65 percent layout worth losing the function row?', undefined, 'Reddit thread: honest tradeoff'],
+    ['G18-reddit-travel', 'com.reddit.frontpage', 'u/road_trip', 'r/travel: Two weeks in one city or four cities? First long trip.', undefined, 'Reddit thread: a reason, not empty agreement'],
+    ['G19-reddit-games', 'com.reddit.frontpage', 'u/board_games', 'r/boardgames: Games that are still fun for two people when the group shrinks?', undefined, 'Reddit thread: specific picks'],
+    ['G20-reddit-coffee', 'com.reddit.frontpage', 'u/coffee_first', 'r/Coffee: Cheapest upgrade from a drip machine that still tastes better?', undefined, 'Reddit thread: actionable specifics'],
+  ] as const).map(([id, app, author, post, draft, why]) => ({
+    id, kind: 'feed' as const, app, author, post, ...(draft ? { draft } : {}),
+    voice: { never: ['game changer', 'delve', 'circle back'], noDashes: true, samples: [
+      'yeah that tracks, i hit the same thing last week',
+      'nice, what did you use for the storage layer?',
+      'agreed, though i would keep the cache small at first',
+    ] },
+    why,
+  })),
 ];

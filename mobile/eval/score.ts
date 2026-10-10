@@ -123,6 +123,35 @@ function scoreThread(c: any, r: any) {
   return { meaningOk: !issues.length, issues, voiceOk: !voice.length, voice };
 }
 
+// Grow-mode feed cases (G01-G20), the G2 acceptance. Every shown suggestion must have no
+// never-say phrase, no long dash (when the person's noDashes rule is on) and no number that
+// is not in the post plus his draft; the draft must come back as the "Yours" card; and any
+// candidate that breaks the never-say list must sit at the bottom level (0), so a draft like
+// "game changer" is shown as Yours but never rated above the bottom. A live pass is out of
+// scope for this dev-only set (no local model server), so a recorded run drives it; see the
+// README's G-set section.
+function scoreFeed(c: any, r: any) {
+  const voice = { ...S.NO_RULES, never: c.voice.never, noDashes: c.voice.noDashes };
+  const base = `${c.post}\n${c.draft ?? ''}`;
+  const breaks = (text: string) => S.hits(text, voice).filter((h: any) => h.reason === S.NEVER_SAY);
+  const cards = (r.shown ?? []).map((s: any) => {
+    const issues: string[] = [];
+    const found = S.hits(s.text, voice);
+    const never = found.filter((h: any) => h.reason === S.NEVER_SAY);
+    if (never.length) issues.push(`never-say ${never.map((h: any) => s.text.slice(h.start, h.end)).join('/')}`);
+    if (found.some((h: any) => h.reason === S.LONG_DASH)) issues.push('long dash');
+    const nums = S.addedNumbers(base, s.text);
+    if (nums.length) issues.push(`numbers ${nums.join('/')}`);
+    if (never.length && s.level != null && s.level !== 0) issues.push(`never-say breaker not bottom (level ${s.level})`);
+    return { meaningOk: !issues.length, issues, voiceOk: true, level: s.level ?? null };
+  });
+  const yours = !c.draft || r.yours === c.draft;
+  const issues: string[] = [];
+  if (c.draft && !yours) issues.push('missing Yours');
+  if (c.draft && breaks(c.draft).length && r.yoursLevel != null && r.yoursLevel !== 0) issues.push(`Yours never-say breaker not bottom (level ${r.yoursLevel})`);
+  return { cards, yours, issues };
+}
+
 // The regression gate: these five must pass, or the model/prompt change is out.
 const GATE = ['P01-noon-list', 'P13-tent-shorter', 'S05-list-shorter', 'R01-sam-practice', 'R07-two-questions'];
 
@@ -133,31 +162,35 @@ for (const file of process.argv.slice(2)) {
   const rows = cases.filter(c => found[(c as any).from ?? c.id]).map((c: any) => {
     const r = { ...found[c.from ?? c.id], id: c.id };
     if (c.slot != null) { r.shown = r.shown.filter((s: any) => s.slot === c.slot); if (c.from) r.calls = []; }
+    const feed = c.kind === 'feed' ? scoreFeed(c, r) : null;
     const cards = c.kind === 'thread' ? [scoreThread(c, r)]
+      : feed ? feed.cards
       : r.shown.map((s: any) => c.kind === 'reply' ? scoreReply(c, s.text) : c.kind === 'tone' ? scoreTone(s.text) : scoreRewrite(c, s.text, c.kind === 'polish' || !!c.layout));
     const allSafe = cards.every((x: any) => x.meaningOk);
     const pass = c.kind === 'reply'
       ? cards.length >= 2 && allSafe && cards.some((x: any) => x.answersAll)
+      : feed ? cards.length >= 1 && allSafe && feed.yours && feed.issues.length === 0
       : cards.length >= 1 && allSafe;
+    const issues = c.kind === 'feed' ? [...feed!.issues, ...cards.flatMap((x: any) => x.issues)] : [];
     const gen = r.calls.reduce((a: number, x: any) => a + x.genTokens, 0);
     const prompt = r.calls.reduce((a: number, x: any) => a + x.promptTokens, 0);
     return { id: r.id, kind: c.kind, pass, cards: cards.length, safe: cards.filter((x: any) => x.meaningOk).length,
-      voice: cards.filter((x: any) => x.voiceOk).length, calls: r.calls.length, gen, prompt, wallMs: r.wallMs, detail: cards, texts: r.shown.map((s: any) => s.text) };
+      voice: cards.filter((x: any) => x.voiceOk).length, calls: r.calls.length, gen, prompt, wallMs: r.wallMs, detail: cards, texts: r.shown.map((s: any) => s.text), issues };
   });
   const sum = (f: (r: any) => number) => rows.reduce((a: number, r: any) => a + f(r), 0);
-  const kinds = ['polish', 'select', 'tone', 'reply', 'thread'].map(k => { const rs = rows.filter((r: any) => r.kind === k); return `${rs.filter((r: any) => r.pass).length}/${rs.length}`; });
+  const kinds = ['polish', 'select', 'tone', 'reply', 'thread', 'feed'].map(k => { const rs = rows.filter((r: any) => r.kind === k); return `${rs.filter((r: any) => r.pass).length}/${rs.length}`; });
   const cardsTotal = sum(r => r.cards);
   // The gate only judges cases this run covered; a partial (ONLY) run names
   // the gate cases it skipped instead of failing them.
   const gateSkipped = GATE.filter(id => !rows.find((r: any) => r.id === id));
   const gateFails = GATE.filter(id => rows.find((r: any) => r.id === id) && !rows.find((r: any) => r.id === id)?.pass);
-  table.push({ label, pass: sum(r => r.pass ? 1 : 0), of: rows.length, polish: kinds[0], select: kinds[1], tone: kinds[2], reply: kinds[3], thread: kinds[4],
+  table.push({ label, pass: sum(r => r.pass ? 1 : 0), of: rows.length, polish: kinds[0], select: kinds[1], tone: kinds[2], reply: kinds[3], thread: kinds[4], feed: kinds[5],
     cards: cardsTotal, safePct: Math.round(100 * sum(r => r.safe) / Math.max(1, cardsTotal)), voicePct: Math.round(100 * sum(r => r.voice) / Math.max(1, cardsTotal)),
     calls: sum(r => r.calls), genTok: sum(r => r.gen), promptTok: sum(r => r.prompt), gateFails, gateSkipped, rows });
 }
 table.sort((a, b) => b.pass - a.pass || b.safePct - a.safePct);
-console.log('label           pass  polish select tone reply  thread cards safe% voice% calls genTok promptTok gate');
-for (const t of table) console.log(`${t.label.padEnd(15)} ${String(t.pass).padStart(2)}/${t.of}  ${t.polish.padEnd(6)} ${t.select.padEnd(6)} ${t.tone.padEnd(4)} ${t.reply.padEnd(6)} ${t.thread.padEnd(6)} ${String(t.cards).padStart(4)} ${String(t.safePct).padStart(4)} ${String(t.voicePct).padStart(5)} ${String(t.calls).padStart(5)} ${String(t.genTok).padStart(6)} ${String(t.promptTok).padStart(8)} ${t.gateFails.length ? 'FAIL ' + t.gateFails.join(',') : t.gateSkipped.length ? 'ok (gate skipped: ' + t.gateSkipped.join(',') + ')' : 'ok'}`);
+console.log('label           pass  polish select tone reply  thread feed   cards safe% voice% calls genTok promptTok gate');
+for (const t of table) console.log(`${t.label.padEnd(15)} ${String(t.pass).padStart(2)}/${t.of}  ${t.polish.padEnd(6)} ${t.select.padEnd(6)} ${t.tone.padEnd(4)} ${t.reply.padEnd(6)} ${t.thread.padEnd(6)} ${t.feed.padEnd(6)} ${String(t.cards).padStart(4)} ${String(t.safePct).padStart(4)} ${String(t.voicePct).padStart(5)} ${String(t.calls).padStart(5)} ${String(t.genTok).padStart(6)} ${String(t.promptTok).padStart(8)} ${t.gateFails.length ? 'FAIL ' + t.gateFails.join(',') : t.gateSkipped.length ? 'ok (gate skipped: ' + t.gateSkipped.join(',') + ')' : 'ok'}`);
 writeFileSync(resolve(here, 'out/scores.json'), JSON.stringify(table, null, 1));
 const failed = table.filter(t => t.gateFails.length);
 if (failed.length) {
