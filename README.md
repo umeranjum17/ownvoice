@@ -10,7 +10,7 @@
 
 <p align="center">
   <strong>Polish your words. Written on your phone.</strong><br/>
-  Ownvoice is a small bubble that sits over your chats. Tap it to polish what you already typed, or tidy any text you select. Reply ideas are unavailable for now. It writes on the phone itself, or with the ChatGPT or Claude plan you already pay for. It tells you plainly how each draft reads, and you always press Send yourself.
+  Ownvoice is a small bubble that sits over your chats. Tap it to polish what you already typed, or tidy any text you select. Reply ideas are unavailable for now. It writes on the phone itself, or with the ChatGPT or Claude plan you already pay for, or your own OpenRouter key. It tells you plainly how each draft reads, and you always press Send yourself.
 </p>
 
 <h3 align="center"><a href="#get-started"><ins>Get started</ins></a></h3>
@@ -71,7 +71,7 @@ Select text in any app, choose **Ownvoice** from the selection menu (or share th
 
 ### Your choice of writer
 
-Pick who writes your drafts, and change it any time. **On this phone** is private and free: nothing you read or write leaves the phone, and it works without internet. Phones that need it get a one-time download of about 2 to 3 GB, on Wi-Fi, and only after you say yes. **With your ChatGPT** and **With your Claude** use the plan you already pay for: sharper and usually quicker, but what's on screen goes to that service when you tap the bubble. If Claude's plan limit is reached, Ownvoice says when it resets and writes on the phone where it can.
+Pick who writes your drafts, and change it any time. **On this phone** is private and free: nothing you read or write leaves the phone, and it works without internet. Phones that need it get a one-time download of about 2 to 3 GB, on Wi-Fi, and only after you say yes. **With your ChatGPT** and **With your Claude** use the plan you already pay for: sharper and usually quicker, but what's on screen goes to that service when you tap the bubble. **With your OpenRouter** uses a key you paste in, billed by OpenRouter as you use it; it appears only when the phone can use it. If Claude's plan limit is reached, Ownvoice says when it resets and writes on the phone where it can.
 
 <p align="center">
   <img src="docs/readme/choose.webp" alt="How should Ownvoice write? On this phone, private and free; With your ChatGPT, selected; and With your Claude, each with its trade-offs, such as 'Free, and works without internet' or 'Needs internet, and uses your ChatGPT plan'" width="300" />
@@ -108,7 +108,7 @@ Home shows at a glance whether Ownvoice is ready, and holds every setting: how O
 Ownvoice reads the screen only when you tap its bubble, never in the background, and only in apps you switched on. It never taps Send, posts or acts for you. The one exception is a switch you have to turn on yourself, described below.
 
 - **On this phone**, nothing you read or write leaves the phone. Ownvoice has no server of its own.
-- **With your ChatGPT** or **With your Claude**, the chat on screen, what you typed and your writing rules go to that service, only when you tap the bubble. Text you select and send to **Make it better** goes there too. Ownvoice keeps no copy.
+- **With your ChatGPT**, **With your Claude** or **With your OpenRouter**, the chat on screen, what you typed and your writing rules go to that service, only when you tap the bubble. Text you select and send to **Make it better** goes there too. Ownvoice keeps no copy.
 - **Check my spelling as I type** is off unless you switch it on in Home. When it's on, Ownvoice also reads the message box you're typing in each time you stop typing for a moment, in apps you switched on, and a number on the bubble shows how many things look worth checking: spelling, common slips like "its" for "it's", and stock phrases. The check runs on the phone, even when you chose ChatGPT: nothing you type goes anywhere, nothing is kept, and these checks don't show up in What Ownvoice read. Tap the bubble to see them; each has its own **Fix**, and nothing changes until you tap it.
 - **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once, along with Your voice, saved reply records (including check-in answers), the reply-text saving choice, and your growth counts.
 
