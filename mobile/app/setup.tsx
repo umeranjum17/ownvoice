@@ -652,7 +652,7 @@ const styles = StyleSheet.create({
   headNote: { flexDirection: 'row', alignItems: 'flex-start', gap: space.s, marginTop: space.s },
   tick: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   footer: { paddingHorizontal: space.xl, paddingTop: space.m, gap: space.xs },
-  cue: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 24, flexDirection: 'column' },
+  cue: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 56, flexDirection: 'column' },
   // Text buttons are 40 dp; the 4 dp of padding lets their hit slop reach the 48 dp touch target.
   actions: { flexDirection: 'row', justifyContent: 'center', gap: space.xs, flexWrap: 'wrap', paddingVertical: space.xs },
   guide: { borderWidth: 1, borderRadius: shape.group, paddingHorizontal: space.l, paddingVertical: space.m },
