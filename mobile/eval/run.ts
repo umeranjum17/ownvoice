@@ -12,6 +12,8 @@ import { platformForApp } from 'ownvoice-engine/src/platforms.ts';
 import * as J from 'ownvoice-engine/src/judge.ts';
 import * as D from 'ownvoice-engine/src/drafts.ts';
 import * as T from 'ownvoice-engine/src/threads.ts';
+import * as S from 'ownvoice-engine/src/slop.ts';
+import * as Voice from 'ownvoice-engine/src/voice.ts';
 
 import nspell from 'nspell';
 import { canPolish, polishAcceptor } from '../src/core/polish.ts';
@@ -25,6 +27,10 @@ if (!label || !base || !outPath) {
   process.exit(2);
 }
 const MODEL = process.env.MODEL ?? '';
+// Hosted OpenAI-compatible endpoints (for example OpenRouter) need a bearer token the
+// local llama-server/ollama recipes don't; set API_KEY and the call carries it. The key
+// is never logged or written to the output.
+const API_KEY = process.env.API_KEY ?? '';
 type Call = { prompt: string; maxTokens: number; answer: string; ms: number; promptTokens: number; genTokens: number; error?: string };
 
 async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<string> {
@@ -32,7 +38,7 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
   const res = await fetch(`${base}/v1/chat/completions`, {
     method: 'POST',
     signal: AbortSignal.timeout(120_000),
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...(API_KEY ? { authorization: `Bearer ${API_KEY}` } : {}) },
     body: JSON.stringify({
       ...(MODEL ? { model: MODEL } : {}),
       messages: [{ role: 'user', content: prompt }],
@@ -126,6 +132,50 @@ async function reply(c: any, calls: Call[]) {
   return { shown: made.map((text, slot) => ({ text, slot })).filter(x => x.text) };
 }
 
+/** The drafts array from the cloud writer's JSON answer, or the whole text as a fallback. The
+ *  answer may arrive inside a ```json fence or after a stray sentence, so trim to the object. */
+function draftsFrom(text: string): string[] {
+  const body = text.replace(/```[a-z]*\n?/gi, '').trim();
+  const from = body.indexOf('{');
+  const to = body.lastIndexOf('}');
+  if (from >= 0 && to > from) {
+    try {
+      const value = JSON.parse(body.slice(from, to + 1));
+      if (Array.isArray(value.drafts)) return value.drafts.map((x: unknown) => String(x));
+    } catch { /* not JSON: fall through to the raw text */ }
+  }
+  return body ? [body] : [];
+}
+
+// Grow-mode feed cases (G01-G20): the app's cloud grow path - the C2 reply prompt with the person's
+// typed reply as `point`, accepted by the same acceptReplies the panel uses, then one retry per empty
+// slot. The fit level is the app's bottom-level rule for a never-say breaker (level 0); a clean card
+// carries none. This is the live producer for scoreFeed's recorded-run shape ({shown, yours, yoursLevel}).
+async function feed(c: any, calls: Call[]) {
+  const platform = c.app ? platformForApp(c.app) : undefined;
+  const rules = { ...S.NO_RULES, never: c.voice.never, noDashes: c.voice.noDashes, samples: c.voice.samples };
+  const guide = Voice.selectedGuide(rules as any, true).line;
+  const input = { latest: c.post, conversation: c.post, point: c.draft, guide, dashes: 'remove' as const, platform };
+  const slots = D.slotsFor(platform);
+  const exclude: string[] = [];
+  const made: (string | null)[] = [null, null, null];
+  D.acceptReplies(draftsFrom(await call(D.replyPrompt(input), 320, calls)), exclude, 3, 'remove', [], c.voice.never, c.draft ?? '', slots)
+    .forEach((t, i) => { if (t) { made[i] = t; exclude.push(t); } });
+  for (let slot = 0; slot < slots.length; slot++) {
+    if (made[slot]) continue;
+    const answer = await call(D.replySlotPrompt(slots[slot], { ...input, avoid: exclude }), 160, calls);
+    const [d] = D.acceptReplies(draftsFrom(answer), exclude, 1, 'remove', [], c.voice.never, c.draft ?? '', [slots[slot]]);
+    if (d) { made[slot] = d; exclude.push(d); }
+  }
+  const breaks = (text: string) => S.hits(text, { ...S.NO_RULES, never: c.voice.never, noDashes: c.voice.noDashes })
+    .some((h: any) => h.reason === S.NEVER_SAY);
+  return {
+    shown: made.map((text, slot) => ({ text, slot, level: text && breaks(text) ? 0 : null })).filter(x => x.text),
+    yours: c.draft,
+    yoursLevel: c.draft && breaks(c.draft) ? 0 : null,
+  };
+}
+
 const results: any[] = [];
 let timedOut = false;
 for (const c of cases) {
@@ -134,7 +184,7 @@ for (const c of cases) {
   const calls: Call[] = [];
   const started = Date.now();
   let r: any;
-  try { r = c.kind === 'polish' ? await polish(c, calls) : c.kind === 'select' ? await select(c, calls) : c.kind === 'tone' ? await tone(c, calls) : c.kind === 'thread' ? await thread(c, calls) : await reply(c, calls); }
+  try { r = c.kind === 'polish' ? await polish(c, calls) : c.kind === 'select' ? await select(c, calls) : c.kind === 'tone' ? await tone(c, calls) : c.kind === 'thread' ? await thread(c, calls) : c.kind === 'feed' ? await feed(c, calls) : await reply(c, calls); }
   catch (e) { r = { error: String(e), shown: [] }; }
   results.push({ id: c.id, ...r, calls, wallMs: Date.now() - started });
   process.stderr.write(`${label} ${c.id} ${Date.now() - started}ms shown=${r.shown.length}\n`);

@@ -5,7 +5,9 @@
 // their fit levels from the accessibility tree. Run under the device lock.
 //
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME, JAVA_HOME; KEEP=1 leaves the last panel open;
-// DARK=1 adds one dark capture per platform after the light run.
+// DARK=1 adds one dark capture per platform after the light run; NEVER_SAY="phrase;phrase" sets those
+// phrases under Your voice (the real voice screen) before drafting, so the run proves the chosen
+// hosted writer drops them from the suggested cards.
 // Args: <cases.json> [out-dir] [limit] [platforms]
 import { execFileSync, spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -119,34 +121,50 @@ const recordStop = async child => {
 const results = resolve(out, 'results.jsonl');
 writeFileSync(results, '');
 
+const suggestionsIn = panel => panel.cards.filter(card => card.tag !== 'yours' && card.text);
+/** The app's own cloud lines for this attempt: a no-answer/parse failure vs a network drop. */
+const appLog = () => adb('logcat', '-d', '-s', 'ReactNativeJS:I').split('\n')
+  .filter(line => /Ownvoice (openrouter|chatgpt|claude)|ownvoice-fit/.test(line)).slice(-30).join(' | ');
+
 const one = async (platform, i, tag) => {
   const c = cases[platform][i];
   const fix = FIXTURES[platform];
   adb('logcat', '-c');
-  adb('shell', 'am', 'force-stop', fix.pkg);
-  await wait(600);
   // adb joins the shell args with spaces, so multi-word extras must be single-quoted for the device shell.
   const q = s => `'${String(s).replaceAll("'", "'\\''")}'`;
-  adb('shell', 'am', 'start', '-n', fix.component, '--es', 'post', q(c.post), '--es', 'replyText', q(c.reply), '--es', 'label', q(fix.label));
-  const field = await until(() => nodes().find(node => node.editable && node.text === c.reply), `the ${platform} reply field`);
-  tap(...center(field));
-  await wait(800);
-  const bubble = await until(bubbleNode, 'the bubble');
-  tap(...center(bubble));
-  await until(() => { const p = readPanel(); return p.title.startsWith('Suggested replies') ? p : null; }, 'the grow panel', 90);
-  let panel = readPanel();
-  for (let i2 = 0; i2 < 60; i2++) {
+  let panel = null;
+  let log = '';
+  // A live cloud call can come back empty or unparsable; a fresh attempt usually lands, so retry the
+  // whole open-and-wait up to three times before recording whatever the panel shows.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    adb('shell', 'am', 'force-stop', fix.pkg);
+    await wait(600);
+    adb('shell', 'am', 'start', '-n', fix.component, '--es', 'post', q(c.post), '--es', 'replyText', q(c.reply), '--es', 'label', q(fix.label));
+    const field = await until(() => nodes().find(node => node.editable && node.text === c.reply), `the ${platform} reply field`);
+    tap(...center(field));
+    await wait(800);
+    const bubble = await until(bubbleNode, 'the bubble');
+    tap(...center(bubble));
+    await until(() => { const p = readPanel(); return p.title.startsWith('Suggested replies') ? p : null; }, 'the grow panel', 90);
     panel = readPanel();
-    const suggestions = panel.cards.filter(card => card.tag !== 'yours' && card.text);
-    if (suggestions.length >= 2 && fitLines().length) break;
-    await wait(1000);
+    for (let i2 = 0; i2 < 90; i2++) {
+      panel = readPanel();
+      if (suggestionsIn(panel).length >= 2 && fitLines().length) break;
+      // The cloud writer fell back (phone can't write here): stop waiting and try the whole open again.
+      if (i2 > 3 && panel.cards.some(card => /ready to write|try again|something went wrong|wrote this on the phone/i.test(card.text ?? ''))) break;
+      await wait(1000);
+    }
+    log = appLog();
+    if (suggestionsIn(panel).length >= 2 || attempt === 2) break;
+    adb('shell', 'input', 'keyevent', '4');
+    await wait(1500);
   }
   panel = readPanel();
   snap(tag);
   const fits = fitLines().at(-1);
-  appendFileSync(results, JSON.stringify({ platform, case: i, post: c.post, reply: c.reply, title: panel.title, cards: panel.cards, fit: fits ?? null, shot: `${tag}.png` }) + '\n');
-  const suggestions = panel.cards.filter(card => card.tag !== 'yours');
-  console.log(`${tag}: ${suggestions.map(card => `${card.tag}[${card.fit ?? '?'}] ${card.text.slice(0, 80)}`).join(' || ')}`);
+  appendFileSync(results, JSON.stringify({ platform, case: i, post: c.post, reply: c.reply, title: panel.title, cards: panel.cards, fit: fits ?? null, appLog: log, shot: `${tag}.png` }) + '\n');
+  const suggestions = suggestionsIn(panel);
+  console.log(`${tag}: ${suggestions.map(card => `${card.tag}[${card.fit ?? '?'}] ${card.text.slice(0, 80)}`).join(' || ')}${log ? ' :: ' + log.slice(0, 160) : ''}`);
   if (process.env.KEEP !== '1') { adb('shell', 'input', 'keyevent', '4'); await wait(800); }
   return panel;
 };
@@ -161,12 +179,68 @@ adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', comp
 adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
 await wait(2500);
 
-// Gate: the live writer must be the signed-in ChatGPT plan; a stub or an empty phone is not a proof.
+// The real voice screen: type each banned phrase and press Add, like a person would. The chips
+// grow the page, so the add row can scroll off screen; bring it back before each tap.
+const setNeverSay = async () => {
+  const phrases = (process.env.NEVER_SAY ?? '').split(';').map(x => x.trim()).filter(Boolean);
+  if (!phrases.length) return;
+  const [, H] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+  // A chip renders as a button labelled "Remove <phrase>" wrapping the phrase text, so match both.
+  const hasPhrase = phrase => nodes().some(n => `${n.label ?? ''} ${n.text ?? ''}`.toLowerCase().includes(phrase.toLowerCase()));
+  const fieldNow = () => nodes().find(n => n.editable && /never say/i.test(n.label ?? ''));
+  const midY = n => (n.bounds[1] + n.bounds[3]) / 2;
+  const onScreen = n => !!n && midY(n) > 40 && midY(n) < H - 40;
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://voice', pkg);
+  await until(() => fieldNow(), 'the Never say field', 30);
+  for (const phrase of phrases) {
+    if (hasPhrase(phrase)) continue;
+    let added = false;
+    for (let attempt = 0; attempt < 5 && !added; attempt++) {
+      for (let s = 0; s < 10 && !onScreen(fieldNow()); s++) { // scroll the add row back into view
+        const below = (fieldNow()?.bounds[1] ?? H) > H / 2;
+        adb('shell', 'input', 'swipe', '540', String(Math.round(below ? H * 0.6 : H * 0.3)), '540', String(Math.round(below ? H * 0.25 : H * 0.6)), '250');
+        await wait(600);
+      }
+      const field = fieldNow();
+      if (!field) throw new Error('Never say field disappeared.');
+      tap(...center(field));
+      await wait(500);
+      // The soft keyboard can cover the add row after the first phrase; hide it before typing.
+      if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(600); }
+      if ((fieldNow()?.text ?? '').trim()) { // clear any leftover from a missed Add
+        adb('shell', 'input', 'keyevent', '123');
+        for (let k = 0; k < 60; k++) adb('shell', 'input', 'keyevent', '67');
+        await wait(300);
+      }
+      adb('shell', 'input', 'text', phrase.replaceAll(' ', '%s'));
+      await wait(700);
+      if (!(fieldNow()?.text ?? '').toLowerCase().includes(phrase.toLowerCase())) { await wait(500); continue; }
+      adb('shell', 'input', 'keyevent', '66'); // submit adds the phrase, like the plus
+      await wait(900);
+      added = hasPhrase(phrase);
+      if (!added) {
+        const add = nodes().find(n => (n.label ?? '').trim().toLowerCase() === 'add' && !n.editable);
+        if (add) { tap(...center(add)); await wait(900); added = hasPhrase(phrase); }
+      }
+    }
+    if (!added) {
+      const dump = nodes().filter(n => n.app === pkg).map(n => `${n.label}|${n.text}`).join(' ~ ').slice(0, 700);
+      throw new Error(`The phrase ${JSON.stringify(phrase)} did not stick. Screen: ${dump}`);
+    }
+  }
+  snap('voice-never-say');
+  adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+  await wait(2500);
+  console.log(`set ${phrases.length} never-say phrase(s) on Your voice`);
+};
+
+// Gate: a live cloud writer must be chosen (ChatGPT or OpenRouter); a stub or an empty phone is not a proof.
 adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 await wait(5000);
+await setNeverSay();
 const home = nodes().map(n => `${n.label} ${n.text}`).join(' ').toLowerCase();
-if (!home.includes('chatgpt')) throw new Error(`No live writer: Home shows no ChatGPT (gate). Home text: ${home.slice(0, 300)}`);
-console.log('gate: ChatGPT writer present on Home');
+if (!/chatgpt|openrouter/.test(home)) throw new Error(`No live cloud writer: Home shows neither ChatGPT nor OpenRouter (gate). Home text: ${home.slice(0, 300)}`);
+console.log(`gate: live writer present on Home (${home.includes('openrouter') ? 'OpenRouter' : 'ChatGPT'})`);
 adb('shell', 'input', 'keyevent', '4');
 await wait(800);
 

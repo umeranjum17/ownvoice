@@ -16,7 +16,22 @@ node score.ts out/*.json   # table + out/scores.json
 
 # or ollama's OpenAI-compatible endpoint
 MODEL=qwen3.8:27b-q4_K_M node run.ts <label> http://localhost:11434 out/<m>.json
+
+# or a hosted OpenAI-compatible endpoint (for example OpenRouter): set API_KEY and the
+# call carries `Authorization: Bearer`; the key is never logged or written to the output.
+# DeepSeek V4.1 Flash returns reasoning, so MAXTOK_EXTRA gives it headroom over the phone
+# budgets; 2000 is enough for the polish gate cases, and the feed cases fall back to the
+# per-slot retry when the three-draft reply is truncated at that budget.
+API_KEY=$(cat ~/.config/openrouter/api_key) MODEL=deepseek/deepseek-v4.1-flash \
+  MAXTOK_EXTRA=2000 ONLY=P01,P13,S05,R01,R07 \
+  node run.ts openrouter https://openrouter.ai/api out/openrouter.json
 ```
+
+The G cases run live through the same harness: `ONLY=G` runs the feed kind through the app's
+cloud grow path (`replyPrompt` with the person's typed reply as `point`, the same `acceptReplies`)
+and writes the recorded-run shape (`results[].shown[]` with `slot`/`level`, plus `yours` and
+`yoursLevel`) that `scoreFeed` consumes. This is the live producer for the G set described below;
+a local model server is still never used.
 
 Env: `MODEL` (ollama model name; unset for llama-server's loaded model),
 Thread cases `H01` (X) and `H02` (LinkedIn) run the package-5 thread writer:
