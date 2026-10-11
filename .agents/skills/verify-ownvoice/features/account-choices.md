@@ -13,8 +13,8 @@ Home's **How Ownvoice writes** screen (`/source`) lists the writer options as ca
 
 ## How to get to it (user POV)
 
-- Home › **How Ownvoice writes**, or the writer button on Home's readiness card (`/source?start=claude` when Claude is the chosen account and signed out).
-- Pick a card; switching back to **On this phone** is immediate, switching to an account asks once, then **Switch to Claude** or **Switch to ChatGPT**.
+- Home › **How Ownvoice writes**, or the writer button on Home's readiness card (`/source?start=<the chosen account>` when it is signed out).
+- Pick a card; switching back to **On this phone** is immediate, switching to an account asks once, then **Switch to Claude**, **Switch to ChatGPT** or **Switch to OpenRouter**.
 
 ## Driving it with a release build and the DPAD/tap recipe
 
