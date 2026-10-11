@@ -22,8 +22,9 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.webp" />
-    <img src="docs/readme/hero-light.webp" width="240" alt="Ownvoice in its practice chat: tap the smiling bubble to see your reply and cleaner versions, ready for you to choose" />
-  </picture>
+    <img src="docs/readme/hero-light.webp" width="240" alt="Ownvoice in its practice chat: Cleaned up fixes dont and shoud; Shorter removes at the end of the day" />
+  </picture><br />
+  <sub>Spelling fixed. Filler trimmed in <strong>Shorter</strong>.</sub>
 </p>
 
 ## Why Ownvoice
@@ -37,9 +38,9 @@ You know what you want to say. Sometimes it just needs a little tidying. Ownvoic
     <td align="center" width="50%">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/readme/polish-dark.webp" />
-        <img src="docs/readme/polish-light.webp" width="100%" alt="Polish your message over a chat: the typed reply with a stock phrase marked, then a Cleaned up version and a Shorter one, each with Use this" />
+        <img src="docs/readme/polish-light.webp" width="100%" alt="Polish your message: Cleaned up fixes dont and shoud, while Shorter rewrites the reply without the highlighted stock phrase" />
       </picture>
-      <br /><strong>Polish what you wrote</strong><br />Tap the bubble where you allow it.
+      <br /><strong>Polish what you wrote</strong><br />Fix slips. Trim filler with Shorter.
     </td>
     <td align="center" width="50%">
       <picture>
