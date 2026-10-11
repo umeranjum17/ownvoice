@@ -301,10 +301,18 @@ for (const commit of commits) {
     }
     const scope = baseFile(f).split('\n').slice(first - 1, last).join('\n');
     const entries = removed.filter((l) => l.file === f && l.at >= first && l.at <= last);
-    if (entries.length !== last - first + 1 || !entries.some((l) => isAssertion(l.text))
+    if (entries.length === 0 || first > last) {
+      reject('exact scope must contain asserted mocked code for the named surface'); continue;
+    }
+    const firstRemovedAt = entries[0].at;
+    const lastRemovedAt = entries[entries.length - 1].at;
+    if (firstRemovedAt !== first || lastRemovedAt !== last) {
+      reject('exact scope must contain asserted mocked code for the named surface'); continue;
+    }
+    if (!entries.some((l) => isAssertion(l.text))
       || !/\bjest\.(?:mock|fn|Mock|isolateModules)\b|\.mock(?:ReturnValue|ResolvedValue|RejectedValue|Implementation)(?:Once)?\s*\(/.test(scope)
       || !scope.includes(surface)) {
-      reject('exact scope must be wholly removed mocked code for the named surface'); continue;
+      reject('exact scope must contain asserted mocked code for the named surface'); continue;
     }
     const guardedText = f + '\n' + scope + '\n' + enclosingTest(f, first);
     if (GUARDED.test(guardedText) || /security|credential/i.test(guardedText)) {
