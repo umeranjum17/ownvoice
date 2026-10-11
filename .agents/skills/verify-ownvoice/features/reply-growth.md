@@ -1,6 +1,6 @@
 # Growth check-in and counts
 
-Android verification for F6b. The user-facing behavior and privacy contract live in [Your growth](../../../../README.md#your-growth).
+Android verification for F6b. The user-facing behavior and privacy contract live in [Your growth](../../../../docs/readme/guide.md#your-growth).
 
 ## Sub-features
 
@@ -10,7 +10,7 @@ Android verification for F6b. The user-facing behavior and privacy contract live
 
 ## How to get to it (user POV)
 
-Follow [Your growth](../../../../README.md#your-growth) for the Home and count-entry paths.
+Follow [Your growth](../../../../docs/readme/guide.md#your-growth) for the Home and count-entry paths.
 
 ## Driving it with Android e2e
 
