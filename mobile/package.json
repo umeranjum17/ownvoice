@@ -11,7 +11,7 @@
     "floor": "node ../scripts/floor-guard.mjs"
   },
   "dependencies": {
-    "@byokit/accounts": "0.20.0",
+    "@byokit/accounts": "0.21.0",
     "@byokit/decide": "0.6.1",
     "@byokit/infer": "^0.1.0",
     "@byokit/overlay": "0.3.0",
