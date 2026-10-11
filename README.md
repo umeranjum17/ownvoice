@@ -103,7 +103,7 @@ Full details: [Your words stay yours](docs/readme/guide.md#your-words-stay-yours
 
 <a id="reply-ideas-are-unavailable-for-now"></a>
 
-Reply ideas are unavailable in 1.0.3: write your reply first, then tap to polish it ([details](docs/readme/guide.md#reply-ideas-are-unavailable-for-now)). Pictures show 1.0.3; the download is the latest published release.
+Reply ideas work when the post can be read: an empty box over a readable post on X, LinkedIn, Reddit, Threads or Bluesky offers reply cards, each rated for that platform. A post with no text to ground on — an image-only post, a screen with nothing readable above the box — shows the plain note **Reply ideas are unavailable for now.** and nothing is invented. Chats and mail keep the 1.0.3 withhold ([details](docs/readme/guide.md#reply-ideas)). Pictures show 1.0.3; the download is the latest published release.
 
 ## Learn more
 

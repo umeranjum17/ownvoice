@@ -31,3 +31,21 @@ test('Slack empty-field reply withholds instead of tagging reply cards', async (
   expect(screen.queryByText(words.tryAgain)).toBeNull();
   expect(screen.queryByText(words.writeNew)).toBeNull();
 });
+
+// This slice offers replies to a post on a feed app only: a chat with a readable message above
+// the box keeps the 1.0.3 withhold and never calls a writer.
+test('a Slack reply with a readable message above still withholds', async () => {
+  native.capture.mockResolvedValue({
+    conversation: SAM, written: SAM,
+    nodes: [{ text: 'I can bring the tent if you bring the stove.', left: 8, top: 40, bottom: 80, clickable: false }],
+    fieldTop: 200, typed: '', app: 'com.Slack', label: 'Slack', at: 0, id: 'slack-chat', hasField: true,
+  });
+  const write = jest.fn(async () => ({ drafts: ['Yes.'] }));
+  const screen = await render(
+    <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
+      <Panel writer={{ write }} />
+    </SafeAreaProvider>);
+  await act(async () => { await Promise.resolve(); });
+  await waitFor(() => expect(screen.getByText(words.replyWithheld)).toBeTruthy());
+  expect(write).not.toHaveBeenCalled();
+});

@@ -51,3 +51,14 @@ test('visible feed context travels through the public prompt and ratings boundar
     assert.ok(Ratings.rate('Does it pause?', platform, '').engagement.unknown.includes(Ratings.POST_UNREAD));
   }
 });
+
+test('a header-led post with no readable body reads as no post, so a reply cannot be invented', () => {
+  const screen = [
+    node('https://x.com/umer/status/2', 0, false, { viewId: Platforms.CHROME_URL_BAR }),
+    node('@umer • 2h', 80),
+    node('231 likes', 160, true),
+  ];
+  const context = Feed.feedRead(screen, 220);
+  assert.equal(context.post, '');
+  assert.deepEqual(Feed.feedRead([node('Umer @umer · 2h', 40), node('18 replies', 80, true)], 250), { post: '' });
+});
