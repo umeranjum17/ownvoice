@@ -6,7 +6,7 @@ import { emulatorName } from './accessibility.mjs';
 // H1–H5 release-device proof; never connect to a phone or dump UiAutomation (it unbinds the service).
 // `node e2e/settings.mjs <dir> writes-cant|writes-ready` instead walks How Ownvoice writes (see writes() below).
 const serial = process.env.ANDROID_SERIAL;
-const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
+const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', timeout: 10000 });
 // Throwaway emulators only: a local emulator-NNNN, or a borrowed one over adb connect that says it is one.
 if (!serial || !serial.startsWith('emulator-') && !['ro.kernel.qemu', 'ro.boot.qemu'].some(prop => adb('shell', 'getprop', prop).trim() === '1')) throw new Error('Use a throwaway emulator.');
 const out = resolve(process.argv[2] ?? 'reports/ov-rn-07');
@@ -63,6 +63,20 @@ const pick = async () => {
 
 const flow = process.argv[3];
 if (flow === 'browse') {
+  if (!/^emulator-\d+$/.test(serial ?? '')) throw new Error('Use the allocated emulator.');
+  const deadline = Date.now() + 90000;
+  let ready = false;
+  while (Date.now() < deadline) {
+    try {
+      ready = adb('shell', 'getprop', 'sys.boot_completed').trim() === '1'
+        && /^package:/.test(adb('shell', 'pm', 'path', 'dev.ownvoice.next').trim())
+        && adb('shell', 'cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://apps', 'dev.ownvoice.next').includes('dev.ownvoice.next/.MainActivity');
+      if (ready) break;
+    } catch { /* Package manager is still starting; the deadline bounds retries. */ }
+    await wait(500);
+  }
+  if (!ready) throw new Error('Timed out waiting for boot, installed package and Ownvoice intent readiness.');
+  console.log('browse: boot, package and intent ready');
   if (!process.env.OWNVOICE_AVD_NAME || emulatorName(serial) !== process.env.OWNVOICE_AVD_NAME) throw new Error('Use the allocated AVD.');
   // Non-destructive real-device journey, independent of writer sign-in fixtures.
   for (const [route, label] of [['', 'Where the bubble shows'], ['apps', 'In apps that are off'], ['voice', 'Your voice']]) {

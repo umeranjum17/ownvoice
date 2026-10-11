@@ -3,8 +3,27 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Feed, Platforms, Drafts, Ratings } from '../dist/index.js';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 const node = (text, top, clickable = false, extra = {}) => ({ text, top, bottom: top + 20, left: 16, clickable, ...extra });
+const ask = request => {
+  const result = spawnSync(process.execPath, [fileURLToPath(new URL('../dist/cli.mjs', import.meta.url))], { input: JSON.stringify(request), encoding: 'utf8' });
+  assert.ok([0, 1].includes(result.status), result.stderr);
+  return JSON.parse(result.stdout);
+};
+
+test('imported reply samples survive the real CLI parse, guide and brief journey', () => {
+  const { rules } = ask({ verb: 'voice.parse', markdown: '## How I reply\n- tried it today.\n- say more?\n\n## Never say\n- synergy' });
+  assert.deepEqual(rules.samples, ['tried it today.', 'say more?']);
+  const { line } = ask({ verb: 'voice.guide', rules });
+  assert.ok(line.includes('tried it today.'));
+  assert.ok(line.includes('say more?'));
+  assert.ok(ask({ verb: 'brief', kind: 'reply', platform: 'x', rules }).lines.includes(line));
+  const [checked] = ask({ verb: 'check', platform: 'x', rules, drafts: ['synergy'] });
+  assert.ok(checked.voice.some(reason => reason.includes('synergy')));
+  assert.equal(ask({ verb: 'voice.guide', rules: { ...rules, samples: ['bad\0text'] } }).error.code, 'bad-request');
+});
 
 test('visible feed context travels through the public prompt and ratings boundary', () => {
   for (const [url, id, header] of [

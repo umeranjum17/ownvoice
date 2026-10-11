@@ -16,6 +16,7 @@ jobs:
   changes:
     runs-on: ubuntu-latest
     outputs:
+      host: ${{ steps.filter.outputs.host }}
       mobile: ${{ steps.filter.outputs.mobile }}
       native: ${{ steps.filter.outputs.native }}
       legacy: ${{ steps.filter.outputs.legacy }}
@@ -27,15 +28,17 @@ jobs:
         run: |
           base="${{ github.event.pull_request.base.sha || github.event.before }}"
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then base=HEAD~1; fi
-          changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" HEAD 2>/dev/null || echo mobile/)"
+          changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" HEAD 2>/dev/null || echo .github/workflows/android.yml)"
           printf '%s\n' "$changed" > /tmp/changed.txt
+          { grep -vE '\.md$|(^|/)(reports|artifacts|verify-artifacts)/' /tmp/changed.txt | grep -qE '^(mobile/|packages/engine/|scripts/|\.no-mistakes\.yaml|\.github/workflows/android\.yml)' || grep -q '^CONSTRAINTS.md$' /tmp/changed.txt; } && echo "host=true" >> "$GITHUB_OUTPUT" || echo "host=false" >> "$GITHUB_OUTPUT"
           { grep -qE '^mobile/' /tmp/changed.txt && echo "mobile=true" || echo "mobile=false"; } >> "$GITHUB_OUTPUT"
-          { grep -qE '^(mobile/(modules/ownvoice-native/|package(-lock)?\.json|app\.config\.js|plugins/)|\.github/workflows/android\.yml)'  /tmp/changed.txt && echo "native=true" || echo "native=false"; } >> "$GITHUB_OUTPUT"
-          { grep -qE '^(app/|link/|gradle/|gradlew|build\.gradle|settings\.gradle|gradle\.properties|\.github/workflows/android\.yml)'  /tmp/changed.txt && echo "legacy=true" || echo "legacy=false"; } >> "$GITHUB_OUTPUT"
+          { grep -qE '^(mobile/(modules/ownvoice-native/|package(-lock)?\.json|app\.config\.js|plugins/|src/core/defaultApps\.json)|\.github/workflows/android\.yml)'  /tmp/changed.txt && echo "native=true" || echo "native=false"; } >> "$GITHUB_OUTPUT"
+          { grep -qE '^(app/|link/|gradle/|gradlew|build\.gradle|settings\.gradle|gradle\.properties|mobile/src/core/defaultApps\.json|\.github/workflows/android\.yml)' /tmp/changed.txt && echo "legacy=true" || echo "legacy=false"; } >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   mobile:
     needs: changes
+    if: needs.changes.outputs.host == 'true'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -97,8 +100,8 @@ jobs:
       - run: ./gradlew :ownvoice-native:testDebugUnitTest :byokit-overlay:testDebugUnitTest assembleDebug
         working-directory: mobile/android
 
-  # The legacy Kotlin app is only built when app/ or link/ change; nothing else can
-  # affect it. The Expo release APK is built by apk-release.yml on a version tag.
+  # Legacy sources, build config and shared app defaults affect this job.
+  # The Expo release APK is built by apk-release.yml on a version tag.
   legacy:
     needs: changes
     if: needs.changes.outputs.legacy == 'true'

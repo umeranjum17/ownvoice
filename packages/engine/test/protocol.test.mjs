@@ -119,18 +119,6 @@ test('split threads a long post under the cap (ThreadsTest)', () => {
   assert.equal(posts.map(p => p.replace(/^\d+\/\d+ /, '')).join(' '), typed);
 });
 
-test('imported reply samples survive the real CLI parse, guide and brief journey', () => {
-  const { rules } = ask({ verb: 'voice.parse', markdown: '## How I reply\n- tried it today.\n- say more?\n\n## Never say\n- synergy' });
-  assert.deepEqual(rules.samples, ['tried it today.', 'say more?']);
-  const { line } = ask({ verb: 'voice.guide', rules });
-  assert.ok(line.includes('tried it today.'));
-  assert.ok(line.includes('say more?'));
-  assert.ok(ask({ verb: 'brief', kind: 'reply', platform: 'x', rules }).lines.includes(line));
-  const [checked] = ask({ verb: 'check', platform: 'x', rules, drafts: ['synergy'] });
-  assert.ok(checked.voice.some(reason => reason.includes('synergy')));
-  assert.equal(ask({ verb: 'voice.guide', rules: { ...rules, samples: ['bad\0text'] } }).error.code, 'bad-request');
-});
-
 test('bad input gets the error envelope', () => {
   for (const bad of [
     { verb: 'nope' },

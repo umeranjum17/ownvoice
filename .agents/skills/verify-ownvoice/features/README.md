@@ -26,6 +26,7 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [Reply drafts](./reply-drafts.md) — Android: bubble tap offers replies; Insert puts one in the field.
 - [Gmail compose and reply](./gmail-compose-reply.md) — Android: bubble reads a Gmail compose/reply body, polishes it, and Use this writes it back and reports Inserted.
 - [First-run setup](./first-run-setup.md) — Android: welcome through writer choice, permission, practice insert. (The writer step offers ChatGPT and Claude; the account screen switches them later.)
+- [Settings navigation smoke](./settings-navigation.md) — Android: readiness-gated Home → apps → voice; no sign-in/import/wipe claims.
 - [Account choices](./account-choices.md) — Android: Home's How Ownvoice writes lists phone, ChatGPT and Claude; sign-in and writer/rating routing per chosen account.
 - [Rewrite a selection](./rewrite-selection.md) — Android: process-text/share hand-over-only rewrite sheet.
 - [Local reply outcomes](./reply-outcomes.md) — Android: insert → real local store → read-back, text opt-in and failed append.
@@ -35,4 +36,4 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [Own posts](./own-posts.md) — Android: a blank feed composer asks for the one line, then drafts from it; edit one and insert it.
 - [Typing checks](./typing-checks.md) — Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery.
 
-Not yet mapped: Home/settings walk (`mobile/e2e/settings.mjs`), overlay behaviors (`overlay-proof.mjs`), prefill hand-off (`proof-prefill.mjs`).
+Not yet mapped: full settings import/wipe walk (`mobile/e2e/settings.mjs` without `browse`), overlay behaviors (`overlay-proof.mjs`), prefill hand-off (`proof-prefill.mjs`).
