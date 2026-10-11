@@ -35,5 +35,6 @@ Each file: H1 + one paragraph, then exactly four H2s — `Sub-features`, `How to
 - [Voice rules in drafts](./voice-rules.md) — Android: never-say phrases and the "How I write" note change the drafted replies and mark the person's own text.
 - [Own posts](./own-posts.md) — Android: a blank feed composer asks for the one line, then drafts from it; edit one and insert it.
 - [Typing checks](./typing-checks.md) — Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery.
+- [Polish / output-fix sheets](./polish-output.md) — Android: real cloud-writer polish panels for autosave/split-capital/nonsense/empty/mash/max, light/dark and narrow, with a stub-text provenance guard.
 
 Not yet mapped: full settings import/wipe walk (`mobile/e2e/settings.mjs` without `browse`), overlay behaviors (`overlay-proof.mjs`), prefill hand-off (`proof-prefill.mjs`).
