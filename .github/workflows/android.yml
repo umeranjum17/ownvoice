@@ -5,8 +5,35 @@ on:
     branches: [main]
   pull_request:
 
+# A superseded push/PR run is cancelled so a queue of them does not hold runners.
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  # Path filter: docs, evidence and engine-only changes cannot affect the legacy
+  # Android app or the Expo native project, so those jobs are skipped rather than run.
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      mobile: ${{ steps.filter.outputs.mobile }}
+      legacy: ${{ steps.filter.outputs.legacy }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then base=HEAD~1; fi
+          changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" HEAD 2>/dev/null || echo mobile/)"
+          printf '%s\n' "$changed" > /tmp/changed.txt
+          { grep -qE '^mobile/' /tmp/changed.txt && echo "mobile=true" || echo "mobile=false"; } >> "$GITHUB_OUTPUT"
+          { grep -qE '^(app/|link/)' /tmp/changed.txt && echo "legacy=true" || echo "legacy=false"; } >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
   mobile:
+    needs: changes
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -20,11 +47,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: mobile/package-lock.json
+          cache-dependency-path: |
+            mobile/package-lock.json
+            packages/engine/package-lock.json
       - run: npm ci
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test -- --ci
+      - run: npm run floor
+      # Regenerating the Android project from the Expo config and plugins catches a
+      # broken app.config.js/plugin before it reaches a release tag. Only mobile
+      # changes can affect it.
+      - if: needs.changes.outputs.mobile == 'true'
+        run: npx expo prebuild -p android --no-install
       - run: npm ci
         working-directory: packages/engine
       - run: npm run lint
@@ -33,32 +68,12 @@ jobs:
         working-directory: packages/engine
       - run: npm test
         working-directory: packages/engine
-      - run: npm run floor
-        working-directory: mobile
 
-  ownvoice-native:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: mobile
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: mobile/package-lock.json
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-      - uses: gradle/actions/setup-gradle@v4
-      - run: npm ci
-      - run: npx expo prebuild -p android --no-install
-      - run: ./gradlew :ownvoice-native:testDebugUnitTest :byokit-overlay:testDebugUnitTest assembleDebug
-        working-directory: mobile/android
-
-  build:
+  # The legacy Kotlin app is only built when app/ or link/ change; nothing else can
+  # affect it. The Expo release APK is built by apk-release.yml on a version tag.
+  legacy:
+    needs: changes
+    if: needs.changes.outputs.legacy == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -67,6 +82,6 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew assembleDebug :app:testDebugUnitTest
+      - run: ./gradlew assembleDebug
       - if: ${{ hashFiles('link/**') != '' }}
         run: cd link && go test ./...

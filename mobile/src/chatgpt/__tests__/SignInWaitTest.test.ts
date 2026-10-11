@@ -46,7 +46,12 @@ test('dropped polls while the code waits do not fail the sign-in', async () => {
   expect(shown?.state).toBe('waiting');
   expect(shown?.code).toBe('ABCD-EFGH');
   // The person is still typing the code in the browser; polls keep failing meanwhile.
-  await new Promise((r) => setTimeout(r, 2500));
+  // Wait on the condition (the dropped polls were actually attempted), never a fixed sleep.
+  for (let i = 0; i < 200; i++) {
+    const polls = fetch.mock.calls.filter(([url]) => String(url).endsWith('/api/accounts/deviceauth/token')).length;
+    if (polls > 3) break;
+    await new Promise((r) => setTimeout(r, 25));
+  }
   expect(byokit.view('owner', 'chatgpt')?.state).toBe('waiting');
   approve();
   await byokit.finished('owner', 'chatgpt');

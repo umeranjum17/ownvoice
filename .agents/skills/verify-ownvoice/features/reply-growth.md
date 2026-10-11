@@ -6,7 +6,7 @@ Android verification for F6b. The user-facing behavior and privacy contract live
 
 - Home check-in persistence (`checkin` + `checkinAt` on the original outcome in `mobile/src/core/store.ts`; calibration input is defined in [the eval contract](../../../../mobile/eval/README.md#fit-calibration-g9-local-only)).
 - Home reminder navigation, count persistence, and timestamp-based platform trends on Your growth.
-- The scoped count-digits exception in `PlainWordsTest`.
+- The count digits are the only digits Home/growth shows; other screens stay digit-free (the `technicalWords` list in `packages/engine/src/words.ts`).
 
 ## How to get to it (user POV)
 

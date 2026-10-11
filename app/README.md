@@ -6,7 +6,7 @@ Ownvoice is a local-first, open-source writing booster for Android. A small bubb
 
 If you've already written something in the field, Ownvoice improves it instead of drafting a reply: see [Compose boost](#compose-boost). Each draft gets one plain sentence about how it reads, and you can rewrite any text you select, in any app, without turning on accessibility.
 
-The app is written for people who don't care how it works: it uses plain Material 3 in the phone's own colours and font, follows light and dark mode, and never shows a model name, a score out of 100 or other technical words. `PlainWordsTest` fails the build if one slips into a user-facing string. The technical details live here instead.
+The app is written for people who don't care how it works: it uses plain Material 3 in the phone's own colours and font, follows light and dark mode, and never shows a model name, a score out of 100 or other technical words. The technical details live here instead.
 
 ## How a draft reads
 
@@ -83,11 +83,11 @@ Gemini Nano through ML Kit needs a supported phone (for example recent Pixel, Sa
 
 ## Test
 
-The setup steps and the installed-app list (`OnboardingTest`), the phrase rules, the parsing of the judge's answers and the one-sentence verdict, the per-app defaults, the 30-day log, the voice profile import and never-say matching, and the plain-words check (`PlainWordsTest`, which checks the error messages, check names, verdicts, marked-phrase reasons, read log, the offered app names and string resources for model names, "/100", "judge", "slop", "nano", "AICore", "characters" and similar) have plain JVM unit tests:
-
-```sh
-./gradlew :app:testDebugUnitTest
-```
+The plain JVM unit tests that once covered setup steps, the phrase rules, the
+judge's answers, the per-app defaults, the 30-day log and the plain-words
+check were deleted under the repo's test diet: their behaviour is exercised on
+the real app by the instrumentation tests below and by the Expo app's journeys
+in [`mobile/e2e/`](../mobile/e2e/). Build the app with `./gradlew :app:assembleDebug`.
 
 `FirstRunTest` runs the whole first run on a device or emulator with a stand-in for the model: welcome, the permission (the test flips the switch the user would), setup coming back to the front by itself, the practice chat ending in an inserted draft in 4 taps, and "Where should I help?" offering only installed apps. It checks every text setup shows for technical words, and puts the phone's own Ownvoice settings back afterwards.
 
