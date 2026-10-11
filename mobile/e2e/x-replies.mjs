@@ -7,7 +7,7 @@
 // Edit changes the text, Insert puts exactly the edited text in the field with the
 // "Inserted. Send it yourself." confirmation and a field read-back; the image-only post shows the
 // no-grounding withhold note instead of cards. Captures into verify-artifacts/<task>/ through the
-// skill's evidence.sh (theme/shot/motion helpers).
+// skill's evidence.sh (theme/shot helpers).
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned avd>, JAVA_HOME, SDK via
 // ANDROID_HOME, OPENROUTER_KEY_FILE optional. Args: <release-apk (no stub flags)> [task-slug].
 import { execFileSync } from 'node:child_process';
@@ -29,13 +29,6 @@ if (!key.startsWith('sk-')) throw new Error('OpenRouter key file did not look li
 const task = process.argv[3] ?? 'ov-x-replies-resume';
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
 const evidence = (...args) => execFileSync('bash', [`${root}/.agents/skills/verify-ownvoice/evidence.sh`, ...args], { cwd: root, encoding: 'utf8' });
-// A failed earlier run can leave its recording marker behind; clear it so motion-start is honest.
-for (const stale of ['.motion.pid', '.motion.out']) {
-  const path = `${root}/verify-artifacts/${task}/${stale}`;
-  try { process.kill(Number(readFileSync(path, 'utf8')), 'SIGTERM'); } catch {}
-  try { rmSync(path); } catch {}
-}
-try { execFileSync('adb', ['-s', serial, 'shell', 'pkill -l TERM screenrecord'], { encoding: 'utf8' }); } catch {}
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
 const nodes = accessibilityProbe(serial, resolve(root, 'mobile/e2e'));
@@ -302,12 +295,11 @@ const verifyFixtureLive = async () => {
     throw new Error('Could not find fixture reply composer (check page content).');
   }
 };
-const journey = async (screen, theme, { motion = false } = {}) => {
+const journey = async (screen, theme) => {
   await verifyFixtureLive();
   const composer = await field();
   tap(...center(composer));
   await wait(2200);
-  if (motion) evidence('motion-start', task, `${screen}-tap-to-inserted`);
   tap(...center(await bubble()));
   await wait(1800);
   const editCard = await panelButton('Edit', 240); // room for the live OpenRouter round-trip
@@ -348,7 +340,6 @@ const journey = async (screen, theme, { motion = false } = {}) => {
   await wait(800);
   if ((await panelButton('Insert')) || (await panelButton('Edit'))) { nodes('Close'); await wait(900); }
   shot(screen, 'inserted', theme);
-  if (motion) evidence('motion-stop');
   const logcat = adb('logcat', '-d', '-s', 'OwnvoiceNative:I', 'OwnvoiceService:I');
   if (!/insert result ok=true/.test(logcat)) throw new Error('The insert read-back check did not pass.');
   const back = nodes().find(node => node.editable && !node.password && !/x\.com|https?:|find an app/i.test(`${node.text ?? ''} ${node.label ?? ''}`));
@@ -376,7 +367,7 @@ const withhold = async (screen, theme) => {
   log(`${screen}/${theme}: no-text post withholds.`);
 };
 
-await journey('x-reply', 'light', { motion: true });
+await journey('x-reply', 'light');
 await withhold('x-notext', 'light');
 
 // ---- dark theme: force-stop Chrome so prefers-color-scheme re-reads ----
