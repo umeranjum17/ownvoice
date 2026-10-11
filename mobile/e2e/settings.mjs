@@ -1,11 +1,12 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { emulatorName } from './accessibility.mjs';
 
 // H1–H5 release-device proof; never connect to a phone or dump UiAutomation (it unbinds the service).
 // `node e2e/settings.mjs <dir> writes-cant|writes-ready` instead walks How Ownvoice writes (see writes() below).
 const serial = process.env.ANDROID_SERIAL;
-const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
+const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', timeout: 10000 });
 // Throwaway emulators only: a local emulator-NNNN, or a borrowed one over adb connect that says it is one.
 if (!serial || !serial.startsWith('emulator-') && !['ro.kernel.qemu', 'ro.boot.qemu'].some(prop => adb('shell', 'getprop', prop).trim() === '1')) throw new Error('Use a throwaway emulator.');
 const out = resolve(process.argv[2] ?? 'reports/ov-rn-07');
@@ -22,7 +23,18 @@ const rows = (image = screenshot()) => execFileSync('tesseract', ['stdin', 'stdo
   .map(line => line.split('\t')).filter(cols => cols.length >= 12 && cols[11].trim());
 const visible = image => rows(image).map(cols => cols[11]).join(' ').toLowerCase();
 const expect = (label, text) => { if (!text.includes(label.toLowerCase())) throw new Error(`Missing ${label}: ${text}`); };
-const open = async route => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, 'dev.ownvoice.next'); await wait(1600); };
+// A route can be slow to render after a force-stop; wait for its own content instead of a fixed sleep.
+const seen = async (label, tries = 30) => {
+  for (let i = 0; i < tries; i++) {
+    if (visible().includes(label.toLowerCase())) return;
+    await wait(500);
+  }
+  throw new Error(`Missing ${label}: ${visible()}`);
+};
+const open = async route => {
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, 'dev.ownvoice.next');
+  await wait(1600);
+};
 const save = name => writeFileSync(resolve(out, `OWNVOICE-RN-07-${name}.png`), screenshot());
 const tap = (label, last = false) => {
   const matches = rows().filter(cols => cols[11].toLowerCase() === label.toLowerCase());
@@ -50,26 +62,52 @@ const pick = async () => {
 };
 
 const flow = process.argv[3];
+if (flow === 'browse') {
+  if (!/^emulator-\d+$/.test(serial ?? '')) throw new Error('Use the allocated emulator.');
+  const deadline = Date.now() + 90000;
+  let ready = false;
+  while (Date.now() < deadline) {
+    try {
+      ready = adb('shell', 'getprop', 'sys.boot_completed').trim() === '1'
+        && /^package:/.test(adb('shell', 'pm', 'path', 'dev.ownvoice.next').trim())
+        && adb('shell', 'cmd', 'package', 'resolve-activity', '--brief', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://apps', 'dev.ownvoice.next').includes('dev.ownvoice.next/.MainActivity');
+      if (ready) break;
+    } catch { /* Package manager is still starting; the deadline bounds retries. */ }
+    await wait(500);
+  }
+  if (!ready) throw new Error('Timed out waiting for boot, installed package and Ownvoice intent readiness.');
+  console.log('browse: boot, package and intent ready');
+  if (!process.env.OWNVOICE_AVD_NAME || emulatorName(serial) !== process.env.OWNVOICE_AVD_NAME) throw new Error('Use the allocated AVD.');
+  // Non-destructive real-device journey, independent of writer sign-in fixtures.
+  for (const [route, label] of [['', 'Where the bubble shows'], ['apps', 'In apps that are off'], ['voice', 'Your voice']]) {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, 'dev.ownvoice.next');
+    await seen(label);
+    console.log(`browse: ${route || 'Home'} ready: ${label}`);
+  }
+  rmSync(resolve(out, '.shot.png'), { force: true });
+  console.log('browse: PASS (Home → apps → voice, real installed app)');
+  process.exit(0);
+}
 if (flow) { await writes(flow); process.exit(0); }
 
 for (const mode of ['light', 'dark']) {
   adb('shell', 'cmd', 'uimode', 'night', mode === 'light' ? 'no' : 'yes');
   adb('shell', 'am', 'force-stop', 'dev.ownvoice.next');
   await open('');
-  expect('Where the bubble shows', visible());
+  await seen('Where the bubble shows'); expect('Where the bubble shows', visible());
   save(`${mode}-home`);
   await open('apps');
-  expect('In apps that are off', visible());
+  await seen('In apps that are off'); expect('In apps that are off', visible());
   save(`${mode}-apps`);
   await open('voice');
-  expect('Import from a file', visible());
+  await seen('Import from a file'); expect('Import from a file', visible());
   save(`${mode}-voice`);
   await pick();
   expect('Found in the file', visible());
   save(`${mode}-import-preview`);
   if (mode === 'light') { tap('Add', true); await wait(500); expect('Added', visible()); }
   await open('reads');
-  expect('Suggested replies in Ownvoice', visible());
+  await seen('Suggested replies in Ownvoice'); expect('Suggested replies in Ownvoice', visible());
   save(`${mode}-reads`);
 }
 tap('Wipe');
