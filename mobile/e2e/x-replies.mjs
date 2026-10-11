@@ -333,9 +333,16 @@ const journey = async (screen, theme, { motion = false } = {}) => {
   await wait(800);
   shot(screen, 'editing', theme);
   await insertViaProbe('Insert');
-  await wait(2600);
+  // The pill lives on the bubble for four seconds from the insert, but the native insert-verify can
+  // run a few seconds first, so watch the screen and shoot the moment it appears (the pixel shot is
+  // timely; OCR reads the file after the fact).
+  let pillSeen = false;
+  for (let i = 0; i < 24 && !pillSeen; i++) {
+    pillSeen = /send.{0,4}yourself|check it looks right/i.test(screenText());
+    if (!pillSeen) await wait(500);
+  }
   shot(screen, 'inserted-panel', theme);
-  const pillNow = nodes().some(node => /Send it yourself|Check it looks right/.test(`${node.text} ${node.label}`));
+  const pillNow = pillSeen || nodes().some(node => /Send it yourself|Check it looks right/.test(`${node.text} ${node.label}`));
   const ocrPill = () => { try { return execFileSync('tesseract', [`${root}/verify-artifacts/${task}/${screen}-inserted-panel-${theme}.png`, 'stdout'], { encoding: 'utf8' }); } catch { return ''; } };
   if (!pillNow && !/send.{0,4}yourself|check it looks right/i.test(ocrPill())) throw new Error('The insert confirmation is not visible.');
   adb('shell', 'input', 'keyevent', '111');
