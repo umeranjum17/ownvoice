@@ -313,10 +313,13 @@ const journey = async (screen, theme, { motion = false } = {}) => {
   const editCard = await panelButton('Edit', 240); // room for the live OpenRouter round-trip
   if (!editCard) {
     shot(screen, 'nocard', theme);
-    const capture = adb('logcat', '-d', '-s', 'OwnvoiceNative:I').split('\n').filter(l => l.includes('capture practice')).at(-1) ?? '(no capture log)';
+    const capture = adb('logcat', '-d', '-s', 'OwnvoiceNative:D').split('\n').filter(l => l.includes('capture practice')).at(-1) ?? '(no capture log)';
     log(`no Edit card: withhold=${panelText('Reply ideas are unavailable')} xPlat=${panelText('X')} nodes=${nodes().length}`);
     log(`capture: ${capture.trim()}`);
     log(`screen: ${screenText().slice(0, 500)}`);
+    const raw = adb('logcat', '-d', '-v', 'brief');
+    const keep = raw.split('\n').filter(l => /Ownvoice|ownvoice|OpenRouter|openrouter|writer|Writer|ready|phone|Phone|deepseek|Write|Error|error|WARN|ReactNative/.test(l)).slice(-70);
+    log(`logcat:\n${keep.join('\n')}`);
     throw new Error('No card with an Edit button appeared.');
   }
   if (!panelText('X')) throw new Error('The panel does not name the X platform.');
