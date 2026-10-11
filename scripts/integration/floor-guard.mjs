@@ -89,14 +89,34 @@ partial('wrong-surface', (r) => { r.surface = 'OtherWriter'; });
 partial('inexact-scope', (r) => { r.first = 1; });
 partial('extra-unexplained-assertion', (_r, c) => c.put(suite, retained.replace('assert.equal(Widget(), 1);', 'Widget();')));
 for (const word of ['security', 'credential', 'encrypt', 'backup']) {
-  // Guard the enclosing case even when the exact retired leg omits its guarded title.
-  const guarded = original.replace('Widget mocked display', word + ' Widget mocked display');
+  // Guard the enclosing case even when the retired leg omits its title; `.each` is a case too.
+  const head = word === 'credential'
+    ? `test.each([['a']])('${word} Widget %s', () => {`
+    : `test('${word} Widget mocked display', () => {`;
+  const guarded = original.replace("test('Widget mocked display', () => {", head);
   setup('guarded-' + word, guarded);
   const rec = record(); rec.first = 3; rec.last = 4;
   put(suite, guarded.split('\n').filter((_l, i) => i !== 2 && i !== 3).join('\n'));
   put('diet/record.json', JSON.stringify(rec)); commit(message);
   qualify('guarded-' + word, 1, 'invalid-test-diet');
 }
+// A guarded token carried only by an enclosing describe title must still refuse the retirement.
+const described = [
+  "import { Widget } from './Widget.mjs';",
+  "describe('password reset suite', () => {",
+  "  test('Widget mocked display', () => {",
+  '    mocked.offered.mockReturnValue([Widget()]);',
+  '    assert.equal(Widget(), 1);',
+  '  });',
+  "  test('retained Widget path', () => { assert.equal(Widget(), 1); });",
+  '});',
+  '',
+].join('\n');
+setup('guarded-enclosing-describe', described);
+const descRec = record(); descRec.first = 3; descRec.last = 6;
+put(suite, described.split('\n').filter((_l, i) => i < 2 || i > 5).join('\n'));
+put('diet/record.json', JSON.stringify(descRec)); commit(message);
+qualify('guarded-enclosing-describe', 1, 'invalid-test-diet');
 setup('late-metadata');
 const late = record(); put(suite, retained); commit('unexplained removal');
 put('diet/record.json', JSON.stringify(late)); commit(message);

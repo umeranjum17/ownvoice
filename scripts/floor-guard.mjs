@@ -192,18 +192,33 @@ const baseFile = (f) => {
   if (!baseCache.has(f)) baseCache.set(f, git(['show', mergeBase + ':' + f]) ?? '');
   return baseCache.get(f);
 };
+// `test.each(...)`/`it.each(...)` declare a case like any other, and a guarding token may live
+// only in a suite title, so the enclosing case text is the test block plus every describe title
+// that encloses it. Indentation identifies the enclosing chain; a token in any outer suite is
+// still part of the enclosing case, so the whole chain is included, not just the nearest title.
+const testDecl = /^\s*(?:test|it)(?:\.\w+)*\s*\(/;
+const caseDecl = /^\s*(?:test|it|describe)(?:\.\w+)*\s*\(/;
+const indentOf = (s) => (s.match(/^\s*/) ?? [''])[0].length;
 const enclosingTest = (f, at) => {
   const lines = baseFile(f).split('\n');
   let start = -1;
   for (let i = Math.min(at || 1, lines.length) - 1; i >= 0; i--) {
-    if (/^\s*(?:test|it)\s*\(/.test(lines[i])) { start = i; break; }
+    if (testDecl.test(lines[i])) { start = i; break; }
   }
   if (start < 0) return '';
   let end = lines.length;
   for (let j = start + 1; j < lines.length; j++) {
-    if (/^\s*(?:test|it|describe)\s*\(/.test(lines[j])) { end = j; break; }
+    if (caseDecl.test(lines[j])) { end = j; break; }
   }
-  return lines.slice(start, end).join('\n');
+  const heads = [];
+  let level = indentOf(lines[start]);
+  for (let i = start - 1; i >= 0; i--) {
+    if (/^\s*describe(?:\.\w+)*\s*\(/.test(lines[i]) && indentOf(lines[i]) < level) {
+      heads.unshift(lines[i]);
+      level = indentOf(lines[i]);
+    }
+  }
+  return heads.concat(lines.slice(start, end)).join('\n');
 };
 const liveness = new Map();
 const stillInCode = (id) => {
@@ -291,8 +306,8 @@ for (const commit of commits) {
       || !scope.includes(surface)) {
       reject('exact scope must be wholly removed mocked code for the named surface'); continue;
     }
-    if (GUARDED.test(f + '\n' + scope + '\n' + enclosingTest(f, first))
-      || /security|credential/i.test(f + '\n' + scope + '\n' + enclosingTest(f, first))) {
+    const guardedText = f + '\n' + scope + '\n' + enclosingTest(f, first);
+    if (GUARDED.test(guardedText) || /security|credential/i.test(guardedText)) {
       reject('security/credential/crypto/data-loss guard'); continue;
     }
     // Do not let a later metadata-only commit authorize an earlier assertion loss.

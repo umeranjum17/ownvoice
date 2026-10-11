@@ -68,6 +68,8 @@ The guard's CLI integration journey runs with real isolated Git histories:
 `node scripts/integration/floor-guard.mjs <empty-private-scratch> <evidence-directory>`.
 Run it under isolated HOME/XDG/TMPDIR; it records every floor subprocess command,
 stdout, stderr, exit and candidate binding. It does not run native/provider proofs.
+It is wired into CI (`.github/workflows/android.yml`) and the gate's `commands.test`,
+so the guard's own retirement paths stay covered; it is not a Jest suite.
 
 ## Enforced with numbers
 
