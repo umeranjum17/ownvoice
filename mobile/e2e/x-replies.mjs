@@ -44,7 +44,10 @@ const log = line => console.log(line);
 const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
 const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
 const png = () => execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 });
-const screenText = () => execFileSync('tesseract', ['stdin', 'stdout'], { input: png(), encoding: 'utf8' }).toLowerCase();
+// OCR wraps a phrase across lines on narrow screens; collapse whitespace so substring waits match.
+const screenText = () => execFileSync('tesseract', ['stdin', 'stdout'], { input: png(), encoding: 'utf8' }).toLowerCase().replace(/\s+/g, ' ').trim();
+// Read the accessibility tree as one line — OCR without misreads — for control labels.
+const nodeText = () => nodes().map(n => `${n.text ?? ''} ${n.label ?? ''}`).join(' ').toLowerCase();
 const ocrLine = phrase => {
   const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: png(), encoding: 'utf8' });
   return tsv.split('\n').slice(1).map(r => r.split('\t')).find(c => c.length >= 12 && c[11].toLowerCase().includes(phrase.toLowerCase()));
@@ -153,34 +156,37 @@ adb('shell', 'cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');
 evidence('theme', 'light');
 await rebind();
 
-// Setup walk: welcome -> choose writer -> OpenRouter key -> practice -> apps.
+// Setup: an emulator has no phone writer, and OpenRouter is a key route offered on the "How
+// Ownvoice writes" screen (ownvoice://source), not the first-run chooser (which offers only the
+// phone, ChatGPT and Claude). Finish setup with no writer (hardware Back on the welcome), then
+// open that screen and connect the key there — the same path a person uses.
 adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
-await waitForLine(['sound like you', 'how should ownvoice write'], 30);
-if (screenText().includes('sound like you')) { await tapButton('continue'); await wait(2000); }
-await waitForLine('how should ownvoice write', 30);
-for (let i = 0; i < 4 && !screenText().includes('with your openrouter'); i++) {
-  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .25), '300');
+await waitForLine('sound like you', 30);
+adb('shell', 'input', 'keyevent', '4'); // Back on the welcome finishes setup with no writer
+await wait(2500);
+await waitForLine('where the bubble shows', 30);
+log('setup: finished with no writer; choosing OpenRouter on the writer list.');
+
+adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source');
+await wait(2500);
+for (let i = 0; i < 5 && !nodeText().includes('with your openrouter'); i++) {
+  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
   await wait(1200);
 }
 await tapButton('with your openrouter');
-await wait(800);
-try { await tapButton('continue'); } catch { /* footer may read Sign in */ }
 await waitForLine('paste your openrouter key', 30);
-await tapButton('paste your openrouter key'); await wait(700);
-type(key);
-await wait(700);
+const keyField = nodes().find(n => `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes('paste your openrouter key'));
+if (!keyField) throw new Error('The OpenRouter key field did not open.');
+tap(...center(keyField)); await wait(700);
+type(`'${key}'`); await wait(700);
+if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
 await tapButton('connect');
-await waitForLine(['will write your drafts', 'signed in to'], 40);
-await tapButton('continue');
-await waitForLine(['try it', 'write a reply'], 40);
-log('setup finished (live OpenRouter writer).');
-
-// Finish the practice step, then any app step, via the accessible buttons.
-if (await tapButton('skip')) await wait(2500);
-if (await tapButton('done')) await wait(2000);
-adb('shell', 'input', 'keyevent', '4');
-await wait(1500);
-log('setup complete; app writer ready.');
+for (let i = 0; i < 60 && !nodeText().includes('openrouter is connected'); i++) {
+  if (screenText().includes('not accepted')) throw new Error('OpenRouter rejected the key.');
+  await wait(1000);
+}
+if (!nodeText().includes('openrouter is connected')) throw new Error('OpenRouter did not report connected.');
+log('setup finished (live OpenRouter writer connected).');
 
 // ---- enable Chrome's bubble through the app's own UI ----
 const appRow = label => nodes().find(node => node.checkable && node.label === label);
