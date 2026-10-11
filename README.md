@@ -80,14 +80,14 @@ Want to build it yourself? See [Build and run](mobile/README.md#android-build-an
 
 ## What it does
 
-<a id="polish-what-you-wrote"></a><a id="start-a-post-from-a-blank-composer"></a><a id="honest-about-every-draft"></a><a id="everything-in-one-place"></a>
+<a id="polish-what-you-wrote"></a><a id="start-a-post-from-a-blank-composer"></a><a id="honest-about-every-draft"></a>
 
 - ✨ **Polishes in place.** Marks stock phrases and fixes clear slips like "shoud" or "dont".
 - ✂️ **Rewrites any selection.** Shorter, simpler, friendlier or firmer, from any app.
 - 🔒 **Your choice of writer.** Private, free and offline on supported phones, or with your own AI plan.
 - 🗣️ **Learns your voice.** Your never-say list and writing rules shape every draft.
 - 👀 **Honest about every draft.** Plain notes on what it checked, never a score to chase.
-- 📱 **Only where you want it.** X, LinkedIn, Reddit, Slack, WhatsApp and Gmail start on; pick the rest, or pause any time.
+- 📱 **Only where you want it.** Pick the apps that show the bubble, or pause it any time.
 - 🌗 **Feels like your phone.** Your colours, your font, light and dark.
 
 ## Your words stay yours
