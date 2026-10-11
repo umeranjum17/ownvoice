@@ -23,8 +23,9 @@ const DRAFTS = [
   'Agreed, the first five users taught me more than any landing page did.',
   'Which fix did you ship first?',
 ];
-// Empty-field replies withhold every card in 1.0.3, so the edit suite drives polish:
-// typed text plus a writer landing the same three drafts the reply path used to show.
+// This suite drives the typed grow path: a typed point under an X post plus the writer landing
+// the three drafts. (An empty field over a readable post grounds reply cards through the same
+// Edit/Insert path; see PanelChromeX.test.tsx.)
 const TYPED = 'My take: shipping one small fix beats more polishing.';
 const X: Capture = { conversation: `Dana Lee @danabuilds · 2h\n${POST}`, written: POST, nodes: [], fieldTop: null, typed: TYPED,
   app: 'com.twitter.android', label: 'X', at: 0, id: 'tap-edit', hasField: true };

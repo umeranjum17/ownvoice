@@ -1,12 +1,11 @@
 # Reply drafts
 
-> Known limit in 1.0.3: generic reply cards are withheld per the accepted scope cut (see [Reply ideas are unavailable for now](../../../../README.md#reply-ideas-are-unavailable-for-now)). The procedure below describes earlier behavior, not this release.
-
-Tap the bubble over a chat with an empty message field and Ownvoice offers short replies shaped to the app underneath; cards stream in as drafts land and each can be edited before use, rated, or sent through the app's own compose screen, and **Why?** explains a card's checks. **Insert** puts one in the field, **Copy** copies it (both Copy and the compose hand-off stay disabled while a missing-fact warning shows). With the emulator stub build, three fixed drafts are written without changing device settings.
+Tap the bubble over an empty message box on a recognized feed app (X, LinkedIn, Reddit, Threads, Bluesky, including Chrome when its address bar identifies the site) when the screen shows a readable post above it and Ownvoice offers reply cards shaped to that platform; each card can be edited before use, rated, or sent through the app's own compose screen, and **Why?** explains a card's checks. **Insert** puts one in the field, **Copy** copies it (both Copy and the compose hand-off stay disabled while a missing-fact warning shows). When nothing readable sits above the box (an image-only post, a compose screen with only labels), the panel shows the plain unavailable note instead: no card, no writer call, nothing invented. Chats and mail keep the 1.0.3 withhold.
 
 ## Sub-features
 
-- `reply-offer`: bubble tap in an enabled app shows reply cards (chat headings name the person or stay generic; X/Reddit panels name the platform).
+- `reply-offer`: bubble tap with an empty box over a readable post on a feed app shows reply cards (feed panels name the platform, including Chrome when the URL bar identifies the site).
+- `reply-withhold`: a feed post with no text to ground on shows the plain unavailable note before any writer runs; chats, mail and label-only compose screens keep the 1.0.3 withhold. Nothing is invented.
 - `reply-insert`: Insert writes the draft into the focused field and verifies it afterward; **Edit** rewrites a card first.
 - `reply-copy`: Copy places the draft on the clipboard; Copy and the compose hand-off stay disabled while a missing-fact warning shows.
 - `reply-extras`: per-card tone line, **Why?** checks display and ratings.
@@ -19,16 +18,18 @@ Tap the bubble over a chat with an empty message field and Ownvoice offers short
 - Tap into a message box in an app switched on under **Where the bubble shows**, then tap the Dot bubble.
 - Use **Write new ones** for another attempt; **Insert** a card even while others load; **Edit** a card before inserting it.
 
-## Driving it with mobile/e2e/driver.mjs
+## Driving it with mobile/e2e/x-replies.mjs (X-style composer) and mobile/e2e/driver.mjs
 
 Preconditions:
 
-- Explicit emulator allocation; a release APK built with `EXPO_PUBLIC_E2E_STUB=1` (and `EXPO_PUBLIC_E2E_GPT=1` for cleared-data writer-choice setup); pick the writer through the app UI. Label captures **stub writer**, not real-model proof; `ANDROID_SERIAL=emulator-NNNN`, `OWNVOICE_AVD_NAME=<its AVD>`, `JAVA_HOME`, SDK via `ANDROID_HOME`, `adb`/`zip`/`tesseract`/`magick` on `PATH`.
+- Explicit emulator allocation; `ANDROID_SERIAL=emulator-NNNN`, `OWNVOICE_AVD_NAME=<its AVD>`, `JAVA_HOME`, SDK via `ANDROID_HOME`, `adb`/`zip`/`tesseract`/`magick` on `PATH`. The X driver additionally needs `adb root` (hosts bind + `adb reverse tcp:80`).
+- The X driver uses a live cloud writer, not a stub: a release APK with no `EXPO_PUBLIC_E2E_*` flags, signed in to OpenRouter by pasting the key from `OPENROUTER_KEY_FILE` (default `~/.config/openrouter/api_key`). The stub APK (`EXPO_PUBLIC_E2E_STUB=1`) is for `driver.mjs` journeys only.
 
-- **Install and drive.** `node e2e/driver.mjs <release-apk> [screenshots-dir]` installs on the throwaway emulator, walks setup, enables the service (with the documented off/on rebind), taps the bubble in a chat field, and reads back inserted text from the React Native field plus Chrome's textarea/contenteditable.
-- **Grow-mode feed replies.** `node e2e/grow-reply-live.mjs e2e/grow-reply-cases.json [out-dir] [limit] [x,reddit]` installs the Composer fixture as `com.twitter.android` (X) and `com.reddit.frontpage` (Reddit), opens each realistic post with the person's typed reply in the field, taps the bubble, and reads the ranked cards (tag, text, fit words) from the accessibility tree, one screen recording per platform. It needs a live writer (a signed-in ChatGPT plan; the on-phone model cannot run on an emulator), which the run confirms on Home before drafting. Without a live writer it captures the panel's plain failure note instead and proves nothing about the drafts: record that as `not proven`.
+- **X-style composer journey.** `node e2e/x-replies.mjs <release-apk> [task]` binds `x.com` to the emulator's loopback behind the fixture page `e2e/x.html` (no login, fixture posts, demo data named Umer), signs in to OpenRouter, then walks: composer focus → bubble tap → grounded reply cards (X platform named) → **Edit** with changed text → **Insert** → the "Inserted. Send it yourself." confirmation and a field read-back, plus the image-only post's withhold note; light and dark; then the same at font scale 1.3 on the narrowest screen. Screenshots and the motion recording land in `verify-artifacts/<task>/`.
+- **Install and drive (stub).** `node e2e/driver.mjs <release-apk> [screenshots-dir]` installs on the throwaway emulator, walks setup, enables the service (with the documented off/on rebind), taps the bubble in a chat field, and reads back inserted text from the React Native field plus Chrome's textarea/contenteditable.
+- **Grow-mode feed replies.** `node e2e/grow-reply-live.mjs e2e/grow-reply-cases.json [out-dir] [limit] [x,reddit]` installs the Composer fixture as `com.twitter.android` (X) and `com.reddit.frontpage` (Reddit), opens each realistic post with the person's typed reply in the field, taps the bubble, and reads the ranked cards (tag, text, fit words) from the accessibility tree, one screen recording per platform. It needs a live writer, which the run confirms on Home before drafting. Without a live writer it captures the panel's plain failure note instead and proves nothing about the drafts: record that as `not proven`.
 - **Paused/off prevention.** The driver exercises paused and service-off states asserting no bubble.
-- **Proof.** Screenshots land in the requested directory (default `e2e/artifacts`); copy the ones showing cards and read-back into `verify-artifacts/<task>/reply-drafts/` with the driver log (stable per-task folder — see the skill's Review evidence).
+- **Proof.** Screenshots land in the requested directory (default `e2e/artifacts`); the X journey writes them straight into `verify-artifacts/<task>/` through `evidence.sh` (stable per-task folder — see the skill's Review evidence).
 
 ## Gotchas
 
