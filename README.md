@@ -84,7 +84,7 @@ Want to build it yourself? See [Build and run](mobile/README.md#android-build-an
 
 - ✨ **Polishes in place.** Marks stock phrases and fixes clear slips like "shoud" or "dont".
 - ✂️ **Rewrites any selection.** Shorter, simpler, friendlier or firmer, from any app.
-- 🔒 **Your choice of writer.** Private, free and offline on supported phones, or with your own AI plan.
+- 🔒 **Your choice of writer.** Private, free and offline on supported phones, or with your own AI plan or OpenRouter key.
 - 🗣️ **Learns your voice.** Your never-say list and writing rules shape every draft.
 - 👀 **Honest about every draft.** Plain notes on what it checked, never a score to chase.
 - 📱 **Only where you want it.** Pick the apps that show the bubble, or pause it any time.
@@ -94,7 +94,7 @@ Want to build it yourself? See [Build and run](mobile/README.md#android-build-an
 
 - Ownvoice reads the screen **when you tap the bubble**, only in apps you switched on. Optional spelling help also checks your message as you type, on your phone.
 - It **never sends, posts or taps anything** for you.
-- With the phone writer, your words stay on your phone. With your own plan, text goes there when you ask for help.
+- With the phone writer, your words stay on your phone. With your own plan or OpenRouter key, text goes there when you ask for help.
 - **What Ownvoice read** lists every tap (never your text), and **Wipe everything** clears it all.
 
 Full details: [Your words stay yours](docs/readme/guide.md#your-words-stay-yours).

@@ -1,13 +1,14 @@
 # First-run setup
 
-A fresh install opens Welcome, asks **How should Ownvoice write?** (this phone where it can write, or one of the person's accounts — ChatGPT by device code, or Claude by pasting the code its own page shows back — signed in inside the step), explains the permission, runs a practice chat whose first inserted draft ends the practice step, then offers installed apps for **Where should I help?**. Hardware Back finishes; **Not now** skips.
+A fresh install opens Welcome, asks **How should Ownvoice write?** (this phone where it can write, or one of the person's accounts — ChatGPT by device code or Claude by pasting the code its own page shows back — signed in inside the step), explains the permission, runs a practice chat whose first inserted draft ends the practice step, then offers installed apps for **Where should I help?**. Hardware Back finishes; **Not now** skips.
 
 ## Sub-features
 
 - `setup-order`: the five steps appear in order and survive process death.
-- `setup-writer`: the writer step offers every account the app can sign into (ChatGPT, then Claude on a phone that can't write), each signed in inside the step.
+- `setup-writer`: the writer step offers every account the app can sign into (ChatGPT and Claude on a phone that can't write), each signed in inside the step.
 - `setup-writer-chatgpt`: choosing ChatGPT starts the kit's device-code sign-in and shows the code.
 - `setup-writer-claude`: choosing Claude opens the Claude page and shows the paste field; the code it shows is pasted back through the kit's `paste('claude', code)` seam — the same shared piece (`src/ui/ClaudeSignIn.tsx`) as How Ownvoice writes, no second copy.
+- `setup-writer-openrouter`: removed from first-run setup; OpenRouter stays a writer from How Ownvoice writes (`mobile/src/ui/OpenRouterKey.tsx`), where the card appears only when the kit reports the OpenRouter key route ready.
 - `setup-writer-scroll-cue`: while a step's words run past the fold, a short theme-aware fade at the bottom of the scroll area (just above the footer) shows there is more below, so the last card is not left hidden under the button; it is absent once the words fit. In dark mode the fade visibly softens a cut card; in light mode the sheet and card colours are close, so it is subtle.
 - `setup-permission`: the explained permission step, greyed-switch help included.
 - `setup-practice`: the practice chat's inserted draft ends the practice step (setup continues to the app list).
@@ -25,13 +26,13 @@ Preconditions:
 
 - **Whole-journey driver (the changed instrument).** `node e2e/first-run.mjs <release-apk> <evidence-dir>` walks setup twice (light and dark): welcome → the writer step → the kit's real device-code ChatGPT sign-in approved on the stand-in → connected → permission (the driver flips the switch) → setup returns itself → practice insert → apps → home. It polls boot/package/intent readiness, verifies the AVD identity, and scans every setup screen's text for technical words. Success ends with `First-run proof saved to <dir>: setup walked in light and dark, ChatGPT signed in through the kit, texts plain, insert landed.` The ChatGPT leg drives the same `@byokit/accounts` sign-in the shipped app uses; only the provider's own page is stood in for, never the app's sign-in code.
 
-- **Writer step (the changed screen).** On this emulator the phone row reads **Private and free** (its LocalModel reports the one-time download still owed), so the step shows **On this phone**, **With your ChatGPT**, and **With your Claude**, with a footer **Continue**; on a phone that cannot write the phone row is dimmed, ChatGPT is the picked default, and the footer is **Sign in**/**Not now**. Either way tap the card's row to select it, then tap the footer. Capture light and dark with `.agents/skills/verify-ownvoice/evidence.sh` (`theme` then `shot`), tapping with `adb shell input tap` after `am start -n dev.ownvoice.next/.MainActivity`. On a tall emulator the cut may fall in the gap between cards (cue subtle); raise `adb shell settings put system font_scale 1.3` to push a card onto the fold and see the fade cut it, then restore `1.0`.
+- **Writer step (the changed screen).** On this emulator the phone row reads **Private and free** (its LocalModel reports the one-time download still owed), so the step shows **On this phone**, **With your ChatGPT**, and **With your Claude** (each account card's trade-off lines match the shared look), with a footer **Continue**; on a phone that cannot write the phone row is dimmed, ChatGPT is the picked default, and the footer is **Sign in**/**Not now**. Either way tap the card's row to select it, then tap the footer. Capture light and dark with `.agents/skills/verify-ownvoice/evidence.sh` (`theme` then `shot`), tapping with `adb shell input tap` after `am start -n dev.ownvoice.next/.MainActivity`. On a tall emulator the cut may fall in the gap between cards (cue subtle); raise `adb shell settings put system font_scale 1.3` to push a card onto the fold and see the fade cut it, then restore `1.0`.
 - **Claude leg.** Select **With your Claude**, then tap the footer (**Continue** here): the step shows the paste-back sign-in (open the Claude page, the paste field, **Connect**). No signed-in account or real draft is needed for this leg.
 - **ChatGPT leg.** Select **With your ChatGPT**, then tap the footer: the step starts the kit's device-code sign-in and shows **Your code**; with the mockOpenAI stand-in the host issues the code and the driver approves it.
 
 ## Gotchas
 
-- An emulator's phone row reads as downloadable, not "can't write", so the writer step shows all three cards; the account cards (Claude, ChatGPT) are what this run proves. A phone that cannot write shows the same cards with no usable phone row and a **Sign in** footer.
+- An emulator's phone row reads as downloadable, not "can't write", so the writer step shows both account cards; the Claude and ChatGPT cards are what this run proves. A phone that cannot write shows the same cards with no usable phone row and a **Sign in** footer.
 - The emulator's twilight schedule flips night mode overnight — force each mode before its screenshots (`evidence.sh theme`).
 - Shell input and screencap only; UiAutomator would unbind the service.
 - Never use `EXPO_PUBLIC_E2E_*`-flagged builds for distributable APKs.

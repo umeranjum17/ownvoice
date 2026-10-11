@@ -31,6 +31,7 @@ jest.mock('expo-file-system', () => ({ File: { pickFileAsync: jest.fn() } }));
 jest.mock('../../src/chatgpt/session', () => ({
   NAME: 'ChatGPT',
   CLAUDE_NAME: 'Claude',
+  OPENROUTER_NAME: 'OpenRouter',
   GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
   nothing: { signedIn: false, waiting: false, code: null, url: null, note: null, resting: null },
@@ -38,6 +39,7 @@ jest.mock('../../src/chatgpt/session', () => ({
   accountSessions: {
     chatgpt: { session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
     claude: { session: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
+    openrouter: { session: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
   },
 }));
 const gpt = session as jest.Mocked<typeof session>;
@@ -206,6 +208,12 @@ test('Home says who writes, and one row leads to How Ownvoice writes', async () 
   const chatgpt = await homeCopy();
   expect(chatgpt.getByText(words.homeGpt)).toBeTruthy();
   expect(chatgpt.getByText(words.rowSourceGpt)).toBeTruthy();
+  await chatgpt.unmount();
+  kv.set(SOURCE_KEY, '"openrouter"');
+  (accountSessions.openrouter.session.current as jest.Mock).mockResolvedValue(connected);
+  const openrouter = await homeCopy();
+  expect(openrouter.getByText(words.homeOpenRouter)).toBeTruthy();
+  expect(openrouter.getByText(words.rowSourceOpenRouter)).toBeTruthy();
 });
 
 test('ChatGPT chosen and connected on a phone that cannot write reads ready, never the old dead end', async () => {
