@@ -13,7 +13,7 @@ test:
   # The baseline above is the whole validation story. Do not boot, attach
   # to, or install on any Android emulator or device: this baseline runs
   # headless Jest, node --test and JVM checks. Device journeys stay manual
-  # per README.md.
+  # per mobile/README.md.
   instructions: |
     Trust the commands.test baseline result as the primary evidence.
     For behavioral proof beyond the baseline, follow
