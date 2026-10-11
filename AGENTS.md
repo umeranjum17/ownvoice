@@ -2,7 +2,7 @@
 
 This file is the project's committed home for project-intrinsic agent knowledge: build, test, release, architecture, and sharp-edge notes that should travel with the code.
 
-- Build, install and on-device test commands: see `README.md`.
+- Build, install and on-device test commands: see [Android build and device checks](mobile/README.md#android-build-and-device-checks).
 - Build flags are in Metro's cache key via `mobile/metro.config.js`; add any new `EXPO_PUBLIC_*` flag there. `mobile/plugins/withOwnvoice.js` also lists every `EXPO_PUBLIC_*` value as an input of the Gradle JS bundle task on prebuild, so a second `assembleRelease` after a flagged one re-bundles instead of reusing the flagged bundle (no `--rerun` needed).
 - The on-device writer is BYOKit's `LocalModel` over llama.rn, driven from JS (`mobile/src/core/localModel.ts`); model calls need no foreground activity.
 - The on-device model setup also sets the Expo build: it needs `minSdkVersion` 26 (Expo defaults to 24) and `-Xskip-metadata-version-check` for its newer Kotlin metadata, kept in `mobile/app.config.js` and `mobile/plugins/withOwnvoice.js`. Keep both when changing the build config.
@@ -18,7 +18,7 @@ This file is the project's committed home for project-intrinsic agent knowledge:
 - The listening bubble mood lasts under a second (read is instant, panel draws fast). Catch it with `adb shell screenrecord` plus ffmpeg frame extraction, not `screencap`.
 - The phone writer's one-time download starts only after the person's yes (`src/core/localModel.ts`, keys `local-model-agreed` + `local-model-mobile-data`); the first `getReady(choice)` call lives where the size just showed, never `installLocalModel` directly, while bare `getReady()` only resumes/joins reusing the stored data choice. `EXPO_PUBLIC_E2E_DOWNLOAD=1` fakes it so the ask can be walked on an emulator.
 - Emulators have no phone writer (read as can't-write); test the phone option only on a supported real phone, and the ChatGPT option with the byokit mock.
-- No user-facing string may carry technical words (model names, scores, "characters"); `PlainWordsTest` checks the app's messages, check names, verdicts, read log and `strings.xml` for them, so new user-facing text needs a case there, and the technical detail belongs in `README.md`.
+- No user-facing string may carry technical words (model names, scores, "characters"); `PlainWordsTest` checks the app's messages, check names, verdicts, read log and `strings.xml` for them, so new user-facing text needs a case there, and the technical detail belongs in [app/README.md](app/README.md).
 - A model or prompt change must pass the writer eval gate (`mobile/eval/README.md`): P01, P13, S05, R01 and R07 all pass, run from `mobile/eval` against llama-server or ollama on the host.
 - To hand the app a file on the phone (for example a voice profile for the share import), write it with `adb shell run-as dev.ownvoice.app` into the app's `files/` and share `file:///data/data/dev.ownvoice.app/files/...`. The app can't read a folder `adb shell` creates under `/sdcard/Android/data`.
 
