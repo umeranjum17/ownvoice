@@ -1,18 +1,17 @@
 <p align="center">
-  <img src="mobile/assets/icon/dot-icon.png" width="112" alt="Ownvoice icon: Dot, a smiling coral drop" />
+  <img src="mobile/assets/icon/dot-icon.png" width="96" alt="Ownvoice icon: Dot, a smiling coral drop" />
 </p>
 
 <h1 align="center">Ownvoice</h1>
 
 <p align="center">
   <strong>Sound like yourself, just a little better.</strong><br />
-  A friendly bubble over your chats that polishes what you wrote, right where you wrote it.
+  A little bubble. Cleaner words. Right in your chats.
 </p>
 
 <p align="center">
   <a href="https://github.com/umeranjum17/ownvoice/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/umeranjum17/ownvoice?style=flat-square&label=release&color=f2765f" /></a>
   <img alt="Android 8 or later" src="https://img.shields.io/badge/Android-8%2B-3ddc84?style=flat-square" />
-  <a href="https://github.com/umeranjum17/ownvoice/actions/workflows/android.yml"><img alt="Build" src="https://img.shields.io/github/actions/workflow/status/umeranjum17/ownvoice/android.yml?branch=main&style=flat-square&label=build" /></a>
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache--2.0-8a8a8a?style=flat-square" /></a>
 </p>
 
@@ -23,13 +22,13 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.webp" />
-    <img src="docs/readme/hero-light.webp" width="320" alt="A practice chat: you type a reply, tap the coral bubble, and Ownvoice shows your words with a stock phrase marked, then cleaner versions to use instead" />
+    <img src="docs/readme/hero-light.webp" width="240" alt="Ownvoice in its practice chat: tap the smiling bubble to see your reply and cleaner versions, ready for you to choose" />
   </picture>
 </p>
 
 ## Why Ownvoice
 
-Most writing help asks you to paste your message somewhere else, then hands back words that sound like everyone. Ownvoice stays where you already write. Tap the bubble, and it marks the stock phrases and offers a few cleaner versions that still sound like you. You pick one, and you always press Send yourself.
+You know what you want to say. Sometimes it just needs a little tidying. Ownvoice stays where you write, spots tired phrases, and offers cleaner versions of your words. Pick one you like. You always press Send yourself.
 
 ## See it
 
@@ -40,7 +39,7 @@ Most writing help asks you to paste your message somewhere else, then hands back
         <source media="(prefers-color-scheme: dark)" srcset="docs/readme/polish-dark.webp" />
         <img src="docs/readme/polish-light.webp" width="100%" alt="Polish your message over a chat: the typed reply with a stock phrase marked, then a Cleaned up version and a Shorter one, each with Use this" />
       </picture>
-      <br /><strong>Polish what you wrote</strong><br />Tap the bubble in any chat.
+      <br /><strong>Polish what you wrote</strong><br />Tap the bubble where you allow it.
     </td>
     <td align="center" width="50%">
       <picture>
@@ -61,9 +60,9 @@ Most writing help asks you to paste your message somewhere else, then hands back
     <td align="center" width="50%">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/readme/voice-dark.webp" />
-        <img src="docs/readme/voice-light.webp" width="100%" alt="Your voice: phrases you never say, a note on how you write, and simple writing rules" />
+        <img src="docs/readme/voice-light.webp" width="100%" alt="Your voice: phrases you never say, and a note on how you like to write" />
       </picture>
-      <br /><strong>Teach it your voice</strong><br />Phrases you never say, rules you like.
+      <br /><strong>Teach it your voice</strong><br />Words and habits that feel like you.
     </td>
   </tr>
 </table>
@@ -72,7 +71,7 @@ Most writing help asks you to paste your message somewhere else, then hands back
 
 1. **Get the app.** On your Android phone, [download Ownvoice](https://github.com/umeranjum17/ownvoice/releases/latest/download/Ownvoice.apk), then tap **Open** and **Install**.
 2. **Allow the bubble.** Open Ownvoice, choose how it writes, then tap **Turn on** and switch on **Use Ownvoice**.
-3. **Tap it in a chat.** Write your reply, tap the bubble, and pick the version you like.
+3. **Try it in a chat.** Start with the practice chat, then choose where the bubble shows. Write a reply, tap the bubble, and pick the version you like.
 
 Switch greyed out? Open Ownvoice's **App info**, tap **⋮**, choose **Allow restricted settings**, and try again. Step-by-step help is in the [user guide](docs/readme/guide.md#get-started).
 
@@ -80,9 +79,11 @@ Want to build it yourself? See [Build and run](mobile/README.md#android-build-an
 
 ## What it does
 
+<a id="polish-what-you-wrote"></a><a id="start-a-post-from-a-blank-composer"></a><a id="honest-about-every-draft"></a><a id="everything-in-one-place"></a>
+
 - ✨ **Polishes in place.** Marks stock phrases and fixes clear slips like "shoud" or "dont".
 - ✂️ **Rewrites any selection.** Shorter, simpler, friendlier or firmer, from any app.
-- 🔒 **Writes on your phone,** private, free and offline, or with the AI plan you already pay for.
+- 🔒 **Your choice of writer.** Private, free and offline on supported phones, or with your own AI plan.
 - 🗣️ **Learns your voice.** Your never-say list and writing rules shape every draft.
 - 👀 **Honest about every draft.** Plain notes on what it checked, never a score to chase.
 - 📱 **Only where you want it.** Pick the apps that show the bubble, or pause it any time.
@@ -90,20 +91,23 @@ Want to build it yourself? See [Build and run](mobile/README.md#android-build-an
 
 ## Your words stay yours
 
-- Ownvoice reads the screen **only when you tap the bubble**, and only in apps you switched on.
+- Ownvoice reads the screen **when you tap the bubble**, only in apps you switched on. Optional spelling help also checks your message as you type, on your phone.
 - It **never sends, posts or taps anything** for you.
-- On this phone, nothing leaves the phone. With your own plan, the chat goes there only when you tap.
+- With the phone writer, your words stay on your phone. With your own plan, text goes there when you ask for help.
 - **What Ownvoice read** lists every tap (never your text), and **Wipe everything** clears it all.
 
 Full details: [Your words stay yours](docs/readme/guide.md#your-words-stay-yours).
 
 ## Known limits
 
-Reply ideas are paused in 1.0.3: write your reply first, then tap to polish it ([why](docs/readme/guide.md#reply-ideas-are-unavailable-for-now)). The download is the latest release; pictures here show the coming 1.0.3, so a few screens may differ.
+<a id="reply-ideas-are-unavailable-for-now"></a>
+
+Reply ideas are unavailable in 1.0.3: write your reply first, then tap to polish it ([details](docs/readme/guide.md#reply-ideas-are-unavailable-for-now)). Pictures show 1.0.3; the download is the latest published release.
 
 ## Learn more
 
 - 📖 [User guide](docs/readme/guide.md): every screen and check in detail
+- 🌱 <a id="your-growth"></a>[Your growth](docs/readme/guide.md#your-growth): keep track on your phone
 - 🛠️ [Android app](mobile/README.md): build, checks and how Ownvoice writes
 - 🧩 [Writing core](packages/engine/README.md) and its [quality gate](mobile/eval/README.md)
 - 🎨 [Icons](docs/icons/README.md) · 🤖 [Agent notes](AGENTS.md) · 📦 [All releases](https://github.com/umeranjum17/ownvoice/releases)
