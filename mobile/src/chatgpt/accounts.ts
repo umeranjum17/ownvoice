@@ -25,8 +25,12 @@ const claudePlan = { crypto: { getRandomValues, subtle: { digest: (_algorithm: s
 const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, ...(authBase ? { authBase } : {}) }, withKeys(portable));
 let realInstance: Accounts | undefined;
 
-/** Whether the kit reports this phone's OpenRouter key route ready. Offered only then; the kit decides, not Ownvoice. */
-export const openRouterReady = () => route('openrouter:key', { platform: 'rn' }).readiness === 'ready';
+/** Whether the kit reports this phone's OpenRouter key route ready. Offered only then; the kit decides, not Ownvoice.
+ *  `EXPO_PUBLIC_E2E_OPENROUTER_OFF=1` is an emulator-only injected capability counterfactual (never a distributable
+ *  build): it forces the not-ready branch so the proof can show the app hides the card and Home action. */
+export const openRouterReady = () => process.env.EXPO_PUBLIC_E2E_OPENROUTER_OFF === '1'
+  ? false
+  : route('openrouter:key', { platform: 'rn' }).readiness === 'ready';
 
 function kitInstance(): Accounts | undefined {
   if (realInstance) return realInstance;
