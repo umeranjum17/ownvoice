@@ -144,11 +144,18 @@ const realDraft = async tag => {
   if (!page) { page = await servePage(); execFileSync('adb', ['-s', serial, 'reverse', `tcp:${page.address().port}`, `tcp:${page.address().port}`]); }
   const url = `http://127.0.0.1:${page.address().port}`;
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url); await wait(3500);
-  // A fresh Chrome shows first-run sheets; clear the one that can block the page.
-  for (let i = 0; i < 6; i++) {
-    const n = findText('without an account') ?? findText('no thanks');
-    if (!n) break; tap(...center(n)); await wait(1500);
-  }
+  // A fresh Chrome shows first-run sheets in order (welcome "Accept & continue", then the sign-in
+  // promo "No thanks"/"Use without an account"); clear whichever is in front until the page shows.
+  const dismissChromeFirstRun = async () => {
+    for (let i = 0; i < 12; i++) {
+      if (findText('textarea')) return;
+      const n = ['accept & continue', 'without an account', 'no thanks', 'no thank you', 'got it']
+        .map(findText).find(Boolean);
+      if (!n) { await wait(1000); continue; }
+      tap(...center(n)); await wait(1500);
+    }
+  };
+  await dismissChromeFirstRun();
   const heading = await waitText('textarea', 20);
   tap(Math.round(width / 2), Math.round(center(heading)[1] + 230)); // the field is borderless, under its heading
   await wait(700);
