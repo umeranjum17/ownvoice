@@ -22,7 +22,18 @@ const rows = (image = screenshot()) => execFileSync('tesseract', ['stdin', 'stdo
   .map(line => line.split('\t')).filter(cols => cols.length >= 12 && cols[11].trim());
 const visible = image => rows(image).map(cols => cols[11]).join(' ').toLowerCase();
 const expect = (label, text) => { if (!text.includes(label.toLowerCase())) throw new Error(`Missing ${label}: ${text}`); };
-const open = async route => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, 'dev.ownvoice.next'); await wait(1600); };
+// A route can be slow to render after a force-stop; wait for its own content instead of a fixed sleep.
+const seen = async (label, tries = 30) => {
+  for (let i = 0; i < tries; i++) {
+    if (visible().includes(label.toLowerCase())) return;
+    await wait(500);
+  }
+  throw new Error(`Missing ${label}: ${visible()}`);
+};
+const open = async route => {
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, 'dev.ownvoice.next');
+  await wait(1600);
+};
 const save = name => writeFileSync(resolve(out, `OWNVOICE-RN-07-${name}.png`), screenshot());
 const tap = (label, last = false) => {
   const matches = rows().filter(cols => cols[11].toLowerCase() === label.toLowerCase());
@@ -56,20 +67,20 @@ for (const mode of ['light', 'dark']) {
   adb('shell', 'cmd', 'uimode', 'night', mode === 'light' ? 'no' : 'yes');
   adb('shell', 'am', 'force-stop', 'dev.ownvoice.next');
   await open('');
-  expect('Where the bubble shows', visible());
+  await seen('Where the bubble shows'); expect('Where the bubble shows', visible());
   save(`${mode}-home`);
   await open('apps');
-  expect('In apps that are off', visible());
+  await seen('In apps that are off'); expect('In apps that are off', visible());
   save(`${mode}-apps`);
   await open('voice');
-  expect('Import from a file', visible());
+  await seen('Import from a file'); expect('Import from a file', visible());
   save(`${mode}-voice`);
   await pick();
   expect('Found in the file', visible());
   save(`${mode}-import-preview`);
   if (mode === 'light') { tap('Add', true); await wait(500); expect('Added', visible()); }
   await open('reads');
-  expect('Suggested replies in Ownvoice', visible());
+  await seen('Suggested replies in Ownvoice'); expect('Suggested replies in Ownvoice', visible());
   save(`${mode}-reads`);
 }
 tap('Wipe');
