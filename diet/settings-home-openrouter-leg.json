@@ -1,0 +1,16 @@
+{
+  "file": "mobile/app/__tests__/Settings.test.tsx",
+  "baseBlob": "d5be5607b585e05f244966b9c26b084b9682cf59",
+  "first": 211,
+  "last": 216,
+  "surface": "openrouter",
+  "reason": "The trailing leg of the Home 'one row leads to How Ownvoice writes' test mocked a connected OpenRouter session and asserted two Home copy strings. It is the mocked cloud-writer Home assertion leg restored by PR#192; the retained real writer journey covers the writer list and the connected OpenRouter card.",
+  "unproved": "Android/provider-negative runtime behavior (cloud writer unavailable, the not-ready card staying hidden, and the other-account stand-in never substituting) is not proven by this retirement; that native negative-path proof remains a separate unresolved task.",
+  "journey": {
+    "path": "mobile/e2e/openrouter-proof.mjs",
+    "candidate": "716861d9a29aeced4fc6cae822fd9fbe52b73067",
+    "blob": "58d358eb1a147079755c141a597b013ccd22d23d",
+    "evidence": "Original positive writer journey at the feature head 716861d9 (emulator-5590, fm-ov-openrouter1, APK SHA256 637bf25a1ded7a0ff2cf7b502f690ac43bf40047ff8f8b73fcdae45465454617), whose blob the PR#192 preserving-merge reuse at d2d1df4 carried unchanged.",
+    "limit": "The journey drives the writer list card and the connected OpenRouter path on a throwaway emulator; it does not exercise any negative runtime path and is not relabelled as this candidate's proof."
+  }
+}

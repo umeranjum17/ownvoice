@@ -1,0 +1,16 @@
+{
+  "file": "mobile/src/chatgpt/__tests__/AccountsLazy.test.ts",
+  "baseBlob": "ac7e0327b48ed8014b1f4980ced450fcbf56b720",
+  "first": 59,
+  "last": 65,
+  "surface": "OpenRouter",
+  "reason": "This complete mocked case replaced the kit's offered() and route() handles to assert OpenRouter is hidden when the key route reports needs_host. It is the mocked provider-readiness case restored by PR#192; the retained real writer journey covers the writer list the kit reports ready.",
+  "unproved": "Android/provider-negative runtime behavior for a cloud writer that is unavailable is not proven by this retirement; the separately filed native negative-path proof remains unresolved.",
+  "journey": {
+    "path": "mobile/e2e/openrouter-proof.mjs",
+    "candidate": "716861d9a29aeced4fc6cae822fd9fbe52b73067",
+    "blob": "58d358eb1a147079755c141a597b013ccd22d23d",
+    "evidence": "Original positive writer journey at the feature head 716861d9 (emulator-5590, fm-ov-openrouter1, APK SHA256 637bf25a1ded7a0ff2cf7b502f690ac43bf40047ff8f8b73fcdae45465454617), carried unchanged by the PR#192 preserving-merge reuse at d2d1df4.",
+    "limit": "The journey proves the positive writer-list card and connected path only; it does not prove the not-ready negative path and is not relabelled as this candidate's proof."
+  }
+}
