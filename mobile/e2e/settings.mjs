@@ -1,6 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { emulatorName } from './accessibility.mjs';
 
 // H1–H5 release-device proof; never connect to a phone or dump UiAutomation (it unbinds the service).
 // `node e2e/settings.mjs <dir> writes-cant|writes-ready` instead walks How Ownvoice writes (see writes() below).
@@ -61,6 +62,18 @@ const pick = async () => {
 };
 
 const flow = process.argv[3];
+if (flow === 'browse') {
+  if (!process.env.OWNVOICE_AVD_NAME || emulatorName(serial) !== process.env.OWNVOICE_AVD_NAME) throw new Error('Use the allocated AVD.');
+  // Non-destructive real-device journey, independent of writer sign-in fixtures.
+  for (const [route, label] of [['', 'Where the bubble shows'], ['apps', 'In apps that are off'], ['voice', 'Your voice']]) {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, 'dev.ownvoice.next');
+    await seen(label);
+    console.log(`browse: ${route || 'Home'} ready: ${label}`);
+  }
+  rmSync(resolve(out, '.shot.png'), { force: true });
+  console.log('browse: PASS (Home → apps → voice, real installed app)');
+  process.exit(0);
+}
 if (flow) { await writes(flow); process.exit(0); }
 
 for (const mode of ['light', 'dark']) {

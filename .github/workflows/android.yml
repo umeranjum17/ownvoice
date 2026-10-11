@@ -30,8 +30,8 @@ jobs:
           changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" HEAD 2>/dev/null || echo mobile/)"
           printf '%s\n' "$changed" > /tmp/changed.txt
           { grep -qE '^mobile/' /tmp/changed.txt && echo "mobile=true" || echo "mobile=false"; } >> "$GITHUB_OUTPUT"
-          { grep -qE '^mobile/modules/ownvoice-native/' /tmp/changed.txt && echo "native=true" || echo "native=false"; } >> "$GITHUB_OUTPUT"
-          { grep -qE '^(app/|link/)' /tmp/changed.txt && echo "legacy=true" || echo "legacy=false"; } >> "$GITHUB_OUTPUT"
+          { grep -qE '^(mobile/(modules/ownvoice-native/|package(-lock)?\.json|app\.config\.js|plugins/)|\.github/workflows/android\.yml)'  /tmp/changed.txt && echo "native=true" || echo "native=false"; } >> "$GITHUB_OUTPUT"
+          { grep -qE '^(app/|link/|gradle/|gradlew|build\.gradle|settings\.gradle|gradle\.properties|\.github/workflows/android\.yml)'  /tmp/changed.txt && echo "legacy=true" || echo "legacy=false"; } >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   mobile:
@@ -71,8 +71,8 @@ jobs:
       - run: npm test
         working-directory: packages/engine
 
-  # The Expo native module is only compiled when that module's own sources change; its
-  # Gradle unit-test leg was removed with the test diet (the module keeps no unit tests).
+  # Retain native tests until passing device journeys cover their features.
+  # Build inputs outside the module also affect this job.
   native:
     needs: changes
     if: needs.changes.outputs.native == 'true'
@@ -110,6 +110,6 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew assembleDebug
+      - run: ./gradlew assembleDebug :app:testDebugUnitTest
       - if: ${{ hashFiles('link/**') != '' }}
         run: cd link && go test ./...

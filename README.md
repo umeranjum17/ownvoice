@@ -194,10 +194,10 @@ npm test -- --ci
 
 For shared engine checks, see [Development and release](packages/engine/README.md#development-and-release).
 
-Build the Kotlin app from the repository root:
+Build and unit-test the Kotlin app from the repository root:
 
 ```sh
-./gradlew :app:assembleDebug
+./gradlew :app:assembleDebug :app:testDebugUnitTest
 ```
 
 Agents working here should read [AGENTS.md](AGENTS.md) first: it records the device quirks that cost the most time.

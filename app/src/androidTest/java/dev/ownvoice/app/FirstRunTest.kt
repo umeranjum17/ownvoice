@@ -104,7 +104,7 @@ class FirstRunTest {
         assertTrue(texts(setup).toString(), "Practice" in texts(setup) && "Nowhere" !in texts(setup))
         assertTrue(views(setup).filterIsInstance<MaterialSwitch>().single().isChecked)
         assertFalse(Privacy.allowed(ctx, ctx.packageName))
-        // Same list as the engine's technicalWords (packages/engine/src/words.ts): no technical word may reach the user.
+        // Same list as PlainWordsTest: no technical word may reach the user.
         val banned = Regex("(?i)gemini|gemma|\\bnano\\b|aicore|ml ?kit|\\bllm\\b|\\bmodel\\b|/100|/10\\b|judge|slop|characters|\\bprompt|\\btokens?\\b|on-device")
         assertTrue(seen.toString(), seen.size > 20 && "Switch greyed out?" in seen && seen.any { it.startsWith("In App info") })
         assertEquals("Technical words in setup", emptyList<String>(), seen.filter { banned.containsMatchIn(it) })

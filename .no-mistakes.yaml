@@ -1,23 +1,19 @@
 # Trusted no-mistakes gate configuration.
 #
-# commands.test mirrors the deterministic checks CI runs in
-# .github/workflows/android.yml (mobile lint, typecheck, the kept Jest suite
-# with --ci; engine lint, typecheck, node tests) so the Test step runs the
-# project's own checks instead of driving an emulator. The repo's test diet
-# deletes unit, snapshot and mock-heavy tests and keeps integration/e2e
-# journeys, so the Jest suite holds only the floor-guarded security tests; the
-# deleted native-module JVM unit-test leg and the Expo prebuild step are gone.
-# Build/assemble steps are intentionally excluded: this is validation, not a
-# build.
+# commands.test runs mobile lint/typecheck/Jest and the engine's host checks.
+# Only shared slop/thread tests with passing real-CLI coverage were removed;
+# uncovered mobile suites remain until a passing journey replaces them.
+# Native JVM coverage is retained in the path-filtered CI job and this gate.
+# Assemble steps are excluded: this is validation, not a build.
 commands:
   prepare: cd mobile && npm ci && cd ../packages/engine && npm ci
-  test: cd mobile && npm run lint && npm run typecheck && npm test -- --ci && cd ../packages/engine && npm run lint && npm run typecheck && npm test
+  test: cd mobile && npm run lint && npm run typecheck && npm test -- --ci && cd ../packages/engine && npm run lint && npm run typecheck && npm test && cd ../../mobile && npx expo prebuild -p android --no-install && cd android && ./gradlew :ownvoice-native:testDebugUnitTest
 
 test:
   # The baseline above is the whole validation story. Do not boot, attach
-  # to, or install on any Android emulator or device: coverage lives in the
-  # kept Jest suite and node --test, both headless. On-device checks stay
-  # manual per README.md.
+  # to, or install on any Android emulator or device: this baseline runs
+  # headless Jest, node --test and JVM checks. Device journeys stay manual
+  # per README.md.
   instructions: |
     Trust the commands.test baseline result as the primary evidence.
     For behavioral proof beyond the baseline, follow
