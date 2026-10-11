@@ -36,8 +36,8 @@ const DRAFTS = [
 // Flattery plus words the post never used: new words alone must not read as a good reply.
 const NONSENSE = 'Great post! Purple turbines whisper banana logistics forever.';
 
-// Empty-field replies withhold every card in 1.0.3, so the rating suite drives polish:
-// typed text plus a writer landing the same drafts the reply path used to show.
+// This suite drives the typed grow path: a typed point under an X post plus the writer landing
+// the same drafts. (An empty field over a readable post grounds reply cards instead.)
 const TYPED = 'My take: shipping one small fix beats more polishing.';
 const capture = (over: Partial<Capture> = {}): Capture => ({
   conversation: `Dana Lee @danabuilds · 2h\n${POST}`, written: POST, nodes: X_NODES, fieldTop: 900, typed: TYPED,

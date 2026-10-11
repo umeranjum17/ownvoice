@@ -257,9 +257,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (nextMode === 'own') {
       setNote(null); setPhase('ready'); return;
     }
-    // Neither writer has a qualified grounding check for replies from screen text.
-    // Stop before routing: no streamed card, retry, fallback or outward request.
-    if (nextMode === 'reply') {
+    // A reply needs a real post to answer. On a recognized feed app the panel grounds the cards on
+    // the post the layout shows above the field; with nothing readable there it withholds before
+    // any writer runs and never invents a reply. Chats and mail keep the 1.0.3 withhold: this slice
+    // only offers replies to a post, on the platform the screen reads as.
+    if (nextMode === 'reply' && !(platform.kind === 'feed' && platform.label && feedRead(value.nodes, value.fieldTop).post.trim())) {
       setNote(words.replyWithheld); setPhase('failed'); return;
     }
     setNote(words.writing);
@@ -576,7 +578,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />
             <View style={{ flex: 1 }} />
-            <Button kind="text" label={words.edit} onPress={() => setEdit({ slot: card.slot, text: card.text })} />
+            {/* The edit field opens on a word boundary, so whatever the person types never
+                glues onto the card's last word (Main718): their words stay clearly theirs. */}
+            <Button kind="text" label={words.edit} onPress={() => setEdit({ slot: card.slot, text: /\s$/.test(card.text) ? card.text : `${card.text} ` })} />
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>}
         </Card>

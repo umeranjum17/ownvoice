@@ -37,3 +37,6 @@ mobile/dist/
 *.keystore
 *.p12
 .android-avd/
+
+# Built by mobile/e2e/accessibility.mjs for the on-device probe.
+.accessibility-probe/

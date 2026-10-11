@@ -2,9 +2,11 @@
 
 The full detail behind the [README](../../README.md): every screen, every check and every known limit of the current build (1.0.3).
 
-## Reply ideas are unavailable for now
+## Reply ideas
 
-**Known limit in 1.0.3:** generic reply cards are withheld. Ownvoice cannot reliably check whether a new reply invents facts about you or someone else from the screen alone. An empty message box where there is something to reply to shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** A blank composer with nothing to answer asks for the one line instead (see [Start a post from a blank composer](#start-a-post-from-a-blank-composer)). No reply is generated, streamed, retried or offered to copy or insert, with either writer. Your voice notes describe style, not facts. No extra checker is used. Still open for 1.0.3: names in polished drafts keep their own check, which this release did not rerun, and the withheld path was only walked with no writer chosen, so the ChatGPT and phone writer routes are unrehearsed here.
+<a id="reply-ideas-are-unavailable-for-now"></a>
+
+An empty message box over a readable post on a recognized feed app (X, LinkedIn, Reddit, Threads, Bluesky, including in Chrome when its address bar identifies the site) offers reply cards. The panel grounds them on the post block the screen shows above the box; the cards, their ratings and the length checks follow that platform. A blank composer with nothing to answer asks for the one line instead (see [Start a post from a blank composer](#start-a-post-from-a-blank-composer)). When nothing readable sits above the box — an image-only post, a compose screen with only labels — the panel shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** instead: no reply is generated, streamed, retried or offered to copy or insert. Chats and mail keep this same withhold. Your voice notes describe style, not facts. Names in polished drafts keep their own check, which this release did not rerun.
 
 ## Polish what you wrote
 
