@@ -1,5 +1,5 @@
 // X-style composer fixture proof for the grounded reply flow (verify-ownvoice, feature reply-drafts).
-// Serves mobile/e2e/x.html behind an emulator hosts bind (127.0.0.1 x.com) plus `adb reverse`,
+// Serves mobile/e2e/x.html over a self-signed HTTPS server, host-mapped into Chrome for x.com,
 // so Ownvoice's Chrome platform detection reads a real X host from the URL bar — no login,
 // fixture posts, demo data named Umer. The writer is the live OpenRouter account, pasted from
 // OPENROUTER_KEY_FILE (~/.config/openrouter/api_key) — a real cloud writer, never a stand-in.
@@ -11,9 +11,10 @@
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned avd>, JAVA_HOME, SDK via
 // ANDROID_HOME, OPENROUTER_KEY_FILE optional. Args: <release-apk (no stub flags)> [task-slug].
 import { execFileSync } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { createServer } from 'node:http';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { tmpdir } from 'node:os';
+import { createServer } from 'node:https';
 import { fileURLToPath } from 'node:url';
 import { accessibilityProbe, center } from './accessibility.mjs';
 
@@ -114,7 +115,7 @@ const settleChrome = async (need = 'x.com') => {
     if (text.includes('enhanced ad privacy')) { // a Chrome update wedges this sheet over the flow; a clear restarts the known walk
       adb('shell', 'pm', 'clear', 'com.android.chrome');
       await wait(1000);
-      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://x.com/x.html');
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'https://x.com/x.html');
       await wait(3500);
       continue;
     }
@@ -138,15 +139,21 @@ const settleChrome = async (need = 'x.com') => {
   throw new Error(`Chrome never showed ${need} (URL bar not found in accessibility tree).`);
 };
 
-// ---- device prep: hosts bind + reverse so the fixture answers at http://x.com/ ----
-adb('root');
-await wait(2500);
-adb('shell', 'cat /system/etc/hosts > /data/local/tmp/hosts && { grep -q " x.com$" /data/local/tmp/hosts || echo "127.0.0.1 x.com" >> /data/local/tmp/hosts; } && mount -o bind /data/local/tmp/hosts /system/etc/hosts');
-const page = createServer((request, response) => { response.setHeader('Content-Type', 'text/html; charset=utf-8'); response.setHeader('Cache-Control', 'no-store'); response.end(readFileSync(new URL('./x.html', import.meta.url))); });
-await new Promise(r => page.listen(0, '127.0.0.1', r));
-const { port } = page.address();
-adb('reverse', 'tcp:80', `tcp:${port}`);
-log(`fixture serving on host :${port}, device http://x.com/`);
+// ---- device prep: host-map x.com in Chrome over a self-signed HTTPS fixture ----
+// Chrome on Android 16 upgrades http:// to https://, and a hosts-file bind is bypassed by that
+// upgrade. The repo's proven path (mobile/e2e/fit-live-proof.mjs) is a self-signed HTTPS server for
+// x.com plus Chrome's own command line: --host-resolver-rules maps x.com to the host (10.0.2.2)
+// and --ignore-certificate-errors accepts the local cert. The URL bar then reads x.com, so
+// Ownvoice's Chrome platform detection sees the X site.
+const PORT = 18615;
+const certDir = mkdtempSync(join(tmpdir(), 'ovx-cert-'));
+const keyFile = join(certDir, 'x.key'), certFile = join(certDir, 'x.crt');
+execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=x.com', '-addext', 'subjectAltName=DNS:x.com', '-keyout', keyFile, '-out', certFile], { stdio: 'pipe' });
+const page = createServer({ key: readFileSync(keyFile), cert: readFileSync(certFile) }, (request, response) => { response.setHeader('Content-Type', 'text/html; charset=utf-8'); response.setHeader('Cache-Control', 'no-store'); response.end(readFileSync(new URL('./x.html', import.meta.url))); });
+await new Promise(r => page.listen(PORT, '0.0.0.0', r));
+adb('shell', `echo '_ --host-resolver-rules="MAP x.com 10.0.2.2:${PORT}" --ignore-certificate-errors' > /data/local/tmp/chrome-command-line`);
+adb('shell', 'am', 'force-stop', 'com.android.chrome');
+log(`fixture serving on host :${PORT}, device https://x.com/x.html`);
 
 // ---- app install, service bind, setup walk (writer: live OpenRouter) ----
 execFileSync('adb', ['-s', serial, 'logcat', '-c']);
@@ -209,7 +216,7 @@ await chooseApp('Chrome');
 log('Chrome bubble enabled.');
 
 // ---- Chrome first-run walk (the settle loop above owns every sheet Chrome shows) ----
-adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://x.com/x.html');
+adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'https://x.com/x.html');
 await settleChrome('reply flow end to end today');
 log('fixture loaded in Chrome.');
 const urlBar = nodes().find(node => node.text?.includes('x.com'));
@@ -231,11 +238,12 @@ const field = async () => {
     if (node) return node;
     await wait(500);
   }
-  throw new Error('Could not find the composer field.');
+  const dump = nodes().map(n => `${n.editable ? 'E' : '-'}${n.clickable ? 'C' : '-'} ${n.className} lbl="${(n.label ?? '').slice(0, 24)}" txt="${(n.text ?? '').slice(0, 24)}" ${JSON.stringify(n.bounds)}`).join('\n');
+  throw new Error(`Could not find the composer field. Nodes:\n${dump}`);
 };
-const panelButton = async name => {
+const panelButton = async (name, tries = 120) => {
   const start = Date.now();
-  for (let attempt = 0; attempt < 120; attempt++) { // ~60s polling for the cloud writer round-trip
+  for (let attempt = 0; attempt < tries; attempt++) { // polling for the cloud writer round-trip
     const node = nodes().find(node => node.clickable && (node.text === name || node.label === name));
     if (node) { const elapsed = Date.now() - start; if (elapsed > 1000) log(`${name} found after ${Math.round(elapsed / 1000)}s`); return node; }
     await wait(500);
@@ -275,8 +283,9 @@ const insertViaProbe = async label => {
   throw new Error(`Could not bring the edit row's ${label} above the keyboard to click it.`);
 };
 const openFixture = async (query, need = 'shipped') => {
-  adb('reverse', 'tcp:80', `tcp:${port}`); // a restarted adb server drops reverse mappings; re-assert it
-  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://x.com/x.html${query ?? ''}`);
+  // The Chrome command line maps x.com on every launch; re-assert it in case a restart cleared it.
+  adb('shell', `echo '_ --host-resolver-rules="MAP x.com 10.0.2.2:${PORT}" --ignore-certificate-errors' > /data/local/tmp/chrome-command-line`);
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `https://x.com/x.html${query ?? ''}`);
   await wait(2500);
   await settleChrome(need);
 };
@@ -301,7 +310,15 @@ const journey = async (screen, theme, { motion = false } = {}) => {
   if (motion) evidence('motion-start', task, `${screen}-tap-to-inserted`);
   tap(...center(await bubble()));
   await wait(1800);
-  if (!(await panelButton('Edit'))) throw new Error('No card with an Edit button appeared.');
+  const editCard = await panelButton('Edit', 240); // room for the live OpenRouter round-trip
+  if (!editCard) {
+    shot(screen, 'nocard', theme);
+    const capture = adb('logcat', '-d', '-s', 'OwnvoiceNative:I').split('\n').filter(l => l.includes('capture practice')).at(-1) ?? '(no capture log)';
+    log(`no Edit card: withhold=${panelText('Reply ideas are unavailable')} xPlat=${panelText('X')} nodes=${nodes().length}`);
+    log(`capture: ${capture.trim()}`);
+    log(`screen: ${screenText().slice(0, 500)}`);
+    throw new Error('No card with an Edit button appeared.');
+  }
   if (!panelText('X')) throw new Error('The panel does not name the X platform.');
   if (panelText('Reply ideas are unavailable')) throw new Error('The withhold note showed on a grounded post.');
   shot(screen, 'cards', theme);
@@ -375,7 +392,7 @@ adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0');
 await wait(1000);
 
 // ---- restore ----
-adb('reverse', '--remove', 'tcp:80');
-try { adb('shell', 'umount /system/etc/hosts'); } catch {}
+adb('shell', 'rm', '-f', '/data/local/tmp/chrome-command-line');
 page.close();
+rmSync(certDir, { recursive: true, force: true });
 log(`X reply proof complete. Evidence in ${root}/verify-artifacts/${task}/.`);

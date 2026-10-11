@@ -1,8 +1,9 @@
 <!doctype html>
 <!-- X-style reply-screen fixture for the e2e drivers: no login, synthetic posts, demo data
-     named Umer. Served by mobile/e2e/x-replies.mjs behind an emulator hosts entry for x.com so
-     Ownvoice's Chrome platform detection reads a real X host from the URL bar. ?case=notext
-     renders the image-only post whose reply tap must show the no-grounding withhold note. -->
+     named Umer. Served by mobile/e2e/x-replies.mjs over a self-signed HTTPS server that Chrome
+     host-maps x.com to, so Ownvoice's Chrome platform detection reads a real X host from the URL
+     bar. ?case=notext renders the image-only post whose reply tap must show the no-grounding
+     withhold note. -->
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>@umer</title>
 <style>
