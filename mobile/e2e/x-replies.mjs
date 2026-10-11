@@ -11,7 +11,7 @@
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned avd>, JAVA_HOME, SDK via
 // ANDROID_HOME, OPENROUTER_KEY_FILE optional. Args: <release-apk (no stub flags)> [task-slug].
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:https';
@@ -313,13 +313,12 @@ const journey = async (screen, theme, { motion = false } = {}) => {
   const editCard = await panelButton('Edit', 240); // room for the live OpenRouter round-trip
   if (!editCard) {
     shot(screen, 'nocard', theme);
-    const capture = adb('logcat', '-d', '-s', 'OwnvoiceNative:D').split('\n').filter(l => l.includes('capture practice')).at(-1) ?? '(no capture log)';
+    const panel = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 600);
     log(`no Edit card: withhold=${panelText('Reply ideas are unavailable')} xPlat=${panelText('X')} nodes=${nodes().length}`);
-    log(`capture: ${capture.trim()}`);
-    log(`screen: ${screenText().slice(0, 500)}`);
-    const raw = adb('logcat', '-d', '-v', 'brief');
-    const keep = raw.split('\n').filter(l => /Ownvoice|ownvoice|OpenRouter|openrouter|writer|Writer|ready|phone|Phone|deepseek|Write|Error|error|WARN|ReactNative/.test(l)).slice(-70);
-    log(`logcat:\n${keep.join('\n')}`);
+    log(`panel text: ${panel}`);
+    log(`screen: ${screenText().slice(0, 300)}`);
+    writeFileSync(`${root}/verify-artifacts/${task}/${screen}-logcat-${theme}.txt`, adb('logcat', '-d'));
+    log(`logcat saved: ${root}/verify-artifacts/${task}/${screen}-logcat-${theme}.txt`);
     throw new Error('No card with an Edit button appeared.');
   }
   if (!panelText('X')) throw new Error('The panel does not name the X platform.');
