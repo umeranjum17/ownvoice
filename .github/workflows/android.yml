@@ -17,6 +17,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       mobile: ${{ steps.filter.outputs.mobile }}
+      native: ${{ steps.filter.outputs.native }}
       legacy: ${{ steps.filter.outputs.legacy }}
     steps:
       - uses: actions/checkout@v4
@@ -29,6 +30,7 @@ jobs:
           changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" HEAD 2>/dev/null || echo mobile/)"
           printf '%s\n' "$changed" > /tmp/changed.txt
           { grep -qE '^mobile/' /tmp/changed.txt && echo "mobile=true" || echo "mobile=false"; } >> "$GITHUB_OUTPUT"
+          { grep -qE '^mobile/modules/ownvoice-native/' /tmp/changed.txt && echo "native=true" || echo "native=false"; } >> "$GITHUB_OUTPUT"
           { grep -qE '^(app/|link/)' /tmp/changed.txt && echo "legacy=true" || echo "legacy=false"; } >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
@@ -68,6 +70,32 @@ jobs:
         working-directory: packages/engine
       - run: npm test
         working-directory: packages/engine
+
+  # The Expo native module is only compiled when that module's own sources change; its
+  # Gradle unit-test leg was removed with the test diet (the module keeps no unit tests).
+  native:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - run: npm ci
+      - run: npx expo prebuild -p android --no-install
+      - run: ./gradlew :ownvoice-native:testDebugUnitTest :byokit-overlay:testDebugUnitTest assembleDebug
+        working-directory: mobile/android
 
   # The legacy Kotlin app is only built when app/ or link/ change; nothing else can
   # affect it. The Expo release APK is built by apk-release.yml on a version tag.
