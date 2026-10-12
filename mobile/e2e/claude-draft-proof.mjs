@@ -36,6 +36,7 @@ const nodes = accessibilityProbe(serial, out);
 const snap = name => writeFileSync(resolve(out, `${name}.png`), adbRaw('exec-out', 'screencap', '-p'));
 const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
 const texts = () => nodes().map(n => `${n.text || ''}${n.label || ''}`).join(' | ');
+const dumpLogcat = name => { writeFileSync(resolve(out, `${name}.logcat`), adb('shell', 'logcat', '-d')); };
 const findBubble = async () => { for (let i = 0; i < 15; i++) { const b = nodes().find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label)); if (b) return b; await wait(1500); } return null; };
 const saveTree = name => writeFileSync(resolve(out, `${name}.txt`), nodes().map(n => n.text || n.label).filter(Boolean).join('\n'));
 const claudeAnswers = () => (adb('shell', 'logcat', '-d').match(/^.*Ownvoice claude answer: .*$/gm) ?? []).map(l => l.replace(/^.*Ownvoice claude answer: /, ''));
@@ -109,16 +110,26 @@ else {
   tap(...center(b));
   let answers = [];
   for (let i = 0; i < 90; i++) { await wait(1000); answers = claudeAnswers(); if (answers.length) break; }
-  await wait(2000); snap('claude-real-reply-draft'); saveTree('claude-real-reply-draft');
-  writeFileSync(resolve(out, 'claude-real-reply-answer.logcat'), adb('shell', 'logcat', '-d'));
-  if (answers.length) { console.log('Claude reply answer:', answers.join('\n')); writeFileSync(resolve(out, 'claude-real-reply-answer.txt'), answers.join('\n\n')); }
-  else fail('no "Ownvoice claude answer" line on logcat for the reply draft');
+  // Let the cards settle (the panel retries a missing slot with a second Claude ask) before inserting.
+  for (let i = 0; i < 30; i++) { if (!/Writing…/.test(texts()) && nodes().filter(n => ['Insert', 'Use this'].includes(n.text || n.label)).length >= 2) break; await wait(1000); }
+  await wait(1500); snap('claude-real-reply-draft'); saveTree('claude-real-reply-draft');
+  if (!answers.length) fail('no "Ownvoice claude answer" line on logcat for the reply draft');
   const ins = nodes().find(n => n.clickable && ['Insert', 'Use this'].includes(n.text || n.label));
   if (ins) {
-    tap(...center(ins)); await wait(2500); snap('claude-real-reply-inserted');
-    const field = nodes().find(n => /post text/i.test(n.label || n.text || ''));
-    writeFileSync(resolve(out, 'claude-real-reply-inserted.txt'), nodes().map(n => n.text || n.label).filter(Boolean).join('\n'));
-    console.log('inserted via', ins.text || ins.label, '| field now:', field ? (field.text || '').slice(0, 200) : '(field not found)');
+    tap(...center(ins)); await wait(4000); snap('claude-real-reply-inserted');
+    const after = nodes();
+    writeFileSync(resolve(out, 'claude-real-reply-inserted.txt'), after.map(n => n.text || n.label).filter(Boolean).join('\n'));
+    // The inserted card must come from a real logged Claude answer; capture logcat after the insert so
+    // a slot retry's answer is included too.
+    answers = claudeAnswers();
+    dumpLogcat('claude-real-reply-answer');
+    writeFileSync(resolve(out, 'claude-real-reply-answer.txt'), answers.join('\n\n'));
+    const flat = answers.join('\n');
+    const field = after.find(n => /post text/i.test(n.label || n.text || ''))
+      || after.find(n => (n.text || '').length > 18 && flat.includes((n.text || '').slice(0, 25)));
+    const inserted = (field?.text || '').trim();
+    console.log('inserted via', ins.text || ins.label, '| field now:', inserted.slice(0, 200));
+    if (!inserted || !flat.includes(inserted.slice(0, 25))) fail('the inserted text was not found in a logged Claude answer');
   } else fail('reply card Insert/Use this control not found');
 }
 
