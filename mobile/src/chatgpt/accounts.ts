@@ -118,6 +118,9 @@ export async function askCloud(key: CloudKey, ask: CloudAsk): Promise<string> {
   if (key === 'claude') {
     const text = await respond(member, { provider: 'claude', model: CLAUDE_MODEL, max_tokens: 8192,
       system: ask.instructions, messages: [{ role: 'user', content: ask.input }], onText: ask.onText, signal: ask.signal });
+    // Emulator proof builds only (EXPO_PUBLIC_E2E_CLAUDE_LOG=1): put the real Claude answer on
+    // logcat so a live proof can read the answer, not just a stub. Never set in a distributable build.
+    if (process.env.EXPO_PUBLIC_E2E_CLAUDE_LOG === '1') console.log(`Ownvoice claude answer: ${text}`);
     return ask.json ? jsonBody(text) : text;
   }
   return respond(member, { instructions: ask.instructions, input: ask.input, model: CHATGPT_MODEL, signal: ask.signal, onText: ask.onText,
