@@ -13,7 +13,10 @@
 //   A. an optional third APK built with EXPO_PUBLIC_E2E_OPENROUTER_OFF=1 (an injected capability
 //      counterfactual, never a release build) shows no OpenRouter card in How Ownvoice writes and no
 //      OpenRouter action on Home — captured at phone width, font 1.3, on a no-phone emulator, light and dark.
-// Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME, OPENROUTER_KEY_FILE, JAVA_HOME, ANDROID_HOME. Args: <apk> <out-dir> [unavailable-apk].
+// `OPENROUTER_SCENARIOS=negative` runs only the credit-free refusal legs (the cloud choice + stand-in
+// control + the unavailable-route counterfactual), so an empty account is proven without a paid call.
+// Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME, OPENROUTER_KEY_FILE, JAVA_HOME, ANDROID_HOME, OPENROUTER_SCENARIOS.
+// Args: <apk> <out-dir> [unavailable-apk].
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -31,6 +34,11 @@ mkdirSync(out, { recursive: true });
 // Optional APK built with EXPO_PUBLIC_E2E_OPENROUTER_OFF=1 (the injected capability counterfactual):
 // the unavailable-route scenario runs against it instead of the ready/fixture build above.
 const unavailableApk = process.argv[4];
+// Credit-free negative scope (`OPENROUTER_SCENARIOS=negative`): prove the refusal paths — the cloud
+// key writer's own refusal when the account cannot serve, that the demo stand-in's fixed text never
+// appears as its result, and the injected unavailable-route counterfactual — with no paid generation.
+// The default (full) journey still needs a funded account for a real draft comparison.
+const negative = process.env.OPENROUTER_SCENARIOS === 'negative';
 const key = readFileSync(process.env.OPENROUTER_KEY_FILE ?? `${process.env.HOME}/.config/openrouter/api_key`, 'utf8').trim();
 if (!key.startsWith('sk-')) throw new Error('OpenRouter key file did not look like a key.');
 const REPLY = 'i think we should meet tomorrow at 10 to go over the plan and the budget';
@@ -293,6 +301,61 @@ const unavailableRoute = async () => {
 };
 
 
+// The ChatGPT stand-in's fixed versions for this typed reply (src/panel/stubWriter.ts), computed
+// here so a leak check is exact rather than fuzzy. It emits the capitalised line plus a
+// "Just to confirm" line for a comma-less reply; duplicates are dropped.
+const fixtureFixed = () => {
+  const lead = REPLY.charAt(0).toUpperCase() + REPLY.slice(1);
+  return [...new Set([lead.endsWith('.') ? lead : `${lead}.`, `${lead.split(',')[0]}.`, `Just to confirm, ${REPLY.charAt(0).toLowerCase()}${REPLY.slice(1)}.`])];
+};
+// Like openPanelOnce, but a cloud refusal can show an empty-state line instead of the ready
+// subtitle, so wait for the panel title and settle instead of requiring drafts to appear.
+const openPanelAny = async tag => {
+  if (!page) { page = await servePage(); execFileSync('adb', ['-s', serial, 'reverse', `tcp:${page.address().port}`, `tcp:${page.address().port}`]); }
+  const url = `http://127.0.0.1:${page.address().port}`;
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url); await wait(3500);
+  await dismissChromeFirstRun();
+  const heading = await waitText('textarea', 20);
+  tap(Math.round(width / 2), Math.round(center(heading)[1] + 230));
+  await wait(700);
+  type(REPLY);
+  await wait(4500);
+  tapBubble();
+  await waitText(['polish your message', 'polish your post'], 45);
+  await wait(6000); // let a slow cloud call fail and the refusal line render
+  const panel = nodes();
+  snap(`polish-${tag}`);
+  return panel;
+};
+// The empty/refusing cloud writer: select OpenRouter (its key already pasted), tap the bubble, and
+// capture whatever the account can return. Needs no credit — a funded account yields real drafts,
+// an empty one the provider's own refusal — and either way the demo stand-in's fixed text must not
+// be the OpenRouter result. The stand-in's text is confirmed separately by the fixture-control leg.
+const cloudChoice = async tag => {
+  const panel = await openPanelAny(tag);
+  const texts = panel.map(n => (n.text || '').trim()).filter(Boolean);
+  const leaked = fixtureFixed().filter(f => texts.includes(f));
+  if (leaked.length) throw new Error(`The ChatGPT stand-in's fixed text was the OpenRouter result: ${JSON.stringify(leaked)}`);
+  // The refusal/empty-state lines are not drafts; everything longer that is left is a real draft.
+  const drafts = draftsFrom(panel).filter(t => !/couldn't polish|try again|didn't answer|turned off|sign in/i.test(t));
+  const refused = !drafts.length;
+  log(`OpenRouter choice (${tag}): ${refused ? 'refused (no usable draft)' : 'returned drafts'} drafts=${JSON.stringify(drafts).slice(0, 160)}; panel=${JSON.stringify(texts).slice(0, 200)}`);
+  return { refused, drafts };
+};
+// The credit-free negative journey: the cloud choice leg, then the stand-in control that proves the
+// fixture's fixed text IS produced when ChatGPT is chosen (so its absence above is meaningful).
+const negativeJourney = async () => {
+  await fresh(); await theme(false); await skipSetup(); await enableChrome();
+  await connectOpenRouter('light');
+  const cloud = await cloudChoice('cloud-choice-light');
+  if (cloud.refused) log('OpenRouter produced no draft: the key writer refused (live negative recorded; no credit spent, no stand-in text)');
+  await chooseChatGptFixture();
+  const fixture = await fixturePanel('fixture-control');
+  const expected = fixtureFixed().filter(f => fixture.includes(f));
+  log(`fixture control (ChatGPT stand-in) produced ${expected.length}/${fixtureFixed().length} expected fixed lines: ${JSON.stringify(fixture).slice(0, 160)}`);
+  if (!expected.length) throw new Error(`The ChatGPT stand-in control produced none of its fixed text; the leak check above is inconclusive (${JSON.stringify(fixture).slice(0, 200)}).`);
+};
+
 const priorNight = adb('shell', 'cmd', 'uimode', 'night').trim().replace('Night mode: ', '');
 const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const priorAccessibility = adb('shell', 'settings', 'get', 'secure', 'accessibility_enabled').trim();
@@ -306,15 +369,19 @@ try {
   let realDrafts = [];
   // Capture the displayed result. A different string is only an observation, not source provenance.
   const captureReal = async tag => realDraft(tag);
-  await run('light-setup', async () => { await fresh(); await theme(false); await skipSetup(); await enableChrome(); });
-  await run('light-writer-list', async () => { await captureWriterList('light'); });
-  await run('light-connect', async () => { await connectOpenRouter('light'); });
-  await run('light-draft', async () => { realDrafts = realDrafts.concat(await captureReal('light')); });
+  if (negative) {
+    await run('negative-cloud-choice', negativeJourney);
+  } else {
+    await run('light-setup', async () => { await fresh(); await theme(false); await skipSetup(); await enableChrome(); });
+    await run('light-writer-list', async () => { await captureWriterList('light'); });
+    await run('light-connect', async () => { await connectOpenRouter('light'); });
+    await run('light-draft', async () => { realDrafts = realDrafts.concat(await captureReal('light')); });
 
-  await run('dark-writer-list', async () => { await theme(true); await captureWriterList('dark'); });
-  await run('dark-draft', async () => { realDrafts = realDrafts.concat(await captureReal('dark')); });
+    await run('dark-writer-list', async () => { await theme(true); await captureWriterList('dark'); });
+    await run('dark-draft', async () => { realDrafts = realDrafts.concat(await captureReal('dark')); });
 
-  await run('fixture-comparison', async () => { if (!realDrafts.length) throw new Error('No cloud-choice drafts to compare (both draft scenarios failed).'); await fixtureComparison(realDrafts); });
+    await run('fixture-comparison', async () => { if (!realDrafts.length) throw new Error('No cloud-choice drafts to compare (both draft scenarios failed).'); await fixtureComparison(realDrafts); });
+  }
   if (unavailableApk) await run('unavailable-route', unavailableRoute);
 
   if (failed) throw new Error(`${failed} scenario(s) failed`);
