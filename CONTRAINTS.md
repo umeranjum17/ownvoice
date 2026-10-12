@@ -26,6 +26,51 @@ integration/e2e journey that already existed before the change and still exercis
 deleted unit's module. Tests that guard security, credentials, crypto or data loss are
 never excused. The guard refuses when it cannot establish both facts itself.
 
+For a complete mocked case or exact mocked assertion leg in a retained suite, the
+**removal commit itself** must name the test-diet task, the retained
+`Journey-Coverage: <path>`, and `Test-Diet-Retirement: <tracked-json-path>`.
+The JSON record has this shape (Git object IDs are full 40-digit hex):
+
+```json
+{
+  "file": "mobile/app/__tests__/Example.test.tsx",
+  "baseBlob": "<merge-base and removal-parent test blob>",
+  "first": 10,
+  "last": 16,
+  "surface": "ExampleWriter",
+  "reason": "Why this exact mocked case or assertion leg is being retired",
+  "unproved": "Which separately tracked runtime paths remain unresolved",
+  "journey": {
+    "path": "mobile/e2e/example-proof.mjs",
+    "candidate": "<original historical feature commit>",
+    "blob": "<unchanged journey blob at that commit>",
+    "evidence": "Original proof reference, retaining its candidate/artifact binding",
+    "limit": "What that historical journey proves, and what it does not"
+  }
+}
+```
+
+Use one record/trailer per contiguous scope. Line numbers are inclusive in the
+base blob; every scoped line must be deleted by that commit. The scope must contain
+an assertion, a Jest mock marker and the named surface. The same surface must occur
+in the retained non-Jest integration/e2e journey. That journey must be unchanged
+from its original ancestor candidate through the base and current tree. Guarded
+paths, scope text and enclosing cases (security, credentials, crypto, data loss)
+remain ineligible. Other assertion losses and all other floor checks still fail.
+
+This is reviewable commit provenance, not machine authentication of an approval or
+runtime evidence. Review must verify the explanation, exact scope, surface mapping
+and original proof reference. A valid record does not prove an unresolved native
+negative path passed, nor transfer historical proof to the retirement candidate.
+An uncommitted record or a later metadata-only commit cannot authorize a deletion.
+
+The guard's CLI integration journey runs with real isolated Git histories:
+`node scripts/integration/floor-guard.mjs <empty-private-scratch> <evidence-directory>`.
+Run it under isolated HOME/XDG/TMPDIR; it records every floor subprocess command,
+stdout, stderr, exit and candidate binding. It does not run native/provider proofs.
+It is wired into CI (`.github/workflows/android.yml`) and the gate's `commands.test`,
+so the guard's own retirement paths stay covered; it is not a Jest suite.
+
 ## Enforced with numbers
 
 | Dimension | Rule | Checked by | Runs at |

@@ -1,13 +1,14 @@
 # Trusted no-mistakes gate configuration.
 #
-# commands.test runs mobile lint/typecheck/Jest and the engine's host checks.
+# commands.test runs mobile lint/typecheck/Jest, the engine's host checks, and
+# the real-CLI floor guard integration journey.
 # Only shared slop/thread tests with passing real-CLI coverage were removed;
 # uncovered mobile suites remain until a passing journey replaces them.
 # Native JVM coverage is retained in the path-filtered CI job and this gate.
 # Assemble steps are excluded: this is validation, not a build.
 commands:
   prepare: cd mobile && npm ci && cd ../packages/engine && npm ci
-  test: cd mobile && npm run lint && npm run typecheck && npm test -- --ci && cd ../packages/engine && npm run lint && npm run typecheck && npm test && cd ../../mobile && npx expo prebuild -p android --no-install && cd android && ./gradlew :ownvoice-native:testDebugUnitTest
+  test: cd mobile && npm run lint && npm run typecheck && npm test -- --ci && cd ../packages/engine && npm run lint && npm run typecheck && npm test && cd ../../mobile && npx expo prebuild -p android --no-install && cd android && ./gradlew :ownvoice-native:testDebugUnitTest && cd ../.. && root="$(mktemp -d)" && HOME="$root" XDG_CONFIG_HOME="$root" TMPDIR="$root" node scripts/integration/floor-guard.mjs "$root/scratch" "$root/evidence"
 
 test:
   # The baseline above is the whole validation story. Do not boot, attach

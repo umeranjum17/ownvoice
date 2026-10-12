@@ -60,6 +60,10 @@ jobs:
       - run: npm run typecheck
       - run: npm test -- --ci
       - run: npm run floor
+      # The floor guard's own real Git/CLI journey proves the whole-file and scoped
+      # test-diet paths end to end in isolated histories, outside the app build.
+      - run: HOME="$RUNNER_TEMP" XDG_CONFIG_HOME="$RUNNER_TEMP" TMPDIR="$RUNNER_TEMP" node scripts/integration/floor-guard.mjs "$RUNNER_TEMP/floor-guard-scratch" "$RUNNER_TEMP/floor-guard-evidence"
+        working-directory: .
       # Regenerating the Android project from the Expo config and plugins catches a
       # broken app.config.js/plugin before it reaches a release tag. Only mobile
       # changes can affect it.

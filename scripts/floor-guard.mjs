@@ -107,7 +107,9 @@ for (const { file, text } of added) {
 // never excused, diet or not.
 const GUARDED = /crypt|cipher|encrypt|decrypt|hash|hmac|sign|password|secret|token|auth|permission|consent|keystore|master.?key|migration|backup|restore|data.?loss/i;
 const commitBodies = git(['log', '--format=%B', mergeBase + '..HEAD']) ?? '';
-const namedDiet = /test[\s(\[-]*diet/i.test(commitBodies);
+// A record trailer names provenance, not the test-diet task itself.
+const namesDiet = (body) => /test[\s(\[-]*diet/i.test(body.replace(/^Test-Diet-Retirement:.*$/gm, ''));
+const namedDiet = namesDiet(commitBodies);
 const namedJourneys = new Set(
   [...commitBodies.matchAll(/^[ \t]*Journey-Coverage:[ \t]*(\S+)[ \t]*$/gm)].map((m) => m[1])
 );
@@ -190,18 +192,33 @@ const baseFile = (f) => {
   if (!baseCache.has(f)) baseCache.set(f, git(['show', mergeBase + ':' + f]) ?? '');
   return baseCache.get(f);
 };
+// `test.each(...)`/`it.each(...)` declare a case like any other, and a guarding token may live
+// only in a suite title, so the enclosing case text is the test block plus every describe title
+// that encloses it. Indentation identifies the enclosing chain; a token in any outer suite is
+// still part of the enclosing case, so the whole chain is included, not just the nearest title.
+const testDecl = /^\s*(?:test|it)(?:\.\w+)*\s*\(/;
+const caseDecl = /^\s*(?:test|it|describe)(?:\.\w+)*\s*\(/;
+const indentOf = (s) => (s.match(/^\s*/) ?? [''])[0].length;
 const enclosingTest = (f, at) => {
   const lines = baseFile(f).split('\n');
   let start = -1;
   for (let i = Math.min(at || 1, lines.length) - 1; i >= 0; i--) {
-    if (/^\s*(?:test|it)\s*\(/.test(lines[i])) { start = i; break; }
+    if (testDecl.test(lines[i])) { start = i; break; }
   }
   if (start < 0) return '';
   let end = lines.length;
   for (let j = start + 1; j < lines.length; j++) {
-    if (/^\s*(?:test|it|describe)\s*\(/.test(lines[j])) { end = j; break; }
+    if (caseDecl.test(lines[j])) { end = j; break; }
   }
-  return lines.slice(start, end).join('\n');
+  const heads = [];
+  let level = indentOf(lines[start]);
+  for (let i = start - 1; i >= 0; i--) {
+    if (/^\s*describe(?:\.\w+)*\s*\(/.test(lines[i]) && indentOf(lines[i]) < level) {
+      heads.unshift(lines[i]);
+      level = indentOf(lines[i]);
+    }
+  }
+  return heads.concat(lines.slice(start, end)).join('\n');
 };
 const liveness = new Map();
 const stillInCode = (id) => {
@@ -251,10 +268,89 @@ const exercisedGone = (entry) => {
   for (const id of ids) if (imports.has(id) && !stillInCode(id)) return id;
   return null;
 };
+// Partial test diet uses a tracked record named by the SAME commit as the removal.
+// The record pins the old blob and exact deleted lines, plus the unchanged journey at its
+// original candidate. These are reviewable provenance, not a claim that native proof ran.
+const retiredScopes = [];
+const commits = (git(['log', '--format=%H', mergeBase + '..HEAD']) ?? '').split('\n').filter(Boolean);
+for (const commit of commits) {
+  const body = git(['show', '-s', '--format=%B', commit]) ?? '';
+  for (const match of body.matchAll(/^Test-Diet-Retirement:[ \t]*(\S+)[ \t]*$/gm)) {
+    const recordPath = match[1];
+    let record;
+    try { record = JSON.parse(git(['show', commit + ':' + recordPath]) ?? ''); }
+    catch { flag('invalid-test-diet', recordPath, 'missing or malformed tracked retirement record'); continue; }
+    const reject = (why) => flag('invalid-test-diet', recordPath, why);
+    const { file: f, baseBlob, first, last, surface, reason, unproved, journey: j } = record ?? {};
+    if (typeof f !== 'string' || !isTest(f) || deleted.includes(f)
+      || !Number.isSafeInteger(first) || !Number.isSafeInteger(last) || first < 1 || last < first
+      || typeof surface !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{2,}$/.test(surface)
+      || typeof reason !== 'string' || !reason.trim() || typeof unproved !== 'string' || !unproved.trim()
+      || !j || typeof j.path !== 'string' || typeof j.evidence !== 'string' || !j.evidence.trim()
+      || typeof j.limit !== 'string' || !j.limit.trim()) {
+      reject('incomplete exact scope, explanation, evidence binding or proof limits'); continue;
+    }
+    if (!namesDiet(body)
+      || !body.split('\n').some((l) => l.trim() === 'Journey-Coverage: ' + j.path)) {
+      reject('removal commit must name test-diet and its Journey-Coverage path'); continue;
+    }
+    if (!/^[0-9a-f]{40}$/.test(baseBlob ?? '')
+      || git(['rev-parse', mergeBase + ':' + f])?.trim() !== baseBlob
+      || git(['rev-parse', commit + '^:' + f])?.trim() !== baseBlob) {
+      reject('scope is not bound to the merge-base and removal-parent blob'); continue;
+    }
+    const scope = baseFile(f).split('\n').slice(first - 1, last).join('\n');
+    const entries = removed.filter((l) => l.file === f && l.at >= first && l.at <= last);
+    if (entries.length === 0 || first > last) {
+      reject('exact scope must contain asserted mocked code for the named surface'); continue;
+    }
+    const firstRemovedAt = entries[0].at;
+    const lastRemovedAt = entries[entries.length - 1].at;
+    if (firstRemovedAt !== first || lastRemovedAt !== last) {
+      reject('exact scope must contain asserted mocked code for the named surface'); continue;
+    }
+    if (!entries.some((l) => isAssertion(l.text))
+      || !/\bjest\.(?:mock|fn|Mock|isolateModules)\b|\.mock(?:ReturnValue|ResolvedValue|RejectedValue|Implementation)(?:Once)?\s*\(/.test(scope)
+      || !scope.includes(surface)) {
+      reject('exact scope must contain asserted mocked code for the named surface'); continue;
+    }
+    const guardedText = f + '\n' + scope + '\n' + enclosingTest(f, first);
+    if (GUARDED.test(guardedText) || /security|credential/i.test(guardedText)) {
+      reject('security/credential/crypto/data-loss guard'); continue;
+    }
+    // Do not let a later metadata-only commit authorize an earlier assertion loss.
+    const commitDiff = git(['diff', '--unified=0', commit + '^', commit, '--', f]) ?? '';
+    const removedHere = new Set();
+    let at = 0, hunk = false;
+    for (const line of commitDiff.split('\n')) {
+      if (line.startsWith('@@')) { at = Number(line.match(/^@@ -(\d+)/)?.[1]); hunk = true; }
+      else if (hunk && line.startsWith('-')) removedHere.add(at++);
+    }
+    if (!entries.every((l) => removedHere.has(l.at))) {
+      reject('record commit did not remove the exact scope'); continue;
+    }
+    if (!/^[0-9a-f]{40}$/.test(j.candidate ?? '') || !/^[0-9a-f]{40}$/.test(j.blob ?? '')
+      || !/(^|\/)(e2e|integration)\//.test(j.path) || !isTest(j.path)
+      || git(['merge-base', '--is-ancestor', j.candidate, mergeBase]) === null
+      || git(['rev-parse', j.candidate + ':' + j.path])?.trim() !== j.blob
+      || git(['rev-parse', mergeBase + ':' + j.path])?.trim() !== j.blob
+      || added.concat(removed).some((l) => l.file === j.path) || deleted.includes(j.path)
+      || git(['hash-object', '--', j.path])?.trim() !== j.blob) {
+      reject('journey must retain its exact pre-existing candidate/blob binding'); continue;
+    }
+    const journeyBody = git(['show', j.candidate + ':' + j.path]) ?? '';
+    if (!journeyBody.includes(surface) || /\bjest\.(mock|fn)\s*\(/.test(journeyBody)) {
+      reject('named journey does not exercise the surface or is mocked'); continue;
+    }
+    retiredScopes.push({ file: f, first, last });
+    console.log(`floor-guard: scoped test-diet ${f}:${first}-${last}; historical journey ${j.path}@${j.candidate}; unproved: ${unproved}`);
+  }
+}
 for (const entry of removed) {
   if (isTest(entry.file) && !deleted.includes(entry.file) && isAssertion(entry.text)) {
     const why = excuseAssertion(entry.file);
     if (!why) continue;
+    if (retiredScopes.some((s) => s.file === entry.file && entry.at >= s.first && entry.at <= s.last)) continue;
     const gone = exercisedGone(entry);
     if (gone) assertionsDiedWithCode.push(entry.file + ' (' + gone + ' is gone from the tree)');
     else flag('assertion-removed', entry.file, why + ': ' + entry.text);
