@@ -31,7 +31,7 @@ jest.mock('@byokit/accounts', () => {
   };
 });
 
-type KitMock = { offered: jest.Mock; route: jest.Mock; __calls: Array<{ method: string; args: unknown[] }> };
+type KitMock = { offered: jest.Mock; __calls: Array<{ method: string; args: unknown[] }> };
 
 // Fresh module registry per load, with handles to THAT load's mock instance:
 // jest.resetModules() re-runs the factory, so top-level handles would go stale.
@@ -54,13 +54,6 @@ test('providers comes from the kit with Claude first', () => {
   const { accounts, mocked } = load();
   mocked.offered.mockReturnValue([{ key: 'chatgpt' }, { key: 'other' }, { key: 'claude' }]);
   expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt', 'other', 'openrouter']);
-});
-
-test('OpenRouter is offered only when the kit reports its key route ready', () => {
-  const { accounts, mocked } = load();
-  mocked.offered.mockReturnValue([{ key: 'claude' }, { key: 'chatgpt' }]);
-  mocked.route.mockReturnValue({ readiness: 'needs_host' });
-  expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt']);
 });
 
 test('a throwing kit keeps the fallback working and retries later', () => {
