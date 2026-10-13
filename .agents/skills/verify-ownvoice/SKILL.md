@@ -71,8 +71,13 @@ defect below is a hard FAIL — verification fails and the change does not ship.
    largest font (`evidence.sh font largest`) — in light and dark (Review evidence
    above). Phone width is the app's only form factor; the largest-font pass is
    mandatory and is never skipped.
-2. Compare each after-capture side by side against the approved mock for that
-   screen (the PR names the mock). Check every defect class:
+2. Compare each after-capture against the approved mock for that
+   screen (the PR names the mock) with the repo checker — ImageMagick,
+   same prerequisite as the drivers:
+   `.agents/skills/verify-ownvoice/visual-check.sh <mocks-dir> <captures-dir>`.
+   It crops the status and gesture bars (a ticking clock is not a defect),
+   then checks geometry, new blank strips, and content fidelity; any FAIL
+   is a hard FAIL. Check every defect class:
    - stretched or squashed images (aspect ratio differs from the mock);
    - clipped text (glyphs or lines cut that the mock shows whole);
    - overlap (two elements painting over each other);
