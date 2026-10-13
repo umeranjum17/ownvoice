@@ -40,6 +40,8 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   sharedMarkdown(): Promise<string | null>;
   rewriteInput(): { text: string; editable: boolean; markdown?: boolean } | null;
   finishRewrite(text: string | null, replace: boolean): Promise<void>;
+  /** Developer diagnostics (logcat) that survive release minification, which strips console.*. */
+  logDev(line: string): void;
   /** The active network's transport, so the one-time download stays Wi-Fi-only unless chosen otherwise. */
   networkType(): Promise<NetworkType>;
 }

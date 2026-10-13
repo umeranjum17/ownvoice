@@ -48,6 +48,24 @@ export function noPhoneLine(error: unknown, lines: CloudWords): string {
   return lines.failedNoPhone;
 }
 
+/** Developer diagnostics (logcat `Ownvoice` lines, never on screen) that survive release
+ *  minification, which strips console.*. A logging failure never fails the write. */
+export function devlog(line: string): void {
+  try {
+    const native = require('../../modules/ownvoice-native').default;
+    native?.logDev?.(line);
+  } catch { /* diagnostics must never break the write */ }
+}
+
+/** The error and its one wrapped cause as a single developer line: a refusal can bury
+ *  the real failure (for example a veto carrying the pre-dispatch error that caused it). */
+export const causeOf = (error: unknown): string => {
+  const message = error instanceof Error ? error.message : String(error);
+  const cause = error instanceof Error ? error.cause : undefined;
+  const inner = cause == null ? '' : cause instanceof Error ? cause.message : String(cause);
+  return inner && inner !== message ? `${message} (caused by: ${inner})` : message;
+};
+
 export async function withPhoneFallback(primary: Writer, phone: Writer, request: DraftRequest, lines: CloudWords, on?: WriterEvents, fallbackNote?: () => Promise<string | null>, phoneStatus?: PhoneCanWrite): Promise<Choice> {
   try {
     const { drafts, unchanged, declined } = await primary.write(request, on);
@@ -74,7 +92,14 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
     } catch (fallback) {
       // The next writer could not write either: keep the plan-limit line instead of a dead-end error.
       if (limit) throw new Error(limit);
-      throw fallback;
+      // The selected cloud writer's failure is the real story, never the phone's own error:
+      // showing that error (for example "get this phone ready") masked a real cloud no-answer
+      // in testing. Say the cloud failure in plain words with a retry, and keep both causes
+      // in the developer log.
+      const cause = causeOf(error);
+      const phoneCause = fallback instanceof Error ? fallback.message : String(fallback);
+      devlog(`Ownvoice cloud write failed: ${cause} (phone fallback: ${phoneCause})`);
+      throw new Error(noPhoneLine(error, lines));
     }
   }
 }
