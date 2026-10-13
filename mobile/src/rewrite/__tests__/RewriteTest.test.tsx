@@ -14,11 +14,16 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
   addListener: jest.fn(() => ({ remove: () => {} })),
   rewriteInput: jest.fn(), finishRewrite: jest.fn(async () => {}),
 } }));
+jest.mock('../../chatgpt/responses', () => ({ streamSelectionRewrite: jest.fn() }));
 jest.mock('@byokit/infer', () => ({ InferError: class InferError extends Error {} }), { virtual: true });
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
 import { askLocal, localModelState } from '../../core/localModel';
+import { streamSelectionRewrite } from '../../chatgpt/responses';
+import { setSource, SOURCE_KEY } from '../../core/source';
+import { store } from '../../core/store';
 const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
 const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
+const mockCloudRewrite = streamSelectionRewrite as jest.MockedFunction<typeof streamSelectionRewrite>;
 const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock };
 
 const renderRewrite = async (input: { text: string; editable: boolean } | null) => {
@@ -177,6 +182,20 @@ test('a writer failure shows its plain error line', async () => {
   fireEvent.press(screen.getByRole('button', { name: 'Fix spelling' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain(message(9)));
   expect(visibleStrings(screen)).not.toContain('HTTP 9 too much');
+});
+
+test('a cloud rewrite failure shows the cloud line when the phone cannot write either', async () => {
+  setSource('openrouter');
+  try {
+    mockCloudRewrite.mockRejectedValue(new Error(words.openrouterFailed));
+    mockAsk.mockRejectedValue(new Error(words.readyPanel));
+    const screen = await renderRewrite({ text: SELECTION, editable: true });
+    fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
+    await waitFor(() => expect(visibleStrings(screen)).toContain(words.openrouterFailed));
+    expect(visibleStrings(screen).join('\n')).not.toContain('get this phone ready');
+  } finally {
+    store.set(SOURCE_KEY, null);
+  }
 });
 
 test('closing hands nothing back', async () => {

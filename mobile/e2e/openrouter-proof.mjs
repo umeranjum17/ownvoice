@@ -15,7 +15,11 @@
 //      OpenRouter action on Home — captured at phone width, font 1.3, on a no-phone emulator, light and dark.
 // `OPENROUTER_SCENARIOS=negative` runs only the credit-free refusal legs (the cloud choice + stand-in
 // control + the unavailable-route counterfactual), so an empty account is proven without a paid call.
-// Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME, OPENROUTER_KEY_FILE, JAVA_HOME, ANDROID_HOME, OPENROUTER_SCENARIOS.
+// `OPENROUTER_REFUSAL=1` runs only the refusal panel legs (the cloud choice + its Try again retry,
+// light and dark) on any build: a key the provider refuses must show the cloud writer's own plain
+// line with a retry, never the phone's own error and never the demo stand-in's text. On a stub
+// build the phone stub would write instead, so this leg needs a build without EXPO_PUBLIC_E2E_STUB.
+// Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME, OPENROUTER_KEY_FILE, JAVA_HOME, ANDROID_HOME, OPENROUTER_SCENARIOS, OPENROUTER_REFUSAL.
 // Args: <apk> <out-dir> [unavailable-apk].
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
@@ -39,6 +43,9 @@ const unavailableApk = process.argv[4];
 // appears as its result, and the injected unavailable-route counterfactual — with no paid generation.
 // The default (full) journey still needs a funded account for a real draft comparison.
 const negative = process.env.OPENROUTER_SCENARIOS === 'negative';
+// The refusal panel legs only (any build without the phone stub): a refused key must show the
+// cloud writer's own plain line with a retry, light and dark, and the retry must re-run it.
+const refusal = process.env.OPENROUTER_REFUSAL === '1';
 const key = readFileSync(process.env.OPENROUTER_KEY_FILE ?? `${process.env.HOME}/.config/openrouter/api_key`, 'utf8').trim();
 if (!key.startsWith('sk-')) throw new Error('OpenRouter key file did not look like a key.');
 const REPLY = 'i think we should meet tomorrow at 10 to go over the plan and the budget';
@@ -55,7 +62,9 @@ const snap = name => {
 };
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
 const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
-const type = text => adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
+// One word per input-text call: a single call loses everything after its second space
+// under Gboard's composing session, while one word per call lands reliably.
+const type = async text => { for (const word of text.split(' ').map(w => w.replaceAll(' ', '%s'))) { adb('shell', 'input', 'text', word); await wait(700); } };
 
 const find = pred => nodes().find(pred);
 const findText = label => find(n => `${n.label} ${n.text}`.toLowerCase().includes(label.toLowerCase()));
@@ -110,7 +119,7 @@ const enableChrome = async () => {
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://apps', pkg);
   await waitText('find an app', 30);
   await tapText('find an app');
-  type('Chrome');
+  await type('Chrome');
   await wait(500);
   adb('shell', 'input', 'keyevent', '4'); // Hide the keyboard before tapping the filtered row.
   await wait(400);
@@ -123,6 +132,10 @@ const enableChrome = async () => {
     throw new Error(`Could not find a Chrome row to switch on (${row.text}).`);
   }
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice:///', pkg);
+  await wait(1500);
+  // Home's lower rows can sit below the fold: scroll once before asserting the return.
+  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
+  await wait(1200);
   await waitText('where the bubble shows', 30);
 };
 
@@ -159,12 +172,17 @@ const servePage = () => {
 let page = null;
 // A fresh Chrome shows first-run sheets in order (welcome "Accept & continue", then the sign-in
 // promo "No thanks"/"Use without an account"); clear whichever is in front until the page shows.
+// At the largest font a sheet's button can sit below the fold, so scroll when nothing matches.
 const dismissChromeFirstRun = async () => {
   for (let i = 0; i < 12; i++) {
     if (findText('textarea')) return;
     const n = ['accept & continue', 'without an account', 'no thanks', 'no thank you', 'got it']
       .map(findText).find(Boolean);
-    if (!n) { await wait(1000); continue; }
+    if (!n) {
+      if (i % 3 === 2) { adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300'); await wait(1200); }
+      else await wait(1000);
+      continue;
+    }
     tap(...center(n)); await wait(1500);
   }
 };
@@ -177,7 +195,7 @@ const openPanelOnce = async tag => {
   const heading = await waitText('textarea', 20);
   tap(Math.round(width / 2), Math.round(center(heading)[1] + 230)); // the field is borderless, under its heading
   await wait(700);
-  type(REPLY);
+  await type(REPLY);
   await wait(4500);
   tapBubble();
   await waitText(['polish your message', 'polish your post'], 45); // the title shows while the writer works
@@ -310,6 +328,13 @@ const fixtureFixed = () => {
 };
 // Like openPanelOnce, but a cloud refusal can show an empty-state line instead of the ready
 // subtitle, so wait for the panel title and settle instead of requiring drafts to appear.
+// A failing cloud call can be slow: wait for a terminal state — drafts landing (the ready
+// subtitle) or the writer's failure line — instead of a fixed settle.
+const waitTerminal = async (tries = 120) => {
+  const terminal = ['pick one to use instead', "didn't answer", 'not connected', 'turned off', 'sign in', 'get this phone ready', 'nothing to reply', 'write a reply first'];
+  for (let i = 0; i < tries && !terminal.some(t => findText(t)); i++) await wait(1000);
+  await wait(1500); // let the failure line render
+};
 const openPanelAny = async tag => {
   if (!page) { page = await servePage(); execFileSync('adb', ['-s', serial, 'reverse', `tcp:${page.address().port}`, `tcp:${page.address().port}`]); }
   const url = `http://127.0.0.1:${page.address().port}`;
@@ -318,11 +343,11 @@ const openPanelAny = async tag => {
   const heading = await waitText('textarea', 20);
   tap(Math.round(width / 2), Math.round(center(heading)[1] + 230));
   await wait(700);
-  type(REPLY);
+  await type(REPLY);
   await wait(4500);
   tapBubble();
   await waitText(['polish your message', 'polish your post'], 45);
-  await wait(6000); // let a slow cloud call fail and the refusal line render
+  await waitTerminal();
   const panel = nodes();
   snap(`polish-${tag}`);
   return panel;
@@ -355,6 +380,56 @@ const negativeJourney = async () => {
   log(`fixture control (ChatGPT stand-in) produced ${expected.length}/${fixtureFixed().length} expected fixed lines: ${JSON.stringify(fixture).slice(0, 160)}`);
   if (!expected.length) throw new Error(`The ChatGPT stand-in control produced none of its fixed text; the leak check above is inconclusive (${JSON.stringify(fixture).slice(0, 200)}).`);
 };
+// The refusal panel legs (OPENROUTER_REFUSAL=1, any build without the phone stub): a key the
+// provider refuses must show the cloud writer's own plain line with a retry — never the phone's
+// own error, never the stand-in's text — at default and largest font, light and dark (the
+// visual-guard matrix). Tapping Try again re-runs the writer and refuses the same way.
+// A bad key is enough: the provider's own refusal is the real failure.
+// Like finishSetupIfNeeded, but Home's lower rows can sit below the fold on builds without
+// the phone stub, so scroll once before asserting setup finished.
+const finishSetupScrolled = async () => {
+  try { await waitText('sound like you', 30); adb('shell', 'input', 'keyevent', '4'); await wait(2500); } catch { /* already set up */ }
+  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
+  await wait(1200);
+  await waitText(['where the bubble shows', 'how ownvoice writes'], 20);
+};
+const refusalLeg = async (T, F) => {
+  const panel = await openPanelAny(`refusal-${T}${F}`);
+  const texts = panel.map(n => (n.text || '').trim()).filter(Boolean);
+  const leaked = fixtureFixed().filter(f => texts.includes(f));
+  if (leaked.length) throw new Error(`The ChatGPT stand-in's fixed text was the OpenRouter result: ${JSON.stringify(leaked)}`);
+  if (!texts.some(t => /didn't answer|not connected|turned off|sign in/i.test(t))) throw new Error(`The refusal panel showed no cloud failure line (${T}${F}): ${JSON.stringify(texts).slice(0, 220)}`);
+  if (texts.some(t => /get this phone ready/i.test(t))) throw new Error(`The refusal panel masked the cloud failure with the phone's error (${T}${F}).`);
+  await tapText('try again', 20);
+  await waitTerminal(); // the writer re-runs and the provider refuses again
+  const retry = nodes();
+  snap(`refusal-retry-${T}${F}`);
+  const retryTexts = retry.map(n => (n.text || '').trim()).filter(Boolean);
+  if (!retryTexts.some(t => /didn't answer|not connected|turned off|sign in/i.test(t))) throw new Error(`The retried panel showed no cloud failure line (${T}${F}): ${JSON.stringify(retryTexts).slice(0, 220)}`);
+  log(`refusal + retry captured (${T}${F})`);
+};
+const refusalJourney = async () => {
+  await fresh(); await theme(false); await finishSetupScrolled(); await enableChrome();
+  await connectOpenRouter('light');
+  for (const font of ['1.0', '1.3']) {
+    const F = font === '1.0' ? '' : '-font1.3';
+    if (F) {
+      adb('shell', 'settings', 'put', 'system', 'font_scale', font);
+      adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true);
+    }
+    for (const dark of [false, true]) {
+      const T = dark ? 'dark' : 'light';
+      if (dark) await theme(true);
+      // Each matrix cell runs even when an earlier one failed, so a before/after pair
+      // captures every cell; the run log keeps one FAILED line per failing cell.
+      await run(`refusal-${T}${F}`, async () => refusalLeg(T, F));
+    }
+    if (F) {
+      adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0');
+      adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true);
+    }
+  }
+};
 
 const priorNight = adb('shell', 'cmd', 'uimode', 'night').trim().replace('Night mode: ', '');
 const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
@@ -369,7 +444,9 @@ try {
   let realDrafts = [];
   // Capture the displayed result. A different string is only an observation, not source provenance.
   const captureReal = async tag => realDraft(tag);
-  if (negative) {
+  if (refusal) {
+    await run('refusal-panels', refusalJourney);
+  } else if (negative) {
     await run('negative-cloud-choice', negativeJourney);
   } else {
     await run('light-setup', async () => { await fresh(); await theme(false); await skipSetup(); await enableChrome(); });

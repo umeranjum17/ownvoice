@@ -5,6 +5,10 @@ import { words } from '../words';
 import type { PhoneCanWrite } from '../phoneStatus';
 import type { Source } from '../source';
 
+jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: { logDev: jest.fn() } }));
+import Native from '../../../modules/ownvoice-native';
+const mockLogDev = (Native as unknown as { logDev: jest.Mock }).logDev;
+
 const phoneDrafts = ['phone one', 'phone two', 'phone three'];
 const gptDrafts = ['gpt one', 'gpt two', 'gpt three'];
 const request = { conversation: '', written: '', typed: '' };
@@ -91,6 +95,34 @@ test('the off switch and a resting plan both hand the writing to the phone, with
   const base = { source: 'chatgpt' as Source, signedIn: true, phoneOnlyApp: false, phone: 'ready' as PhoneCanWrite, chatgpt: chatgptFor('ok'), phoneWriter: phone, lines: cloudWords('chatgpt') };
   expect(routeWriters({ ...base, enabled: false })).toEqual({ writer: phone, note: CHATGPT_OFF });
   expect(routeWriters({ ...base, enabled: true, note: resting })).toEqual({ writer: phone, note: resting });
+});
+
+test('a cloud failure stays the cloud failure when the phone cannot get ready either', async () => {
+  const cloud: Writer = { write: async () => { throw new Error(words.chatgptFailed); } };
+  const unready: Writer = { write: async () => { throw new Error(words.readyPanel); } };
+  for (const status of ['ready', 'preparing', 'needsDownload', undefined] as const) {
+    const line = await withPhoneFallback(cloud, unready, request, cloudWords('chatgpt'), undefined, undefined, status).then(() => null, error => (error as Error).message);
+    expect(line).toBe(words.gptFailedNoPhone);
+    expect(line).not.toContain('get this phone ready');
+  }
+  for (const key of ['claude', 'openrouter'] as const) {
+    const lines = cloudWords(key);
+    const line = await withPhoneFallback(cloud, unready, request, lines, undefined, undefined, 'needsDownload').then(() => null, error => (error as Error).message);
+    expect(line).toBe(lines.failedNoPhone);
+  }
+});
+
+test('a buried cloud cause reaches the developer log with the phone failure', async () => {
+  mockLogDev.mockClear();
+  const veto = new SendVeto(words.phoneWrote, { cause: new TypeError('undefined is not a function') });
+  const cloud: Writer = { write: async () => { throw veto; } };
+  const unready: Writer = { write: async () => { throw new Error(words.readyPanel); } };
+  await expect(withPhoneFallback(cloud, unready, request, cloudWords('openrouter'), undefined, undefined, 'needsDownload')).rejects.toThrow(words.openrouterFailed);
+  expect(mockLogDev).toHaveBeenCalledTimes(1);
+  const logged = String(mockLogDev.mock.calls[0][0]);
+  expect(logged).toContain(words.phoneWrote);
+  expect(logged).toContain('undefined is not a function');
+  expect(logged).toContain(words.readyPanel);
 });
 
 test('without a phone status the fallback still reaches the phone', async () => {

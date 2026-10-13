@@ -13,7 +13,7 @@ import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { cloudOf, getSource, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { store } from '../core/store';
-import { cloudWords, isPlanLimitLine, PlanLimit, SendVeto, type WriterEvents } from '../core/writers';
+import { causeOf, cloudWords, devlog, isPlanLimitLine, PlanLimit, SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
 import { preserveFragment, cleanSelection } from '../core/drafts';
 import { fixedSentenceSplits } from '../core/typing';
@@ -112,15 +112,25 @@ export default function Rewrite() {
         const limit = error instanceof PlanLimit ? error.message : null;
         // A plan limit is not a transient slip: say the limit and its reset rather than retrying.
         if (limit) { setNote(limit); return; }
+        // The cloud failure's own plain line, whatever the phone then says: the phone's own
+        // error (for example "get this phone ready") must never mask the selected writer's.
+        // A veto stays the switch-off line, as when the phone cannot write at all below.
+        const cloudLine = veto ? lines.offNoPhone : (offline ? words.offlineNoPhone : lines.failedNoPhone);
         if (canWrite) {
           let shown = false;
           try { shown = await showResult(await phoneRewrite(), true); }
-          catch (fallback) { if (id !== run.current) return; setNote(message(errorCode(fallback))); return; }
+          catch (fallback) {
+            if (id !== run.current) return;
+            const cause = causeOf(error);
+            const phoneCause = fallback instanceof Error ? fallback.message : String(fallback);
+            devlog(`Ownvoice cloud rewrite failed: ${cause} (phone fallback: ${phoneCause})`);
+            setNote(cloudLine); return;
+          }
           if (!shown || id !== run.current) return;
           setNote(veto ?? (offline ? words.offlinePhone : lines.fallback));
           return;
         }
-        setNote(veto ? lines.offNoPhone : (offline ? words.offlineNoPhone : lines.failedNoPhone));
+        setNote(cloudLine);
       }
     } catch (error) {
       if (id !== run.current) return;

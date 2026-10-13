@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
+import android.util.Log
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.functions.Queues
 import expo.modules.kotlin.functions.Coroutine
@@ -136,6 +137,8 @@ class OwnvoiceNativeModule : Module() {
     }
     AsyncFunction("finishRewrite") { text: String?, replace: Boolean -> RewriteActivity.current?.finishRewrite(text, replace) }.runOnQueue(Queues.MAIN)
     AsyncFunction("closePanel") { PanelActivity.current?.finish() }.runOnQueue(Queues.MAIN)
+    // Developer diagnostics (logcat) that survive release minification, which strips console.*.
+    Function("logDev") { line: String -> Log.d("Ownvoice", line.take(2000)) }
     AsyncFunction("networkType") {
       val manager = context.getSystemService(android.net.ConnectivityManager::class.java)
       val caps = manager.getNetworkCapabilities(manager.activeNetwork)
