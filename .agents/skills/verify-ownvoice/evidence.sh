@@ -4,6 +4,7 @@
 # reused across runs (before and after side by side), gitignored, never committed.
 #
 #   evidence.sh theme <light|dark>                              flip the emulator theme (verified)
+#   evidence.sh font <default|largest>                          set the system font scale (verified)
 #   evidence.sh shot <task> <screen> <label> <theme>            one host-side screenshot
 #   evidence.sh pair <task> <screen> <label> -- <launch cmd…>   the matrix in one call:
 #                                                               force-stop, theme, launch, settle, shot × (light, dark)
@@ -37,6 +38,19 @@ theme() {
     || { echo "theme flip to $1 failed" >&2; exit 1; }
 }
 
+font() {
+  local v
+  case "$1" in
+    default) v=1.0 ;;
+    largest) v=1.3 ;;
+    *) echo "usage: evidence.sh font default|largest" >&2; exit 2 ;;
+  esac
+  # Largest phones offer 1.3 in Settings; font_scale needs no process restart.
+  "${ADB[@]}" shell settings put system font_scale "$v"
+  "${ADB[@]}" shell settings get system font_scale | tr -d '\r' | grep -q "$v" \
+    || { echo "font scale set to $1 ($v) failed" >&2; exit 1; }
+}
+
 shot() { # <task> <screen> <label> <theme> -> verify-artifacts/<task>/<screen>-<label>-<theme>.png
   [ $# -eq 4 ] || { echo "usage: evidence.sh shot <task> <screen> <label> <light|dark>" >&2; exit 2; }
   local out="verify-artifacts/$1/$2-$3-$4.png"
@@ -64,6 +78,9 @@ case "${1:-}" in
   theme)
     [ $# -eq 2 ] || { echo "usage: evidence.sh theme light|dark" >&2; exit 2; }
     theme "$2" ;;
+  font)
+    [ $# -eq 2 ] || { echo "usage: evidence.sh font default|largest" >&2; exit 2; }
+    font "$2" ;;
   shot)
     shift
     shot "$@" ;;
