@@ -61,6 +61,35 @@ The skill produces every proof a reviewer checks; nothing is hand-captured aroun
 
 **Service after force-stops:** `pair` and any `am force-stop` unbind the accessibility service (Android rebinds only when `enabled_accessibility_services` changes), so later captures of bubble/panel screens need the documented off/on service toggle first; app screens like Home are unaffected.
 
+## Visual guard (every UI change)
+
+Every UI change passes this capture-and-compare matrix before it ships. Any
+defect below is a hard FAIL — verification fails and the change does not ship.
+
+1. Capture the matrix: for each screen the change touches, run the `pair` matrix
+   twice — once at the default font (`evidence.sh font default`) and once at the
+   largest font (`evidence.sh font largest`) — in light and dark (Review evidence
+   above). Phone width is the app's only form factor; the largest-font pass is
+   mandatory and is never skipped.
+2. Compare each after-capture side by side against the approved mock for that
+   screen (the PR names the mock). Check every defect class:
+   - stretched or squashed images (aspect ratio differs from the mock);
+   - clipped text (glyphs or lines cut that the mock shows whole);
+   - overlap (two elements painting over each other);
+   - off-screen parts (content pushed past the visible edge);
+   - blank strips (unfilled bands the mock does not have).
+3. Verdict: any defect in any matrix cell fails the whole verification. Record the
+   failing cell (screen/label/theme/font), the defect class, and the side-by-side
+   in the evidence folder. Open every capture zoomed before judging — LOOK AT
+   YOUR SHOTS, never a thumbnail.
+
+## Hooks
+
+- done-done design check (lands with Main2627): wire the automated design-bar
+  comparison at the end of Visual guard step 2 when Main2627 ships it. Until then
+  the manual side-by-side above is the gate; do not invent a substitute design
+  bar here.
+
 ## Evidence
 
 One stable folder per task: `verify-artifacts/<task>/` (Review evidence above). Review captures sit at its top level; behavioral proofs, driver logs and CLI transcripts under `verify-artifacts/<task>/<feature>/`. Capture the command, stdout, stderr and exit code for CLI proof; screenshots plus driver logs for Android. Use synthetic text only. State the feature ID and entry point with every artifact. Never commit media — public repos link the private evidence page and the PR names the folder.
