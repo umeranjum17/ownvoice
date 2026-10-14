@@ -3,7 +3,7 @@
      named Umer. Served by mobile/e2e/x-replies.mjs over a self-signed HTTPS server that Chrome
      host-maps x.com to, so Ownvoice's Chrome platform detection reads a real X host from the URL
      bar. ?case=notext renders the image-only post whose reply tap must show the no-grounding
-     withhold note. -->
+     withhold note. ?case=labels renders a compose screen with only labels above the box. -->
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>@umer</title>
 <style>
@@ -75,6 +75,20 @@
     // A scrollable page keeps Chrome scrolling (not panning) to the focused composer, so the
     // text above the keyboard stays exposed to accessibility instead of being pruned.
     document.querySelector('article').style.minHeight = '1900px';
+  }
+  // ?case=labels renders a compose screen showing only labels: the post, image and counts are
+  // gone, so the only text above the box is the screen's own chrome — nothing to ground a reply.
+  if (new URLSearchParams(location.search).get('case') === 'labels') {
+    document.querySelector('article').hidden = true;
+    document.querySelector('header').insertAdjacentHTML('beforeend',
+      '<span style="font-weight:700">Post</span><span style="font-weight:400;color:#536471">Drafts</span>');
+    const box = document.getElementById('composer-field');
+    box.setAttribute('aria-label', 'Post text');
+    const button = document.querySelector('.reply');
+    button.textContent = 'Post';
+    button.setAttribute('aria-label', 'Post');
+    document.querySelector('.composer').insertAdjacentHTML('beforeend',
+      '<p class="counts" style="flex-basis:100%;margin:0">Everyone can reply</p>');
   }
   document.title = 'Post / X';
 </script>
