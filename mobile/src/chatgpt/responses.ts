@@ -1,7 +1,7 @@
 import { answerer, type Backend } from '@byokit/decide';
 import { fetch as expoFetch } from 'expo/fetch';
 import { classify, IncompleteError, ResponseError } from '@byokit/accounts';
-import { askCloud, codexAuth, reportFailure } from './accounts';
+import { accountRoute, askCloud, codexAuth, reportFailure } from './accounts';
 import { withResponseFetch } from './responseFetch';
 import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, replySlotPrompt, slotsFor } from '../core/drafts';
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, writerVersions, type Rewrite } from '../core/judge';
@@ -83,7 +83,7 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
       if (__DEV__) console.log(`Ownvoice ${cloud} pre-dispatch failure: ${message}`);
       throw new SendVeto(words.phoneWrote, { cause: error });
     }
-    if (!(error instanceof ResponseError && error.kind != null)) await reportFailure(cloud, message).catch(() => {});
+    if (!(error instanceof ResponseError && error.kind != null)) await reportFailure(accountRoute(cloud), message).catch(() => {});
     throw error;
   }
 }

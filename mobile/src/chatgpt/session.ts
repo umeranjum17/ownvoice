@@ -7,11 +7,12 @@ import { words } from '../core/words';
 export const NAME = 'ChatGPT';
 export const CLAUDE_NAME = 'Claude';
 export const OPENROUTER_NAME = 'OpenRouter';
+export const OPENCODE_NAME = 'OpenCode Go';
 export const GPT_APPS_KEY = 'chatgpt-apps';
 
 export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
-const signingOut: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0 };
-const signOutEpoch: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0 };
+const signingOut: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0, opencode: 0 };
+const signOutEpoch: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0, opencode: 0 };
 export const signOutGuard = (key: CloudKey) => ({ active: signingOut[key] > 0, epoch: signOutEpoch[key] });
 const leaving = async (key: CloudKey, run: () => Promise<GptState>): Promise<GptState> => {
   signingOut[key]++;
@@ -151,8 +152,27 @@ const openRouterSession = (): Session => ({
   }),
 });
 
+// OpenCode Go is a plan key route: the person pastes the key their OpenCode Go plan gave them, and
+// the kit keeps it as that plan's account. As with OpenRouter there is no page, code or wait.
+const openCodeSession = (): Session => ({
+  current: async () => {
+    if (signingOut.opencode) return nothing;
+    const a = live();
+    await a.refresh().catch(() => {});
+    const state = stateOf(null, await a.status(live().OPENCODE_ROUTE).catch(() => null), OPENCODE_NAME);
+    return signingOut.opencode ? nothing : state;
+  },
+  start: async () => ({ ...nothing, waiting: true, note: words.openCodeKeyNote }),
+  cancel: async () => ({ ...nothing, note: say('signIn.cancelled', { name: OPENCODE_NAME }) }),
+  signOut: () => leaving('opencode', async () => {
+    await live().signOutOpenCode();
+    return { ...nothing, note: say('status.signedOut', { name: OPENCODE_NAME }) };
+  }),
+});
+
 export const accountSessions: Record<CloudKey, { session: Session; now: () => GptState }> = {
   chatgpt: tracked(mocked ? mock : accountSession('chatgpt')),
   claude: tracked(accountSession('claude')),
   openrouter: tracked(openRouterSession()),
+  opencode: tracked(openCodeSession()),
 };

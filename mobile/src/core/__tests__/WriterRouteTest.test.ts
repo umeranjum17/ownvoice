@@ -105,7 +105,7 @@ test('a cloud failure stays the cloud failure when the phone cannot get ready ei
     expect(line).toBe(words.gptFailedNoPhone);
     expect(line).not.toContain('get this phone ready');
   }
-  for (const key of ['claude', 'openrouter'] as const) {
+  for (const key of ['claude', 'openrouter', 'opencode'] as const) {
     const lines = cloudWords(key);
     const line = await withPhoneFallback(cloud, unready, request, lines, undefined, undefined, 'needsDownload').then(() => null, error => (error as Error).message);
     expect(line).toBe(lines.failedNoPhone);

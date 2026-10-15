@@ -107,7 +107,7 @@ journeys:
     timeout: 45m
 
   account-choices:
-    description: "Android: writer list (phone/ChatGPT/Claude/OpenRouter), sign-in and writer/rating routing, live Claude draft+rewrite via claude-draft-proof.mjs, OpenRouter legs via openrouter-proof.mjs (OPENROUTER_SCENARIOS=negative is credit-free). Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    description: "Android: writer list (phone/ChatGPT/Claude/OpenRouter/OpenCode Go), sign-in and writer/rating routing, live Claude draft+rewrite via claude-draft-proof.mjs, OpenRouter legs via openrouter-proof.mjs (OPENROUTER_SCENARIOS=negative is credit-free). OpenCode Go is wired through the kit's plan-key route; its askCloud route/request/fallback legs are proven fixture-backed in mobile/src/chatgpt/__tests__/OpenCodeRoute.test.ts, and its live device legs resume in the held proof lanes. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     spends: "one live Claude generation and one live OpenRouter generation for the full legs"
     command: |
       set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
