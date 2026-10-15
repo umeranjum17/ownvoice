@@ -17,10 +17,13 @@ test:
   # per mobile/README.md.
   instructions: |
     Trust the commands.test baseline result as the primary evidence.
-    For behavioral proof beyond the baseline, follow
-    .agents/skills/verify-ownvoice/SKILL.md and its features/ map: drive one
-    mapped feature with the named instrument and keep evidence under
-    verify-artifacts/. The engine-protocol feature runs on the host with no
-    device. Do not start, connect to, install anything on, or change settings
-    on any Android emulator or physical device without an explicit device
-    allocation naming it; the test phone is never eligible.
+    For behavioral proof beyond the baseline, run the done-done journeys in
+    .done-done.yaml: `done-done run engine-protocol` (host, no device) or,
+    with an explicit device allocation, the Android journey for the changed
+    feature; check captures with `done-done check --outcome "<what a user
+    can now do>" <files>` and record with `done-done receipt`. The visual
+    guard is the `done-done design` primitive over the journey's captures
+    against the PR's approved mocks. Do not start, connect to, install
+    anything on, or change settings on any Android emulator or physical
+    device without an explicit device allocation naming it; the test phone
+    is never eligible.

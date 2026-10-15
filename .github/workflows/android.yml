@@ -30,7 +30,7 @@ jobs:
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then base=HEAD~1; fi
           changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" HEAD 2>/dev/null || echo .github/workflows/android.yml)"
           printf '%s\n' "$changed" > /tmp/changed.txt
-          { grep -vE '\.md$|(^|/)(reports|artifacts|verify-artifacts)/' /tmp/changed.txt | grep -qE '^(mobile/|packages/engine/|scripts/|\.no-mistakes\.yaml|\.github/workflows/android\.yml)' || grep -q '^CONSTRAINTS.md$' /tmp/changed.txt; } && echo "host=true" >> "$GITHUB_OUTPUT" || echo "host=false" >> "$GITHUB_OUTPUT"
+          { grep -vE '\.md$|(^|/)(reports|artifacts|verify-artifacts)/' /tmp/changed.txt | grep -qE '^(mobile/|packages/engine/|scripts/|\.done-done\.yaml|\.no-mistakes\.yaml|\.github/workflows/android\.yml)' || grep -q '^CONSTRAINTS.md$' /tmp/changed.txt; } && echo "host=true" >> "$GITHUB_OUTPUT" || echo "host=false" >> "$GITHUB_OUTPUT"
           { grep -qE '^mobile/' /tmp/changed.txt && echo "mobile=true" || echo "mobile=false"; } >> "$GITHUB_OUTPUT"
           { grep -qE '^(mobile/(modules/ownvoice-native/|package(-lock)?\.json|app\.config\.js|plugins/|src/core/defaultApps\.json)|\.github/workflows/android\.yml)'  /tmp/changed.txt && echo "native=true" || echo "native=false"; } >> "$GITHUB_OUTPUT"
           { grep -qE '^(app/|link/|gradle/|gradlew|build\.gradle|settings\.gradle|gradle\.properties|mobile/src/core/defaultApps\.json|\.github/workflows/android\.yml)' /tmp/changed.txt && echo "legacy=true" || echo "legacy=false"; } >> "$GITHUB_OUTPUT"
@@ -77,6 +77,11 @@ jobs:
         working-directory: packages/engine
       - run: npm test
         working-directory: packages/engine
+      # The host proof gate: the engine-protocol journey drives the real CLI
+      # and self-verifies (exit 1 on any mismatch). done-done run needs no
+      # model or sign-in; run evidence stays on the runner, receipts bind HEAD.
+      - run: npm install -g done-done-axi
+      - run: done-done run engine-protocol
 
   # Retain native tests until passing device journeys cover their features.
   # Build inputs outside the module also affect this job.

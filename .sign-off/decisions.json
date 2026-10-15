@@ -1,0 +1,32 @@
+{
+  "schema": 2,
+  "items": [
+    {
+      "contract": 1,
+      "kind": "evidence",
+      "schema": 1,
+      "key": "dd-evidence-20261015T065017Z-8305c0fe-57b11b",
+      "filer": "done-done",
+      "title": "ownvoice engine-protocol: verify pass",
+      "about": "The ownvoice-engine host CLI answers the JSON protocol and rejects bad input with error envelopes",
+      "type": "evidence",
+      "number": 1,
+      "evidence": {
+        "run_id": "20261015T065017Z-8305c0fe-57b11b",
+        "commit": "8305c0fe08c8f2af2c296b7453f39ba6b8fe808f",
+        "outcome": "The ownvoice-engine host CLI answers the JSON protocol and rejects bad input with error envelopes",
+        "repro": "done-done verify engine-protocol --outcome \"The ownvoice-engine host CLI answers the JSON protocol and rejects bad input with error envelopes\" at 8305c0fe08c8f2af2c296b7453f39ba6b8fe808f",
+        "proof": "verify-ownvoice: done-done verify engine-protocol, run 20261015T065017Z-8305c0fe-57b11b: pass",
+        "evidence": "build.log, npm-ci.log, schema.json, transcript.log"
+      },
+      "filed": "2026-10-15T06:50:35.917Z"
+    },
+    {
+      "filed": "2026-10-15T06:50:43.713Z",
+      "key": "merge-the-ownvoice-fleet-tools-migration",
+      "title": "Merge the Ownvoice fleet-tools migration?",
+      "about": "One PR: verify-ownvoice becomes done-done journeys, retro becomes learn-from-mistakes, reports go through sign-off. Proof: engine-protocol verify pass plus receipt on the board.",
+      "recommend_value": "yes"
+    }
+  ]
+}
