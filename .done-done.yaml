@@ -94,7 +94,7 @@ journeys:
     description: "Android: bubble reply cards over a feed post, edit/insert/copy, refusal legs on image-only and label-only composers. Full legs need a live writer (spends); X_REPLIES_LEGS=refusal runs only the credit-free refusal legs. Needs APK env (path to the release APK, built per mobile/README.md)."
     spends: "one live OpenRouter generation per writer leg (refusal legs are credit-free)"
     command: |
-      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; : "${RUN_ID:?done-done RUN_ID required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/x-replies.mjs "$APK" "dd-${RUN_ID}" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
