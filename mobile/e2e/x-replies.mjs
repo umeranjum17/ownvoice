@@ -5,13 +5,16 @@
 // OPENROUTER_KEY_FILE (~/.config/openrouter/api_key) — a real cloud writer, never a stand-in.
 // Proves: tap the bubble on the reply composer over a readable post, grounded reply cards appear,
 // Edit changes the text, Insert puts exactly the edited text in the field with the
-// "Inserted. Send it yourself." confirmation and a field read-back; the image-only post shows the
-// no-grounding withhold note instead of cards. Captures into verify-artifacts/<task>/ through the
-// skill's evidence.sh (theme/shot helpers).
+// "Inserted. Send it yourself." confirmation and a field read-back; the refusal screens (an
+// image-only post, a compose screen showing only labels) show a plain note instead of cards and
+// make no writer request. Captures into verify-artifacts/<task>/ through the skill's evidence.sh
+// (theme/shot helpers).
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned avd>, JAVA_HOME, SDK via
-// ANDROID_HOME, OPENROUTER_KEY_FILE optional. Args: <release-apk (no stub flags)> [task-slug].
+// ANDROID_HOME, OPENROUTER_KEY_FILE optional, X_REPLIES_LEGS=refusal to run only the refusal legs
+// (no writer request anywhere, so it needs no funded account). Args: <release-apk (no stub flags)>
+// [task-slug].
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createServer } from 'node:https';
@@ -349,47 +352,106 @@ const journey = async (screen, theme) => {
   log(`${screen}/${theme}: cards + edit + insert + confirmation + read-back OK.`);
 };
 
-// ---- the no-text post: the plain withhold note, never invented replies ----
-const withhold = async (screen, theme) => {
+// ---- the refusal legs: a plain note, no card, and no writer request on the way ----
+// The app's own read list ("What Ownvoice read", ownvoice://reads) is where it records what each
+// tap did: the newest Chrome row carries "Sent to your AI account" only once a cloud writer
+// answered, so a refusal leg must show that row without the mark. Rows are newest first.
+const newestReadBlock = async () => {
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
+  for (let attempt = 0; attempt < 10; attempt++) {
+    await wait(1500);
+    const texts = nodes().map(n => `${n.text ?? ''}\n${n.label ?? ''}`.trim()).filter(Boolean);
+    const first = texts.findIndex(text => /in Chrome\b/i.test(text));
+    if (first >= 0) return texts.slice(first, first + 3).join(' | ');
+  }
+  throw new Error('The read list did not show a Chrome row.');
+};
+// Every refusal surface shows a plain note and no card. `note` is the exact sentence the shipped
+// panel shows there; the leg prints it into its own evidence file, never only into this log.
+const withhold = async (screen, theme, { query, need, note }) => {
   if (!page.address()) throw new Error('Fixture server not listening (dead server).');
-  await openFixture('?case=notext', 'hours ago');
+  await openFixture(query, need);
   const composer = await field();
-  if (!composer) throw new Error('Could not find the fixture reply composer (notext).');
+  if (!composer) throw new Error(`Could not find the fixture composer (${screen}).`);
+  // The fixture composer is in the accessibility tree first; give Chrome's compositor a beat so the
+  // fixture shot shows the screen a person saw (the dark pass otherwise caught an unpainted page).
+  await wait(2500);
+  shot(screen, 'fixture', theme); // what the screen shows before the tap: nothing readable above the box
+  adb('shell', 'logcat', '-c');
   tap(...center(composer));
   await wait(2200);
   tap(...center(await bubble()));
   await wait(1600);
-  if (!panelText('Reply ideas are unavailable')) throw new Error('The withhold note did not show on the no-text post.');
-  if (await panelButton('Edit')) throw new Error('A card appeared for a post with no text to ground on.');
+  if (!panelText(note)) {
+    const seen = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 600);
+    throw new Error(`The plain note "${note}" did not show on ${screen}/${theme}. Panel: ${seen}`);
+  }
+  if (await panelButton('Edit', 8)) throw new Error(`A card appeared on ${screen}/${theme}.`);
+  for (const action of ['Insert', 'Use this', 'Write new ones', 'Why?']) {
+    if (await panelButton(action, 1)) throw new Error(`The card action "${action}" appeared on ${screen}/${theme}.`);
+  }
   shot(screen, 'withheld', theme);
+  const panel = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 1200);
   nodes('Close');
   await wait(600);
-  log(`${screen}/${theme}: no-text post withholds.`);
+  const read = await newestReadBlock();
+  shot(screen, 'read-list', theme);
+  const sent = /sent to your ai account/i.test(read);
+  const dir = `${root}/verify-artifacts/${task}/refusal/${screen}-${theme}`;
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(`${dir}/logcat.txt`, adb('logcat', '-d'));
+  writeFileSync(`${dir}/panel.txt`, `${panel}\n`);
+  writeFileSync(`${dir}/read-list-row.txt`, `${read}\n`);
+  writeFileSync(`${dir}/leg.txt`, [
+    `leg: ${screen} (https://x.com/x.html${query}, theme ${theme})`,
+    `fixture shot: verify-artifacts/${task}/${screen}-fixture-${theme}.png`,
+    `panel shot: verify-artifacts/${task}/${screen}-withheld-${theme}.png`,
+    `read list shot: verify-artifacts/${task}/${screen}-read-list-${theme}.png`,
+    `note shown: ${note}`,
+    'cards: none (no Edit, Insert, Use this, Write new ones or Why? action on the panel)',
+    `read list newest Chrome row: ${read}`,
+    `writer request recorded (Sent mark): ${sent}`,
+    'logcat: this leg only, from its own clear before the tap',
+    '',
+  ].join('\n'));
+  if (sent) throw new Error(`The read list marks the ${screen}/${theme} tap as sent: a writer request went out.`);
+  log(`${screen}/${theme}: plain note, no card, no writer request (read row: ${read})`);
 };
 
-await journey('x-reply', 'light');
-await withhold('x-notext', 'light');
+// X_REPLIES_LEGS=refusal: only the legs that must make no writer request, so the run is
+// credit-free; the default keeps the full writer-dependent journey.
+const refusalOnly = process.env.X_REPLIES_LEGS === 'refusal';
+const IMAGE_ONLY = { query: '?case=notext', need: 'hours ago', note: 'Reply ideas are unavailable' };
+const LABELS_ONLY = { query: '?case=labels', need: 'post text', note: 'Write one line about what your post is about' };
 
-// ---- dark theme: force-stop Chrome so prefers-color-scheme re-reads ----
+if (!refusalOnly) await journey('x-reply', 'light');
+await withhold('x-notext', 'light', IMAGE_ONLY);
+await withhold('x-labels', 'light', LABELS_ONLY);
+
+// ---- dark theme: the app process reads the colour scheme at start, Chrome at page load ----
 evidence('theme', 'dark');
 adb('shell', 'am', 'force-stop', 'com.android.chrome');
+if (refusalOnly) { adb('shell', 'am', 'force-stop', pkg); await wait(1000); await rebind(); }
 await wait(1000);
-await journey('x-reply', 'dark');
-await withhold('x-notext', 'dark');
+if (!refusalOnly) await journey('x-reply', 'dark');
+await withhold('x-notext', 'dark', IMAGE_ONLY);
+await withhold('x-labels', 'dark', LABELS_ONLY);
 
 // ---- extreme: narrowest supported screen + font scale 1.3 over the long post + quote ----
-adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
-adb('shell', 'wm', 'density', '320');
-adb('shell', 'wm', 'size', '720x1280');
-await wait(1500);
-adb('shell', 'am', 'force-stop', 'com.android.chrome');
-await wait(800);
-await journey('x-extreme', 'dark');
-await withhold('x-notext-extreme', 'dark');
-adb('shell', 'wm', 'size', 'reset');
-adb('shell', 'wm', 'density', 'reset');
-adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0');
-await wait(1000);
+if (!refusalOnly) {
+  adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
+  adb('shell', 'wm', 'density', '320');
+  adb('shell', 'wm', 'size', '720x1280');
+  await wait(1500);
+  adb('shell', 'am', 'force-stop', 'com.android.chrome');
+  await wait(800);
+  await journey('x-extreme', 'dark');
+  await withhold('x-notext-extreme', 'dark', IMAGE_ONLY);
+  adb('shell', 'wm', 'size', 'reset');
+  adb('shell', 'wm', 'density', 'reset');
+  adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0');
+  await wait(1000);
+}
 
 // ---- restore ----
 adb('shell', 'rm', '-f', '/data/local/tmp/chrome-command-line');
