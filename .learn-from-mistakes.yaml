@@ -1,5 +1,7 @@
 # written by learn-from-mistakes-axi init
 name: "ownvoice"
+# Proof: retro run 1 completed green 2026-10-15 (151 records ingested, 0 problems,
+# no repeated causes; report lfm-report.v1 generated 2026-10-15T07:41:23Z).
 # The agent keys come from $LFM_HOME/config.yaml (default ~/.learn-from-mistakes/config.yaml); set one here to
 # override it for this project. The tool never picks an agent: set agent and judge_agent, each with its model.
 # agent: claude   # or codex, opencode, pi, acp:<target>, byokit:<route>
