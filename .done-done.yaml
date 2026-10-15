@@ -13,11 +13,11 @@ app: "ownvoice"
 # is the Android app (mobile/), driven by mobile/e2e/ drivers on a throwaway
 # emulator. Engine proof says nothing about Android behavior, and vice versa.
 #
-# Evidence: every journey writes into its own run folder
-# ($DONE_DONE_EVIDENCE_ROOT, one folder per run) — run folders replace the old
-# stable verify-artifacts/<task>/ folders. Each journey saves the command,
-# stdout, stderr and exit code; Android legs add the driver's captures.
-# Evidence lives outside the repo; never commit media.
+# Evidence: each journey saves the command, stdout, stderr and exit code into
+# its own run folder ($DONE_DONE_EVIDENCE_ROOT, one folder per run, outside
+# the repo; never commit media). Android captures still land in the stable
+# gitignored verify-artifacts/<task>/ folders via mobile/e2e/evidence.sh;
+# the run folder holds the driver log and transcript.
 #
 # Capture matrix (was evidence.sh pair): before/after x light/dark at phone
 # width (the app's only form factor), largest font (scale 1.3) for UI changes,
@@ -84,17 +84,17 @@ journeys:
     timeout: 45m
 
   first-run-setup:
-    description: "Android: welcome through writer choice, kit ChatGPT sign-in on the mockOpenAI stand-in, permission, practice insert; light and dark with plain-text scan. Needs an explicit emulator allocation and a stub+GPT release APK."
+    description: "Android: welcome through writer choice, kit ChatGPT sign-in on the mockOpenAI stand-in, permission, practice insert; light and dark with plain-text scan. Needs an explicit emulator allocation and a stub+GPT release APK (APK env: path to the release APK, built per mobile/README.md)."
     command: |
-      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/first-run.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
   reply-drafts:
-    description: "Android: bubble reply cards over a feed post, edit/insert/copy, refusal legs on image-only and label-only composers. Full legs need a live writer (spends); X_REPLIES_LEGS=refusal runs only the credit-free refusal legs."
+    description: "Android: bubble reply cards over a feed post, edit/insert/copy, refusal legs on image-only and label-only composers. Full legs need a live writer (spends); X_REPLIES_LEGS=refusal runs only the credit-free refusal legs. Needs APK env (path to the release APK, built per mobile/README.md)."
     spends: "one live OpenRouter generation per writer leg (refusal legs are credit-free)"
     command: |
-      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; : "${RUN_ID:?done-done RUN_ID required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/x-replies.mjs "$APK" "dd-${RUN_ID}" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
@@ -108,35 +108,35 @@ journeys:
     timeout: 45m
 
   account-choices:
-    description: "Android: writer list (phone/ChatGPT/Claude/OpenRouter), sign-in and writer/rating routing, live Claude draft+rewrite via claude-draft-proof.mjs, OpenRouter legs via openrouter-proof.mjs (OPENROUTER_SCENARIOS=negative is credit-free). Needs an explicit emulator allocation."
+    description: "Android: writer list (phone/ChatGPT/Claude/OpenRouter), sign-in and writer/rating routing, live Claude draft+rewrite via claude-draft-proof.mjs, OpenRouter legs via openrouter-proof.mjs (OPENROUTER_SCENARIOS=negative is credit-free). Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     spends: "one live Claude generation and one live OpenRouter generation for the full legs"
     command: |
-      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/claude-draft-proof.mjs "$APK" "$E/claude" >"$E/claude.log" 2>&1; c1=$?
       node mobile/e2e/openrouter-proof.mjs "$APK" "$E/openrouter" >"$E/openrouter.log" 2>&1; c2=$?
       echo "claude exit=$c1 openrouter exit=$c2" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ]
     timeout: 45m
 
   rewrite-selection:
-    description: "Android: process-text/share rewrite sheet via direct intents (chips, copy-only sheet, warned number, hidden bubble, verdict note), light and dark. Needs an explicit emulator allocation."
+    description: "Android: process-text/share rewrite sheet via direct intents (chips, copy-only sheet, warned number, hidden bubble, verdict note), light and dark. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     command: |
-      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/rn08.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
   reply-outcomes:
-    description: "Android: insert to real local store and read-back, text opt-in and failed append, via the outcome-proof legs of own-post.mjs (light then dark). Needs an explicit emulator allocation."
+    description: "Android: insert to real local store and read-back, text opt-in and failed append, via the outcome-proof legs of own-post.mjs (light then dark). Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     command: |
-      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       OWNVOICE_OUTCOME_PROOF=1 OWNVOICE_THEME=light node mobile/e2e/own-post.mjs "$APK" "$E/scratch-light" >"$E/light.log" 2>&1; c1=$?
       OWNVOICE_OUTCOME_PROOF=1 OWNVOICE_THEME=dark node mobile/e2e/own-post.mjs "$APK" "$E/scratch-dark" >"$E/dark.log" 2>&1; c2=$?
       echo "light exit=$c1 dark exit=$c2" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ]
     timeout: 45m
 
   reply-growth:
-    description: "Android: day-later check-in answers onto seeded outcome records, weekly counts, growth screen, offline saves (airplane legs). Seeding follows the SQLite capture/edit/restore pattern in mobile/e2e/outcomes.mjs. Needs an explicit emulator allocation."
+    description: "Android: day-later check-in answers onto seeded outcome records, weekly counts, growth screen, offline saves (airplane legs). Seeding follows the SQLite capture/edit/restore pattern in mobile/e2e/outcomes.mjs. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     command: |
-      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/demo-growth.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
@@ -149,9 +149,9 @@ journeys:
     timeout: 45m
 
   own-posts:
-    description: "Android: blank composer asks for the one line, then drafts from it; edit one and insert with field read-back (OWNVOICE_THEME=dark for the dark pass). Needs an explicit emulator allocation after first-run.mjs setup."
+    description: "Android: blank composer asks for the one line, then drafts from it; edit one and insert with field read-back (OWNVOICE_THEME=dark for the dark pass). Needs an explicit emulator allocation after first-run.mjs setup and APK env (path to the release APK, built per mobile/README.md)."
     command: |
-      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/own-post.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
@@ -165,9 +165,9 @@ journeys:
     timeout: 45m
 
   polish-output:
-    description: "Android: real cloud-writer polish panels (autosave/split-capital/nonsense/empty/mash/max), light/dark and narrow, with the stub-text provenance guard. Needs an explicit emulator allocation and a live writer."
+    description: "Android: real cloud-writer polish panels (autosave/split-capital/nonsense/empty/mash/max), light/dark and narrow, with the stub-text provenance guard. Needs an explicit emulator allocation, a live writer, and APK env (path to the release APK, built per mobile/README.md)."
     spends: "live OpenRouter generations for the polish panels"
     command: |
-      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/openrouter-polish-sheets.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
