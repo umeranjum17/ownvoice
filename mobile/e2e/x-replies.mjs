@@ -1,4 +1,4 @@
-// X-style composer fixture proof for the grounded reply flow (verify-ownvoice, feature reply-drafts).
+// X-style composer fixture proof for the grounded reply flow (done-done journey reply-drafts).
 // Serves mobile/e2e/x.html over a self-signed HTTPS server, host-mapped into Chrome for x.com,
 // so Ownvoice's Chrome platform detection reads a real X host from the URL bar — no login,
 // fixture posts, demo data named Umer. The writer is the live OpenRouter account, pasted from
@@ -7,7 +7,7 @@
 // Edit changes the text, Insert puts exactly the edited text in the field with the
 // "Inserted. Send it yourself." confirmation and a field read-back; the refusal screens (an
 // image-only post, a compose screen showing only labels) show a plain note instead of cards and
-// make no writer request. Captures into verify-artifacts/<task>/ through the skill's evidence.sh
+// make no writer request. Captures into verify-artifacts/<task>/ through mobile/e2e/evidence.sh
 // (theme/shot helpers).
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned avd>, JAVA_HOME, SDK via
 // ANDROID_HOME, OPENROUTER_KEY_FILE optional, X_REPLIES_LEGS=refusal to run only the refusal legs
@@ -31,7 +31,7 @@ const key = readFileSync(process.env.OPENROUTER_KEY_FILE ?? `${process.env.HOME}
 if (!key.startsWith('sk-')) throw new Error('OpenRouter key file did not look like a key.');
 const task = process.argv[3] ?? 'ov-x-replies-resume';
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
-const evidence = (...args) => execFileSync('bash', [`${root}/.agents/skills/verify-ownvoice/evidence.sh`, ...args], { cwd: root, encoding: 'utf8' });
+const evidence = (...args) => execFileSync('bash', [`${root}/mobile/e2e/evidence.sh`, ...args], { cwd: root, encoding: 'utf8' });
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
 const nodes = accessibilityProbe(serial, resolve(root, 'mobile/e2e'));

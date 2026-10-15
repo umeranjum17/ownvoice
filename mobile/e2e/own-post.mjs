@@ -32,7 +32,7 @@ const out = resolve(process.argv[3] ?? 'mobile/.own-post');
 mkdirSync(out, { recursive: true });
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 // evidence.sh writes verify-artifacts/<task>/ relative to the repo root, so it runs from there.
-const evidence = (...args) => execFileSync('bash', [resolve(repoRoot, '.agents/skills/verify-ownvoice/evidence.sh'), ...args],
+const evidence = (...args) => execFileSync('bash', [resolve(repoRoot, 'mobile/e2e/evidence.sh'), ...args],
   { env: { ...process.env, ANDROID_SERIAL: serial }, encoding: 'utf8', cwd: repoRoot });
 const shot = screen => evidence('shot', 'ov-own-posts', screen, label, theme);
 
@@ -219,7 +219,7 @@ shot('drafts');
 evidence('motion-start', 'ov-own-posts', 'edit-and-insert');
 try {
 // The sheet swallows coordinate taps, so its controls are driven through the probe's own
-// ACTION_CLICK (the panel sequence in the verify-ownvoice skill uses DPAD where taps die).
+// ACTION_CLICK (the panel sequence uses DPAD where taps die).
 nodes('Edit'); // The first card in the tree is the one being edited.
 await withNodes('the opened editor', list => list.some(node => node.editable && node.windowType !== 4), 15);
 shot('editing');

@@ -16,7 +16,7 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 const nodes = accessibilityProbe(serial, out); // refuses phones and mismatched AVDs
 const tap = n => adb('shell', 'input', 'tap', ...center(n).map(x => String(Math.round(x))));
 const bubble = list => list.find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label));
-const shot = screen => execFileSync('.agents/skills/verify-ownvoice/evidence.sh', ['shot', task, screen, label, theme], { env: { ...process.env, ANDROID_SERIAL: serial } });
+const shot = screen => execFileSync('mobile/e2e/evidence.sh', ['shot', task, screen, label, theme], { env: { ...process.env, ANDROID_SERIAL: serial } });
 const results = [];
 let recording = false;
 let domLength = 0;
@@ -58,7 +58,7 @@ try {
   results.push({ phase: 'small', domLength, bubble: small.label });
   shot('typing-small');
   if (process.env.OWNVOICE_RECORD === '1') {
-    execFileSync('.agents/skills/verify-ownvoice/evidence.sh', ['motion-start', task, `typing-limit-${label}-${theme}`], { stdio: 'inherit', env: { ...process.env, ANDROID_SERIAL: serial } });
+    execFileSync('mobile/e2e/evidence.sh', ['motion-start', task, `typing-limit-${label}-${theme}`], { stdio: 'inherit', env: { ...process.env, ANDROID_SERIAL: serial } });
     recording = true;
   }
   await open('large'); await type('teh meeting moved.');
@@ -93,7 +93,7 @@ try {
   assert.match(fresh?.label ?? '', /thing.*to check/, 'A fresh field must resume ordinary checks');
   console.log('PASS: capped-field disclosure, no misleading count, partial write or cut-word flag, fresh-field recovery');
 } finally {
-  if (recording) execFileSync('.agents/skills/verify-ownvoice/evidence.sh', ['motion-stop'], { env: { ...process.env, ANDROID_SERIAL: serial } });
+  if (recording) execFileSync('mobile/e2e/evidence.sh', ['motion-stop'], { env: { ...process.env, ANDROID_SERIAL: serial } });
   writeFileSync(resolve(out, `typing-limit-${label}-${theme}.json`), JSON.stringify(results, null, 2));
   page.close(); adb('reverse', '--remove', `tcp:${port}`);
 }

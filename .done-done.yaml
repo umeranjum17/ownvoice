@@ -1,0 +1,172 @@
+# done-done project config. `done-done init` never overwrites this file.
+# The app name finds this repo's evidence and receipts from every checkout.
+app: "ownvoice"
+# This repo's coding agent, over agent in ~/.done-done/config.yaml (model, effort and the other agent settings stay there).
+# agent: opencode
+
+# Proof map for Ownvoice (migrated from .agents/skills/verify-ownvoice, deleted:
+# SKILL.md, evidence.sh, visual-check.sh and the features/ map live on here as
+# journeys and primitives, not as a skill).
+#
+# Surfaces: the host surface is the published ownvoice-engine CLI
+# (packages/engine, model-free JSON protocol, no device); the primary surface
+# is the Android app (mobile/), driven by mobile/e2e/ drivers on a throwaway
+# emulator. Engine proof says nothing about Android behavior, and vice versa.
+#
+# Evidence: each journey saves the command, stdout, stderr and exit code into
+# its own run folder ($DONE_DONE_EVIDENCE_ROOT, one folder per run, outside
+# the repo; never commit media). Android captures still land in the stable
+# gitignored verify-artifacts/<task>/ folders via mobile/e2e/evidence.sh;
+# the run folder holds the driver log and transcript.
+#
+# Capture matrix (was evidence.sh pair): before/after x light/dark at phone
+# width (the app's only form factor), largest font (scale 1.3) for UI changes,
+# one mp4 per changed interaction. The drivers own the matrix (they flip the
+# theme with the twilight schedule disabled, force-stop before relaunch since
+# RN reads the colour scheme at process start, and re-toggle the accessibility
+# service afterwards); captures stream host-side via adb exec-out, never to
+# device storage. See mobile/README.md ("Android build and device checks").
+#
+# Visual guard (was visual-check.sh): the pixel compare is superseded by the
+# done-done primitive `done-done design <captures...> --mock <cell>=<mock>`
+# (a judge fails stretched, clipped, overlapping, off-screen and blank-strip
+# cells); run it over a journey's captures against the PR's approved mocks.
+#
+# Allocation rule: every Android journey needs an explicit lifetime device
+# allocation (ANDROID_SERIAL=emulator-NNNN plus OWNVOICE_AVD_NAME); drivers
+# refuse phone serials and AVD mismatches. The BYOKit-owned test phone is
+# never eligible. Journeys marked spends: need a live writer or paid
+# generation — done-done parks the run for approval before spending.
+
+journeys:
+  engine-protocol:
+    description: "Host CLI proof: hello/schema/doctor, check, all verbs, voice.parse, error envelopes, 100k bound. No device, no model, no network."
+    command: |
+      set -u; fail=0; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; : > "$E/transcript.log"
+      cd "$(git rev-parse --show-toplevel)"/packages/engine
+      npm ci --no-audit --no-fund > "$E/npm-ci.log" 2>&1; code=$?; echo "npm-ci exit=$code" | tee -a "$E/transcript.log"; [ "$code" = 0 ] || fail=1
+      npm run build > "$E/build.log" 2>&1; code=$?; echo "build exit=$code" | tee -a "$E/transcript.log"; [ "$code" = 0 ] || fail=1
+      node dist/cli.mjs hello > /dev/null 2>&1 || { echo "FAIL: built CLI does not run" | tee -a "$E/transcript.log"; exit 1; }
+      say() { printf '%s\n' "$*" | tee -a "$E/transcript.log"; }
+      probe() { name=$1; want=$2; shift 2; out=$("$@" 2>&1); code=$?; printf '== %s ==\n$ %s\n%s\n[exit=%s]\n' "$name" "$*" "$out" "$code" >> "$E/transcript.log"; rc=0; if [ "$code" != "$want" ]; then say "FAIL $name: exit=$code want=$want"; rc=1; fi; printf '%s' "$out"; return $rc; }
+      need() { if ! printf '%s' "$1" | grep -q "$2"; then say "FAIL: pattern [$2] missing"; fail=1; fi; }
+      out=$(probe hello 0 node dist/cli.mjs hello) || fail=1; need "$out" '"protocol":2'; need "$out" "\"version\":\"$(node -p "require('./package.json').version")\""
+      out=$(probe schema 0 node dist/cli.mjs schema) || fail=1; printf '%s' "$out" > "$E/schema.json"
+      node -e "process.exit(process.version.slice(1).split('.')[0] >= 18 ? 0 : 1)" || { say "FAIL: node >= 18 required"; fail=1; }
+      out=$(probe runtime-deps 0 npm ls --omit=dev) || fail=1; case "$out" in *"(empty)"*) : ;; *) say "FAIL: runtime dependencies present"; fail=1 ;; esac
+      out=$(probe check 0 sh -c 'printf "%s" "{\"verb\":\"check\",\"drafts\":[\"At the end of the day, I shiped the fix; works now.\"],\"platform\":\"x\",\"rules\":{\"never\":[\"at the end of the day\"]},\"original\":\"I shipped the fix at 5.\"}" | node dist/cli.mjs') || fail=1; need "$out" 'At the end of the day'; need "$out" '"dropped".*"5"'; need "$out" '"limit":280' 
+      probe verb-platforms 0 sh -c 'printf "%s" "{\"verb\":\"platforms\"}" | node dist/cli.mjs' > /dev/null || fail=1
+      probe verb-brief 0 sh -c 'printf "%s" "{\"verb\":\"brief\",\"kind\":\"reply\",\"platform\":\"x\"}" | node dist/cli.mjs' > /dev/null || fail=1
+      probe verb-split 0 sh -c 'printf "%s" "{\"verb\":\"split\",\"text\":\"hello world\",\"platform\":\"x\"}" | node dist/cli.mjs' > /dev/null || fail=1
+      probe verb-voice.guide 0 sh -c 'printf "%s" "{\"verb\":\"voice.guide\",\"rules\":{\"never\":[]},\"post\":false}" | node dist/cli.mjs' > /dev/null || fail=1
+      out=$(probe voice.parse 0 sh -c 'printf "%s" "{\"verb\":\"voice.parse\",\"markdown\":\"## How I reply\n- tried it today.\n- say more?\n\n## Never say\n- \\\"at the end of the day\\\"\n\"}" | node dist/cli.mjs') || fail=1; need "$out" 'tried it today'; need "$out" 'at the end of the day'
+      out=$(probe unknown-verb 1 sh -c 'printf "%s" "{\"verb\":\"nope\"}" | node dist/cli.mjs') || fail=1; need "$out" 'unknown-verb'
+      out=$(probe non-json 1 sh -c 'printf "not json" | node dist/cli.mjs') || fail=1; need "$out" 'bad-request'
+      out=$(probe bad-platform 1 sh -c 'printf "%s" "{\"verb\":\"check\",\"drafts\":[\"hi\"],\"platform\":\"nope\"}" | node dist/cli.mjs') || fail=1; need "$out" 'bad-request'
+      out=$(probe extreme-input 1 sh -c "node -e \"process.stdout.write(JSON.stringify({verb:'voice.parse',markdown:'x'.repeat(100001)}))\" | node dist/cli.mjs") || fail=1; need "$out" 'bad-request'
+      probe extreme-boundary-ok 0 sh -c "node -e \"process.stdout.write(JSON.stringify({verb:'voice.parse',markdown:'x'.repeat(100000)}))\" | node dist/cli.mjs" > /dev/null || fail=1
+      [ "$fail" = 0 ] && say "engine-protocol: PASS" || say "engine-protocol: FAIL"; exit "$fail"
+    timeout: 15m
+
+  fit-calibration:
+    description: "Host proof: seeded local outcome files drive the fit-calibration CLI; checks G9 verdicts, exit codes and byte-for-byte preservation. No model, no sign-in, no emulator."
+    command: |
+      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/eval/fit-calibration.integration.ts >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 15m
+
+  settings-navigation:
+    description: "Android smoke: readiness-gated Home, Where the bubble shows, Your voice. Needs an explicit emulator allocation; proves routes render, not setup/sign-in/writers."
+    command: |
+      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"/mobile
+      node e2e/settings.mjs "$E" browse >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 45m
+
+  first-run-setup:
+    description: "Android: welcome through writer choice, kit ChatGPT sign-in on the mockOpenAI stand-in, permission, practice insert; light and dark with plain-text scan. Needs an explicit emulator allocation and a stub+GPT release APK (APK env: path to the release APK, built per mobile/README.md)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/first-run.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 45m
+
+  reply-drafts:
+    description: "Android: bubble reply cards over a feed post, edit/insert/copy, refusal legs on image-only and label-only composers. Full legs need a live writer (spends); X_REPLIES_LEGS=refusal runs only the credit-free refusal legs. Needs APK env (path to the release APK, built per mobile/README.md)."
+    spends: "one live OpenRouter generation per writer leg (refusal legs are credit-free)"
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/x-replies.mjs "$APK" "dd-${RUN_ID}" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 45m
+
+  gmail-compose-reply:
+    description: "Android: bubble reads a Gmail compose/reply body, polishes it, writes it back with an Inserted report. Currently only drivable on the signed-in test phone, which repo policy never allows: needs an explicit device allocation naming an eligible device before it can run."
+    spends: "one signed-in device session with a live writer"
+    command: |
+      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"
+      [ -n "${ANDROID_SERIAL:-}" ] || { echo "FAIL: no explicit device allocation (ANDROID_SERIAL unset); the test phone is never eligible" | tee "$E/driver.log"; exit 2; }
+      echo "device=$ANDROID_SERIAL avd=${OWNVOICE_AVD_NAME:-unset}" | tee "$E/driver.log"; exit 2
+    timeout: 45m
+
+  account-choices:
+    description: "Android: writer list (phone/ChatGPT/Claude/OpenRouter), sign-in and writer/rating routing, live Claude draft+rewrite via claude-draft-proof.mjs, OpenRouter legs via openrouter-proof.mjs (OPENROUTER_SCENARIOS=negative is credit-free). Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    spends: "one live Claude generation and one live OpenRouter generation for the full legs"
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/claude-draft-proof.mjs "$APK" "$E/claude" >"$E/claude.log" 2>&1; c1=$?
+      node mobile/e2e/openrouter-proof.mjs "$APK" "$E/openrouter" >"$E/openrouter.log" 2>&1; c2=$?
+      echo "claude exit=$c1 openrouter exit=$c2" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ]
+    timeout: 45m
+
+  rewrite-selection:
+    description: "Android: process-text/share rewrite sheet via direct intents (chips, copy-only sheet, warned number, hidden bubble, verdict note), light and dark. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/rn08.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 45m
+
+  reply-outcomes:
+    description: "Android: insert to real local store and read-back, text opt-in and failed append, via the outcome-proof legs of own-post.mjs (light then dark). Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      OWNVOICE_OUTCOME_PROOF=1 OWNVOICE_THEME=light node mobile/e2e/own-post.mjs "$APK" "$E/scratch-light" >"$E/light.log" 2>&1; c1=$?
+      OWNVOICE_OUTCOME_PROOF=1 OWNVOICE_THEME=dark node mobile/e2e/own-post.mjs "$APK" "$E/scratch-dark" >"$E/dark.log" 2>&1; c2=$?
+      echo "light exit=$c1 dark exit=$c2" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ]
+    timeout: 45m
+
+  reply-growth:
+    description: "Android: day-later check-in answers onto seeded outcome records, weekly counts, growth screen, offline saves (airplane legs). Seeding follows the SQLite capture/edit/restore pattern in mobile/e2e/outcomes.mjs. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/demo-growth.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 45m
+
+  voice-rules:
+    description: "Android: never-say phrases and the How-I-write note change drafted replies. Protocol: run the grow-mode leg five times with an empty never-say list and five times with the phrase set under Your voice (phrase in >=3 of 5 without, 0 of 5 with), then a lowercase-blunt note before/after on the same thread. Needs an explicit emulator allocation and a live writer."
+    spends: "live writer generations for the repeated draft legs"
+    command: |
+      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/grow-reply-live.mjs mobile/e2e/grow-reply-cases.json "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 45m
+
+  own-posts:
+    description: "Android: blank composer asks for the one line, then drafts from it; edit one and insert with field read-back (OWNVOICE_THEME=dark for the dark pass). Needs an explicit emulator allocation after first-run.mjs setup and APK env (path to the release APK, built per mobile/README.md)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/own-post.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 45m
+
+  typing-checks:
+    description: "Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery, plus the overlay typing-fix leg. Needs an explicit emulator allocation."
+    command: |
+      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/typing-limit.mjs "$E" after light >"$E/driver.log" 2>&1; c1=$?
+      node mobile/e2e/overlay-proof.mjs "$E/light" --typing-fix >>"$E/driver.log" 2>&1; c2=$?
+      echo "typing exit=$c1 overlay-fix exit=$c2" | tee -a "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ]
+    timeout: 45m
+
+  polish-output:
+    description: "Android: real cloud-writer polish panels (autosave/split-capital/nonsense/empty/mash/max), light/dark and narrow, with the stub-text provenance guard. Needs an explicit emulator allocation, a live writer, and APK env (path to the release APK, built per mobile/README.md)."
+    spends: "live OpenRouter generations for the polish panels"
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/openrouter-polish-sheets.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 45m
