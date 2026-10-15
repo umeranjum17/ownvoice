@@ -42,30 +42,29 @@ journeys:
   engine-protocol:
     description: "Host CLI proof: hello/schema/doctor, check, all verbs, voice.parse, error envelopes, 100k bound. No device, no model, no network."
     command: |
-      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; : > "$E/transcript.log"
+      set -u; fail=0; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; : > "$E/transcript.log"
       cd "$(git rev-parse --show-toplevel)"/packages/engine
-      npm ci --no-audit --no-fund > "$E/npm-ci.log" 2>&1; echo "npm-ci exit=$?" | tee -a "$E/transcript.log"
-      npm run build > "$E/build.log" 2>&1; echo "build exit=$?" | tee -a "$E/transcript.log"
+      npm ci --no-audit --no-fund > "$E/npm-ci.log" 2>&1; code=$?; echo "npm-ci exit=$code" | tee -a "$E/transcript.log"; [ "$code" = 0 ] || fail=1
+      npm run build > "$E/build.log" 2>&1; code=$?; echo "build exit=$code" | tee -a "$E/transcript.log"; [ "$code" = 0 ] || fail=1
       node dist/cli.mjs hello > /dev/null 2>&1 || { echo "FAIL: built CLI does not run" | tee -a "$E/transcript.log"; exit 1; }
-      fail=0
       say() { printf '%s\n' "$*" | tee -a "$E/transcript.log"; }
-      probe() { name=$1; want=$2; shift 2; out=$("$@" 2>&1); code=$?; printf '== %s ==\n$ %s\n%s\n[exit=%s]\n' "$name" "$*" "$out" "$code" >> "$E/transcript.log"; if [ "$code" != "$want" ]; then say "FAIL $name: exit=$code want=$want"; fail=1; fi; printf '%s' "$out"; }
+      probe() { name=$1; want=$2; shift 2; out=$("$@" 2>&1); code=$?; printf '== %s ==\n$ %s\n%s\n[exit=%s]\n' "$name" "$*" "$out" "$code" >> "$E/transcript.log"; rc=0; if [ "$code" != "$want" ]; then say "FAIL $name: exit=$code want=$want"; rc=1; fi; printf '%s' "$out"; return $rc; }
       need() { if ! printf '%s' "$1" | grep -q "$2"; then say "FAIL: pattern [$2] missing"; fail=1; fi; }
-      out=$(probe hello 0 node dist/cli.mjs hello); need "$out" '"protocol":2'; need "$out" "\"version\":\"$(node -p "require('./package.json').version")\""
-      out=$(probe schema 0 node dist/cli.mjs schema); printf '%s' "$out" > "$E/schema.json"
+      out=$(probe hello 0 node dist/cli.mjs hello) || fail=1; need "$out" '"protocol":2'; need "$out" "\"version\":\"$(node -p "require('./package.json').version")\""
+      out=$(probe schema 0 node dist/cli.mjs schema) || fail=1; printf '%s' "$out" > "$E/schema.json"
       node -e "process.exit(process.version.slice(1).split('.')[0] >= 18 ? 0 : 1)" || { say "FAIL: node >= 18 required"; fail=1; }
-      out=$(probe runtime-deps 0 npm ls --omit=dev); case "$out" in *"(empty)"*) : ;; *) say "FAIL: runtime dependencies present"; fail=1 ;; esac
-      out=$(probe check 0 sh -c 'printf "%s" "{\"verb\":\"check\",\"drafts\":[\"At the end of the day, I shiped the fix; works now.\"],\"platform\":\"x\",\"rules\":{\"never\":[\"at the end of the day\"]},\"original\":\"I shipped the fix at 5.\"}" | node dist/cli.mjs'); need "$out" 'At the end of the day'; need "$out" '"dropped".*"5"'; need "$out" '"limit":280' 
-      probe verb-platforms 0 sh -c 'printf "%s" "{\"verb\":\"platforms\"}" | node dist/cli.mjs' > /dev/null
-      probe verb-brief 0 sh -c 'printf "%s" "{\"verb\":\"brief\",\"kind\":\"reply\",\"platform\":\"x\"}" | node dist/cli.mjs' > /dev/null
-      probe verb-split 0 sh -c 'printf "%s" "{\"verb\":\"split\",\"text\":\"hello world\",\"platform\":\"x\"}" | node dist/cli.mjs' > /dev/null
-      probe verb-voice.guide 0 sh -c 'printf "%s" "{\"verb\":\"voice.guide\",\"rules\":{\"never\":[]},\"post\":false}" | node dist/cli.mjs' > /dev/null
-      out=$(probe voice.parse 0 sh -c 'printf "%s" "{\"verb\":\"voice.parse\",\"markdown\":\"## How I reply\n- tried it today.\n- say more?\n\n## Never say\n- \\\"at the end of the day\\\"\n\"}" | node dist/cli.mjs'); need "$out" 'tried it today'; need "$out" 'at the end of the day'
-      out=$(probe unknown-verb 1 sh -c 'printf "%s" "{\"verb\":\"nope\"}" | node dist/cli.mjs'); need "$out" 'unknown-verb'
-      out=$(probe non-json 1 sh -c 'printf "not json" | node dist/cli.mjs'); need "$out" 'bad-request'
-      out=$(probe bad-platform 1 sh -c 'printf "%s" "{\"verb\":\"check\",\"drafts\":[\"hi\"],\"platform\":\"nope\"}" | node dist/cli.mjs'); need "$out" 'bad-request'
-      out=$(probe extreme-input 1 sh -c "node -e \"process.stdout.write(JSON.stringify({verb:'voice.parse',markdown:'x'.repeat(100001)}))\" | node dist/cli.mjs"); need "$out" 'bad-request'
-      probe extreme-boundary-ok 0 sh -c "node -e \"process.stdout.write(JSON.stringify({verb:'voice.parse',markdown:'x'.repeat(100000)}))\" | node dist/cli.mjs" > /dev/null
+      out=$(probe runtime-deps 0 npm ls --omit=dev) || fail=1; case "$out" in *"(empty)"*) : ;; *) say "FAIL: runtime dependencies present"; fail=1 ;; esac
+      out=$(probe check 0 sh -c 'printf "%s" "{\"verb\":\"check\",\"drafts\":[\"At the end of the day, I shiped the fix; works now.\"],\"platform\":\"x\",\"rules\":{\"never\":[\"at the end of the day\"]},\"original\":\"I shipped the fix at 5.\"}" | node dist/cli.mjs') || fail=1; need "$out" 'At the end of the day'; need "$out" '"dropped".*"5"'; need "$out" '"limit":280' 
+      probe verb-platforms 0 sh -c 'printf "%s" "{\"verb\":\"platforms\"}" | node dist/cli.mjs' > /dev/null || fail=1
+      probe verb-brief 0 sh -c 'printf "%s" "{\"verb\":\"brief\",\"kind\":\"reply\",\"platform\":\"x\"}" | node dist/cli.mjs' > /dev/null || fail=1
+      probe verb-split 0 sh -c 'printf "%s" "{\"verb\":\"split\",\"text\":\"hello world\",\"platform\":\"x\"}" | node dist/cli.mjs' > /dev/null || fail=1
+      probe verb-voice.guide 0 sh -c 'printf "%s" "{\"verb\":\"voice.guide\",\"rules\":{\"never\":[]},\"post\":false}" | node dist/cli.mjs' > /dev/null || fail=1
+      out=$(probe voice.parse 0 sh -c 'printf "%s" "{\"verb\":\"voice.parse\",\"markdown\":\"## How I reply\n- tried it today.\n- say more?\n\n## Never say\n- \\\"at the end of the day\\\"\n\"}" | node dist/cli.mjs') || fail=1; need "$out" 'tried it today'; need "$out" 'at the end of the day'
+      out=$(probe unknown-verb 1 sh -c 'printf "%s" "{\"verb\":\"nope\"}" | node dist/cli.mjs') || fail=1; need "$out" 'unknown-verb'
+      out=$(probe non-json 1 sh -c 'printf "not json" | node dist/cli.mjs') || fail=1; need "$out" 'bad-request'
+      out=$(probe bad-platform 1 sh -c 'printf "%s" "{\"verb\":\"check\",\"drafts\":[\"hi\"],\"platform\":\"nope\"}" | node dist/cli.mjs') || fail=1; need "$out" 'bad-request'
+      out=$(probe extreme-input 1 sh -c "node -e \"process.stdout.write(JSON.stringify({verb:'voice.parse',markdown:'x'.repeat(100001)}))\" | node dist/cli.mjs") || fail=1; need "$out" 'bad-request'
+      probe extreme-boundary-ok 0 sh -c "node -e \"process.stdout.write(JSON.stringify({verb:'voice.parse',markdown:'x'.repeat(100000)}))\" | node dist/cli.mjs" > /dev/null || fail=1
       [ "$fail" = 0 ] && say "engine-protocol: PASS" || say "engine-protocol: FAIL"; exit "$fail"
     timeout: 15m
 
