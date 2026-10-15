@@ -104,7 +104,7 @@ export function cloudConsent(key: CloudKey, app: string | null): Required<Pick<W
 
 /** Who writes this app's drafts, and the one plain line the panel says above them. The route comes
  *  from the chosen source: phone chosen means never the cloud, even when signed in; a cloud source
- *  (ChatGPT, Claude, OpenRouter) means that account unless this app stays on the phone, nobody is signed in to it,
+ *  (ChatGPT, Claude, OpenRouter, OpenCode Go) means that account unless this app stays on the phone, nobody is signed in to it,
  *  or it is switched off remotely. */
 export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<WriterRoute> {
   const source = await getSource();
@@ -158,7 +158,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
       return require('./responses').cloudWriter(key).write(request, { ...on, beforeSend, beforeFetch });
     } }),
     fallbackNote: async () => {
-      const current = await require('./accounts').status(key).catch(() => null);
+      const current = await require('./accounts').status(require('./accounts').accountRoute(key)).catch(() => null);
       return current && ['resting', 'not_included', 'needs_again', 'signed_out'].includes(current.state) ? current.words : null;
     },
     phoneWriter,

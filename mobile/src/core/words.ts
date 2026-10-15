@@ -141,8 +141,39 @@ const openRouterWords = {
   openrouterPhoneCantWhy: 'Writing right on the phone needs a newer phone with its own built-in writer. This phone doesn’t have one, so Ownvoice writes with your OpenRouter instead. You still pick each draft and press Send yourself.',
 } as const;
 
+// The OpenCode Go account: a plan key the person pastes, with the same promises and failures
+// as the other cloud writers, named for the plan.
+const openCodeWords = {
+  openCodeKeyNote: 'OpenCode Go is a plan. Paste the key it gave you, and Ownvoice uses it only to write for you.',
+  openCodePasteField: 'Paste your OpenCode Go key',
+  openCodeConnect: 'Connect',
+  openCodeSignOut: 'Sign out of OpenCode Go',
+  openCodeButton: 'Connect with OpenCode Go',
+  openCodeKeyFailed: 'That key was not accepted. Check it and try again.',
+  srcOpenCode: 'With your OpenCode Go',
+  srcOpenCodeSub: 'Your own plan, already paid for',
+  rowSourceOpenCode: 'With your OpenCode Go',
+  homeOpenCode: 'Writes with your OpenCode Go.',
+  headOpenCode: 'Your chat goes to OpenCode Go only when you tap',
+  privacyOpenCode: 'When you tap the bubble, the chat on screen, what you typed and your writing rules go to OpenCode Go. Ownvoice keeps no copy.',
+  switchNoteOpenCode: 'Ownvoice checks now and then whether its online writers are allowed to write. That check carries no name and no message.',
+  openCodeSwitchTitle: 'Write with OpenCode Go?',
+  openCodeSwitchBody: 'From now on, when you tap the bubble, the chat on screen and what you typed go to OpenCode Go to write your drafts.',
+  openCodeSwitchYes: 'Switch to OpenCode Go',
+  openCodePhoneBackup: "If OpenCode Go can't answer, this phone writes instead.",
+  openCodeFailed: "OpenCode Go didn't answer this time.",
+  openCodeFallback: "OpenCode Go didn't answer. This phone wrote these instead.",
+  openCodeOff: 'OpenCode Go is turned off for now. This phone wrote these.',
+  openCodeOffNoPhone: 'OpenCode Go is turned off for now. Try again later.',
+  openCodeNeedNote: "This phone can't write drafts on its own. Connect your OpenCode Go key to use Ownvoice here.",
+  openCodeSwitchUnavailable: 'OpenCode Go could not be reached this time. This phone wrote these.',
+  openCodeCantWriteNote: 'This phone can\'t write, and you kept writing there on this phone. Let OpenCode Go write there instead.',
+  openCodeCantWriteFix: 'Choose where OpenCode Go writes',
+  openCodePhoneCantWhy: 'Writing right on the phone needs a newer phone with its own built-in writer. This phone doesn’t have one, so Ownvoice writes with your OpenCode Go instead. You still pick each draft and press Send yourself.',
+} as const;
+
 export const words = {
-  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords,
+  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords,
   keepReplies: 'Keep my replies to learn from',
   keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
   outcomeTitle: 'Replies you inserted',

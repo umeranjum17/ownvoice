@@ -32,6 +32,18 @@ export const openRouterReady = () => process.env.EXPO_PUBLIC_E2E_OPENROUTER_OFF 
   ? false
   : route('openrouter:key', { platform: 'rn' }).readiness === 'ready';
 
+/** OpenCode Go's route in the kit: a plan key on the person's own plan, billed as that plan rather than per use.
+ *  The route id is the account id the kit keeps the plan key under, so every ask names it exactly. */
+export const OPENCODE_ROUTE = 'opencode:plan_key:opencode-go';
+
+/** Whether the kit reports this phone's OpenCode Go route ready. Offered only then; the kit decides, not Ownvoice. */
+export const openCodeReady = () => route(OPENCODE_ROUTE, { platform: 'rn' }).readiness === 'ready';
+
+/** The kit's account id for one writer: plain providers are named as they are, while OpenCode Go is its
+ *  plan-key route id (the plan's own account), which is the only name the kit's status, sign-out and
+ *  ask calls accept. */
+export const accountRoute = (key: CloudKey): string => key === 'opencode' ? OPENCODE_ROUTE : key;
+
 function kitInstance(): Accounts | undefined {
   if (realInstance) return realInstance;
   try {
@@ -74,6 +86,10 @@ export const signInClaude = () => getInstance().login(member, 'claude');
 // this phone's secure store. A phone has no OpenRouter OAuth sign-in, so there is no code to open or paste back.
 export const connectOpenRouter = (secret: string) => getInstance().saveKey(member, 'openrouter', secret.trim(), { billedPerUse: true });
 export const signOutOpenRouter = () => getInstance().logout(member, 'openrouter');
+// OpenCode Go is a plan key route: the key the plan gave the person is saved as that plan's account,
+// already paid for, so it asks for no per-use agreement the way a per-use key route does.
+export const connectOpenCode = (secret: string) => getInstance().saveKey(member, OPENCODE_ROUTE, secret.trim());
+export const signOutOpenCode = () => getInstance().logout(member, OPENCODE_ROUTE);
 export async function codexAuth(): Promise<{ access: string; accountId: string }> {
   const runtime = await getInstance().runtime(member);
   const auth = await runtime.getAuth('openai-codex');
@@ -94,6 +110,26 @@ export const OPENROUTER_MODEL = {
   input: ['text'], cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
   contextWindow: 1048576, maxTokens: 384000,
 } as Model<'openai-completions'>;
+/** OpenCode Go's default writer: DeepSeek V4.1 Flash. The route is the plan's own, so the plan key is
+ *  sent to the plan's endpoint and the model is carried here, typed, exactly as OpenRouter's is;
+ *  the kit's pinned adapter reads it. The plan's gateway turns away a request that carries no
+ *  session (400 on activate), so the model opts into the adapter's session-affinity headers through
+ *  its own compat seam. This is never shown to the person. */
+export const OPENCODE_MODEL = {
+  id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', api: 'openai-completions',
+  provider: 'opencode-go', baseUrl: 'https://opencode.ai/zen/go/v1', reasoning: false,
+  input: ['text'], cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
+  contextWindow: 1000000, maxTokens: 384000,
+  compat: { sendSessionAffinityHeaders: true, sessionAffinityFormat: 'openai' as const },
+} as Model<'openai-completions'>;
+
+/** One session id per app run, for the plan gateway's session-affinity headers. Random bytes from
+ *  the phone's own source; nothing in it names the person or the message. */
+let openCodeSession = '';
+const openCodeSessionId = () => {
+  if (!openCodeSession) openCodeSession = Array.from(getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join('');
+  return openCodeSession;
+};
 
 export type CloudAsk = { instructions: string; input: string; json: boolean; onText?: (text: string) => void; signal?: AbortSignal };
 
@@ -108,12 +144,17 @@ function jsonBody(text: string): string {
  *  the ratings backend — so a second provider is a branch here, not a fork in the callers. Sign-in,
  *  refresh, resting and sign-out stay the kit's; only the ask shape differs per provider. */
 export async function askCloud(key: CloudKey, ask: CloudAsk): Promise<string> {
-  if (key === 'openrouter') {
+  // Both key routes answer through the kit's own typed request: OpenRouter's per-use key, and
+  // OpenCode Go's plan key on the plan's own endpoint (which also carries the run's session id,
+  // so the adapter sends its session-affinity headers).
+  if (key === 'openrouter' || key === 'opencode') {
+    const plan = key === 'opencode'
+      ? { account: OPENCODE_ROUTE, model: OPENCODE_MODEL, options: { maxTokens: 8192, signal: ask.signal, sessionId: openCodeSessionId() } }
+      : { account: 'openrouter', model: OPENROUTER_MODEL, options: { maxTokens: 8192, signal: ask.signal } };
     let streamed = '';
     const result = await getInstance().respondKey(member, {
-      account: 'openrouter', model: OPENROUTER_MODEL,
+      ...plan,
       context: { systemPrompt: ask.instructions, messages: [{ role: 'user', content: [{ type: 'text', text: ask.input }], timestamp: Date.now() }] },
-      options: { maxTokens: 8192, signal: ask.signal },
       onText: delta => { streamed += delta; ask.onText?.(delta); },
     });
     const text = streamed || result.content.map(part => part.type === 'text' ? part.text : '').join('');
