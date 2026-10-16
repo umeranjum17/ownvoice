@@ -166,7 +166,7 @@ export const words = {
   wipeElsewhere:'Wipe everything, under What Ownvoice read, deletes these too.',
 
   // What Ownvoice read (ReadsActivity).
-  readsNote:'Each time you tap the bubble, Ownvoice notes the app, the time, what it helped with and whether ChatGPT saw the screen. Never any of your text. This list stays on this phone and each entry is deleted after 30 days.',
+  readsNote:'Each time you tap the bubble, Ownvoice notes the app, the time, what it helped with and whether your account saw the screen. Never any of your text. This list stays on this phone and each entry is deleted after 30 days.',
   wipe:'Wipe everything',
   wipeVoiceNote:'Wipe everything also deletes Your voice.',
   nothingRead:'Nothing read in the last 30 days.',
