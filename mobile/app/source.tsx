@@ -127,7 +127,7 @@ export default function SourceScreen() {
     setProblem(null);
     let several: OpenCodeGoWorkspace[] | undefined;
     try { several = await require('../src/chatgpt/accounts').connectOpenCode(secret, workspace); }
-    catch (e) { if (live.current) setProblem(e instanceof Error && e.message ? e.message : words.openCodeKeyFailed); return false; }
+    catch { if (live.current) setProblem(words.openCodeKeyFailed); return false; }
     if (several?.length) {
       goKey.current = secret;
       if (live.current) setWorkspaces(several);
