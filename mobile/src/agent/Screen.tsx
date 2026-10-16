@@ -10,7 +10,7 @@ import { Placeholder } from '../ui/Placeholder';
 import type { Mood } from '../ui/dot';
 import { shape, space, type, useTheme } from '../ui/theme';
 import { words } from '../core/words';
-import { getSource } from '../core/source';
+import { cloudOf, getSource, type CloudKey } from '../core/source';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { loadVoice } from '../core/voiceStore';
 import { cloudWords, noPhoneLine, retryLines } from '../core/writers';
@@ -20,7 +20,7 @@ import { checkVoice, shareNote } from './tools';
 import { labBrain } from './labBrain';
 import { localBrain } from './localBrain';
 
-/** One brain per writing choice; plan (ChatGPT) and local (on-device) brains. */
+/** One brain per writing choice; plan (any cloud account) and local (on-device) brains. */
 export type Brains = { local?: Brain; plan?: Brain };
 // Local chosen and ready runs on-device via @byokit/infer; plan runs via @byokit/accounts.
 // getSource() picks at task start, never switching mid-task.
@@ -29,8 +29,8 @@ const LAB: Brains = { local: localBrain(), plan: labBrain() };
 /** The writer the person chose, when it can write now: plan when chosen, local only when ready. */
 export async function pickBrain(brains: Brains): Promise<Brain | null> {
   const source = await getSource().catch(() => null);
-  // 'chatgpt' maps to 'plan', 'phone' maps to 'local' for backward compatibility
-  if (source === 'chatgpt') return brains.plan ?? null;
+  // Every cloud account maps to 'plan', 'phone' maps to 'local'
+  if (cloudOf(source)) return brains.plan ?? null;
   if (source === 'phone' && await phoneCanWrite() === 'ready') return brains.local ?? null;
   return null;
 }
@@ -44,11 +44,11 @@ function draftOf(call: Call): string {
   } catch { return ''; }
 }
 
-/** The one plain line for a failed step; never the error's own words. */
-function failLine(error: unknown): string {
+/** The one plain line for a failed step, naming the chosen cloud account (none for the phone); never the error's own words. */
+function failLine(error: unknown, cloud: CloudKey | null): string {
   if (error instanceof Error && error.message === words.needWriterPanel) return words.needWriterPanel;
   if ((error as { kind?: unknown } | null)?.kind === 'network') return words.offlineNoPhone;
-  return noPhoneLine(error, cloudWords('chatgpt'));
+  return cloud ? noPhoneLine(error, cloudWords(cloud)) : words.failed;
 }
 
 type Phase = 'idle' | 'working' | 'asking' | 'done' | 'failed';
@@ -79,6 +79,7 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
   const start = async () => {
     const id = ++run.current;
     const live = () => id === run.current;
+    const cloud = cloudOf(await getSource().catch(() => null));
     const chosen = await pickBrain(brains);
     if (!live()) return;
     setBrain(chosen);
@@ -120,7 +121,7 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
       setPhase('done');
     } catch (error) {
       if (!live()) return;
-      const failed = failLine(error);
+      const failed = failLine(error, cloud);
       if (failed === words.needWriterPanel) { setBrain(null); setPhase('idle'); return; }
       setLine(failed);
       setPhase('failed');
@@ -156,7 +157,7 @@ export default function AgentScreen({ brains = LAB }: { brains?: Brains }) {
       <Dot mood={mood} size={40} />
       <Text style={[type.body, { color: phase === 'working' ? t.muted : t.text, flex: 1 }]}>{said}</Text>
     </View> : null}
-    {phase === 'failed' && line && retryLines.has(line) ? <View style={styles.actions}>
+    {phase === 'failed' && line && (retryLines.has(line) || line === words.failed) ? <View style={styles.actions}>
       <Button kind="filled" label={words.tryAgain} onPress={() => { void start(); }} />
     </View> : null}
     {ask !== null ? <Card variant="filled">
