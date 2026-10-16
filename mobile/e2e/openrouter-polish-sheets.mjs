@@ -52,6 +52,9 @@ const NONSENSE = 'the database got eaten backwards by purple toaster clouds bana
 const EMPTY = '';
 const MASH = 'asdf qwer zxcv';
 const MESSAGE = 'i think we should meet tomorrow at 10 to go over the plan and the budget';
+// A run-on with no stops: any stop a version adds is the writer's own sentence split, so the
+// casing at the split is actually observable (the autosave text below never split in practice).
+const SPLIT = 'we should meet tomorrow at 10 to go over the plan and the budget and i think ali can bring the chairs but he might be late so we should start without him if he is not there by ten';
 const MAX = 'We should meet tomorrow to go over the plan and the budget. '.repeat(175);
 // The words the panel uses for each honest state (packages/engine/src/words.ts), asserted verbatim.
 const DECLINED_LINE = 'This text has no clear message to polish yet.';
@@ -239,6 +242,7 @@ const dismissChromeFirstRun = async () => {
 const CASES = [
   { id: 'autosave', text: AUTOSAVE, expect: 'versions' },
   { id: 'message', text: MESSAGE, expect: 'versions' },
+  { id: 'split', text: SPLIT, expect: 'versions' },
   { id: 'nonsense', text: NONSENSE, expect: 'declined' },
   { id: 'mash', text: MASH, expect: 'declined' },
   { id: 'empty', text: EMPTY, expect: 'empty' },
@@ -303,6 +307,16 @@ const runCase = async (testCase, tag, prefix) => {
   if (testCase.id === 'autosave') {
     const split = drafts.find(text => /[.!?]\s+\p{Ll}/u.test(text) && !/\b(?:p|e|i|etc)\.\s/u.test(text));
     if (split) throw new Error(`case autosave ${tag}: a sentence split lost its capital (${split.slice(0, 100)})`);
+  }
+  // The split capital needs a real split to check: the run-on input has no stops, so a draft with a
+  // stop followed by more words is a writer-introduced sentence split. No split offered = the
+  // casing at the split is not observable and the case fails honestly rather than passing vacuous.
+  if (testCase.id === 'split') {
+    const split = drafts.filter(text => /[.!?]\s+\S/.test(text));
+    if (!split.length) throw new Error(`case split ${tag}: the writer split no sentence, so the casing at the split is not observable`);
+    const bad = split.filter(text => /[.!?]\s+\p{Ll}/u.test(text));
+    if (bad.length) throw new Error(`case split ${tag}: a sentence split lost its capital (${bad[0].slice(0, 120)})`);
+    log(`case split ${tag}: ${split.length} draft(s) split the run-on, capitals kept`);
   }
   adb('shell', 'input', 'keyevent', '4'); // dismiss the panel (no keyboard is up)
   await wait(1200);
