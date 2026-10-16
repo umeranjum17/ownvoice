@@ -182,6 +182,39 @@ Do not record a captain preference or an overall experiment pass until their wor
 
 ### P3: exact live text for the captain
 
+**Writer prompt rerun, 16 October 2026 (Main619: shorter than the original is the bar).**
+The four candidates below all missed that bar, so the writer's prompt (`BASE` in
+[`src/agent/prompt.ts`](../src/agent/prompt.ts)) now asks for at most half the person's words,
+tone through word choice rather than added words, and the recipient's name first when the task
+gives one. The same 12 runs reran live on the app's OpenCode Go writer (plan-key route, Working2
+workspace, DeepSeek V4.1 Flash) on the emulator. The original is the person's own words: the
+fixture instruction, or for tasks 1, 4 and 6 the shorter note typed into the panel below.
+Graded by `node --experimental-strip-types reports/phone-agent-live/evaluate.mjs <captures> --gate`
+(word count, P1 facts and names, P2 writing rules). Result: **12/12 shorter with P1 and P2 kept**
+(the first prompt iteration was 7/12).
+
+| Run | Original | Words | New draft | Words | P1 | P2 |
+|---|---|---:|---|---:|---|---|
+| loop-1 (firmer) | Hi, the heater has been broken since Monday. Please fix it soon. | 12 | The heater's been broken since Monday. Fix it now. | 9 | pass | pass |
+| script-1 (firmer) | same | 12 | The heater's broken since Monday. Fix it. | 7 | pass | pass |
+| loop-2 | Turn this into a list for the team: standup moves to 12:00, demo Thursday 3pm, Priya owns the deck. Keep it casual. | 22 | • Standup: 12:00 • Demo: Thursday 3pm • Deck: Priya | 10 | pass | pass |
+| script-2 | same | 22 | • Standup's at 12:00 now • Demo Thursday 3pm • Priya owns the deck | 14 | pass | pass |
+| loop-3 | Reply to Sam: can't make Saturday, offer Sunday after 2. | 10 | Sam, can't Saturday. Sunday after 2? | 6 | pass | pass |
+| script-3 | same | 10 | Sam: no Saturday. Sunday 2+? | 5 | pass | pass |
+| loop-4 (warmer) | Hi Alex, thank you for covering my shift. | 8 | Alex, grateful you covered my shift. | 6 | pass | pass |
+| script-4 (warmer) | same | 8 | Alex, grateful for covering my shift. | 6 | pass | pass |
+| loop-5 | Email this to Sam and put it in my calendar: standup moves to 12:00, demo Thursday 3pm. | 17 | Sam, standup moves to 12:00, demo Thursday 3pm. | 8 | pass | pass |
+| script-5 | same | 17 | Sam, standup moves to 12:00. Demo Thursday 3pm. | 8 | pass | pass |
+| loop-6 (firmer, Not now) | Hi, the heater has been broken since Monday. Please fix it soon. | 12 | The heater's been broken since Monday. Please fix it. | 9 | pass | pass |
+| script-6 (firmer, Not now) | same | 12 | The heater has been broken since Monday. Fix it. | 9 | pass | pass |
+
+Firmer drafts end in a direct ask and warmer ones use "grateful"; task 3's drafts keep the facts
+but read clipped. In loop-1 the writer's turn after the share was refused; the shared card is the
+graded draft. Per-run captures, both iterations and word counts are in the task's evidence folder
+(`ov-a5-p3-judgment/evidence/results.md`).
+
+The rejected 30 September candidates follow for reference.
+
 The comparison uses the **visible final draft card**, not a later alternate version in
 status text. The actual one-shot panel was opened through Ownvoice's practice bubble on
 this same signed-in APK. A minimal draft supplied the task's facts, with a demo voice note

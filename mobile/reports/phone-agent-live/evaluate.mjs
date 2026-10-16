@@ -5,11 +5,16 @@ import * as Slop from '../../../packages/engine/src/slop.ts';
 import * as Voice from '../../../packages/engine/src/voice.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const captureRoot = path.resolve(process.argv[2] ?? here);
+const args = process.argv.slice(2);
+const captureRoot = path.resolve(args.find(arg => arg !== '--gate') ?? here);
 const fixturePath = path.resolve(here, '../../e2e/agent-tasks.json');
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const rules = { ...Slop.NO_RULES, ...fixture.voice };
 const rows = [];
+const wordCount = text => text.split(/\s+/).filter(Boolean).length;
+// The bar is shorter than the person's own words: the task they typed, and the note they typed
+// for the same task in the one-shot panel when there is one (whichever is shorter).
+const originalWords = task => Math.min(wordCount(task.task), task.typed ? wordCount(task.typed) : Infinity);
 
 for (const task of fixture.tasks) {
   for (const mode of ['loop', 'script']) {
@@ -49,8 +54,13 @@ for (const task of fixture.tasks) {
       missingNames,
       P2: !checkProblems.length && (task.id !== 4 || mode === 'script' || modelToolCalls.some(call => call.name === 'check_voice')),
       checkProblems,
+      originalWords: originalWords(task),
+      finalWords: wordCount(final),
+      shorter: wordCount(final) < originalWords(task),
     });
   }
 }
 
 for (const row of rows) console.log(JSON.stringify(row));
+// --gate fails the replay unless every row keeps the facts and rules and comes out shorter.
+if (args.includes('--gate') && !rows.every(row => row.P1 && row.P2 && row.shorter)) process.exitCode = 1;
