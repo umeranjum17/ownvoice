@@ -13,7 +13,7 @@
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned avd>, JAVA_HOME, SDK via
 // ANDROID_HOME, OPENROUTER_KEY_FILE optional, X_REPLIES_WRITER=openrouter|opencode (default
 // openrouter), OC_KEY (the OpenCode Go plan key, never printed or written), X_REPLIES_MOTION=1 to
-// record the tap-to-inserted motion, X_REPLIES_LEGS=refusal to run only the refusal legs (no writer
+// record the tap-to-inserted motion, OPENCODE_WORKSPACE (default Working2) for a key with several workspaces, X_REPLIES_LEGS=refusal to run only the refusal legs (no writer
 // request anywhere, so it needs no funded account). Args: <release-apk (no stub flags)> [task-slug].
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -37,6 +37,7 @@ const key = writer === 'opencode'
 if (writer === 'openrouter' && !key.startsWith('sk-')) throw new Error('OpenRouter key file did not look like a key.');
 if (writer === 'opencode' && key.length < 20) throw new Error('OC_KEY is not set to the OpenCode Go plan key.');
 const motion = process.env.X_REPLIES_MOTION === '1';
+const goWorkspace = process.env.OPENCODE_WORKSPACE ?? 'Working2';
 const task = process.argv[3] ?? 'ov-x-replies-resume';
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
 const evidence = (...args) => execFileSync('bash', [`${root}/mobile/e2e/evidence.sh`, ...args], { cwd: root, encoding: 'utf8' });
@@ -249,6 +250,9 @@ const connectOpenCode = async () => {
   for (let i = 0; i < 60; i++) {
     if (onScreen('opencode go is connected')) break;
     if (onScreen('that key was not accepted')) throw new Error('OpenCode Go rejected the key.');
+    // A login key for several workspaces shows the kit's pick: tap the plan's workspace.
+    const pick = onScreen('more than one workspace') && nodes().find(n => (n.text || n.label || '').trim() === goWorkspace);
+    if (pick) { tap(...center(pick)); await wait(2500); continue; }
     const yes = nodes().find(n => n.clickable && /switch to opencode go/i.test(`${n.label ?? ''} ${n.text ?? ''}`));
     if (yes) { tap(...center(yes)); await wait(2500); }
     await wait(1000);
