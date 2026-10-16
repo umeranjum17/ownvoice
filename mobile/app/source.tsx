@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { say } from '@byokit/accounts';
+import { say, type OpenCodeGoWorkspace } from '@byokit/accounts';
 import { Badge } from '../src/ui/Badge';
 import { Button } from '../src/ui/Button';
 import { ClaudeSignIn } from '../src/ui/ClaudeSignIn';
@@ -46,6 +46,11 @@ export default function SourceScreen() {
   const [confirm, setConfirm] = useState<CloudKey | null>(null);
   const [stays, setStays] = useState<string[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
+  // An OpenCode Go key that works with several workspaces: the kit's list to pick from, and the pasted
+  // key held only in memory until the pick connects it.
+  const [workspaces, setWorkspaces] = useState<OpenCodeGoWorkspace[] | null>(null);
+  const goKey = useRef('');
+  const [picking, setPicking] = useState(false);
   const attempt = useRef(0);
   const started = useRef(false);
   const live = useRef(true);
@@ -115,11 +120,21 @@ export default function SourceScreen() {
     return true;
   };
 
-  /** The person's own OpenCode Go key, handed to the kit's plan key route; a good key connects right here. */
-  const connectOpenCode = async (secret: string): Promise<boolean> => {
+  /** The person's own OpenCode Go key, handed to the kit's plan key route; a good key connects right here,
+   *  unless it works with several workspaces: then the kit's list shows and the picked one connects. */
+  const connectOpenCode = async (secret: string, workspace?: string): Promise<boolean> => {
     if (signIn?.key !== 'opencode') return false;
-    try { await require('../src/chatgpt/accounts').connectOpenCode(secret); }
+    setProblem(null);
+    let several: OpenCodeGoWorkspace[] | undefined;
+    try { several = await require('../src/chatgpt/accounts').connectOpenCode(secret, workspace); }
     catch { if (live.current) setProblem(words.openCodeKeyFailed); return false; }
+    if (several?.length) {
+      goKey.current = secret;
+      if (live.current) setWorkspaces(several);
+      return true;
+    }
+    goKey.current = '';
+    if (live.current) setWorkspaces(null);
     const next = await cloudSession('opencode').current().catch(() => nothing);
     if (live.current) shown('opencode', attempt.current, next);
     return true;
@@ -127,6 +142,8 @@ export default function SourceScreen() {
 
   const leaveSignIn = () => {
     attempt.current++;
+    goKey.current = '';
+    setWorkspaces(null);
     if (signIn?.state.waiting) void cloudSession(signIn.key).cancel().catch(() => {});
     setSignIn(null);
   };
@@ -210,6 +227,16 @@ export default function SourceScreen() {
         ? <ClaudeSignIn url={signing.url ?? null} onOpen={openClaude} onConnect={connectClaude} />
         : key === 'openrouter'
         ? <KeyConnect onConnect={connectOpenRouter} paste={words.openrouterPasteField} connect={words.openrouterConnect} testID="openrouter-paste" />
+        : key === 'opencode' && workspaces
+        ? <>
+          {indent(say('connect.workspace'))}
+          <View style={[styles.inner, { backgroundColor: t.group }]}>
+            {workspaces.map(w => <Row key={w.id} title={w.name} disabled={picking} onPress={() => {
+              setPicking(true);
+              void connectOpenCode(goKey.current, w.id).finally(() => { if (live.current) setPicking(false); });
+            }} />)}
+          </View>
+        </>
         : key === 'opencode'
         ? <KeyConnect onConnect={connectOpenCode} paste={words.openCodePasteField} connect={words.openCodeConnect} />
         : <>

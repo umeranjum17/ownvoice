@@ -49,10 +49,11 @@ const sse = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(cont
 } });
 
 /** The plan's own endpoint, standing in: it records every request it receives and answers the
- *  pinned adapter's SSE shape. */
-const planEndpoint = () => {
+ *  pinned adapter's SSE shape. The OpenCode console's workspace listing answers `orgs` (none by default). */
+const planEndpoint = (orgs: Array<{ id: string; name: string }> = []) => {
   const seen: Array<{ url: string; headers: Headers; body: Record<string, unknown> }> = [];
   const fetch = jest.fn(async (url: string | URL, init?: RequestInit) => {
+    if (String(url) === 'https://opencode.ai/console/api/orgs') return new Response(JSON.stringify(orgs), { status: 200, headers: { 'content-type': 'application/json' } });
     seen.push({ url: String(url), headers: new Headers(init?.headers), body: JSON.parse(String(init?.body)) });
     return new Response(sse(
       `data: ${JSON.stringify({ id: 'c1', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { content: REPLY } }] })}\n\n`,
@@ -105,10 +106,36 @@ test('a pasted plan key answers askCloud on the plan endpoint, with the kit\'s s
   expect(call.headers.get('x-session-affinity')).toMatch(/^[0-9a-f]{32}$/);
   expect(call.headers.get('x-client-request-id')).toBe(call.headers.get('x-session-affinity'));
   expect(call.headers.get('session_id')).toBe(call.headers.get('x-session-affinity'));
+  // A key with no workspace listing names none.
+  expect(call.headers.get('x-opencode-org-id')).toBeNull();
 
   // The streamed answer arrives as it is written and comes back as the parsed JSON body.
   expect(deltas.join('')).toBe(REPLY);
   expect(text).toBe(REPLY);
+});
+
+test('a key with several workspaces connects only once one is picked, and every ask names it', async () => {
+  const orgs = [{ id: 'wrk_one', name: 'Umer' }, { id: 'wrk_two', name: 'Working2' }, { id: 'wrk_three', name: 'Team' }];
+  const { seen, fetch } = planEndpoint(orgs);
+  globalThis.fetch = fetch as unknown as typeof globalThis.fetch;
+  // The kit hands back its list and saves nothing until the pick.
+  expect(await connectOpenCode(PLAN_KEY)).toEqual(orgs);
+  expect((await status(OPENCODE_ROUTE)).state).toBe('signed_out');
+
+  expect(await connectOpenCode(PLAN_KEY, 'wrk_two')).toBeUndefined();
+  expect((await status(OPENCODE_ROUTE)).state).toBe('ready');
+  await askCloud('opencode', { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
+  expect(seen).toHaveLength(1);
+  expect(seen[0].headers.get('x-opencode-org-id')).toBe('wrk_two');
+});
+
+test('a key with one workspace connects with no pick, and asks name it', async () => {
+  const { seen, fetch } = planEndpoint([{ id: 'wrk_only', name: 'Umer' }]);
+  globalThis.fetch = fetch as unknown as typeof globalThis.fetch;
+  expect(await connectOpenCode(PLAN_KEY)).toBeUndefined();
+  expect((await status(OPENCODE_ROUTE)).state).toBe('ready');
+  await askCloud('opencode', { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
+  expect(seen[0].headers.get('x-opencode-org-id')).toBe('wrk_only');
 });
 
 test('without the plan key the ask fails as signed out, and no request goes out', async () => {
