@@ -159,9 +159,10 @@ const serviceOff = async () => {
 // Stop the app with kill -9, never am force-stop; rebind() then brings the service (and its process) back.
 const pidOf = () => { try { return adb('shell', 'pidof', pkg).trim(); } catch { return ''; } };
 const killApp = async () => {
-  const pid = pidOf();
-  if (pid) adb('shell', 'su', '0', 'kill', '-9', ...pid.split(/\s+/));
-  await until('the Ownvoice process to end', () => !pidOf(), { seconds: 10, every: 300 });
+  const pids = pidOf().split(/\s+/).filter(Boolean);
+  if (pids.length) adb('shell', 'su', '0', 'kill', '-9', ...pids);
+  // The system may start a fresh process for the service at once; only the killed ones must be gone.
+  await until('the killed Ownvoice process to end', () => !pidOf().split(/\s+/).some(pid => pids.includes(pid)), { seconds: 10, every: 300 });
 };
 const rebind = async () => {
   const enabled = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
