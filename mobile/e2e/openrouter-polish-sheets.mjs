@@ -7,10 +7,11 @@
 //   5 non-polishable- keyboard mash is declined honestly
 //   6 max text      - the documented Chrome capture limit renders honestly with no clipping
 // Each case captured light and dark; the five cases repeated once on a narrow phone at font scale 1.3.
-// Build with EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1 (the ChatGPT stand-in and phone stub; the
-// key routes still reach their real APIs). Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME,
+// Build with no E2E flags: a stub build lets the canned phone writer stand in (the provenance guard
+// below still fails a run on its fixed text). Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME,
 // JAVA_HOME, ANDROID_HOME. WRITER=openrouter (default, OPENROUTER_KEY_FILE) or opencode (OPENCODE_KEY:
-// the OpenCode Go plan key, resolved from the desktop OpenCode login, never logged). Args: <apk> <out-dir>.
+// the OpenCode Go plan key, resolved from the desktop OpenCode login, never logged; OPENCODE_WORKSPACE
+// names the workspace to pick when the key has several). Args: <apk> <out-dir>.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -39,6 +40,7 @@ const key = WRITER === 'opencode'
   ? (process.env.OPENCODE_KEY ?? '').trim()
   : readFileSync(process.env.OPENROUTER_KEY_FILE ?? `${process.env.HOME}/.config/openrouter/api_key`, 'utf8').trim();
 if (!key) throw new Error(`No ${W.name} key: ${WRITER === 'opencode' ? 'set OPENCODE_KEY' : 'set OPENROUTER_KEY_FILE'}.`);
+const workspace = process.env.OPENCODE_WORKSPACE ?? 'Working2'; // the Go workspace to pick, as opencode-proof.mjs
 if (WRITER === 'openrouter' && !key.startsWith('sk-')) throw new Error('OpenRouter key file did not look like a key.');
 
 const AUTOSAVE = 'autosave locally and make export easy.';
@@ -192,7 +194,16 @@ const connectWriter = async tag => {
   adb('shell', 'input', 'text', `'${key}'`); await wait(700); // never logged or screenshotted
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
   await tapText('connect', 20);
-  await waitText([W.connected, W.signedOut], 60);
+  // A Go login key with several workspaces gets the kit's pick (PR 216): tap OPENCODE_WORKSPACE.
+  await waitText([W.connected, W.signedOut, 'more than one workspace'], 60);
+  if (findText('more than one workspace')) {
+    const named = () => find(n => (n.text || n.label || '').trim() === workspace);
+    for (let i = 0; i < 3 && !named(); i++) { adb('shell', 'input', 'swipe', String(width / 2), String(height * 0.75), String(width / 2), String(height * 0.35), '300'); await wait(800); }
+    if (!named()) throw new Error(`The workspace pick shows no "${workspace}": ${screenWords()}`);
+    snap(`workspace-pick-${tag}`);
+    tap(...center(named()));
+    await waitText([W.connected, W.signedOut], 60);
+  }
   snap(`connected-${tag}`);
   log(`${W.name} connected (${tag})`);
 };
