@@ -260,7 +260,11 @@ const connectOpenCode = async () => {
     if (yes) { tap(...center(yes)); await wait(2500); }
     await wait(1000);
   }
-  if (!onScreen('opencode go is connected')) throw new Error('OpenCode Go did not report connected.');
+  if (!onScreen('opencode go is connected')) {
+    try { shot('connect', 'not-connected', 'opencode'); } catch { /* shot is declared later in the file */ }
+    const seen = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 400);
+    throw new Error(`OpenCode Go did not report connected (screen: ${seen}).`);
+  }
 };
 // A refusal leg makes no writer call, so the refusal-only run skips connecting a writer entirely.
 const refusalOnly = process.env.X_REPLIES_LEGS === 'refusal';
