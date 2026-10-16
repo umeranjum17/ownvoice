@@ -149,6 +149,32 @@ describe('without a paired computer (plan §7)', () => {
     expect(await screen.findByText(FIRST)).toBeTruthy();
     expect(plan.step).toHaveBeenCalledTimes(2);
   });
+
+  test.each([
+    ['OpenCode Go', 'opencode', words.openCodeFailed],
+    ['Claude', 'claude', words.claudeFailed],
+    ['OpenRouter', 'openrouter', words.openrouterFailed],
+  ])('%s chosen and failing: its own line, never ChatGPT\'s', async (_name, source, line) => {
+    setSource(source);
+    const plan = scripted(new Error('HTTP 500 upstream'), { text: FIRST, calls: [] });
+    await open({ plan });
+    await ask('Reply to Sam');
+    expect(await screen.findByText(line)).toBeTruthy();
+    expect(screen.queryByText(words.gptFailedNoPhone)).toBeNull();
+    await fireEvent.press(screen.getByRole('button', { name: words.tryAgain }));
+    expect(await screen.findByText(FIRST)).toBeTruthy();
+  });
+
+  test('phone chosen and failing: a line that names no provider, and Try again', async () => {
+    setSource('phone');
+    const local = scripted(new Error('model crashed'), { text: FIRST, calls: [] });
+    await open({ local });
+    await ask('Reply to Sam');
+    expect(await screen.findByText(words.failed)).toBeTruthy();
+    expect(shown().join(' ')).not.toMatch(/ChatGPT|crashed/);
+    await fireEvent.press(screen.getByRole('button', { name: words.tryAgain }));
+    expect(await screen.findByText(FIRST)).toBeTruthy();
+  });
 });
 
 test('Not now: nothing is shared, nothing more is asked, and the draft stays', async () => {
