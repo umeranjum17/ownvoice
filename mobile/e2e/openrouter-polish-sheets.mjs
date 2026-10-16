@@ -263,7 +263,9 @@ const runCase = async (testCase, tag, prefix) => {
   tap(Math.round(center(box)[0]), Math.round(center(box)[1])); await wait(700);
   if (typeIt) { type(testCase.text); await wait(1800); }
   tapBubble();
-  await waitText(['polish your message', DECLINED_LINE, EMPTY_LINE, LIMITED_LINE, 'pick one to use instead'], 60);
+  // The panel header is enough to stop waiting: an unexpected state is still captured and judged below.
+  await waitText(['polish your post', 'polish your message', DECLINED_LINE, EMPTY_LINE, LIMITED_LINE, 'pick one to use instead'], 60);
+  for (let i = 0; i < 60 && findText('Writing…'); i++) await wait(1000); // let the writer finish before judging
   await wait(1800);
   const panel = nodes();
   const words = panel.map(n => n.text || n.label).filter(Boolean).join('\n');
