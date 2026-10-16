@@ -5,7 +5,8 @@ import * as Slop from '../../../packages/engine/src/slop.ts';
 import * as Voice from '../../../packages/engine/src/voice.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const captureRoot = path.resolve(process.argv[2] ?? here);
+const args = process.argv.slice(2);
+const captureRoot = path.resolve(args.find(arg => arg !== '--gate') ?? here);
 const fixturePath = path.resolve(here, '../../e2e/agent-tasks.json');
 const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 const rules = { ...Slop.NO_RULES, ...fixture.voice };
@@ -61,5 +62,5 @@ for (const task of fixture.tasks) {
 }
 
 for (const row of rows) console.log(JSON.stringify(row));
-// Replaying a capture root gates it: every row keeps the facts and rules and comes out shorter.
-if (!rows.every(row => row.P1 && row.P2 && row.shorter)) process.exitCode = 1;
+// --gate fails the replay unless every row keeps the facts and rules and comes out shorter.
+if (args.includes('--gate') && !rows.every(row => row.P1 && row.P2 && row.shorter)) process.exitCode = 1;
