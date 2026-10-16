@@ -6,6 +6,7 @@
     {
       "id": 1,
       "task": "Write my landlord a note that the heater's broken since Monday, then make it firmer, then give me something I can send.",
+      "typed": "Hi, the heater has been broken since Monday. Please fix it soon.",
       "names": [],
       "mustKeep": ["Monday", "heater"],
       "approve": true
@@ -27,6 +28,7 @@
     {
       "id": 4,
       "task": "Draft a thank-you to Alex for covering my shift, then make it warmer.",
+      "typed": "Hi Alex, thank you for covering my shift.",
       "names": ["Alex"],
       "mustKeep": ["Alex", "shift"],
       "approve": true
@@ -42,6 +44,7 @@
     {
       "id": 6,
       "task": "Write my landlord a note that the heater's broken since Monday, then make it firmer, then give me something I can send.",
+      "typed": "Hi, the heater has been broken since Monday. Please fix it soon.",
       "names": [],
       "mustKeep": ["Monday", "heater"],
       "approve": false
