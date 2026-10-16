@@ -75,6 +75,8 @@ const screenWords = () => nodes().map(n => n.text || n.label).filter(Boolean).jo
 const waitText = async (label, tries = 40) => {
   const wanted = Array.isArray(label) ? label : [label];
   for (let i = 0; i < tries; i++) { const n = wanted.map(findText).find(Boolean); if (n) return n; await wait(1000); }
+  // Keep the whole tree for the failure itself: the run() wrapper truncates the message.
+  try { writeFileSync(resolve(out, 'wait-fail.json'), JSON.stringify(nodes(), null, 1)); } catch { /* best effort */ }
   throw new Error(`Could not see "${wanted.join('" or "')}" on screen: ${screenWords()}`);
 };
 const tapText = async (label, tries = 20) => {
@@ -106,8 +108,27 @@ const theme = async dark => {
   await setService(true);
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(4000);
 };
-const skipSetup = async () => { await waitText('sound like you', 30); adb('shell', 'input', 'keyevent', '4'); await wait(2500); await waitText('where the bubble shows', 30); };
-const openSource = async () => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg); await waitText(W.card, 30); };
+// The first run's welcome. After a fresh install on a busy emulator the app can take longer to become
+// readable than one wait covers, so relaunch it and wait again before giving up (the service can bind
+// to a process that is still starting and expose only a partial tree for a while).
+const launchHome = async () => { adb('shell', 'am', 'force-stop', pkg); await wait(1500); await setService(true); adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(5000); };
+const skipSetup = async () => {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try { await waitText('sound like you', 25); break; }
+    catch (e) {
+      if (attempt === 3) throw e;
+      log(`setup text not seen (attempt ${attempt}); relaunching the app`);
+      await launchHome();
+    }
+  }
+  adb('shell', 'input', 'keyevent', '4'); await wait(2500); await waitText('where the bubble shows', 30);
+};
+const openSource = async () => {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
+    try { await waitText(W.card, 20); return; } catch (e) { if (attempt === 3) throw e; await wait(1500); }
+  }
+};
 const revealWriter = async () => {
   for (let i = 0; i < 5 && !findText(W.card); i++) {
     adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
