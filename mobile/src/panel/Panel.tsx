@@ -160,7 +160,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const shownOnPhone = useRef(false);
   const [limited, setLimited] = useState(false);
   const [spelling, setSpelling] = useState<{ text: string; slips: Typing.Slip[] }>({ text: '', slips: [] });
-  const slips = yours?.text === spelling.text ? spelling.slips : [];
+  // Text the writer found no clear message in gets no spelling guesses: for mash they are made-up words.
+  const slips = yours?.text !== spelling.text ? [] : declined ? spelling.slips.filter(slip => slip.reason !== Typing.SPELLING) : spelling.slips;
   // The text just copied: its card's copy button shows a tick for a moment.
   const [copied, setCopied] = useState<string | null>(null);
   const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);

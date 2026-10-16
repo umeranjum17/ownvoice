@@ -6,7 +6,11 @@
 //   4 empty         - an empty box asks for a line first
 //   5 non-polishable- keyboard mash is declined honestly
 //   6 max text      - the documented Chrome capture limit renders honestly with no clipping
-// Each case captured light and dark; the five cases repeated once on a narrow phone at font scale 1.3.
+//   7 real message  - a plain message still gets versions (the decline only meets text with no clear message)
+// Declined cases show no spelling guesses: for mash they are made-up words.
+// Each case captured light and dark; the cases repeated once on a narrow phone at font scale 1.3.
+// POLISH_ONLY=<ids> runs only those cases; POLISH_ROUNDS=light,dark (default light,dark,narrow; light
+// only with POLISH_ONLY) picks the rounds.
 // Build with no E2E flags: a stub build lets the canned phone writer stand in (the provenance guard
 // below still fails a run on its fixed text). Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME,
 // JAVA_HOME, ANDROID_HOME. WRITER=openrouter (default, OPENROUTER_KEY_FILE) or opencode (OPENCODE_KEY:
@@ -47,6 +51,7 @@ const AUTOSAVE = 'autosave locally and make export easy.';
 const NONSENSE = 'the database got eaten backwards by purple toaster clouds banana banana';
 const EMPTY = '';
 const MASH = 'asdf qwer zxcv';
+const MESSAGE = 'i think we should meet tomorrow at 10 to go over the plan and the budget';
 const MAX = 'We should meet tomorrow to go over the plan and the budget. '.repeat(175);
 // The words the panel uses for each honest state (packages/engine/src/words.ts), asserted verbatim.
 const DECLINED_LINE = 'This text has no clear message to polish yet.';
@@ -231,15 +236,15 @@ const dismissChromeFirstRun = async () => {
 
 const CASES = [
   { id: 'autosave', text: AUTOSAVE, expect: 'versions' },
+  { id: 'message', text: MESSAGE, expect: 'versions' },
   { id: 'nonsense', text: NONSENSE, expect: 'declined' },
   { id: 'mash', text: MASH, expect: 'declined' },
   { id: 'empty', text: EMPTY, expect: 'empty' },
   { id: 'max', text: MAX, expect: 'any' },
 ];
-// POLISH_ONLY=autosave runs just those cases once (light) for a quick diagnostic.
 const only = process.env.POLISH_ONLY ? new Set(process.env.POLISH_ONLY.split(',')) : null;
 const cases = only ? CASES.filter(c => only.has(c.id)) : CASES;
-const allRounds = !only;
+const rounds = new Set((process.env.POLISH_ROUNDS ?? (only ? 'light' : 'light,dark,narrow')).split(','));
 const results = [];
 const classify = words => {
   if (words.includes(DECLINED_LINE)) return 'declined';
@@ -284,6 +289,9 @@ const runCase = async (testCase, tag, prefix) => {
   log(`case ${testCase.id} ${tag}: seen=${seen} expect=${testCase.expect} autoclave=${autoclave} keepAutosave=${keep} cards=${cards.length} drafts=${drafts.length} fallback=${fallback}`);
   const ok = testCase.expect === 'any' ? seen !== 'unclear' : seen === testCase.expect;
   if (!ok) throw new Error(`case ${testCase.id} ${tag}: saw ${seen}, expected ${testCase.expect} (${words.replaceAll('\n', ' | ').slice(0, 240)})`);
+  // A decline keeps a repeat fix (banana banana) but offers no spelling guess: for mash those are made-up words.
+  const guesses = testCase.id === 'mash' ? ['and', 'ewer', 'xxv'].filter(guess => panel.some(n => (n.text || '').trim() === guess)) : [];
+  if (seen === 'declined' && guesses.length) throw new Error(`case ${testCase.id} ${tag}: the decline still offered spelling guesses (${guesses.join(', ')})`);
   if (testCase.id === 'autosave' && autoclave) throw new Error(`case autosave ${tag}: the panel offered the wrong word autoclave`);
   if (testCase.id === 'autosave' && !keep) throw new Error(`case autosave ${tag}: autosave did not survive the polish`);
   // Provenance: the canned phone stub's fixed text must never stand in for the cloud writer's answer.
@@ -315,13 +323,14 @@ try {
   await run('light-connect', async () => { await connectWriter('light'); });
   for (const testCase of cases) await run(`light-${testCase.id}`, () => runCase(testCase, 'light', 'light'));
 
-  if (allRounds) {
+  if (rounds.has('dark')) {
     await run('dark-setup', async () => { await theme(true); });
-    for (const testCase of CASES) await run(`dark-${testCase.id}`, () => runCase(testCase, 'dark', 'dark'));
-
+    for (const testCase of cases) await run(`dark-${testCase.id}`, () => runCase(testCase, 'dark', 'dark'));
+  }
+  if (rounds.has('narrow')) {
     // Narrow phone at font scale 1.3: the case set on a smaller screen, no clipping.
     await run('narrow-setup', async () => { adb('shell', 'wm', 'size', '720x1280'); adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3'); await theme(false); });
-    for (const testCase of CASES) await run(`narrow-${testCase.id}`, () => runCase(testCase, 'narrow', 'narrow'));
+    for (const testCase of cases) await run(`narrow-${testCase.id}`, () => runCase(testCase, 'narrow', 'narrow'));
   }
 
   writeFileSync(resolve(out, 'coverage.json'), JSON.stringify(results, null, 2));

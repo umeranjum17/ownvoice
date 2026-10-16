@@ -14,6 +14,14 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
   closePanel: jest.fn(), typingCheck: jest.fn(async () => false),
 } }));
 
+jest.mock('../../core/speller', () => ({
+  speller: async () => {
+    const { readFileSync } = require('fs');
+    const dir = `${__dirname}/../../../assets/dictionary/`;
+    return require('nspell')(readFileSync(dir + 'en-affixes.aff', 'utf8'), readFileSync(dir + 'en-words.dic', 'utf8'));
+  },
+}));
+
 const native = Native as jest.Mocked<typeof Native>;
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
 const TYPED = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
@@ -67,5 +75,18 @@ test('captured nonsense has honest refusal, no retry, retained repeat fix and th
     };
     walk(screen.toJSON());
     expect(sizes).toEqual([44]);
+  } finally { native.typingCheck.mockResolvedValue(false); }
+});
+
+// Live Go writer capture 2026-10-16: declined keyboard mash still listed dictionary guesses (asdf -> and).
+test('declined keyboard mash offers no made-up spelling fixes', async () => {
+  native.typingCheck.mockResolvedValue(true);
+  try {
+    const screen = await renderPanel({ declined: true }, 'asdf qwer zxcv');
+    await waitFor(() => expect(screen.getByText(words.unclearPolish)).toBeTruthy());
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    for (const guess of ['and', 'ewer', 'xxv']) expect(screen.queryByText(guess)).toBeNull();
+    expect(screen.queryByText(words.slipsTitle)).toBeNull();
+    expect(screen.queryByRole('button', { name: words.fix })).toBeNull();
   } finally { native.typingCheck.mockResolvedValue(false); }
 });
