@@ -168,7 +168,10 @@ const settleChrome = async (need = 'x.com') => {
     if (text.includes('notifications make things')) { tap(643, 1751); await wait(2000); continue; }
     await wait(1500);
   }
-  throw new Error(`Chrome never showed ${need} (URL bar not found in accessibility tree).`);
+  try { shot('chrome', `unsettled-${need.replace(/\W+/g, '-')}`, 'stuck'); } catch { /* the error below still names the screen */ }
+  const focus = adb('shell', 'dumpsys', 'window').match(/mCurrentFocus=.*/)?.[0] ?? 'unknown focus';
+  const seen = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 300);
+  throw new Error(`Chrome never showed ${need} (URL bar not found in accessibility tree; ${focus}; nodes: ${seen}).`);
 };
 
 // ---- device prep: host-map x.com in Chrome over a self-signed HTTPS fixture ----
@@ -464,9 +467,15 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
     if (!panelText('X')) throw new Error('The panel does not name the X platform.');
     if (panelText('Reply ideas are unavailable')) throw new Error('The withhold note showed on a grounded post.');
     shot(screen, 'cards', theme);
+    if (copy) {
+      await copyLeg(screen, theme);
+      // Copy closes the panel (the native copy finishes it), so reopen it from the bubble for the edit.
+      tap(...center(await bubble()));
+      await wait(1800);
+      if (!(await waitEditOrRefusal(240))) throw new Error('No card with an Edit button after reopening the panel.');
+    }
     const firstCard = nodes().find(node => node.clickable && node.text && node.text.length > 10);
     const originalCardText = firstCard?.text?.trim() || '';
-    if (copy) await copyLeg(screen, theme);
     nodes('Edit'); // accessibility click into the first card's edit field
     await wait(1600);
     adb('shell', 'input', 'text', EDIT_SUFFIX.replaceAll(' ', '%s'));
@@ -485,11 +494,12 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
     const pillNow = pillSeen || nodes().some(node => /Send it yourself|Check it looks right/.test(`${node.text} ${node.label}`));
     const ocrPill = () => { try { return execFileSync('tesseract', [`${root}/verify-artifacts/${task}/${screen}-inserted-panel-${theme}.png`, 'stdout'], { encoding: 'utf8' }); } catch { return ''; } };
     if (!pillNow && !/send.{0,4}yourself|check it looks right/i.test(ocrPill())) throw new Error('The insert confirmation is not visible.');
+    // Read the insert result now, before the logcat ring buffer can rotate it out.
+    const logcat = adb('logcat', '-d', '-s', 'OwnvoiceNative:I', 'OwnvoiceService:I');
     adb('shell', 'input', 'keyevent', '111');
     await wait(800);
-    if ((await panelButton('Insert')) || (await panelButton('Edit'))) { nodes('Close'); await wait(900); }
+    if ((await panelButton('Insert', 4)) || (await panelButton('Edit', 4))) { nodes('Close'); await wait(900); }
     shot(screen, 'inserted', theme);
-    const logcat = adb('logcat', '-d', '-s', 'OwnvoiceNative:I', 'OwnvoiceService:I');
     if (!/insert result ok=true/.test(logcat)) throw new Error('The insert read-back check did not pass.');
     const back = nodes().find(node => node.editable && !node.password && !/x\.com|https?:|find an app/i.test(`${node.text ?? ''} ${node.label ?? ''}`));
     const boxText = `${back?.text ?? ''}`;
