@@ -283,14 +283,16 @@ export default function SourceScreen() {
     </>;
   };
 
-  // What happens to the writing, for the chosen option only: nothing chosen means nothing is written or sent.
+  // What happens to the writing, for the chosen option only (or the account being connected right now, so the
+  // card never says nothing leaves next to its sign-in): nothing chosen means nothing is written or sent.
   // Each reads as a short headline first, with the full sentence under it; the read log opens its own screen.
+  const writer = signIn?.key ?? chosen;
   const notes: [typeof LockIcon, string, string, (() => void)?][] = [
-    ...(chosen === 'chatgpt' ? [[LockIcon, words.headGpt, words.privacyGpt], [ChatIcon, words.headSwitch, words.switchNote]] as [typeof LockIcon, string, string][]
-      : chosen === 'claude' ? [[LockIcon, words.headClaude, words.privacyClaude], [ChatIcon, words.headSwitch, words.switchNoteClaude]] as [typeof LockIcon, string, string][]
-      : chosen === 'openrouter' ? [[LockIcon, words.headOpenRouter, words.privacyOpenRouter], [ChatIcon, words.headSwitch, words.switchNoteOpenRouter]] as [typeof LockIcon, string, string][]
-      : chosen === 'opencode' ? [[LockIcon, words.headOpenCode, words.privacyOpenCode], [ChatIcon, words.headSwitch, words.switchNoteOpenCode]] as [typeof LockIcon, string, string][]
-      : chosen === 'phone' ? [[LockIcon, words.headPhone, words.privacyPhone]] as [typeof LockIcon, string, string][] : []),
+    ...(writer === 'chatgpt' ? [[LockIcon, words.headGpt, words.privacyGpt], [ChatIcon, words.headSwitch, words.switchNote]] as [typeof LockIcon, string, string][]
+      : writer === 'claude' ? [[LockIcon, words.headClaude, words.privacyClaude], [ChatIcon, words.headSwitch, words.switchNoteClaude]] as [typeof LockIcon, string, string][]
+      : writer === 'openrouter' ? [[LockIcon, words.headOpenRouter, words.privacyOpenRouter], [ChatIcon, words.headSwitch, words.switchNoteOpenRouter]] as [typeof LockIcon, string, string][]
+      : writer === 'opencode' ? [[LockIcon, words.headOpenCode, words.privacyOpenCode], [ChatIcon, words.headSwitch, words.switchNoteOpenCode]] as [typeof LockIcon, string, string][]
+      : writer === 'phone' ? [[LockIcon, words.headPhone, words.privacyPhone]] as [typeof LockIcon, string, string][] : []),
     [EyeIcon, words.headReads, words.readsNote, () => router.push('/reads')],
   ];
 

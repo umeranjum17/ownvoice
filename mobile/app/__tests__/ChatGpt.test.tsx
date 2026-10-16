@@ -87,6 +87,8 @@ test('switching to ChatGPT signs in right on the page, and ChatGPT writes once c
   expect(screen.getByText(words.signInNote)).toBeTruthy();
   expect(screen.getByText('Uses your ChatGPT plan. OpenAI may change this at any time.')).toBeTruthy();
   expect(chosen()).toBe('phone');
+  expect(screen.getByText(words.privacyGpt)).toBeTruthy();
+  expect(screen.queryByText(words.privacyPhone)).toBeNull();
   await fireEvent.press(screen.getByText(words.copyAndOpen));
   expect(native.copy).toHaveBeenCalledWith('KQPT-MXVD');
   expect(Linking.openURL).toHaveBeenCalledWith('https://chatgpt.com/code');

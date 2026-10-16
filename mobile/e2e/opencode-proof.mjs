@@ -5,8 +5,10 @@
 // OPENCODE_KEY_FILE (never printed, logged, committed or screenshotted) into the kit's field and
 // connect. A login key that works with several workspaces shows the kit's pick: the run taps
 // OPENCODE_WORKSPACE (default Working2), then types a reply into a Chrome field and taps the bubble
-// for one real draft panel. One generation per run.
-// Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME, OPENCODE_KEY_FILE, OPENCODE_WORKSPACE. Args: <apk> <out-dir>.
+// for one real draft panel. One generation per run. OPENCODE_CARDS=1 instead captures the "What happens to
+// your writing" card with no writer, during the connect and once connected (light, dark, and 1.3 font at
+// 360dp), and skips the draft, so it spends nothing.
+// Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME, OPENCODE_KEY_FILE, OPENCODE_WORKSPACE, OPENCODE_CARDS. Args: <apk> <out-dir>.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -25,6 +27,7 @@ if (!process.env.OPENCODE_KEY_FILE) throw new Error('Set OPENCODE_KEY_FILE to a 
 const key = readFileSync(process.env.OPENCODE_KEY_FILE, 'utf8').trim();
 if (key.length < 20 || /\s/.test(key)) throw new Error('The OpenCode Go key file did not look like a key.');
 const workspace = process.env.OPENCODE_WORKSPACE ?? 'Working2';
+const cards = process.env.OPENCODE_CARDS === '1';
 const REPLY = 'i think we should meet tomorrow at 10 to go over the plan and the budget';
 
 const pkg = 'dev.ownvoice.next';
@@ -63,9 +66,11 @@ const setService = async () => {
   set.add(component);
   adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', [...set].join(':'));
   adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
-  for (let i = 0; i < 45 && !adb('shell', 'dumpsys', 'accessibility').includes(component); i++) await wait(1000);
-  if (!adb('shell', 'dumpsys', 'accessibility').includes(component)) throw new Error('Accessibility service did not bind.');
+  for (let i = 0; i < 45 && !bound(); i++) await wait(1000);
+  if (!bound()) throw new Error('Accessibility service did not bind.');
 };
+// Bound, not just enabled: a force-stop unbinds the service and Android only rebinds it when the setting changes.
+const bound = () => /Bound services:\s*[\[{][^}\]]*Ownvoice/.test(adb('shell', 'dumpsys', 'accessibility'));
 
 // Chrome switched on for the bubble through the app's own list, like a person would.
 const enableChrome = async () => {
@@ -92,15 +97,54 @@ const connectOpenCode = async () => {
   await hideKeyboard();
   await tapText('connect', 20);
   await waitText('more than one workspace', 40);
-  for (let i = 0; i < 3 && !find(n => (n.text || n.label || '').trim() === workspace); i++) await swipeUp();
+  // The node read can come back empty for a moment (after a density change), so retry before scrolling on.
+  for (let i = 0; i < 8 && !find(n => (n.text || n.label || '').trim() === workspace); i++) i % 2 ? await swipeUp() : await wait(1000);
   const pick = find(n => (n.text || n.label || '').trim() === workspace);
   if (!pick) throw new Error(`The workspace pick shows no "${workspace}": ${screenWords()}`);
   snap('workspace-pick');
   log(`workspace pick shown: ${screenWords()}`);
-  tap(...center(pick));
+  if (cards) {
+    await card('card-connecting');
+    for (let i = 0; i < 8 && !find(n => (n.text || n.label || '').trim() === workspace); i++) await swipeDown();
+  }
+  const fresh = find(n => (n.text || n.label || '').trim() === workspace);
+  if (!fresh) throw new Error(`The workspace pick lost "${workspace}": ${screenWords()}`);
+  tap(...center(fresh));
   await waitText('opencode go is connected', 60);
   snap('connected');
   log(`OpenCode Go connected for ${workspace}`);
+};
+
+// The writing card sits at the end of How Ownvoice writes: scroll to it and capture what it says.
+const swipeDown = async () => { adb('shell', 'input', 'swipe', String(width / 2), String(height * .3), String(width / 2), String(height * .7), '300'); await wait(1200); };
+const card = async name => {
+  for (let i = 0; i < 8; i++) await swipeUp();
+  if (!bound()) throw new Error(`The accessibility service is not bound before ${name}.`);
+  await waitText('a list of taps', 10);
+  snap(name);
+  log(`${name}: ${nodes().map(n => n.text || n.label).filter(Boolean).filter(t => / leaves | goes to |list of taps|saw the screen/i.test(t)).join(' | ')}`);
+};
+// RN reads the colour scheme at process start: force-stop, flip, rebind the service, reopen How Ownvoice writes.
+const cardIn = async (mode, name) => {
+  adb('shell', 'am', 'force-stop', pkg);
+  adb('shell', 'cmd', 'uimode', 'night', mode === 'dark' ? 'yes' : 'no');
+  await setService();
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
+  await waitText('how ownvoice writes', 30);
+  await card(name);
+};
+// Every card capture for one writer state: light, dark, then 1.3 font at the narrowest phone width (360dp).
+const cardMatrix = async state => {
+  await cardIn('light', `card-${state}-light`);
+  await cardIn('dark', `card-${state}-dark`);
+  adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
+  adb('shell', 'wm', 'density', String(Math.round(width / 360 * 160)));
+  await cardIn('light', `card-${state}-narrow-large`);
+  adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0');
+  adb('shell', 'wm', 'density', 'reset');
+  adb('shell', 'am', 'force-stop', pkg);
+  adb('shell', 'cmd', 'uimode', 'night', 'no');
+  await setService();
 };
 
 // A Chrome page with a reply field: type the reply, tap the bubble, wait for drafts or the failure line.
@@ -141,6 +185,10 @@ let page = null;
 try {
   adb('shell', 'cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');
   adb('shell', 'cmd', 'uimode', 'night', 'no');
+  // The shared emulator may keep another run's font size or density, which pushes the welcome title off screen.
+  log(`start: font ${adb('shell', 'settings', 'get', 'system', 'font_scale').trim()}, ${adb('shell', 'wm', 'density').trim().replace(/\n/g, ', ')}`);
+  adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0');
+  adb('shell', 'wm', 'density', 'reset');
   execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
   adb('shell', 'pm', 'clear', pkg);
   await setService();
@@ -148,14 +196,20 @@ try {
   // Setup finished with no writer: hardware Back on the welcome completes it.
   await waitText('sound like you', 30); adb('shell', 'input', 'keyevent', '4'); await wait(2500);
   await enableChrome();
+  if (cards) await cardMatrix('none');
   await connectOpenCode();
-  page = await servePage();
-  execFileSync('adb', ['-s', serial, 'reverse', `tcp:${page.address().port}`, `tcp:${page.address().port}`]);
-  await draft(page);
+  if (cards) await cardMatrix('opencode');
+  else {
+    page = await servePage();
+    execFileSync('adb', ['-s', serial, 'reverse', `tcp:${page.address().port}`, `tcp:${page.address().port}`]);
+    await draft(page);
+  }
   log(`opencode proof saved to ${out}.`);
 } finally {
   if (page) { try { execFileSync('adb', ['-s', serial, 'reverse', '--remove', `tcp:${page.address().port}`]); } catch { /* best-effort */ } page.close(); }
   adb('shell', 'cmd', 'uimode', 'night', priorNight || 'no');
+  adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0');
+  adb('shell', 'wm', 'density', 'reset');
   for (const [v, k] of [[priorServices, 'enabled_accessibility_services'], [priorAccessibility, 'accessibility_enabled']]) {
     try { adb('shell', 'settings', v === 'null' ? 'delete' : 'put', 'secure', k, ...(v === 'null' ? [] : [v])); } catch { /* best-effort restore */ }
   }
