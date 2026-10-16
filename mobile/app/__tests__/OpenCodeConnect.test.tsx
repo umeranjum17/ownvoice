@@ -153,6 +153,10 @@ test('a key that works with several workspaces shows the kit\'s pick, and pickin
   expect(storedSource()).toBe('opencode');
   expect((await status(OPENCODE_ROUTE)).state).toBe('ready');
 
+  // The tap-log row names the writer now in use, never ChatGPT.
+  expect(screen.getByText(words.readsNoteTo.replace('{name}', 'OpenCode Go'))).toBeTruthy();
+  expect(screen.queryByText(/ChatGPT saw/)).toBeNull();
+
   // A draft ask through the app's own route reaches the gateway naming the picked workspace.
   const answer = await askCloud('opencode', { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
   expect(answer).toBe(REPLY);
