@@ -203,7 +203,11 @@ const settleChrome = async (need, url = 'https://x.com/x.html') => {
     } else if (text.includes('notifications make things')) {
       const no = nodes().find(node => node.clickable && /no thanks|not now|don.t allow/i.test(`${node.text ?? ''} ${node.label ?? ''}`));
       tap(...(no ? center(no) : [wide * 643 / 1080, high * 1751 / 2400]));
-    } else if (++polls % 15 === 0) adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url);
+    } else if (++polls % 15 === 0) {
+      // Chrome with no accessible nodes at all has lost its tree: restart it on the page.
+      if (!all.some(n => n.app === 'com.android.chrome')) adb('shell', 'am', 'force-stop', 'com.android.chrome');
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url);
+    }
     return false;
   }, { seconds: 180, every: 1500 });
 };
