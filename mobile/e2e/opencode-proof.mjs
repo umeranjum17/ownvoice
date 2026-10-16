@@ -123,7 +123,7 @@ const draft = async page => {
   await type(REPLY);
   await wait(4500);
   const bubble = find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label));
-  if (!bubble) throw new Error('Ownvoice bubble is not visible.');
+  if (!bubble) { snap('no-bubble'); throw new Error(`Ownvoice bubble is not visible: ${screenWords()}`); }
   tap(...center(bubble));
   await waitText(['polish your message', 'polish your post'], 45);
   await waitText(['pick one to use instead', "didn't answer", 'phone wrote'], 150);
