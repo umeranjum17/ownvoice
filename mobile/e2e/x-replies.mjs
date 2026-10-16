@@ -637,8 +637,9 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
 // tap did: the newest Chrome row carries "Sent to your AI account" only once a cloud writer
 // answered, so a refusal leg must show that row without the mark. Rows are newest first.
 const newestReadBlock = async () => {
-  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
+  // A running app can take the link without routing (seen at the extreme display size), so ask again each try.
   return until('a Chrome row on the read list', () => {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
     const texts = nodes().map(n => `${n.text ?? ''}\n${n.label ?? ''}`.trim()).filter(Boolean);
     const first = texts.findIndex(text => /in Chrome\b/i.test(text));
     return first >= 0 && texts.slice(first, first + 3).join(' | ');
@@ -692,7 +693,7 @@ const withhold = async (screen, theme, { query, need, note }) => {
 // X_REPLIES_LEGS=refusal: only the legs that must make no writer request, so the run is
 // credit-free; the default keeps the full writer-dependent journey.
 const IMAGE_ONLY = { query: '?case=notext', need: 'hours ago', note: 'Reply ideas are unavailable' };
-const LABELS_ONLY = { query: '?case=labels', need: 'post text', note: 'Write one line about what your post is about' };
+const LABELS_ONLY = { query: '?case=labels', need: 'everyone can reply', note: 'Write one line about what your post is about' };
 
 // A failed earlier run can leave its recording marker behind; clear it so motion-start is honest.
 for (const stale of ['.motion.pid', '.motion.out']) rmSync(`${root}/verify-artifacts/${task}/${stale}`, { force: true });
