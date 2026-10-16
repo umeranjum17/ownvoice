@@ -1,6 +1,9 @@
 jest.setTimeout(20000);
 import React from 'react';
-import { act, fireEvent, render, type RenderAPI, type ReactTestInstance } from '@testing-library/react-native';
+import { act, fireEvent, render, type RenderResult } from '@testing-library/react-native';
+
+// The element handle the kit's queries hand back; v14 no longer re-exports ReactTestInstance.
+type Field = Parameters<typeof fireEvent.changeText>[0];
 import { useLocalSearchParams } from 'expo-router';
 import Source from '../source';
 import { setSource, storedSource } from '../../src/core/source';
@@ -111,13 +114,13 @@ afterEach(async () => {
 });
 
 /** One tap and the screen's whole answer: the tap flushes in act, then the screen is polled until one of the outcomes renders. */
-const tapAndWait = async (screen: RenderAPI, press: () => void, outcomes: string[]) => {
+const tapAndWait = async (screen: RenderResult, press: () => void, outcomes: string[]) => {
   await act(async () => { press(); await Promise.resolve(); });
   for (let i = 0; i < 160 && !outcomes.some(t => screen.queryByText(t)); i++) await new Promise(r => setTimeout(r, 50));
 };
 
 /** Paste one key into the kit's field and press Connect; answers with the pick, the connected line or the failure line. */
-const pasteAndConnect = async (screen: RenderAPI, field: ReactTestInstance, key: string) => {
+const pasteAndConnect = async (screen: RenderResult, field: Field, key: string) => {
   await act(async () => { fireEvent.changeText(field, key); });
   await tapAndWait(screen, () => fireEvent.press(screen.getByText(words.openCodeConnect)), [PICK_LINE, CONNECTED, FAILED]);
 };
