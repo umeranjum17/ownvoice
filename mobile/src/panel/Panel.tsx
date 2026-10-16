@@ -291,7 +291,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           typed: grow ? '' : typed,
           point: grow ? typed : undefined,
           platform,
-          newPost: post,
           guide: picked.line,
           never: rules.never,
           samples: samplesOf.current = picked.samples,

@@ -88,9 +88,9 @@ the ordinary new-post path (`versionsList`, `polishAcceptor`, `rewrite`), so the
 post is written from what he actually said. A question offered as his post would
 be something he had to delete before posting, so no question prompt, slot or
 acceptance exists in this engine. `Panel.modeOf` in `mobile/` owns the decision
-to ask rather than draft, and `Panel.start()` sets `DraftRequest.newPost` from
-the compose mode, which routes the line through the new-post path; this engine
-only holds the words and the checks.
+to ask rather than draft; the line then goes through the same polish path and
+clarity question as any typed text (a line about a post counts as clear); this
+engine only holds the words and the checks.
 
 ### Reply samples (0.2.0 / protocol 2)
 

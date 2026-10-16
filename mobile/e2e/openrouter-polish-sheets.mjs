@@ -3,7 +3,7 @@
 //   1 autosave      - the polished versions keep "autosave" and never offer "autoclave"
 //   2 split capital - a rewrite that splits the sentence keeps "Make" capital after the full stop
 //   3 nonsense      - meaningless input gets the honest no-clear-message refusal, not a retry line
-//   4 empty         - an empty box asks for a line first
+//   4 empty         - an empty box asks for a line first (in Chrome, the one line for a new post)
 //   5 non-polishable- keyboard mash is declined honestly
 //   6 max text      - the documented Chrome capture limit renders honestly with no clipping
 //   7 real message  - a plain message still gets versions (the decline only meets text with no clear message)
@@ -56,6 +56,8 @@ const MAX = 'We should meet tomorrow to go over the plan and the budget. '.repea
 // The words the panel uses for each honest state (packages/engine/src/words.ts), asserted verbatim.
 const DECLINED_LINE = 'This text has no clear message to polish yet.';
 const EMPTY_LINE = 'Write a line or two first, and Ownvoice will help you polish it.';
+// Chrome reads as a feed app, so its blank box asks for the post's one line instead (Panel modeOf 'own').
+const OWN_LINE = 'Write one line about what your post is about, then tap the bubble again.';
 const LIMITED_LINE = 'In very long notes, checks cover only the first part.';
 const READY_LINE = 'Pick one to use instead of what you wrote. You send it yourself.';
 // The E2E phone stub's fixed drafts (mobile/src/panel/phoneWriter.ts): if one appears, the cloud
@@ -248,7 +250,7 @@ const rounds = new Set((process.env.POLISH_ROUNDS ?? (only ? 'light' : 'light,da
 const results = [];
 const classify = words => {
   if (words.includes(DECLINED_LINE)) return 'declined';
-  if (words.includes(EMPTY_LINE)) return 'empty';
+  if (words.includes(EMPTY_LINE) || words.includes(OWN_LINE)) return 'empty';
   if (words.includes(LIMITED_LINE)) return 'limited';
   if (words.includes(READY_LINE) || words.includes('shorter')) return 'versions';
   return 'unclear';
@@ -269,7 +271,7 @@ const runCase = async (testCase, tag, prefix) => {
   if (typeIt) { type(testCase.text); await wait(1800); }
   tapBubble();
   // The panel header is enough to stop waiting: an unexpected state is still captured and judged below.
-  await waitText(['polish your post', 'polish your message', DECLINED_LINE, EMPTY_LINE, LIMITED_LINE, 'pick one to use instead'], 60);
+  await waitText(['polish your post', 'polish your message', DECLINED_LINE, EMPTY_LINE, OWN_LINE, LIMITED_LINE, 'pick one to use instead'], 60);
   for (let i = 0; i < 60 && findText('Writing…'); i++) await wait(1000); // let the writer finish before judging
   await wait(1800);
   const panel = nodes();

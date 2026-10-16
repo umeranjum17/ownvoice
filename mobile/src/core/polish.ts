@@ -9,10 +9,11 @@ const hasWords = (text: string) => /[\p{L}\p{N}]/u.test(text);
 
 /** Check the original, not a fluent rewrite: reordering nonsense cannot supply a missing point.
  *  One short question with a few examples: keyboard mash and grammatical nonsense are both unclear,
- *  while a short everyday reply is clear (the small on-phone writer once declined those). */
+ *  while a short everyday reply or a new post's one-line topic is clear (the small on-phone writer
+ *  once declined both). */
 export async function canPolish(text: string, ask: (prompt: string) => Promise<string>): Promise<boolean> {
   if (!hasWords(text)) return false;
-  const answer = await ask(`Does the text below say something a person clearly means, that a reader could understand and answer? Random letters, keyboard mash, and words that make no sense together are UNCLEAR. A short everyday reply is CLEAR. Answer only CLEAR or UNCLEAR.\n\nasdf qwer zxcv -> UNCLEAR\nthe chair sang my homework into green soup soup -> UNCLEAR\nsee you at 6 -> CLEAR\ngot it, thanks -> CLEAR\nwill do -> CLEAR\n\nText:\n${text}`);
+  const answer = await ask(`Does the text below say something a person clearly means, that a reader could understand and answer? Random letters, keyboard mash, and words that make no sense together are UNCLEAR. A short everyday reply or a line about what a post should say is CLEAR. Answer only CLEAR or UNCLEAR.\n\nasdf qwer zxcv -> UNCLEAR\nthe chair sang my homework into green soup soup -> UNCLEAR\nsee you at 6 -> CLEAR\nour app launches next week -> CLEAR\ngot it, thanks -> CLEAR\nwill do -> CLEAR\n\nText:\n${text}`);
   if (/^CLEAR[.]?$/i.test(answer.trim())) return true;
   if (/^UNCLEAR[.]?$/i.test(answer.trim())) return false;
   // Unreadable evidence is a transient failure, not proof that the text has no point.
