@@ -3,6 +3,7 @@ import { store } from '../../core/store';
 import { fitBackends } from '../settings';
 import { status } from '../accounts';
 import * as Switch from '../../core/switch';
+import { answerer } from '@byokit/decide';
 import { judgeFit, rated, LEVELS, UNSURE } from '../../grow/fit';
 import { platformForApp } from '../../core/platforms';
 import Native from '../../../modules/ownvoice-native';
@@ -143,6 +144,27 @@ test('the same call carries the selected samples as a Sounds-like-you yes/no per
       { level: 3, words: LEVELS[3], probability: 0.65, voice: null },
       { level: null, words: UNSURE, probability: null, voice: null },
     ]);
+});
+
+// A real OpenCode Go fit answer (host replay, 2026-10-17) and how long it took: the Go writer's judge
+// often answers after 20 s, so a 20 s deadline turned every card into the unsure read.
+const GO_ANSWER = '{"fit_0":{"probabilities":{"0":0.05,"1":0.45,"2":0.4,"3":0.1},"rationale":"Relevant but mainly restates the post\'s conclusion; limited new detail, so middling fit."},"voice_0":{"probabilities":{"true":0.35,"false":0.65},"rationale":"Concise and casual, but lacks the post\'s first-person specificity and \'Turns out\' framing."},"fit_1":{"probabilities":{"0":0.15,"1":0.6,"2":0.2,"3":0.05},"rationale":"Explicit agreement with no new point; likely to be seen as redundant or empty agreement."},"voice_1":{"probabilities":{"true":0.2,"false":0.8},"rationale":"More formal and analytical than the post\'s conversational voice; uses \'agree\' and \'suggests\'."},"fit_2":{"probabilities":{"0":0.02,"1":0.08,"2":0.3,"3":0.6},"rationale":"Adds a concrete counterpoint about pricing out needy customers, moving the conversation forward."},"voice_2":{"probabilities":{"true":0.6,"false":0.4},"rationale":"Casual, direct, and uses similar \'40%\' and conversational phrasing to the post."}}';
+const GO_MS = 43604;
+
+test('a slow cloud judge still rates: the real Go answer after 43 s gives levels, not the unsure read', async () => {
+  jest.useFakeTimers();
+  try {
+    const go = answerer({ name: 'opencode', leaves: true, ask: () => new Promise(done => setTimeout(() => done(GO_ANSWER), GO_MS)) });
+    const fits = judgeFit({ post: 'I raised prices 40% and churn went down. Turns out cheap prices were attracting people who never stuck around.',
+      candidates: ['raising prices can filter for people who actually need it', 'agree, the 40% bump plus lower churn suggests you filtered for people who actually need it', "maybe, but a 40% jump can also price out people who need it and just can't stretch that far"],
+      platform, backends: [go] });
+    await jest.advanceTimersByTimeAsync(GO_MS);
+    expect(await fits).toEqual([
+      { level: null, words: UNSURE, probability: null, voice: false },
+      { level: 1, words: LEVELS[1], probability: 0.6, voice: false },
+      { level: 3, words: LEVELS[3], probability: 0.6, voice: true },
+    ]);
+  } finally { jest.useRealTimers(); }
 });
 
 test('LinkedIn has its own rubric: a strong reply, a skipped one and an abstain', async () => {
