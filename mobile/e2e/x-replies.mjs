@@ -254,7 +254,7 @@ const scrollWriterList = async phrase => {
   }
 };
 // The key field shows its label as a placeholder: tap the editable carrying it (or the label over
-// it), wait until an editable has focus, then type. The field masks the key, so it is never read back.
+// it), wait until the keyboard opens on it, then type. The field masks the key, so it is never read back.
 const pasteKey = async label => {
   const want = label.toLowerCase();
   const target = await until(`the "${label}" field`, () => {
@@ -262,7 +262,8 @@ const pasteKey = async label => {
     return all.find(n => n.editable && `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes(want)) ?? all.find(n => `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes(want));
   });
   tap(...center(target));
-  await until(`focus in the "${label}" field`, () => nodes().some(n => n.editable && n.focused), { seconds: 15 });
+  // The probe can read no nodes while the keyboard is up, so the system's own keyboard state is the focus signal.
+  await until(`the keyboard on the "${label}" field`, () => /mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method')), { seconds: 15 });
   type(`'${key}'`);
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) adb('shell', 'input', 'keyevent', '4');
   await until('the keyboard to close after the key', () => !/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method')), { seconds: 10 });
