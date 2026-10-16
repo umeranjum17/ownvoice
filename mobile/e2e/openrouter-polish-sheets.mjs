@@ -1,4 +1,4 @@
-// OpenRouter polish-sheet live proof (real DeepSeek V4.1 Flash through Ownvoice, no stand-ins).
+// OpenRouter/OpenCode Go polish-sheet live proof (real DeepSeek V4.1 Flash through Ownvoice, no stand-ins).
 // Proves the output-fix acceptance cases on the real product, from a Chrome lab composer:
 //   1 autosave      - the polished versions keep "autosave" and never offer "autoclave"
 //   2 split capital - a rewrite that splits the sentence keeps "Make" capital after the full stop
@@ -7,9 +7,11 @@
 //   5 non-polishable- keyboard mash is declined honestly
 //   6 max text      - the documented Chrome capture limit renders honestly with no clipping
 // Each case captured light and dark; the five cases repeated once on a narrow phone at font scale 1.3.
-// Build with EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1 (the ChatGPT stand-in and phone stub; the
-// OpenRouter key route still reaches the real OpenRouter API). Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME,
-// OPENROUTER_KEY_FILE, JAVA_HOME, ANDROID_HOME. Args: <apk> <out-dir>.
+// Build with no E2E flags: a stub build lets the canned phone writer stand in (the provenance guard
+// below still fails a run on its fixed text). Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME,
+// JAVA_HOME, ANDROID_HOME. WRITER=openrouter (default, OPENROUTER_KEY_FILE) or opencode (OPENCODE_KEY:
+// the OpenCode Go plan key, resolved from the desktop OpenCode login, never logged; OPENCODE_WORKSPACE
+// names the workspace to pick when the key has several). Args: <apk> <out-dir>.
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -24,8 +26,22 @@ const apk = process.argv[2];
 if (!apk) throw new Error('Pass the release APK path.');
 const out = resolve(process.argv[3] ?? 'e2e/artifacts/openrouter-polish');
 mkdirSync(out, { recursive: true });
-const key = readFileSync(process.env.OPENROUTER_KEY_FILE ?? `${process.env.HOME}/.config/openrouter/api_key`, 'utf8').trim();
-if (!key.startsWith('sk-')) throw new Error('OpenRouter key file did not look like a key.');
+// The writer under proof: OpenRouter's per-use key, or OpenCode Go's plan key on the plan's own
+// endpoint (PR 209 wiring). The key only ever enters the app's paste field: never printed,
+// screenshotted, logged or committed.
+const WRITER = process.env.WRITER ?? 'openrouter';
+const WRITERS = {
+  openrouter: { card: 'with your openrouter', field: 'paste your openrouter key', connected: 'openrouter is connected', signedOut: 'sign out of openrouter', name: 'OpenRouter' },
+  opencode: { card: 'with your opencode go', field: 'paste your opencode go key', connected: 'opencode go is connected', signedOut: 'sign out of opencode go', name: 'OpenCode Go' },
+};
+const W = WRITERS[WRITER];
+if (!W) throw new Error(`Unknown WRITER=${WRITER} (openrouter|opencode).`);
+const key = WRITER === 'opencode'
+  ? (process.env.OPENCODE_KEY ?? '').trim()
+  : readFileSync(process.env.OPENROUTER_KEY_FILE ?? `${process.env.HOME}/.config/openrouter/api_key`, 'utf8').trim();
+if (!key) throw new Error(`No ${W.name} key: ${WRITER === 'opencode' ? 'set OPENCODE_KEY' : 'set OPENROUTER_KEY_FILE'}.`);
+const workspace = process.env.OPENCODE_WORKSPACE ?? 'Working2'; // the Go workspace to pick, as opencode-proof.mjs
+if (WRITER === 'openrouter' && !key.startsWith('sk-')) throw new Error('OpenRouter key file did not look like a key.');
 
 const AUTOSAVE = 'autosave locally and make export easy.';
 const NONSENSE = 'the database got eaten backwards by purple toaster clouds banana banana';
@@ -61,6 +77,8 @@ const screenWords = () => nodes().map(n => n.text || n.label).filter(Boolean).jo
 const waitText = async (label, tries = 40) => {
   const wanted = Array.isArray(label) ? label : [label];
   for (let i = 0; i < tries; i++) { const n = wanted.map(findText).find(Boolean); if (n) return n; await wait(1000); }
+  // Keep the whole tree for the failure itself: the run() wrapper truncates the message.
+  try { writeFileSync(resolve(out, 'wait-fail.json'), JSON.stringify(nodes(), null, 1)); } catch { /* best effort */ }
   throw new Error(`Could not see "${wanted.join('" or "')}" on screen: ${screenWords()}`);
 };
 const tapText = async (label, tries = 20) => {
@@ -92,10 +110,29 @@ const theme = async dark => {
   await setService(true);
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(4000);
 };
-const skipSetup = async () => { await waitText('sound like you', 30); adb('shell', 'input', 'keyevent', '4'); await wait(2500); await waitText('where the bubble shows', 30); };
-const openSource = async () => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg); await waitText('with your openrouter', 30); };
-const revealOpenRouter = async () => {
-  for (let i = 0; i < 5 && !findText('with your openrouter'); i++) {
+// The first run's welcome. After a fresh install on a busy emulator the app can take longer to become
+// readable than one wait covers, so relaunch it and wait again before giving up (the service can bind
+// to a process that is still starting and expose only a partial tree for a while).
+const launchHome = async () => { adb('shell', 'am', 'force-stop', pkg); await wait(1500); await setService(true); adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(5000); };
+const skipSetup = async () => {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try { await waitText('sound like you', 25); break; }
+    catch (e) {
+      if (attempt === 3) throw e;
+      log(`setup text not seen (attempt ${attempt}); relaunching the app`);
+      await launchHome();
+    }
+  }
+  adb('shell', 'input', 'keyevent', '4'); await wait(2500); await waitText('where the bubble shows', 30);
+};
+const openSource = async () => {
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
+    try { await waitText(W.card, 20); return; } catch (e) { if (attempt === 3) throw e; await wait(1500); }
+  }
+};
+const revealWriter = async () => {
+  for (let i = 0; i < 5 && !findText(W.card); i++) {
     adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
     await wait(1200);
   }
@@ -140,26 +177,35 @@ const enableChrome = async () => {
 };
 const captureWriterList = async tag => {
   await openSource();
-  await revealOpenRouter();
-  const card = findText('with your openrouter');
-  if (!card) throw new Error('The writer list does not offer OpenRouter: the kit did not report its key route ready.');
+  await revealWriter();
+  const card = findText(W.card);
+  if (!card) throw new Error(`The writer list does not offer ${W.name}: the kit did not report its key route ready.`);
   snap(`writer-list-${tag}`);
   await wait(500);
   return card;
 };
-const connectOpenRouter = async tag => {
+const connectWriter = async tag => {
   const card = await captureWriterList(tag);
   tap(...center(card));
-  await waitText('paste your openrouter key', 30);
-  const field = find(n => (n.label || '').toLowerCase().includes('paste your openrouter key'));
-  if (!field) throw new Error('The OpenRouter key field did not open.');
+  await waitText(W.field, 30);
+  const field = find(n => (n.label || '').toLowerCase().includes(W.field));
+  if (!field) throw new Error(`The ${W.name} key field did not open.`);
   tap(...center(field)); await wait(700);
   adb('shell', 'input', 'text', `'${key}'`); await wait(700); // never logged or screenshotted
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
   await tapText('connect', 20);
-  await waitText('openrouter is connected', 60);
+  // A Go login key with several workspaces gets the kit's pick (PR 216): tap OPENCODE_WORKSPACE.
+  await waitText([W.connected, W.signedOut, 'more than one workspace'], 60);
+  if (findText('more than one workspace')) {
+    const named = () => find(n => (n.text || n.label || '').trim() === workspace);
+    for (let i = 0; i < 3 && !named(); i++) { adb('shell', 'input', 'swipe', String(width / 2), String(height * 0.75), String(width / 2), String(height * 0.35), '300'); await wait(800); }
+    if (!named()) throw new Error(`The workspace pick shows no "${workspace}": ${screenWords()}`);
+    snap(`workspace-pick-${tag}`);
+    tap(...center(named()));
+    await waitText([W.connected, W.signedOut], 60);
+  }
   snap(`connected-${tag}`);
-  log(`OpenRouter connected (${tag})`);
+  log(`${W.name} connected (${tag})`);
 };
 
 // The lab page holds exactly one message box prefilled with the case text, and short headings
@@ -217,7 +263,9 @@ const runCase = async (testCase, tag, prefix) => {
   tap(Math.round(center(box)[0]), Math.round(center(box)[1])); await wait(700);
   if (typeIt) { type(testCase.text); await wait(1800); }
   tapBubble();
-  await waitText(['polish your message', DECLINED_LINE, EMPTY_LINE, LIMITED_LINE, 'pick one to use instead'], 60);
+  // The panel header is enough to stop waiting: an unexpected state is still captured and judged below.
+  await waitText(['polish your post', 'polish your message', DECLINED_LINE, EMPTY_LINE, LIMITED_LINE, 'pick one to use instead'], 60);
+  for (let i = 0; i < 60 && findText('Writing…'); i++) await wait(1000); // let the writer finish before judging
   await wait(1800);
   const panel = nodes();
   const words = panel.map(n => n.text || n.label).filter(Boolean).join('\n');
@@ -264,7 +312,7 @@ try {
   adb('shell', 'cmd', 'uimode', 'night', 'no');
   await run('light-setup', async () => { await fresh(); await theme(false); await skipSetup(); await enableChrome(); await enableTypingCheck(); });
   await run('light-writer-list', async () => { await captureWriterList('light'); });
-  await run('light-connect', async () => { await connectOpenRouter('light'); });
+  await run('light-connect', async () => { await connectWriter('light'); });
   for (const testCase of cases) await run(`light-${testCase.id}`, () => runCase(testCase, 'light', 'light'));
 
   if (allRounds) {
