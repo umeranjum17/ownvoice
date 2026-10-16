@@ -107,13 +107,14 @@ journeys:
     timeout: 45m
 
   account-choices:
-    description: "Android: writer list (phone/ChatGPT/Claude/OpenRouter/OpenCode Go), sign-in and writer/rating routing, live Claude draft+rewrite via claude-draft-proof.mjs, OpenRouter legs via openrouter-proof.mjs (OPENROUTER_SCENARIOS=negative is credit-free). OpenCode Go is wired through the kit's plan-key route; its askCloud route/request/fallback legs are proven fixture-backed in mobile/src/chatgpt/__tests__/OpenCodeRoute.test.ts, and its live device legs resume in the held proof lanes. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
-    spends: "one live Claude generation and one live OpenRouter generation for the full legs"
+    description: "Android: writer list (phone/ChatGPT/Claude/OpenRouter/OpenCode Go), sign-in and writer/rating routing, live Claude draft+rewrite via claude-draft-proof.mjs, OpenRouter legs via openrouter-proof.mjs (OPENROUTER_SCENARIOS=negative is credit-free). OpenCode Go connects through the kit's add() (the workspace pick shows when the key works with several), proven fixture-backed in mobile/src/chatgpt/__tests__/OpenCodeRoute.test.ts and live via opencode-proof.mjs (connect, pick OPENCODE_WORKSPACE, one real draft) when OPENCODE_KEY_FILE is set; that leg needs an APK built with no E2E flags. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    spends: "one live Claude generation and one live OpenRouter generation for the full legs, plus one live OpenCode Go generation when OPENCODE_KEY_FILE is set"
     command: |
       set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/claude-draft-proof.mjs "$APK" "$E/claude" >"$E/claude.log" 2>&1; c1=$?
       node mobile/e2e/openrouter-proof.mjs "$APK" "$E/openrouter" >"$E/openrouter.log" 2>&1; c2=$?
-      echo "claude exit=$c1 openrouter exit=$c2" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ]
+      c3=0; if [ -n "${OPENCODE_KEY_FILE:-}" ]; then node mobile/e2e/opencode-proof.mjs "${OPENCODE_APK:-$APK}" "$E/opencode" >"$E/opencode.log" 2>&1; c3=$?; fi
+      echo "claude exit=$c1 openrouter exit=$c2 opencode exit=$c3" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ] && [ $c3 -eq 0 ]
     timeout: 45m
 
   rewrite-selection:
