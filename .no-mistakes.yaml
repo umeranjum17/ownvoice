@@ -17,12 +17,18 @@ test:
   # per mobile/README.md.
   instructions: |
     Trust the commands.test baseline result as the primary evidence.
-    For behavioral proof beyond the baseline, run the done-done journeys in
-    .done-done.yaml: `done-done run engine-protocol` (host, no device) or,
-    with an explicit device allocation, the Android journey for the changed
-    feature; check captures with `done-done check --outcome "<what a user
-    can now do>" <files>` and record with `done-done receipt`. The visual
-    guard is the `done-done design` primitive over the journey's captures
+    Beyond it, run only the tests for the changed parts, never a whole suite
+    again: CI runs the full suite on the PR. Changed mobile/ files: `cd mobile
+    && npx jest --ci --findRelatedTests <changed files>`; changed
+    packages/engine/ files: the engine test files for those modules; changed
+    mobile/modules/ownvoice-native/: `./gradlew :ownvoice-native:testDebugUnitTest`
+    from mobile/android. Docs-only changes need no tests.
+    Then run exactly one user journey from .done-done.yaml: the journey for
+    the changed feature, or `done-done run engine-protocol` (host, no device)
+    when no journey covers it or no device is allocated. Run an Android
+    journey only with an explicit device allocation. Check captures with
+    `done-done check --outcome "<what a user can now do>" <files>` and
+    record with `done-done receipt`. The visual guard is the `done-done design` primitive over the journey's captures
     against the PR's approved mocks. Do not start, connect to, install
     anything on, or change settings on any Android emulator or physical
     device without an explicit device allocation naming it; the test phone
