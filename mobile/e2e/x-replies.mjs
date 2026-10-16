@@ -61,6 +61,36 @@ const ocrLine = phrase => {
   const tsv = execFileSync('tesseract', ['stdin', 'stdout', 'tsv'], { input: png(), encoding: 'utf8' });
   return tsv.split('\n').slice(1).map(r => r.split('\t')).find(c => c.length >= 12 && c[11].toLowerCase().includes(phrase.toLowerCase()));
 };
+const shot = (screen, label, theme) => evidence('shot', task, screen, label, theme);
+// On a failed wait, keep the screen and its accessible text (the key masked) under failures/.
+let failures = 0;
+const screenDump = what => {
+  const dir = `${root}/verify-artifacts/${task}/failures`;
+  const name = `${++failures}-${what.replace(/\W+/g, '-').slice(0, 48)}`;
+  try {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(`${dir}/${name}.png`, png());
+    const focus = adb('shell', 'dumpsys', 'window').match(/mCurrentFocus=.*/)?.[0] ?? 'unknown focus';
+    const seen = nodes().map(n => `${n.editable ? 'E' : '-'}${n.clickable ? 'C' : '-'}${n.focused ? 'F' : '-'} ${n.app} lbl="${n.label ?? ''}" txt="${n.text ?? ''}" ${JSON.stringify(n.bounds)}`).join('\n');
+    writeFileSync(`${dir}/${name}.txt`, `${focus}\n${seen}\n`.replaceAll(key, '<key>'));
+    return `Screen: ${dir}/${name}.png`;
+  } catch (error) { return `Screen dump failed: ${String(error.message).slice(0, 120)}`; }
+};
+// Every screen read waits on its condition: poll `read` until it returns something truthy (a read
+// that throws, such as a probe caught mid-transition, counts as not yet), and on timeout dump the
+// screen and name what never showed.
+const until = async (what, read, { seconds = 30, every = 600 } = {}) => {
+  const end = Date.now() + seconds * 1000;
+  let last = '';
+  for (;;) {
+    try { const value = await read(); if (value) return value; } catch (error) { last = String(error.message).replaceAll(key, '<key>').slice(0, 200); }
+    if (Date.now() >= end) break;
+    await wait(every);
+  }
+  throw new Error(`Timed out after ${seconds}s waiting for ${what}${last ? ` (last read error: ${last})` : ''}. ${screenDump(what)}`);
+};
+// An accessibility click by exact label, retried until the probe reports the click landed.
+const click = (label, seconds = 20) => until(`a clickable "${label}"`, () => { nodes(label); return true; }, { seconds });
 // An emulator under load throws a "System UI isn't responding" dialog over the app; tap Wait and let
 // the caller re-open its screen. Returns whether it dismissed one.
 const dismissAnr = () => {
@@ -81,6 +111,11 @@ const openUntil = async (phrase, tries = 40) => {
   throw new Error(`The "${phrase}" screen never showed.`);
 };
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+const sizeNow = () => {
+  const out = adb('shell', 'wm', 'size');
+  const match = out.match(/Override size: (\d+)x(\d+)/) ?? out.match(/Physical size: (\d+)x(\d+)/);
+  return [Number(match[1]), Number(match[2])];
+};
 
 // OCR tap that survives unlabeled React Native controls: scan the full screen, then bands.
 const tapText = async label => {
@@ -121,6 +156,13 @@ const serviceOff = async () => {
   setServices(rest.length ? rest : ['com.example.disabled/NoService']);
   await wait(2500);
 };
+// Stop the app with kill -9, never am force-stop; rebind() then brings the service (and its process) back.
+const pidOf = () => { try { return adb('shell', 'pidof', pkg).trim(); } catch { return ''; } };
+const killApp = async () => {
+  const pid = pidOf();
+  if (pid) adb('shell', 'su', '0', 'kill', '-9', ...pid.split(/\s+/));
+  await until('the Ownvoice process to end', () => !pidOf(), { seconds: 10, every: 300 });
+};
 const rebind = async () => {
   const enabled = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
   const all = new Set(enabled === 'null' ? [] : enabled.split(':'));
@@ -130,51 +172,39 @@ const rebind = async () => {
   await wait(1500);
   setServices([...all]);
   adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
-  await wait(2000);
-  if (!adb('shell', 'dumpsys', 'accessibility').includes(component)) throw new Error('The Ownvoice service did not bind after the toggle.');
+  await until('the Ownvoice service to bind after the toggle', () => adb('shell', 'dumpsys', 'accessibility').includes(component), { seconds: 20 });
 };
 
-// Dismiss Chrome's ANR dialog and first-run sheets under host load until URL bar shows x.com.
-const settleChrome = async (need = 'x.com') => {
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const urlBar = nodes().find(node => node.text?.includes('x.com'));
-    if (urlBar) return; // Page loaded successfully
-
+// Dismiss Chrome's ANR dialog and first-run sheets under host load until the URL bar shows x.com
+// and the page shows `need` (each fixture case has its own phrase, so the last leg's page never
+// passes). Chrome can drop the VIEW intent across a display-size change, so ask for the page again
+// now and then.
+const settleChrome = async (need, url = 'https://x.com/x.html') => {
+  let polls = 0;
+  await until(`Chrome to show "${need}" with x.com in its URL bar`, async () => {
+    const all = nodes();
     const text = screenText();
+    if (all.some(node => node.text?.includes('x.com')) && (text.includes(need) || all.some(n => `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes(need)))) return true;
+    const [wide, high] = sizeNow();
     if (text.includes("isn't responding") || text.includes('not responding')) {
       const row = ocrLine('wait');
       if (row) tap(Number(row[6]) + Number(row[8]) / 2, Number(row[7]) + Number(row[9]) / 2);
-      await wait(3000);
-      continue;
-    }
-    if (text.includes('enhanced ad privacy')) { // a Chrome update wedges this sheet over the flow; a clear restarts the known walk
+    } else if (text.includes('enhanced ad privacy')) { // a Chrome update wedges this sheet over the flow; a clear restarts the known walk
       adb('shell', 'pm', 'clear', 'com.android.chrome');
       await wait(1000);
-      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'https://x.com/x.html');
-      await wait(3500);
-      continue;
-    }
-    if (text.includes('zoom in or out')) { // Chrome's banner after a system font-scale change
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url);
+    } else if (text.includes('zoom in or out')) { // Chrome's banner after a system font-scale change
       const row = ocrLine('zoom in or out');
-      const wide = Number((adb('shell', 'wm', 'size').match(/Override size: (\d+)x\d+/) ?? adb('shell', 'wm', 'size').match(/Physical size: (\d+)x\d+/))[1]);
       if (row) for (const dy of [-10, 0, 12]) tap(wide - 25, Number(row[7]) + Number(row[9]) / 2 + dy);
-      await wait(1200);
-      continue;
-    }
-    if (text.includes('welcome to chrome') || text.includes('use without an account')) { // Chrome first-run screen
+    } else if (text.includes('welcome to chrome') || text.includes('use without an account')) { // Chrome first-run screen
       const skip = nodes().find(node => node.text && /use without|no thanks|skip/i.test(node.text));
-      if (skip) { tap(...center(skip)); await wait(2000); continue; }
-      tap(473, 1458);
-      await wait(2000);
-      continue;
-    }
-    if (text.includes('notifications make things')) { tap(643, 1751); await wait(2000); continue; }
-    await wait(1500);
-  }
-  try { shot('chrome', `unsettled-${need.replace(/\W+/g, '-')}`, 'stuck'); } catch { /* the error below still names the screen */ }
-  const focus = adb('shell', 'dumpsys', 'window').match(/mCurrentFocus=.*/)?.[0] ?? 'unknown focus';
-  const seen = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 300);
-  throw new Error(`Chrome never showed ${need} (URL bar not found in accessibility tree; ${focus}; nodes: ${seen}).`);
+      tap(...(skip ? center(skip) : [wide * 473 / 1080, high * 1458 / 2400]));
+    } else if (text.includes('notifications make things')) {
+      const no = nodes().find(node => node.clickable && /no thanks|not now|don.t allow/i.test(`${node.text ?? ''} ${node.label ?? ''}`));
+      tap(...(no ? center(no) : [wide * 643 / 1080, high * 1751 / 2400]));
+    } else if (++polls % 15 === 0) adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url);
+    return false;
+  }, { seconds: 180, every: 1500 });
 };
 
 // ---- device prep: host-map x.com in Chrome over a self-signed HTTPS fixture ----
@@ -222,12 +252,19 @@ const scrollWriterList = async phrase => {
     await wait(1200);
   }
 };
+// The key field shows its label as a placeholder: tap the editable carrying it (or the label over
+// it), wait until an editable has focus, then type. The field masks the key, so it is never read back.
 const pasteKey = async label => {
-  const field = nodes().find(n => n.editable && `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes(label.toLowerCase()));
-  if (!field) throw new Error(`The ${label} field did not open.`);
-  tap(...center(field)); await wait(700);
-  type(`'${key}'`); await wait(700);
-  if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
+  const want = label.toLowerCase();
+  const target = await until(`the "${label}" field`, () => {
+    const all = nodes();
+    return all.find(n => n.editable && `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes(want)) ?? all.find(n => `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes(want));
+  });
+  tap(...center(target));
+  await until(`focus in the "${label}" field`, () => nodes().some(n => n.editable && n.focused), { seconds: 15 });
+  type(`'${key}'`);
+  if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) adb('shell', 'input', 'keyevent', '4');
+  await until('the keyboard to close after the key', () => !/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method')), { seconds: 10 });
 };
 const skipSetup = async () => {
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source');
@@ -254,11 +291,8 @@ const connectOpenCode = async () => {
   // The same walk as the live-proven e2e/opencode-proof.mjs: card, key field, Connect, workspace pick.
   const findText = label => nodes().find(n => `${n.label} ${n.text}`.toLowerCase().includes(label));
   const words = () => nodes().map(n => n.text || n.label).filter(Boolean).join(' | ').replaceAll(key, '<key>').slice(0, 600);
-  const waitText = async (labels, tries = 40) => {
-    for (let i = 0; i < tries; i++) { const n = labels.map(findText).find(Boolean); if (n) return n; await wait(1000); }
-    throw new Error(`OpenCode Go connect: could not see "${labels.join('" or "')}". On screen: ${words()}`);
-  };
-  const tapText = async (label, tries = 20) => tap(...center(await waitText([label], tries)));
+  const waitText = (labels, seconds = 40) => until(`"${labels.join('" or "')}" on the OpenCode Go connect screen`, () => labels.map(findText).find(Boolean), { seconds });
+  const tapText = async (label, seconds = 20) => tap(...center(await waitText([label], seconds)));
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
   await waitText(['how ownvoice writes'], 30);
   for (let i = 0; i < 5 && !findText('with your opencode go'); i++) {
@@ -266,21 +300,17 @@ const connectOpenCode = async () => {
     await wait(1200);
   }
   await tapText('with your opencode go');
-  await tapText('paste your opencode go key', 30);
-  await wait(700);
-  adb('shell', 'input', 'text', `'${key}'`); await wait(700);
-  if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
+  await pasteKey('paste your opencode go key');
   await tapText('connect', 20);
   // A login key that works with several workspaces shows the kit's pick; tap the plan's workspace.
   const seen = await waitText(['more than one workspace', 'opencode go is connected', 'not accepted'], 40);
   if (`${seen.label} ${seen.text}`.toLowerCase().includes('not accepted')) throw new Error(`OpenCode Go rejected the key. On screen: ${words()}`);
   if (!findText('opencode go is connected')) {
-    for (let i = 0; i < 3 && !nodes().find(n => (n.text || n.label || '').trim() === goWorkspace); i++) {
-      adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
-      await wait(1200);
-    }
-    const pick = nodes().find(n => (n.text || n.label || '').trim() === goWorkspace);
-    if (!pick) throw new Error(`The workspace pick shows no "${goWorkspace}". On screen: ${words()}`);
+    const pick = await until(`the "${goWorkspace}" workspace in the pick`, () => {
+      const node = nodes().find(n => (n.text || n.label || '').trim() === goWorkspace);
+      if (!node) adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
+      return node;
+    }, { seconds: 30, every: 1200 });
     log(`workspace pick: ${goWorkspace}`);
     tap(...center(pick));
     await waitText(['opencode go is connected'], 60);
@@ -318,37 +348,33 @@ log('Chrome bubble enabled.');
 adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'https://x.com/x.html');
 await settleChrome('reply flow end to end today');
 log('fixture loaded in Chrome.');
-const urlBar = nodes().find(node => node.text?.includes('x.com'));
-if (!urlBar) throw new Error('The URL bar does not read x.com: platform detection would not see X.');
+const urlBar = await until('the URL bar to read x.com (platform detection reads it)', () => nodes().find(node => node.text?.includes('x.com')), { seconds: 15 });
 log(`URL bar: ${urlBar.text}`);
 
 // ---- the reply journey: focus composer, tap bubble, cards, edit, insert ----
-const bubble = async () => {
-  for (let attempt = 0; attempt < 70; attempt++) {
-    const node = nodes().find(node => node.windowType === 4 && /^Ownvoice(?:,|$)/.test(node.label));
-    if (node) return node;
-    if (attempt % 4 === 3) dismissAnr();
-    await wait(500);
-  }
-  throw new Error('Could not locate the accessible Ownvoice bubble.');
-};
-const field = async () => {
-  for (let attempt = 0; attempt < 40; attempt++) {
-    const node = nodes().find(node => node.editable && !node.password && !/x\.com|https?:|secure/i.test(node.text ?? ''));
-    if (node) return node;
-    if (attempt % 4 === 3) dismissAnr();
-    await wait(500);
-  }
-  const dump = nodes().map(n => `${n.editable ? 'E' : '-'}${n.clickable ? 'C' : '-'} ${n.className} lbl="${(n.label ?? '').slice(0, 24)}" txt="${(n.text ?? '').slice(0, 24)}" ${JSON.stringify(n.bounds)}`).join('\n');
-  throw new Error(`Could not find the composer field. Nodes:\n${dump}`);
-};
+// A poll that clears any ANR dialog every fourth try while it waits.
+const clearingAnr = read => { let polls = 0; return () => read() || (++polls % 4 === 0 && dismissAnr() && null); };
+const bubble = () => until('the accessible Ownvoice bubble', clearingAnr(() => nodes().find(node => node.windowType === 4 && /^Ownvoice(?:,|$)/.test(node.label))), { seconds: 45, every: 500 });
+const composerNode = all => all.find(node => node.editable && !node.password && !/x\.com|https?:|secure|find an app/i.test(`${node.text ?? ''} ${node.label ?? ''}`));
+const field = () => until('the composer field', clearingAnr(() => composerNode(nodes())), { seconds: 30, every: 500 });
+// Tap the composer until Chrome reports it focused, so the bubble's tap reads this box.
+const focusComposer = () => until('focus in the composer', () => {
+  const box = composerNode(nodes());
+  if (box?.focused) return true;
+  if (box) tap(...center(box));
+  return false;
+}, { seconds: 20, every: 1200 });
 const panelButton = async (name, tries = 120) => {
   const start = Date.now();
+  let read = false; // a miss counts only from a screen that was actually read
   for (let attempt = 0; attempt < tries; attempt++) { // polling for the cloud writer round-trip
-    const node = nodes().find(node => node.clickable && (node.text === name || node.label === name));
+    let all = [];
+    try { all = nodes(); read = true; } catch { /* a probe caught mid-transition: read again */ }
+    const node = all.find(node => node.clickable && (node.text === name || node.label === name));
     if (node) { const elapsed = Date.now() - start; if (elapsed > 1000) log(`${name} found after ${Math.round(elapsed / 1000)}s`); return node; }
     await wait(500);
   }
+  if (!read) throw new Error(`The screen could not be read while looking for "${name}". ${screenDump(name)}`);
   return null;
 };
 const panelText = phrase => nodes().some(node => `${node.text} ${node.label}`.includes(phrase));
@@ -356,19 +382,15 @@ const panelText = phrase => nodes().some(node => `${node.text} ${node.label}`.in
 // could not write — a refusal should not cost the full card wait on every leg.
 const waitEditOrRefusal = async (tries = 120) => {
   for (let attempt = 0; attempt < tries; attempt++) {
-    const node = nodes().find(n => n.clickable && (n.text === 'Edit' || n.label === 'Edit'));
+    let all = [];
+    try { all = nodes(); } catch { /* a probe caught mid-transition: read again */ }
+    const node = all.find(n => n.clickable && (n.text === 'Edit' || n.label === 'Edit'));
     if (node) return node;
-    const panel = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ');
+    const panel = all.map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ');
     if (attempt > 8 && (WRITER_REFUSAL.test(panel) || panel.includes('Reply ideas are unavailable'))) return null;
     await wait(500);
   }
   return null;
-};
-const shot = (screen, label, theme) => evidence('shot', task, screen, label, theme);
-const sizeNow = () => {
-  const out = adb('shell', 'wm', 'size');
-  const match = out.match(/Override size: (\d+)x(\d+)/) ?? out.match(/Physical size: (\d+)x(\d+)/);
-  return [Number(match[1]), Number(match[2])];
 };
 // Click the edit row's action — the one sharing its line with the edit row's Cancel, never
 // another card's. The sheet scrolls its buttons above the open keyboard first.
@@ -376,7 +398,8 @@ const insertViaProbe = async label => {
   let hidKeyboard = false;
   for (let attempt = 0; attempt < 8; attempt++) {
     if (attempt === 2 && !hidKeyboard) { adb('shell', 'input', 'keyevent', '111'); hidKeyboard = true; await wait(800); }
-    const all = nodes();
+    let all;
+    try { all = nodes(); } catch { await wait(700); continue; } // a probe caught mid-transition: read again
     const ime = all.filter(n => n.windowType === 2);
     const imeTop = ime.length ? Math.min(...ime.map(n => n.windowBounds[1])) : sizeNow()[1];
     const actions = all.filter(n => n.clickable && (n.text === label || n.label === label) && n.bounds[1] >= 0 && n.bounds[3] < imeTop - 8);
@@ -388,19 +411,19 @@ const insertViaProbe = async label => {
       continue;
     }
     const button = actions.filter(i => Math.abs(i.bounds[1] - cancel.bounds[1]) < 40).sort((a, b) => a.bounds[0] - b.bounds[0])[0];
-    if (button) { nodes(label); return; }
+    if (button) { await click(label, 10); return; }
     const [wide] = sizeNow();
     adb('shell', 'input', 'swipe', String(Math.round(wide / 2)), String(Math.round(imeTop - 60)), String(Math.round(wide / 2)), String(Math.round(Math.max(imeTop - 260, 60))), '300');
     await wait(700);
   }
-  throw new Error(`Could not bring the edit row's ${label} above the keyboard to click it.`);
+  throw new Error(`Could not bring the edit row's ${label} above the keyboard to click it. ${screenDump(`edit row ${label}`)}`);
 };
 const openFixture = async (query, need = 'shipped') => {
   // The Chrome command line maps x.com on every launch; re-assert it in case a restart cleared it.
   adb('shell', `echo '_ --host-resolver-rules="MAP x.com 10.0.2.2:${PORT}" --ignore-certificate-errors' > /data/local/tmp/chrome-command-line`);
-  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `https://x.com/x.html${query ?? ''}`);
-  await wait(2500);
-  await settleChrome(need);
+  const url = `https://x.com/x.html${query ?? ''}`;
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url);
+  await settleChrome(need, url);
 };
 
 const EDIT_SUFFIX = 'Typed by me, in my own words';
@@ -408,12 +431,7 @@ const TYPED = 'This shipped so well';
 const verifyFixtureLive = async () => {
   if (!page.address()) throw new Error('Fixture server not listening (dead server).');
   await openFixture('');
-  const composer = await field();
-  if (!composer) {
-    const text = screenText();
-    if (text.includes('not secure') || text.includes('connection')) throw new Error('Chrome loaded an error page (fixture server dead or unreachable).');
-    throw new Error('Could not find fixture reply composer (check page content).');
-  }
+  await field();
 };
 // The composer's own text, read without throwing (used by the copy leg to prove it stays put).
 const fieldNow = () => {
@@ -435,11 +453,10 @@ const copyLeg = async (screen, theme) => {
   const boxBefore = fieldNow();
   const cardNode = nodes().find(n => n.clickable && n.text && n.text.length > 10);
   const cardText = cardNode?.text?.trim() || '';
-  const copyButton = nodes().find(n => n.clickable && /^(copy|copied)$/i.test((n.label ?? n.text ?? '').trim()));
-  if (!copyButton) throw new Error('The card row has no Copy control.');
+  const copyButton = await until('the card\'s Copy control', () => nodes().find(n => n.clickable && /^(copy|copied)$/i.test((n.label ?? n.text ?? '').trim())), { seconds: 15 });
   tap(...center(copyButton));
-  await wait(1400);
-  const tick = nodes().some(n => /copied/i.test(`${n.label ?? ''} ${n.text ?? ''}`));
+  // The tick shows before the copy closes the panel, so poll fast and shoot the moment it shows.
+  const tick = await until('the Copied tick', () => nodes().some(n => /copied/i.test(`${n.label ?? ''} ${n.text ?? ''}`)), { seconds: 8, every: 200 }).catch(error => { log(error.message); return false; });
   shot(screen, 'copied', theme);
   const boxAfter = fieldNow();
   const clip = clipboardNow();
@@ -498,16 +515,20 @@ const outcomeDir = () => { const dir = `${root}/verify-artifacts/${task}/outcome
 const readOutcomeStore = () => {
   const dir = outcomeDir();
   const local = join(dir, 'outcomes.sqlite');
-  writeFileSync(local, execFileSync('adb', ['-s', serial, 'exec-out', 'su', '0', 'cat', `/data/data/${pkg}/files/SQLite/ExpoSQLiteStorage`], { maxBuffer: 24 * 1024 * 1024 }));
+  // A killed process leaves its last writes in the write-ahead log: copy it beside the file so sqlite replays it.
+  for (const suffix of ['', '-wal', '-shm']) {
+    rmSync(local + suffix, { force: true });
+    try { writeFileSync(local + suffix, execFileSync('adb', ['-s', serial, 'exec-out', 'su', '0', 'cat', `/data/data/${pkg}/files/SQLite/ExpoSQLiteStorage${suffix}`], { maxBuffer: 24 * 1024 * 1024 })); }
+    catch (error) { if (!suffix) throw error; }
+  }
   const out = execFileSync('python3', ['-c', `import sqlite3,json,sys\nc=sqlite3.connect(sys.argv[1])\nprint(json.dumps(dict(c.execute('select key,value from storage'))))`, local], { encoding: 'utf8' });
   return JSON.parse(out);
 };
 // The outcome the insert wrote must read back the way a person reads it: on the app's own
 // "Replies you inserted" screen, and in its store.
 const readBackOutcome = async (screen, theme) => {
-  adb('shell', 'am', 'force-stop', pkg);
-  await wait(900);
-  const rows = JSON.parse(readOutcomeStore()['reply-outcomes'] ?? '[]');
+  await killApp();
+  const rows = await until('an outcome row in the app\'s store', () => { const read = JSON.parse(readOutcomeStore()['reply-outcomes'] ?? '[]'); return read.length && read; }, { seconds: 15, every: 1000 });
   const last = rows[rows.length - 1];
   const dir = outcomeDir();
   writeFileSync(join(dir, `record-${screen}-${theme}.json`), JSON.stringify({ record: last ?? null, rows: rows.length }, null, 2) + '\n');
@@ -516,11 +537,10 @@ const readBackOutcome = async (screen, theme) => {
   if (last.level !== null && !LEVELS.includes(last.level)) throw new Error(`The outcome record's level is not a shown fit level: ${JSON.stringify(last.level)}.`);
   await rebind();
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
-  await wait(3000);
+  const readScreen = () => nodes().map(n => `${n.text ?? ''} ${n.label ?? ''}`.trim()).filter(Boolean).join(' | ');
+  const seen = await until('"Suggestion · X" on the "Replies you inserted" screen', () => { const text = readScreen(); return /Suggestion · X/.test(text) && text; }, { seconds: 20 });
   shot(screen, 'outcome-reads', theme);
-  const seen = nodes().map(n => `${n.text ?? ''} ${n.label ?? ''}`.trim()).filter(Boolean).join(' | ');
   writeFileSync(join(dir, `read-screen-${screen}-${theme}.txt`), seen + '\n');
-  if (!/Suggestion · X/.test(seen)) throw new Error(`The "Replies you inserted" screen does not show "Suggestion · X" (saw: ${seen.slice(0, 300)}).`);
   log(`${screen}/${theme}: outcome record read back from the store and the app's own read screen (${last.platform}/${last.card}, level ${JSON.stringify(last.level)}, at ${last.at}).`);
 };
 // The plain sentences the panel shows when the cloud writer could not answer; a grounded journey is
@@ -529,14 +549,12 @@ const WRITER_REFUSAL = /didn't answer|turned off|get this phone ready|limit reac
 const journey = async (screen, theme, { motion = false, copy = false, postShot = false } = {}) => {
   await verifyFixtureLive();
   if (postShot) shot(screen, 'post', theme); // the longest text the screen shows, before any panel
-  const composer = await field();
-  tap(...center(composer));
-  await wait(2200);
+  await field();
+  await focusComposer();
   const record = motion ? `${screen}-tap-to-inserted` : null;
   if (motion) evidence('motion-start', task, record);
   try {
     tap(...center(await bubble()));
-    await wait(1800);
     const editCard = await waitEditOrRefusal(240); // room for the live cloud writer round-trip
     if (!editCard) {
       shot(screen, 'nocard', theme);
@@ -554,15 +572,15 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
       }
       throw new Error('No card with an Edit button appeared.');
     }
-    if (!panelText('X')) throw new Error('The panel does not name the X platform.');
+    await until('the panel to name the X platform', () => panelText('X'), { seconds: 10 });
     if (panelText('Reply ideas are unavailable')) throw new Error('The withhold note showed on a grounded post.');
     shot(screen, 'cards', theme);
     // The F6a wording check: every card's text must match the label the card shows.
-    const judged = readCards().map(card => ({ ...card, verdict: judgeCard(card) }));
+    const cards = await until('labelled reply cards', () => { const read = readCards(); return read.length && read; }, { seconds: 15 });
+    const judged = cards.map(card => ({ ...card, verdict: judgeCard(card) }));
     mkdirSync(`${root}/verify-artifacts/${task}`, { recursive: true });
     writeFileSync(`${root}/verify-artifacts/${task}/${screen}-cards-${theme}.json`, JSON.stringify(judged, null, 2) + '\n');
     for (const c of judged) log(`card "${c.tag}" [${c.verdict}] fit=${c.fit ?? 'none'}: ${c.text}`);
-    if (!judged.length) throw new Error('No labelled reply card was readable on the grounded post.');
     const mismatches = judged.filter(c => c.verdict.startsWith('MISMATCH'));
     if (mismatches.length) throw new Error(`${mismatches.length} reply card(s) do not match their label: ${mismatches.map(m => m.verdict).join(' ; ')}`);
     if (preflightOnly) { log(`PREFLIGHT ${screen}/${theme}: the writer answered with grounded, label-true reply cards.`); return; }
@@ -570,40 +588,36 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
       await copyLeg(screen, theme);
       // Copy closes the panel (the native copy finishes it), so reopen it from the bubble for the edit.
       tap(...center(await bubble()));
-      await wait(1800);
       if (!(await waitEditOrRefusal(240))) throw new Error('No card with an Edit button after reopening the panel.');
     }
     const firstCard = nodes().find(node => node.clickable && node.text && node.text.length > 10);
     const originalCardText = firstCard?.text?.trim() || '';
-    nodes('Edit'); // accessibility click into the first card's edit field
-    await wait(1600);
+    // Click the first card's Edit until its edit field (the panel's own text box) shows.
+    const editOpen = () => nodes().some(n => n.editable && n.app === pkg);
+    await until("the first card's edit field", () => editOpen() || (nodes('Edit'), false), { seconds: 30, every: 1000 });
     adb('shell', 'input', 'text', EDIT_SUFFIX.replaceAll(' ', '%s'));
-    await wait(800);
+    await until('the typed words in the edit field', () => nodes().some(n => n.editable && n.app === pkg && n.text?.includes(EDIT_SUFFIX)), { seconds: 15 });
     shot(screen, 'editing', theme);
     adb('logcat', '-c'); // a fresh buffer, so the line read below is this insert's own result
     await insertViaProbe('Insert');
-    // The pill lives on the bubble for four seconds from the insert, but the native insert-verify can
-    // run a few seconds first, so watch the screen and shoot the moment it appears (the pixel shot is
-    // timely; OCR reads the file after the fact).
-    let pillSeen = false;
-    for (let i = 0; i < 24 && !pillSeen; i++) {
-      pillSeen = /send.{0,4}yourself|check it looks right/i.test(screenText());
-      if (!pillSeen) await wait(500);
-    }
+    // The app logs its own insert check (verify detail at debug, the result at info) as it shows the
+    // pill, which lives four seconds: wait for that line, then shoot at once.
+    const insertLog = () => adb('logcat', '-d', '-s', 'OwnvoiceNative:D', 'OwnvoiceService:I');
+    const logcat = await until('the app\'s insert result in the log', () => { const out = insertLog(); return /insert result /.test(out) && out; }, { seconds: 30, every: 250 });
     shot(screen, 'inserted-panel', theme);
-    const pillNow = pillSeen || nodes().some(node => /Send it yourself|Check it looks right/.test(`${node.text} ${node.label}`));
+    mkdirSync(`${root}/verify-artifacts/${task}`, { recursive: true });
+    writeFileSync(`${root}/verify-artifacts/${task}/${screen}-insert-log-${theme}.txt`, logcat);
+    const result = logcat.match(/insert result [^\n]*/g).join(' ; ');
+    log(`${screen}/${theme}: ${result}`);
     const ocrPill = () => { try { return execFileSync('tesseract', [`${root}/verify-artifacts/${task}/${screen}-inserted-panel-${theme}.png`, 'stdout'], { encoding: 'utf8' }); } catch { return ''; } };
-    if (!pillNow && !/send.{0,4}yourself|check it looks right/i.test(ocrPill())) throw new Error('The insert confirmation is not visible.');
-    // Read the insert result now, before the logcat ring buffer can rotate it out.
-    const logcat = adb('logcat', '-d', '-s', 'OwnvoiceNative:I', 'OwnvoiceService:I');
+    const pill = /send.{0,4}yourself/i;
+    const pillShown = pill.test(ocrPill()) || nodes().some(node => pill.test(`${node.text} ${node.label}`));
     adb('shell', 'input', 'keyevent', '111');
-    await wait(800);
-    if ((await panelButton('Insert', 4)) || (await panelButton('Edit', 4))) { nodes('Close'); await wait(900); }
+    if ((await panelButton('Insert', 4)) || (await panelButton('Edit', 4))) await click('Close');
     shot(screen, 'inserted', theme);
-    if (!/insert result ok=true/.test(logcat)) throw new Error(`The insert read-back check did not pass: ${logcat.match(/insert result [^\n]*/g)?.join(' ; ') ?? 'no insert result logged'}`);
-    const back = nodes().find(node => node.editable && !node.password && !/x\.com|https?:|find an app/i.test(`${node.text ?? ''} ${node.label ?? ''}`));
-    const boxText = `${back?.text ?? ''}`;
-    if (!boxText.includes(EDIT_SUFFIX)) throw new Error(`Field read-back missing the edit suffix "${EDIT_SUFFIX}" (got: ${boxText || 'no field'}).`);
+    if (!/insert result ok=true/.test(logcat)) throw new Error(`The insert read-back check did not pass: ${result}`);
+    if (!pillShown) throw new Error('The "Inserted. Send it yourself." confirmation is not visible.');
+    const boxText = await until(`the edit suffix "${EDIT_SUFFIX}" read back from the composer`, () => { const text = composerNode(nodes())?.text ?? ''; return text.includes(EDIT_SUFFIX) && text; }, { seconds: 15 });
     if (originalCardText && boxText.trim() === originalCardText) throw new Error('The inserted text equals the unedited card text: the edit did not change it.');
     await readBackOutcome(screen, theme);
     log(`${screen}/${theme}: cards + label check + edit + insert + confirmation + read-back + outcome record OK.`);
@@ -618,42 +632,33 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
 // answered, so a refusal leg must show that row without the mark. Rows are newest first.
 const newestReadBlock = async () => {
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
-  for (let attempt = 0; attempt < 10; attempt++) {
-    await wait(1500);
+  return until('a Chrome row on the read list', () => {
     const texts = nodes().map(n => `${n.text ?? ''}\n${n.label ?? ''}`.trim()).filter(Boolean);
     const first = texts.findIndex(text => /in Chrome\b/i.test(text));
-    if (first >= 0) return texts.slice(first, first + 3).join(' | ');
-  }
-  throw new Error('The read list did not show a Chrome row.');
+    return first >= 0 && texts.slice(first, first + 3).join(' | ');
+  }, { seconds: 20, every: 1500 });
 };
 // Every refusal surface shows a plain note and no card. `note` is the exact sentence the shipped
 // panel shows there; the leg prints it into its own evidence file, never only into this log.
 const withhold = async (screen, theme, { query, need, note }) => {
   if (!page.address()) throw new Error('Fixture server not listening (dead server).');
   await openFixture(query, need);
-  const composer = await field();
-  if (!composer) throw new Error(`Could not find the fixture composer (${screen}).`);
+  await field();
   // The fixture composer is in the accessibility tree first; give Chrome's compositor a beat so the
   // fixture shot shows the screen a person saw (the dark pass otherwise caught an unpainted page).
   await wait(2500);
   shot(screen, 'fixture', theme); // what the screen shows before the tap: nothing readable above the box
   adb('shell', 'logcat', '-c');
-  tap(...center(composer));
-  await wait(2200);
+  await focusComposer();
   tap(...center(await bubble()));
-  await wait(1600);
-  if (!panelText(note)) {
-    const seen = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 600);
-    throw new Error(`The plain note "${note}" did not show on ${screen}/${theme}. Panel: ${seen}`);
-  }
+  await until(`the plain note "${note}" on ${screen}/${theme}`, () => panelText(note), { seconds: 20 });
   if (await panelButton('Edit', 8)) throw new Error(`A card appeared on ${screen}/${theme}.`);
   for (const action of ['Insert', 'Use this', 'Write new ones', 'Why?']) {
     if (await panelButton(action, 1)) throw new Error(`The card action "${action}" appeared on ${screen}/${theme}.`);
   }
   shot(screen, 'withheld', theme);
   const panel = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 1200);
-  nodes('Close');
-  await wait(600);
+  await click('Close');
   const read = await newestReadBlock();
   shot(screen, 'read-list', theme);
   const sent = /sent to your ai account/i.test(read);
@@ -712,6 +717,11 @@ function setExtreme(on) {
   adb('shell', 'wm', 'density', on ? '320' : 'reset');
   adb('shell', 'wm', 'size', on ? '720x1280' : 'reset');
 }
+const extreme = async on => {
+  setExtreme(on);
+  await until(`the display ${on ? 'at 720x1280' : 'back to its own size'}`, () => /Override size/.test(adb('shell', 'wm', 'size')) === on, { seconds: 15 });
+  adb('shell', 'am', 'force-stop', 'com.android.chrome'); // Chrome reopens at the new size; the app is never force-stopped
+};
 
 try {
   if (preflightOnly) {
@@ -730,27 +740,25 @@ try {
   // ---- dark theme: the app process reads the colour scheme at start, Chrome at page load ----
   evidence('theme', 'dark');
   adb('shell', 'am', 'force-stop', 'com.android.chrome');
-  if (refusalOnly) { adb('shell', 'am', 'force-stop', pkg); await wait(1000); await rebind(); }
-  await wait(1000);
+  await killApp();
+  await rebind();
   await leg('refusal-notext-dark', () => withhold('x-notext', 'dark', IMAGE_ONLY));
   await leg('refusal-labels-dark', () => withhold('x-labels', 'dark', LABELS_ONLY));
   if (!refusalOnly) await leg('dark', () => journey('x-reply', 'dark', {}), { needsWriter: true });
 
   // ---- extreme: narrowest supported screen + font scale 1.3 over the long post + quote ----
   if (!refusalOnly) {
-    setExtreme(true);
-    await wait(1500);
+    await extreme(true);
     await leg('refusal-notext-extreme', () => withhold('x-notext-extreme', 'dark', IMAGE_ONLY));
     adb('shell', 'am', 'force-stop', 'com.android.chrome');
-    await wait(800);
     await leg('font-1.3', () => journey('x-extreme', 'dark', {}), { needsWriter: true });
-    setExtreme(false);
-    await wait(1000);
+    await extreme(false);
   }
   }
 } finally {
   // ---- restore ----
   try { writeFileSync(`${root}/verify-artifacts/${task}/leg-summary.txt`, summary.join('\n') + '\n'); } catch { /* keep the run's own error */ }
+  try { setExtreme(false); } catch { /* the next run's setup resets the display too */ }
   adb('shell', 'rm', '-f', '/data/local/tmp/chrome-command-line');
   page.close();
   rmSync(certDir, { recursive: true, force: true });
