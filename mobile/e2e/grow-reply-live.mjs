@@ -161,12 +161,15 @@ adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', comp
 adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
 await wait(2500);
 
-// Gate: the live writer must be the signed-in ChatGPT plan; a stub or an empty phone is not a proof.
+// Gate: a connected cloud writer must be on Home (an emulator's phone can't write); a stub or an empty
+// phone is not a proof. The writer Home names is recorded with the results.
 adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 await wait(5000);
 const home = nodes().map(n => `${n.label} ${n.text}`).join(' ').toLowerCase();
-if (!home.includes('chatgpt')) throw new Error(`No live writer: Home shows no ChatGPT (gate). Home text: ${home.slice(0, 300)}`);
-console.log('gate: ChatGPT writer present on Home');
+const writer = ['chatgpt', 'claude', 'openrouter', 'opencode'].find(w => home.includes(w));
+if (!writer) throw new Error(`No live writer: Home names no cloud writer (gate). Home text: ${home.slice(0, 300)}`);
+writeFileSync(resolve(out, 'writer.txt'), `${writer}\n`);
+console.log(`gate: ${writer} writer present on Home`);
 adb('shell', 'input', 'keyevent', '4');
 await wait(800);
 
