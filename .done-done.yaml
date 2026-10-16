@@ -90,8 +90,8 @@ journeys:
     timeout: 45m
 
   reply-drafts:
-    description: "Android: bubble reply cards over a feed post, edit/insert/copy, refusal legs on image-only and label-only composers. Full legs need a live writer (spends); X_REPLIES_LEGS=refusal runs only the credit-free refusal legs. Needs APK env (path to the release APK, built per mobile/README.md)."
-    spends: "one live OpenRouter generation per writer leg (refusal legs are credit-free)"
+    description: "Android: bubble reply cards over a feed post, every card's wording checked against its own F6a label (Agree / Push back, kindly / Ask a question), edit/insert/copy, the insert's outcome record read back from the app's store and its 'Replies you inserted' screen, refusal legs on image-only and label-only composers. Full legs need a live cloud writer (spends): OpenRouter by default (OPENROUTER_KEY_FILE), or the OpenCode Go writer with X_REPLIES_WRITER=opencode and OC_KEY (the desktop login's plan key), connected through the app's own connect field, picking OPENCODE_WORKSPACE (default Working2) when the key works with several; X_REPLIES_LEGS=refusal runs only the credit-free refusal legs, X_REPLIES_LEGS=preflight connects the writer and proves one grounded, label-true generation answers, then stops. Needs APK env (path to the release APK, built per mobile/README.md)."
+    spends: "one live cloud generation per writer leg (refusal legs are credit-free)"
     command: |
       set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/x-replies.mjs "$APK" "dd-${RUN_ID}" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code

@@ -5,8 +5,10 @@
 // OpenRouter (a key pasted from OPENROUTER_KEY_FILE) or the OpenCode Go plan-key route
 // (X_REPLIES_WRITER=opencode, key from OC_KEY, pasted through the same connect field a person uses).
 // Proves: tap the bubble on the reply composer over a readable post, grounded reply cards appear,
+// every card's wording matches its own F6a label (Agree / Push back, kindly / Ask a question),
 // Edit changes the text, Insert puts exactly the edited text in the field with the
-// "Inserted. Send it yourself." confirmation and a field read-back; the card's Copy control copies
+// "Inserted. Send it yourself." confirmation, a field read-back, and the outcome record that
+// insertion wrote, read back from the app's own store and its "Replies you inserted" screen; the card's Copy control copies
 // without writing the box (copy-only); the refusal screens (an image-only post, a compose screen
 // showing only labels) show a plain note instead of cards and make no writer request. Captures into
 // verify-artifacts/<task>/ through mobile/e2e/evidence.sh (theme/shot/motion helpers).
@@ -14,7 +16,8 @@
 // ANDROID_HOME, OPENROUTER_KEY_FILE optional, X_REPLIES_WRITER=openrouter|opencode (default
 // openrouter), OC_KEY (the OpenCode Go plan key, never printed or written), X_REPLIES_MOTION=1 to
 // record the tap-to-inserted motion, OPENCODE_WORKSPACE (default Working2) for a key with several workspaces, X_REPLIES_LEGS=refusal to run only the refusal legs (no writer
-// request anywhere, so it needs no funded account). Args: <release-apk (no stub flags)> [task-slug].
+// request anywhere, so it needs no funded account), X_REPLIES_LEGS=preflight to connect the writer and
+// prove one grounded, label-true generation answers, then stop. Args: <release-apk (no stub flags)> [task-slug].
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -194,6 +197,10 @@ log(`fixture serving on host :${PORT}, device https://x.com/x.html`);
 execFileSync('adb', ['-s', serial, 'logcat', '-c']);
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'pm', 'clear', pkg);
+// The emulator and its AVD are shared: a sibling run that died inside the extreme leg leaves
+// 720x1280 at density 320 and font scale 1.3 behind, and at that size the welcome title sits
+// below the fold, where the OCR wait can never see it. Normalize before the setup walk.
+setExtreme(false);
 adb('shell', 'cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');
 evidence('theme', 'light');
 await serviceOff();
@@ -244,27 +251,41 @@ const connectOpenRouter = async () => {
 // the app's connect field. The key is never printed, logged or written; the app masks it and keeps
 // it only in its secure store.
 const connectOpenCode = async () => {
-  await skipSetup();
-  await scrollWriterList('with your opencode go');
-  await tapButton('with your opencode go');
-  await waitForLine('paste your opencode go key', 30);
-  await pasteKey('paste your opencode go key');
-  await tapButton('connect');
-  for (let i = 0; i < 60; i++) {
-    if (onScreen('opencode go is connected')) break;
-    if (onScreen('that key was not accepted')) throw new Error('OpenCode Go rejected the key.');
-    // A login key for several workspaces shows the kit's pick: tap the plan's workspace.
-    const pick = onScreen('more than one workspace') && nodes().find(n => (n.text || n.label || '').trim() === goWorkspace);
-    if (pick) { tap(...center(pick)); await wait(2500); continue; }
-    const yes = nodes().find(n => n.clickable && /switch to opencode go/i.test(`${n.label ?? ''} ${n.text ?? ''}`));
-    if (yes) { tap(...center(yes)); await wait(2500); }
-    await wait(1000);
+  // The same walk as the live-proven e2e/opencode-proof.mjs: card, key field, Connect, workspace pick.
+  const findText = label => nodes().find(n => `${n.label} ${n.text}`.toLowerCase().includes(label));
+  const words = () => nodes().map(n => n.text || n.label).filter(Boolean).join(' | ').replaceAll(key, '<key>').slice(0, 600);
+  const waitText = async (labels, tries = 40) => {
+    for (let i = 0; i < tries; i++) { const n = labels.map(findText).find(Boolean); if (n) return n; await wait(1000); }
+    throw new Error(`OpenCode Go connect: could not see "${labels.join('" or "')}". On screen: ${words()}`);
+  };
+  const tapText = async (label, tries = 20) => tap(...center(await waitText([label], tries)));
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
+  await waitText(['how ownvoice writes'], 30);
+  for (let i = 0; i < 5 && !findText('with your opencode go'); i++) {
+    adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
+    await wait(1200);
   }
-  if (!onScreen('opencode go is connected')) {
-    try { shot('connect', 'not-connected', 'opencode'); } catch { /* shot is declared later in the file */ }
-    const seen = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 400);
-    throw new Error(`OpenCode Go did not report connected (screen: ${seen}).`);
+  await tapText('with your opencode go');
+  await tapText('paste your opencode go key', 30);
+  await wait(700);
+  adb('shell', 'input', 'text', `'${key}'`); await wait(700);
+  if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
+  await tapText('connect', 20);
+  // A login key that works with several workspaces shows the kit's pick; tap the plan's workspace.
+  const seen = await waitText(['more than one workspace', 'opencode go is connected', 'not accepted'], 40);
+  if (`${seen.label} ${seen.text}`.toLowerCase().includes('not accepted')) throw new Error(`OpenCode Go rejected the key. On screen: ${words()}`);
+  if (!findText('opencode go is connected')) {
+    for (let i = 0; i < 3 && !nodes().find(n => (n.text || n.label || '').trim() === goWorkspace); i++) {
+      adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
+      await wait(1200);
+    }
+    const pick = nodes().find(n => (n.text || n.label || '').trim() === goWorkspace);
+    if (!pick) throw new Error(`The workspace pick shows no "${goWorkspace}". On screen: ${words()}`);
+    log(`workspace pick: ${goWorkspace}`);
+    tap(...center(pick));
+    await waitText(['opencode go is connected'], 60);
   }
+  log("openCode Go writer connected through the app's own connect field.");
 };
 // A refusal leg makes no writer call, so the refusal-only run skips connecting a writer entirely.
 const refusalOnly = process.env.X_REPLIES_LEGS === 'refusal';
@@ -437,6 +458,71 @@ const copyLeg = async (screen, theme) => {
   if (changed) throw new Error('Copy wrote into the composer (not copy-only).');
   return { cardText, tick, clip };
 };
+// ---- F6a: the X card labels, and the outcome record a confirmed insert must write ----
+// What each X reply card is for (Panel.tsx TAGS.x); the writer's text on a card must match the
+// label the card shows. Judged in plain words, independent of the app's own guard.
+const preflightOnly = process.env.X_REPLIES_LEGS === 'preflight';
+const X_TAGS = ['agree', 'push back, kindly', 'ask a question'];
+const LEVELS = ['Likely to be skipped', 'Might get a reply', 'Good fit here', 'Strong fit here'];
+const opensAgree = /^(?:yes|yeah|yep|yup|sure|okay|ok|definitely|absolutely|of course|sounds good|works for me|happy to|gladly|will do|no problem|consider it done)\b/i;
+const opensDecline = /^(?:no|nope|nah|sorry|afraid|unfortunately|can'?t|won'?t|couldn'?t|not able|never)\b/i;
+// Read the cards as (label, text) in reading order: a tag line opens a card; a fit level is a
+// label; the longest remaining text on the card is its reply.
+const readCards = () => {
+  const panel = nodes().filter(n => (n.text || n.label || '').trim())
+    .sort((a, b) => a.bounds[1] - b.bounds[1] || a.bounds[0] - b.bounds[0]);
+  const cards = [];
+  let current = null;
+  for (const n of panel) {
+    const text = (n.text || '').trim();
+    if (X_TAGS.includes(text.toLowerCase())) { current = { tag: text, texts: [], fit: null }; cards.push(current); continue; }
+    if (!current) continue;
+    if (!current.fit && LEVELS.includes((n.label || '').trim())) { current.fit = n.label.trim(); continue; }
+    if (text && !/^(edit|insert|copy|copied|why\?|use this|write new ones|share this text|open in x.*|post|reply)$/i.test(text)) current.texts.push(text);
+  }
+  for (const c of cards) c.text = c.texts.sort((a, b) => b.length - a.length)[0] ?? '';
+  return cards;
+};
+const judgeCard = card => {
+  const t = card.text.trim();
+  const tag = card.tag.toLowerCase(); // the panel shows its tags in capitals
+  if (!t) return 'no text';
+  if (tag === 'agree') return opensDecline.test(t) ? `MISMATCH: an Agree card declines ("${t}")` : 'ok';
+  if (tag === 'push back, kindly') return opensAgree.test(t) && !opensDecline.test(t) ? `MISMATCH: a Push back card agrees ("${t}")` : 'ok';
+  if (tag === 'ask a question') return /\?/.test(t) ? 'ok' : 'ok (no question mark)';
+  return 'ok';
+};
+// The app's own SQLite store, read with su (never a mock): the insert's outcome record lives under
+// the key reply-outcomes at /data/data/<pkg>/files/SQLite/ExpoSQLiteStorage.
+const outcomeDir = () => { const dir = `${root}/verify-artifacts/${task}/outcome`; mkdirSync(dir, { recursive: true }); return dir; };
+const readOutcomeStore = () => {
+  const dir = outcomeDir();
+  const local = join(dir, 'outcomes.sqlite');
+  writeFileSync(local, execFileSync('adb', ['-s', serial, 'exec-out', 'su', '0', 'cat', `/data/data/${pkg}/files/SQLite/ExpoSQLiteStorage`], { maxBuffer: 24 * 1024 * 1024 }));
+  const out = execFileSync('python3', ['-c', `import sqlite3,json,sys\nc=sqlite3.connect(sys.argv[1])\nprint(json.dumps(dict(c.execute('select key,value from storage'))))`, local], { encoding: 'utf8' });
+  return JSON.parse(out);
+};
+// The outcome the insert wrote must read back the way a person reads it: on the app's own
+// "Replies you inserted" screen, and in its store.
+const readBackOutcome = async (screen, theme) => {
+  adb('shell', 'am', 'force-stop', pkg);
+  await wait(900);
+  const rows = JSON.parse(readOutcomeStore()['reply-outcomes'] ?? '[]');
+  const last = rows[rows.length - 1];
+  const dir = outcomeDir();
+  writeFileSync(join(dir, `record-${screen}-${theme}.json`), JSON.stringify({ record: last ?? null, rows: rows.length }, null, 2) + '\n');
+  if (!last || last.card !== 'suggestion' || last.platform !== 'x') throw new Error(`The insert wrote no suggestion outcome record for X (got ${JSON.stringify(last ?? null)}).`);
+  if (!Number.isFinite(last.at) || last.at <= 0) throw new Error('The outcome record carries no insert time.');
+  if (last.level !== null && !LEVELS.includes(last.level)) throw new Error(`The outcome record's level is not a shown fit level: ${JSON.stringify(last.level)}.`);
+  await rebind();
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
+  await wait(3000);
+  shot(screen, 'outcome-reads', theme);
+  const seen = nodes().map(n => `${n.text ?? ''} ${n.label ?? ''}`.trim()).filter(Boolean).join(' | ');
+  writeFileSync(join(dir, `read-screen-${screen}-${theme}.txt`), seen + '\n');
+  if (!/Suggestion · X/.test(seen)) throw new Error(`The "Replies you inserted" screen does not show "Suggestion · X" (saw: ${seen.slice(0, 300)}).`);
+  log(`${screen}/${theme}: outcome record read back from the store and the app's own read screen (${last.platform}/${last.card}, level ${JSON.stringify(last.level)}, at ${last.at}).`);
+};
 // The plain sentences the panel shows when the cloud writer could not answer; a grounded journey is
 // never expected to show these, so their presence means the writer refused (limit, auth, fallback).
 const WRITER_REFUSAL = /didn't answer|turned off|get this phone ready|limit reached|can't write|could not be reached|couldn't be reached|not accepted/i;
@@ -471,6 +557,15 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
     if (!panelText('X')) throw new Error('The panel does not name the X platform.');
     if (panelText('Reply ideas are unavailable')) throw new Error('The withhold note showed on a grounded post.');
     shot(screen, 'cards', theme);
+    // The F6a wording check: every card's text must match the label the card shows.
+    const judged = readCards().map(card => ({ ...card, verdict: judgeCard(card) }));
+    mkdirSync(`${root}/verify-artifacts/${task}`, { recursive: true });
+    writeFileSync(`${root}/verify-artifacts/${task}/${screen}-cards-${theme}.json`, JSON.stringify(judged, null, 2) + '\n');
+    for (const c of judged) log(`card "${c.tag}" [${c.verdict}] fit=${c.fit ?? 'none'}: ${c.text}`);
+    if (!judged.length) throw new Error('No labelled reply card was readable on the grounded post.');
+    const mismatches = judged.filter(c => c.verdict.startsWith('MISMATCH'));
+    if (mismatches.length) throw new Error(`${mismatches.length} reply card(s) do not match their label: ${mismatches.map(m => m.verdict).join(' ; ')}`);
+    if (preflightOnly) { log(`PREFLIGHT ${screen}/${theme}: the writer answered with grounded, label-true reply cards.`); return; }
     if (copy) {
       await copyLeg(screen, theme);
       // Copy closes the panel (the native copy finishes it), so reopen it from the bubble for the edit.
@@ -485,6 +580,7 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
     adb('shell', 'input', 'text', EDIT_SUFFIX.replaceAll(' ', '%s'));
     await wait(800);
     shot(screen, 'editing', theme);
+    adb('logcat', '-c'); // a fresh buffer, so the line read below is this insert's own result
     await insertViaProbe('Insert');
     // The pill lives on the bubble for four seconds from the insert, but the native insert-verify can
     // run a few seconds first, so watch the screen and shoot the moment it appears (the pixel shot is
@@ -504,12 +600,13 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
     await wait(800);
     if ((await panelButton('Insert', 4)) || (await panelButton('Edit', 4))) { nodes('Close'); await wait(900); }
     shot(screen, 'inserted', theme);
-    if (!/insert result ok=true/.test(logcat)) throw new Error('The insert read-back check did not pass.');
+    if (!/insert result ok=true/.test(logcat)) throw new Error(`The insert read-back check did not pass: ${logcat.match(/insert result [^\n]*/g)?.join(' ; ') ?? 'no insert result logged'}`);
     const back = nodes().find(node => node.editable && !node.password && !/x\.com|https?:|find an app/i.test(`${node.text ?? ''} ${node.label ?? ''}`));
     const boxText = `${back?.text ?? ''}`;
     if (!boxText.includes(EDIT_SUFFIX)) throw new Error(`Field read-back missing the edit suffix "${EDIT_SUFFIX}" (got: ${boxText || 'no field'}).`);
     if (originalCardText && boxText.trim() === originalCardText) throw new Error('The inserted text equals the unedited card text: the edit did not change it.');
-    log(`${screen}/${theme}: cards + edit + insert + confirmation + read-back OK.`);
+    await readBackOutcome(screen, theme);
+    log(`${screen}/${theme}: cards + label check + edit + insert + confirmation + read-back + outcome record OK.`);
   } finally {
     if (motion) { try { evidence('motion-stop'); } catch (error) { log(`motion-stop: ${error.message}`); } }
   }
@@ -610,13 +707,16 @@ const leg = async (name, fn, { needsWriter = false } = {}) => {
     if (error.writerRefused) writerRefused = true;
   }
 };
-const setExtreme = on => {
+function setExtreme(on) {
   adb('shell', 'settings', 'put', 'system', 'font_scale', on ? '1.3' : '1.0');
   adb('shell', 'wm', 'density', on ? '320' : 'reset');
   adb('shell', 'wm', 'size', on ? '720x1280' : 'reset');
-};
+}
 
 try {
+  if (preflightOnly) {
+    await leg('preflight', () => journey('x-preflight', 'light', {}), { needsWriter: true }); // stops after the label check
+  } else {
   // Phase 1 (light): the refusal legs first, because they prove the withhold without any writer call
   // and must survive a later writer refusal.
   await leg('refusal-notext-light', () => withhold('x-notext', 'light', IMAGE_ONLY));
@@ -646,6 +746,7 @@ try {
     await leg('font-1.3', () => journey('x-extreme', 'dark', {}), { needsWriter: true });
     setExtreme(false);
     await wait(1000);
+  }
   }
 } finally {
   // ---- restore ----
