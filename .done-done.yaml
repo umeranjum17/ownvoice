@@ -164,8 +164,8 @@ journeys:
     timeout: 45m
 
   polish-output:
-    description: "Android: real cloud-writer polish panels (autosave/split-capital/nonsense/empty/mash/max), light/dark and narrow, with the stub-text provenance guard. Needs an explicit emulator allocation, a live writer, and APK env (path to the release APK, built per mobile/README.md)."
-    spends: "live OpenRouter generations for the polish panels"
+    description: "Android: real cloud-writer polish panels (autosave/split-capital/nonsense/empty/mash/max), light/dark and narrow, with the stub-text provenance guard. Needs an explicit emulator allocation, a live writer, and APK env (path to the release APK, built per mobile/README.md). WRITER=openrouter (default, OPENROUTER_KEY_FILE) or opencode (OPENCODE_KEY: the OpenCode Go plan key)."
+    spends: "live cloud generations for the polish panels"
     command: |
       set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/openrouter-polish-sheets.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
