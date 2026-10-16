@@ -7,7 +7,7 @@ import { CryptoDigestAlgorithm, digest as sha256, getRandomValues } from 'expo-c
 
 import { CHATGPT_TERMS } from '../core/words';
 import type { CloudKey } from '../core/source';
-import type { Model } from '@byokit/accounts';
+import type { Model, OpenCodeGoWorkspace } from '@byokit/accounts';
 export { CHATGPT_TERMS };
 const member = 'owner';
 const store = secureStore(SecureStore, 'ownvoice.chatgpt.1');
@@ -86,9 +86,14 @@ export const signInClaude = () => getInstance().login(member, 'claude');
 // this phone's secure store. A phone has no OpenRouter OAuth sign-in, so there is no code to open or paste back.
 export const connectOpenRouter = (secret: string) => getInstance().saveKey(member, 'openrouter', secret.trim(), { billedPerUse: true });
 export const signOutOpenRouter = () => getInstance().logout(member, 'openrouter');
-// OpenCode Go is a plan key route: the key the plan gave the person is saved as that plan's account,
-// already paid for, so it asks for no per-use agreement the way a per-use key route does.
-export const connectOpenCode = (secret: string) => getInstance().saveKey(member, OPENCODE_ROUTE, secret.trim());
+// OpenCode Go is a plan key route: the kit's add() saves the key the plan gave the person as that plan's
+// account, with the workspace every Go call names. A key that acts for several workspaces saves nothing and
+// hands back the kit's list so the person picks one; connecting again with that workspace saves it.
+// Each add() saves a new account, so an earlier one is signed out first: the route keeps one Go account.
+export const connectOpenCode = async (secret: string, workspace?: string): Promise<OpenCodeGoWorkspace[] | undefined> => {
+  await getInstance().logout(member, OPENCODE_ROUTE).catch(() => {});
+  return (await getInstance().add(member, OPENCODE_ROUTE, { key: secret.trim(), ...(workspace ? { workspace } : {}) })).workspaces;
+};
 export const signOutOpenCode = () => getInstance().logout(member, OPENCODE_ROUTE);
 export async function codexAuth(): Promise<{ access: string; accountId: string }> {
   const runtime = await getInstance().runtime(member);
