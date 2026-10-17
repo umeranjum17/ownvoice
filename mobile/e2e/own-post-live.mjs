@@ -123,7 +123,22 @@ export async function proveOwnPostLive(ctx) {
 
   // Connect the real plan key through the app's own connect field: card, key field, Connect, the
   // kit's workspace pick when the key acts for several. The key is typed once and never read back.
+  // A connect failure saves the panel text, the focused app and a screenshot (the narrow round
+  // died on an empty node tree with no record of what the screen showed).
   const connectOpenCode = async () => {
+    try {
+      await connectOpenCodeInner();
+    } catch (error) {
+      shot('connect-stuck');
+      const focused = adb('shell', 'dumpsys', 'activity', 'activities').split('\n').filter(l => /mFocusedApp|mResumedActivity/.test(l)).join('\n').slice(0, 400);
+      writeFileSync(resolve(out, `own-post-live-${round}-connect-stuck.json`), JSON.stringify({
+        error: error instanceof Error ? error.message : String(error),
+        focused, screen: masked(nodes().map(n => n.text || n.label).filter(Boolean).join(' | ')).slice(0, 2000),
+      }, null, 2));
+      throw error;
+    }
+  };
+  const connectOpenCodeInner = async () => {
     adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
     await waitText(['how ownvoice writes'], 30);
     for (let i = 0; i < 5 && !findText('with your opencode go'); i++) await swipeUp();
