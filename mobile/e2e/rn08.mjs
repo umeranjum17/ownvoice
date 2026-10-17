@@ -337,22 +337,38 @@ if (live) {
     await tapText('with your opencode go');
     if (!(await textPresent('paste your opencode go key', 30))) throw new Error('the Go key field did not open');
     await wait(700);
-    shell('input', 'text', `'${liveKey}'`);
+    execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${liveKey}'`]); // no shell echo: the key must never reach the log
     await wait(700);
     await hideKeyboard();
     await tapText('connect');
-    if (!(await textPresent('more than one workspace', 40))) throw new Error('the workspace pick did not appear');
-    for (let i = 0; i < 8; i++) {
-      if (nodes().some(n => `${n.label} ${n.text}`.trim() === liveWorkspace)) break;
-      if (i % 2) await swipeUp(); else await wait(1000);
+    let outcome = '';
+    for (let i = 0; i < 60 && !outcome; i++) {
+      if (await textPresent('more than one workspace', 1)) outcome = 'pick';
+      else if (await textPresent('opencode go is connected', 1)) outcome = 'connected';
+      else if (await textPresent("didn't answer", 1)) outcome = 'refused-answer';
+      else if (await textPresent('could not connect', 1)) outcome = 'refused-connect';
+      else if (await textPresent('try again', 1)) outcome = 'refused-retry';
+      else await wait(1000);
     }
-    const pick = nodes().find(n => `${n.label} ${n.text}`.trim() === liveWorkspace);
-    if (!pick) throw new Error(`the workspace pick shows no "${liveWorkspace}"`);
-    await liveShot('live-workspace-pick');
-    tap(...center(pick));
-    if (!(await textPresent('opencode go is connected', 60))) throw new Error('OpenCode Go did not connect');
+    if (!outcome) throw new Error(`the writer connect settled on nothing recognizable: ${safeWords(300)}`);
+    if (outcome.startsWith('refused')) throw new Error(`the Go connect was refused (${outcome}): ${safeWords(300)}`);
+    if (outcome === 'pick') {
+      for (let i = 0; i < 8; i++) {
+        if (nodes().some(n => `${n.label} ${n.text}`.trim() === liveWorkspace)) break;
+        if (i % 2) await swipeUp(); else await wait(1000);
+      }
+      const pick = nodes().find(n => `${n.label} ${n.text}`.trim() === liveWorkspace);
+      if (!pick) throw new Error(`the workspace pick shows no "${liveWorkspace}": ${safeWords(300)}`);
+      await liveShot('live-workspace-pick');
+      tap(...center(pick));
+      if (!(await textPresent('opencode go is connected', 60))) throw new Error(`OpenCode Go did not connect after the pick: ${safeWords(300)}`);
+    }
     await liveShot('live-connected');
   };
+  // Screen words for diagnosis: password fields dropped, key-shaped tokens redacted.
+  const safeWords = (limit = 500) => nodes().filter(n => !n.password)
+    .map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ')
+    .replace(/[A-Za-z0-9_\-]{20,}/g, '<redacted>').slice(0, limit);
   const wordsOf = t => t.trim().split(/\s+/).filter(Boolean).length;
   const keepsFacts = t => {
     const lower = t.toLowerCase();
@@ -366,7 +382,7 @@ if (live) {
       && !before.has(`${n.label} ${n.text}`.trim()) && !drop.test((n.text || '').trim()));
     cands.sort((a, b) => b.text.trim().length - a.text.trim().length);
     if (!cands.length) {
-      console.log(`RESULT MISS: ${list.map(n => (n.text || '').trim()).filter(Boolean).join(' | ').slice(0, 500)}`);
+      console.log(`RESULT MISS: ${safeWords()}`);
       throw new Error('no rewrite result on screen');
     }
     return cands[0].text.trim();
