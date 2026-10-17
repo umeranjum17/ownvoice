@@ -126,8 +126,7 @@ const probe2Apk = () => {
 let probe2ready = false;
 const nodesP = () => {
   if (!probe2ready) {
-    let present = false;
-    try { present = adb('shell', 'pm', 'list', 'packages', 'dev.ownvoice.probe2').includes('dev.ownvoice.probe2'); } catch {}
+    const present = adb('shell', 'pm', 'list', 'packages', 'dev.ownvoice.probe2').includes('dev.ownvoice.probe2');
     if (!present) execFileSync('adb', ['-s', serial, 'install', '-r', probe2Apk()], { stdio: 'pipe' });
     probe2ready = true;
   }
