@@ -279,13 +279,26 @@ try {
   shot('step-page-loaded');
   if (!field) fail('chrome', 'the test page shows no editable field');
   const [fx, fy] = center(field);
-  shell('input', 'keycombination', '113', '29'); // full selection even when the toolbar shows no Select all
-  await wait(600);
-  shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100'); // long-press inside the selection
-  await wait(1200);
+  // The floating selection toolbar only answers a long-press with the keyboard down;
+  // with it up the press just focuses, and Chrome's own top-right menu is the only
+  // "More options" around, which leads nowhere. Re-summon until the toolbar reads.
+  const toolbarUp = () => {
+    const looksToolbar = /^(copy|cut|share|select all)$/i;
+    return nodes().some(n => n.clickable && looksToolbar.test(`${n.text || n.label || ''}`.trim()) && n.bounds[1] > 300 && n.bounds[1] < 1300);
+  };
+  let toolbar = false;
+  for (let i = 0; i < 3 && !toolbar; i++) {
+    shell('input', 'keycombination', '113', '29'); // full selection even when the toolbar shows no Select all
+    await wait(600);
+    if (shell('dumpsys', 'input_method').includes('mInputShown=true')) { shell('input', 'keyevent', '4'); await wait(800); }
+    shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100'); // long-press inside the selection
+    await wait(1200);
+    toolbar = toolbarUp();
+  }
   shot('step-toolbar');
+  if (!toolbar) fail('toolbar', 'the Chrome selection toolbar never appeared after three long-presses');
 
-  const overflow = nodes().find(n => /more options/i.test(`${n.label} ${n.text}`) && n.clickable);
+  const overflow = nodes().find(n => /more options/i.test(`${n.label} ${n.text}`) && n.clickable && n.bounds[1] > 300 && n.bounds[1] < 1300);
   // Never the floating bubble (windowType 4): it is clickable and called Ownvoice, and
   // tapping it opens the panel instead of the sheet.
   const ownvoiceNode = list => list.find(n => n.windowType !== 4 && n.clickable && /ownvoice/i.test(`${n.label} ${n.text}`));
