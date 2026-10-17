@@ -18,6 +18,16 @@ test('a numbered echo of the slot instructions is dropped', () => {
   assert.deepEqual(accept([echo]), []);
 });
 
+test('a slot echo whose hyphen became a space is dropped', () => {
+  const linkedin = platformForApp('com.linkedin.android').slots;
+  assert.deepEqual(acceptReplies(['Ask one follow up question.'], [], 3, 'remove', [], [], point, linkedin), []);
+});
+
+test('a slot echo with no space after its colon shows no slot text', () => {
+  const [card] = accept(['Ask one sharp question about the post:What time works?']);
+  assert.ok(!card || !/ask one sharp question/i.test(card));
+});
+
 test('a lowercase slot echo mid-text is dropped', () => {
   assert.deepEqual(accept(['great point, thanks.\nagree and add one concrete detail from the post.']), []);
 });
