@@ -188,12 +188,10 @@ const musicStream = () => {
   const block = adb('shell', 'dumpsys', 'audio').split(/^\s*-\s*STREAM_MUSIC:/m)[1] ?? '';
   return { max: Number(block.match(/Max:\s*(\d+)/)?.[1] ?? 0), current: Number(block.match(/Current:\s*(\d+)/)?.[1] ?? -1) };
 };
+// This phone has no `media` shell command; `cmd media_session` is the one that exists.
 const setMusic = value => {
-  for (const args of [['media', 'volume', '--show', '--stream', '3', '--set', String(value)], ['cmd', 'media_session', 'volume', '--show', '--stream', '3', '--set', String(value)]]) {
-    try { adb('shell', ...args); } catch { continue; }
-    if (musicStream().current === value) return true;
-  }
-  return false;
+  try { adb('shell', 'cmd', 'media_session', 'volume', '--show', '--stream', '3', '--set', String(value)); } catch { return false; }
+  return musicStream().current === value;
 };
 let restored = false;
 const restorePhone = () => {
@@ -201,11 +199,13 @@ const restorePhone = () => {
   restored = true;
   putBack('secure', 'enabled_accessibility_services', phoneKeep.services);
   putBack('secure', 'accessibility_enabled', phoneKeep.enabled);
-  // The lead's fixed timeout for this phone (not the one read before the run). Stay-awake is left on: the next run on the lock restores it.
+  // The lead's fixed values for this phone (not the ones read before the run).
+  putBack('global', 'stay_on_while_plugged_in', '0');
   putBack('system', 'screen_off_timeout', '60000');
   if (!setMusic(0)) console.error('The phone music volume could not be set back to 0.');
   const readBack = ['global stay_on_while_plugged_in', 'system screen_off_timeout'].map(k => { const [a, b] = k.split(' '); return `${b}=${setting(a, b)}`; });
-  console.log(`phone restored: ${readBack.join(' ')} volume=${musicStream().current}`);
+  const volume = adb('shell', 'cmd', 'media_session', 'volume', '--stream', '3', '--get').trim().split(/\r?\n/).join(' | ');
+  console.log(`phone restored: ${readBack.join(' ')} volume(get)=${volume}`);
 };
 const preparePhone = () => {
   // A locked phone needs its PIN, which is never typed: the run stops before anything changes.
