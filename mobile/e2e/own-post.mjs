@@ -212,7 +212,7 @@ const preparePhone = () => {
   process.on('SIGTERM', () => { restorePhone(); process.exit(143); });
   process.on('SIGINT', () => { restorePhone(); process.exit(130); });
   try {
-    adb('shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', '3');
+    adb('shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', '2');
     adb('shell', 'settings', 'put', 'system', 'screen_off_timeout', '3600000');
     // A phone that refuses the volume command still runs: the app plays no sound, and the log says so.
     const { max, current } = musicStream();
