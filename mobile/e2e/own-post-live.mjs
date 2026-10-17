@@ -295,7 +295,12 @@ export async function proveOwnPostLive(ctx) {
   await withNodes('the Ownvoice service to bind after connecting the writer', () => bound(), 15);
 
   const light = process.env.OWN_POST_NARROW === '1' ? false : theme === 'light';
-  for (const item of [{ id: 'oneline', line: REALISTIC_LINE }, { id: 'longest', line: LONGEST_LINE }]) {
+  // Steer: the longest case reruns alone while its single-card panel is diagnosed.
+  const only = process.env.OWN_POST_CASE ?? '';
+  const cases = [{ id: 'oneline', line: REALISTIC_LINE }, { id: 'longest', line: LONGEST_LINE }]
+    .filter(item => !only || item.id === only);
+  if (only && !cases.length) throw new Error(`Unknown OWN_POST_CASE "${only}".`);
+  for (const item of cases) {
     if (light && item.id === 'oneline') evidence('motion-start', 'ov-own-posts', 'edit-and-insert-live');
     try { await runCase(item); }
     finally { if (light && item.id === 'oneline') evidence('motion-stop'); }
