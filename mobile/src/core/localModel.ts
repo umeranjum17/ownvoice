@@ -74,7 +74,10 @@ let onDevice: Promise<unknown> = Promise.resolve();
 
 /** Generate text using the local model; calls queue behind each other. */
 export function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal): Promise<string> {
-  const answer = onDevice.then(async () => (await getLocalModel().complete({ prompt, maxOutputTokens: maxTokens, signal })).text);
+  const answer = onDevice.then(async () => {
+    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
+    return (await getLocalModel().complete({ prompt, maxOutputTokens: maxTokens, signal })).text;
+  });
   onDevice = answer.catch(() => {});
   return answer;
 }

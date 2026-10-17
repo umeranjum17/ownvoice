@@ -15,7 +15,7 @@ test('the phone fit hands its abort signal to the local model call', async () =>
   askLocalMock.mockResolvedValue('{}');
   const controller = new AbortController();
   try {
-    await phoneFit().ask('rate', controller.signal);
+    await phoneFit().ask({}, {}, controller.signal);
     expect(askLocalMock.mock.calls[0][2]).toBe(controller.signal);
   } finally {
     askLocalMock.mockReset();

@@ -377,18 +377,17 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     void (async () => {
       // A refused account's line replaces the unsure read on every card it could not rate.
       let refusal: string | null = null;
-      const backends = leaves.current ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : await phoneCanWrite() === 'cant' ? [] : [phoneFit()];
+      const onPhone = !leaves.current || shownOnPhone.current;
+      const backends = !onPhone ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : await phoneCanWrite() === 'cant' ? [] : [phoneFit()];
       if (run.current !== id) return;
-      // Yours comes first in texts, so when the phone wrote the shown drafts only the typed reply is judged.
-      const judged = shownOnPhone.current ? texts.slice(0, yours?.text ? 1 : 0) : texts;
-      void judgeFit({ post: postOf.current ?? '', candidates: judged, platform: platformOf.current, samples: samplesOf.current, backends, voice: leaves.current })
-        .catch(() => judged.map(abstain))
+      void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, samples: samplesOf.current, backends, voice: !onPhone })
+        .catch(() => texts.map(abstain))
         .then(found => {
           if (run.current !== id) return;
           // Levels and probabilities only, never the text: what the proof reads from the device log.
           console.log(`ownvoice-fit ${JSON.stringify(found)}`);
           const judgedFit = (fit: Fit): Fit => refusal && fit.level == null ? { ...fit, refusal } : fit;
-          setFits(new Map(texts.map((text, i) => [text, i < judged.length ? judgedFit(found[i]) : abstain()])));
+          setFits(new Map(texts.map((text, i) => [text, judgedFit(found[i])])));
         });
     })();
   });

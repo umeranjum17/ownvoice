@@ -27,6 +27,9 @@ export function watch(on: (fraction: number | null) => void): () => void {
 
 export const downloading = () => running !== null;
 
+let removingNow = false;
+export const removing = () => removingNow;
+
 export async function modelStatus(): Promise<InferState> {
   if (pretend()) return running ? { phase: 'installing' } : pretendState;
   if (running) return getLocalModel().state;
@@ -87,7 +90,8 @@ export async function resume(): Promise<void> {
 export async function removeDownload(): Promise<void> {
   if (pretend()) { pretendState = { phase: 'not-installed' }; store.set(AGREED_KEY, null); store.set(MOBILE_KEY, null); return; }
   abortController?.abort();
-  await removeLocalModel();
+  removingNow = true;
+  try { await removeLocalModel(); } finally { removingNow = false; }
 }
 
 function pretendDownload(): Promise<void> {

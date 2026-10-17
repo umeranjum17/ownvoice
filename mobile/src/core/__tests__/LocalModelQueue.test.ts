@@ -42,6 +42,32 @@ test('overlapping on-device calls run one after another and both answer', async 
   expect(answers).toEqual(['answer to tone', 'answer to fit', 'answer to why']);
 });
 
+test('a call queued behind a pending call starts only after it settles', async () => {
+  mockComplete.mockClear();
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  mockComplete.mockImplementationOnce(async () => { await gate; return { text: 'tone' }; });
+  const tone = askLocal('tone', 80);
+  const fit = askLocal('fit', 256);
+  await settle();
+  expect(mockComplete).toHaveBeenCalledTimes(1);
+  release();
+  await expect(tone).resolves.toBe('tone');
+  await expect(fit).resolves.toBe('answer to fit');
+  expect(mockComplete).toHaveBeenCalledTimes(2);
+});
+
+test('a queued call aborted before its turn never starts the model', async () => {
+  mockComplete.mockClear();
+  const controller = new AbortController();
+  const first = askLocal('first', 5);
+  const queued = askLocal('queued', 5, controller.signal);
+  controller.abort();
+  await expect(queued).rejects.toBe(controller.signal.reason);
+  await expect(first).resolves.toBe('answer to first');
+  expect(mockComplete.mock.calls.map(([args]) => args.prompt)).toEqual(['first']);
+});
+
 test('a failed on-device call does not block the calls queued behind it', async () => {
   mockComplete.mockRejectedValueOnce(new Error('model stopped'));
   await expect(askLocal('first', 5)).rejects.toThrow('model stopped');

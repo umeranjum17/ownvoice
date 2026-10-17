@@ -1,24 +1,25 @@
 import { InferError } from '@byokit/infer';
 import { agreedToDownload, localModelState } from './localModel';
-import { downloading } from './phoneDownload';
+import { downloading, removing } from './phoneDownload';
 
 export type PhoneCanWrite = 'ready' | 'needsDownload' | 'preparing' | 'cant';
 
 /** Whether the local on-device writer can draft: ready, waiting for download consent, installing, or unavailable. */
 export async function phoneCanWrite(): Promise<PhoneCanWrite> {
+  let phase: string;
   try {
-    switch ((await localModelState()).phase) {
-      case 'ready':
-      case 'busy':
-      case 'installed': return 'ready';
-      case 'not-installed': return agreedToDownload() ? 'preparing' : 'needsDownload';
-      case 'installing':
-      case 'loading': return 'preparing';
-      default: return 'cant';
-    }
+    phase = (await localModelState()).phase;
   } catch (error) {
     if (!(error instanceof InferError && error.code === 'busy')) return 'cant';
-    // The busy lock is also held by install and remove: during a download the phone is still preparing.
-    return downloading() ? 'preparing' : 'ready';
+    phase = 'busy';
+  }
+  switch (phase) {
+    case 'busy': return removing() ? 'cant' : downloading() ? 'preparing' : 'ready';
+    case 'ready':
+    case 'installed': return 'ready';
+    case 'not-installed': return agreedToDownload() ? 'preparing' : 'needsDownload';
+    case 'installing':
+    case 'loading': return 'preparing';
+    default: return 'cant';
   }
 }
