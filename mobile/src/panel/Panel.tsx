@@ -355,7 +355,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (!texts.length) return;
     toneFor.current = id;
     toneDone.current = (async () => {
-      if (await phoneCanWrite() === 'cant') return;
+      if (await phoneCanWrite() === 'cant' || run.current !== id) return;
       let answer: string | null = null;
       try { answer = await askLocal(Judge.tonePrompt(texts), 80); }
       catch { return; }
@@ -376,10 +376,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (!texts.length) return;
     fitFor.current = id;
     void (async () => {
-      await toneDone.current;
       // A refused account's line replaces the unsure read on every card it could not rate.
       let refusal: string | null = null;
+      if (!leaves.current) await toneDone.current;
       const backends = leaves.current ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : await phoneCanWrite() === 'cant' ? [] : [phoneFit()];
+      if (run.current !== id) return;
       // Yours comes first in texts, so when the phone wrote the shown drafts only the typed reply is judged.
       const judged = shownOnPhone.current ? texts.slice(0, yours?.text ? 1 : 0) : texts;
       void judgeFit({ post: postOf.current ?? '', candidates: judged, platform: platformOf.current, samples: samplesOf.current, backends, voice: leaves.current })

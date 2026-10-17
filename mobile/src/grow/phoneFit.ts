@@ -8,4 +8,4 @@ const FIT_TOKENS = 400;
  *  so the post and the cards never leave the phone. A fenced JSON block is unwrapped first; any other
  *  malformed reply abstains through decide, and the card keeps the plain unsure read. */
 export const phoneFit = (): Backend => answerer({ name: 'phone', leaves: false,
-  ask: async prompt => (await askLocal(prompt, FIT_TOKENS)).replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, '') });
+  ask: async (prompt, signal) => (await askLocal(prompt, FIT_TOKENS, signal)).replace(/^\s*```(?:json)?\s*|\s*```\s*$/g, '') });

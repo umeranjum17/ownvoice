@@ -369,6 +369,35 @@ describe('grow fit bar', () => {
       expect(askLocalMock.mock.calls.some(([prompt]) => String(prompt).includes('An X reply.'))).toBe(false);
     } finally { phone.mockRestore(); askLocalMock.mockReset(); }
   });
+
+  test('a cloud writer rates its cards without waiting for a pending on-device tone call', async () => {
+    phoneModel('ready');
+    askLocalMock.mockImplementation(() => new Promise<string>(() => {}));
+    const spy = jest.spyOn(FitModule, 'judgeFit');
+    try {
+      await open(capture(), DRAFTS);
+      await waitFor(() => expect(spy).toHaveBeenCalled());
+    } finally { spy.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
+  });
+
+  test('a fit left over from a replaced capture never asks the model', async () => {
+    const phone = writesAll();
+    phoneModel('ready');
+    const prompts: string[] = [];
+    let releaseTone: (answer: string) => void = () => {};
+    askLocalMock.mockImplementation(prompt => {
+      prompts.push(String(prompt));
+      return prompts.length === 1 ? new Promise<string>(resolve => { releaseTone = resolve; }) : Promise.resolve('');
+    });
+    try {
+      const screen = await onPhone();
+      await waitFor(() => expect(prompts).toHaveLength(1));
+      screen.unmount();
+      releaseTone('');
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(prompts).toHaveLength(1);
+    } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
+  });
 });
 
 test.each([['com.whatsapp', 'WhatsApp'], ['dev.ownvoice.app', 'Ownvoice']])('%s cards carry no engagement rating', async (app, label) => {

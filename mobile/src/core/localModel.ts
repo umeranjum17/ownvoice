@@ -70,8 +70,8 @@ export function agreedToDownload(): boolean {
 }
 
 /** Generate text using the local model. */
-export async function askLocal(prompt: string, maxTokens: number): Promise<string> {
+export async function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal): Promise<string> {
   const local = getLocalModel();
-  const result = await local.complete({ prompt, maxOutputTokens: maxTokens });
+  const result = await local.complete({ prompt, maxOutputTokens: maxTokens, signal });
   return result.text;
 }
