@@ -15,7 +15,7 @@
 //   choose <out>   open the source screen, choose On this phone, say yes to the one-time
 //                 model download when asked (records download-start.txt), then leave it running
 //   dlwait <out>  wait until the phone writer is ready (records elapsed time)
-//   voice <out>   the ov-pm-17 protocol: 5 runs rule-off, 5 rule-on, 1 lowercase-blunt note
+//   voice <out>   the ov-pm-17 protocol: 5 runs rule-off, 5 rule-on, OV_NOTE_RUNS (default 1) lowercase-blunt note
 // Env: ANDROID_SERIAL must be a4b93ea2; OV_THEME=light|dark (default light).
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -402,7 +402,9 @@ if (mode === 'recon') {
     const firstCard = r.lines.findIndex(l => SUGGESTION_TAGS.test(l.text.trim()));
     const below = firstCard >= 0 ? r.lines.slice(firstCard + 1).map(l => l.text).join('\n') : r.text;
     const hits = (below.match(/no worries/gi) ?? []).length;
-    return { hits, refusal: ref, panelText: r.text.slice(0, 600), cardsMissing: firstCard < 0 };
+    // The note arm's measure: card lines (tags skipped) that open on a capital letter other than "I".
+    const capitalised = firstCard >= 0 ? r.lines.slice(firstCard + 1).map(l => l.text.trim()).filter(t => !SUGGESTION_TAGS.test(t) && /^\p{Lu}/u.test(t) && !/^I\b/.test(t)).length : -1;
+    return { hits, capitalised, refusal: ref, panelText: r.text.slice(0, 600), cardsMissing: firstCard < 0 };
   };
   const dismiss = async tag => {
     for (let i = 0; i < 3; i++) {
@@ -417,8 +419,8 @@ if (mode === 'recon') {
     // thinking the panel covers the bubble, and only a restart brings the bubble back.
     await rebind();
     const end = await openThread();
-    const { hits, refusal, panelText, cardsMissing } = await generate(name, end);
-    record({ arm: name, theme, phraseInDrafts: hits, cardsMissing: cardsMissing ?? null, refusal: refusal ?? null, panel: panelText ?? null, shot: `${name}.png` });
+    const { hits, capitalised, refusal, panelText, cardsMissing } = await generate(name, end);
+    record({ arm: name, theme, phraseInDrafts: hits, capitalisedLines: capitalised ?? null, cardsMissing: cardsMissing ?? null, refusal: refusal ?? null, panel: panelText ?? null, shot: `${name}.png` });
     await dismiss(name);
     if (refusal && refusal !== 'no-panel') throw new Error(`writer refused: ${refusal}`);
     if (hits < 0) throw new Error(`no panel opened for ${name} (see ${name}-no-panel.png)`);
@@ -565,7 +567,9 @@ if (mode === 'recon') {
     if (!arms.includes('on') && !arms.includes('off')) await requireRule(true, 'voice-note-precheck');
     if (process.env.OV_SETNOTE !== '0') await setNote('lowercase, blunt', 'voice-note-set');
     else console.log('note retype skipped (OV_SETNOTE=0): stored note reused');
-    await runArm(`note-lowercase-blunt${armTag}`);
+    // OV_NOTE_RUNS repeats the note arm (the lowercase pass bar is counted over 5 runs).
+    const runs = Number(process.env.OV_NOTE_RUNS ?? 1);
+    for (let i = 0; i < runs; i++) await runArm(`note-lowercase-blunt${armTag}${runs > 1 ? `-${i}` : ''}`);
   }
   console.log(`VOICE_DONE theme=${theme} out=${out}`);
 } else {

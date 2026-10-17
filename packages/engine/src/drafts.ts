@@ -270,12 +270,30 @@ const phoneReplyInstructions = (slots: [string, string, string]) => [
   'Never invent facts, times or dates: use only the screen. A change reuses only screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
 ].join('\n');
 
+// The phone model follows its trained casing over a bare note (a live phone capitalised 5/5
+// replies under "lowercase, blunt"), so the style words a note names also ride as example
+// replies written that way. A note naming none of them adds no examples.
+const STYLE_BASE: [full: string, blunt: string][] = [
+  ['Sounds good, see you then.', 'See you then.'],
+  ["Sorry, I can't make it. Could we do another day?", "Can't make it. Another day?"],
+  ['What time works for you?', 'What time?'],
+];
+function styleExamples(guide: string): string {
+  const note = guide.match(/How they write: (.*)$/s)?.[1].toLowerCase() ?? '';
+  const blunt = /\b(?:blunt|short|terse|brief|direct|to the point)\b/.test(note);
+  const lower = /\b(?:lower ?case|no cap(?:s|itals?))\b/.test(note);
+  if (!blunt && !lower) return '';
+  const replies = STYLE_BASE.map(([full, short]) => blunt ? short : full).map(reply => lower ? reply.toLowerCase() : reply);
+  return `Made-up replies in their style (match it, never copy): ${JSON.stringify(replies)}`;
+}
+
 // The rules half of the selected guide (dash/ending rules, never-say phrases and the note) rides
 // the phone prompt too, with the shortest samples that still hold the instruction budget after it,
 // so a phrase the person banned never reaches a phone card. The rules win the room: samples drop
 // before the rules do, and the rules only overrun the budget when they alone are longer than it.
 const ruleBlock = (fixed: string, input: { guide?: string; samples?: string[] }): string => {
-  const rules = rulesOnly(input.guide ?? '');
+  const guide = rulesOnly(input.guide ?? '');
+  const rules = [guide, styleExamples(guide)].filter(Boolean).join(' ');
   if (!rules) {
     if (!input.samples?.length) return '';
     const line = selectExamples(input.samples, '', Math.max(0, MAX_GUIDE_LENGTH - fixed.length - 1)).line;
