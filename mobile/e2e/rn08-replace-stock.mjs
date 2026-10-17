@@ -91,8 +91,17 @@ const rawDump = name => {
   return readFileSync(`${out}/${name}.xml`, 'utf8');
 };
 const editTexts = xml => [...xml.matchAll(/class="android.widget.EditText"[^>]*?text="([^"]*)"/g)].map(m => m[1]);
+// Device time at start: the logcat saved on every exit covers this run only, never clearing the phone's log.
+const logSince = shell('date', "+'%m-%d %H:%M:%S.000'").trim();
+const saveLogcat = () => {
+  const pid = shell('pidof', pkg).trim().split(/\s+/)[0];
+  if (pid) writeFileSync(`${out}/logcat-app.txt`, adb('logcat', '-d', '-T', `'${logSince}'`, `--pid=${pid}`));
+  writeFileSync(`${out}/logcat-tags.txt`, adb('logcat', '-d', '-T', `'${logSince}'`, '-s', 'Ownvoice', 'RNLlama', 'ReactNativeJS', 'AndroidRuntime', 'DEBUG', 'libc'));
+  console.log(`logcat saved (pid ${pid || 'gone'})`);
+};
 const fail = (step, message) => {
   try { shot(`step-${step}-FAILED`); } catch {}
+  try { saveLogcat(); } catch {}
   writeFileSync(`${out}/replace-result.json`, JSON.stringify({ ok: false, step, message }, null, 2));
   throw new Error(`[${step}] ${message}`);
 };
@@ -438,9 +447,14 @@ try {
   const before = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
   await tapText('Shorter');
   let answered = false;
-  for (let i = 0; i < (phone ? 240 : 90) && !answered; i++) { // the phone writer loads its model first
-    if (await textPresent('Copy', 1)) answered = true;
-    else if (await textPresent("didn't answer", 1)) fail('writer', 'Shorter failed: the writer did not answer');
+  // The phone writer loads its model first; any of the sheet's failure lines ends the run at once.
+  const deadline = Date.now() + (phone ? 5 : 2) * 60_000;
+  const failed = /try again|went wrong|didn't answer|get this phone ready|doesn't work on this phone|free space/i;
+  while (!answered && Date.now() < deadline) {
+    const all = nodes();
+    const seen = all.map(n => `${n.label} ${n.text}`.trim());
+    if (all.some(n => n.label.trim() === 'Copy' || n.text.trim() === 'Copy')) answered = true;
+    else if (seen.some(t => failed.test(t))) fail('writer', `Shorter failed on the sheet: ${seen.find(t => failed.test(t))}`);
     else await wait(1000);
   }
   if (!answered) fail('writer', 'Shorter produced no result in time');
@@ -488,6 +502,7 @@ try {
   shot('step-backed-out');
   if (!match) fail('readback', `Replace did not put the rewrite in the stock field (dump field starts: "${fieldValue.slice(0, 120)}")`);
   if (!keepsFacts) fail('readback', 'the replaced field lost a fact (name, time or number)');
+  saveLogcat();
   console.log(`Replace proof saved to ${out}: uiautomator read-back matches the Shorter rewrite, facts kept.`);
   process.exit(0);
 } catch (error) {
