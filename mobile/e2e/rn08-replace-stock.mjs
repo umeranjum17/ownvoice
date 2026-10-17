@@ -1,11 +1,10 @@
-// OWNVOICE-RN-08 Replace-only proof, stock-field leg (lead method, no Chrome, no fixture).
-// A stock plain-EditText host on the image (Messages compose, else Contacts new-contact
-// name): prefill the realistic message, select all, take the native selection toolbar,
-// the Ownvoice PROCESS_TEXT entry; Shorter then Replace; the field value read back
-// through the service-safe accessibility probe (uiautomator nodes, never a raw dump,
-// which would unbind the service). First saves `cmd package query-activities` for
-// PROCESS_TEXT/text/plain: Ownvoice unlisted means a product defect, stop and report.
-// Needs OPENCODE_KEY_FILE (the Go key, never logged) and OPENCODE_WORKSPACE.
+// OWNVOICE-RN-08 Replace-only proof, stock-field leg v2 (lead method, no Chrome, no fixture).
+// Two stock plain-EditText hosts on the image: Contacts new-contact name, then Messages
+// compose body after a recipient is set. Type the realistic message, select all, take the
+// native toolbar overflow, the Ownvoice PROCESS_TEXT entry; Shorter then Replace; the field
+// value read back with a raw uiautomator dump (plus a probe cross-check). Saves the
+// dumpsys enabled-state and the query-activities roll-call. Never sends, saves or posts:
+// the proof backs out after the read. Needs OPENCODE_KEY_FILE and OPENCODE_WORKSPACE.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -42,6 +41,7 @@ const install = (...options) => {
   const installedSha = path && shell('sha256sum', path).trim().split(/\s+/)[0];
   if (installedSha !== expectedApkSha) throw new Error('Installed APK differs from release build; refusing to test a stale install.');
 };
+/** Re-enable the service and wait until dumpsys shows it BOUND (the cold-boot race). */
 const rebindService = async () => {
   const enabled = shell('settings', 'get', 'secure', 'enabled_accessibility_services').trim();
   const services = new Set(enabled === 'null' ? [] : enabled.split(':'));
@@ -52,11 +52,12 @@ const rebindService = async () => {
   shell('settings', 'put', 'secure', 'enabled_accessibility_services', [...services].join(':'));
   shell('settings', 'put', 'secure', 'accessibility_enabled', '1'); // a cold boot leaves it 0 and the puts above do not flip it
   await wait(1500);
-  for (let i = 0; i < 4; i++) {
-    if (shell('settings', 'get', 'secure', 'enabled_accessibility_services').includes(component) && shell('settings', 'get', 'secure', 'accessibility_enabled').trim() === '1') return;
+  for (let i = 0; i < 90; i++) {
+    const bound = /Bound services:\s*\{[^}]*Ownvoice/.test(shell('dumpsys', 'accessibility'));
+    if (shell('settings', 'get', 'secure', 'enabled_accessibility_services').includes(component) && bound) return;
     await wait(1000);
   }
-  throw new Error('service not enabled');
+  throw new Error('service not bound after 90s (rebind race)');
 };
 
 mkdirSync(out, { recursive: true });
@@ -68,6 +69,15 @@ const dumpNodes = name => {
   writeFileSync(`${out}/${name}.json`, JSON.stringify(nodes(), null, 2));
   console.log(`dump ${name}`);
 };
+/** Raw uiautomator dump to XML (the ordered read-back proof). Safe here: the Ownvoice
+ *  accessibility service is not needed once the sheet has handed back. */
+const rawDump = name => {
+  shell('uiautomator', 'dump', `/sdcard/${name}.xml`);
+  execFileSync('adb', ['-s', serial, 'pull', `/sdcard/${name}.xml`, `${out}/${name}.xml`], { stdio: 'ignore' });
+  console.log(`raw ${name}`);
+  return readFileSync(`${out}/${name}.xml`, 'utf8');
+};
+const editTexts = xml => [...xml.matchAll(/class="android.widget.EditText"[^>]*?text="([^"]*)"/g)].map(m => m[1]);
 const fail = (step, message) => {
   try { shot(`step-${step}-FAILED`); } catch {}
   writeFileSync(`${out}/replace-result.json`, JSON.stringify({ ok: false, step, message }, null, 2));
@@ -189,61 +199,11 @@ const connectOpenCode = async () => {
   shot('step-connected');
 };
 
-try {
-  await freshSetup();
-  await connectOpenCode();
+const ownvoiceNode = list => list.find(n => n.windowType !== 4 && n.clickable && /ownvoice/i.test(`${n.label} ${n.text}`));
+const overflowItem = () => nodes().find(n => n.clickable && /more options/i.test(`${n.label} ${n.text}`));
 
-  // The handler roll-call: who answers PROCESS_TEXT/text/plain on this image?
-  const handlers = shell('cmd', 'package', 'query-activities', '-a', 'android.intent.action.PROCESS_TEXT', '-t', 'text/plain');
-  writeFileSync(`${out}/handlers.txt`, handlers);
-  console.log(`handlers: ${handlers.split('\n').filter(l => l.trim()).length} lines`);
-  const dumpsys = shell('dumpsys', 'package', pkg);
-  writeFileSync(`${out}/dumpsys-package.txt`, dumpsys);
-  if (!/ownvoice/i.test(handlers)) fail('handlers', 'Ownvoice is not listed for PROCESS_TEXT/text/plain: product defect, stopping');
-
-  // Pick the stock plain-EditText host from what the image actually ships.
-  const packages = shell('pm', 'list', 'packages');
-  writeFileSync(`${out}/packages.txt`, packages);
-  const has = p => packages.split('\n').some(l => l.trim() === `package:${p}`);
-  const smsPkg = ['com.google.android.apps.messaging', 'com.android.messaging'].find(has);
-  const contactsPkg = ['com.google.android.contacts', 'com.android.contacts'].find(has);
-  // Contacts before Messages: GMS Messages answers SENDTO with a recipient picker
-  // (no compose body to prefill), while Contacts INSERT opens a plain name field.
-  let hostPkg = '';
-  if (contactsPkg) {
-    hostPkg = contactsPkg;
-    shell('am', 'start', '-a', 'android.intent.action.INSERT', '-t', 'vnd.android.cursor.dir/contact', '--es', 'name', `'${TEXT}'`);
-  } else if (smsPkg) {
-    hostPkg = smsPkg;
-    shell('am', 'start', '-a', 'android.intent.action.SENDTO', '-d', 'sms:', '--es', 'sms_body', `'${TEXT}'`);
-  }
-  if (!hostPkg) fail('host', 'no stock Messages or Contacts package on this image');
-  await wait(2500);
-  if (!(await waitForFocus(hostPkg))) fail('host', `the ${hostPkg} field screen did not come to the front`);
-  let field;
-  for (let i = 0; i < 15 && !field; i++) {
-    field = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && (n.text ?? '').includes('Sam'));
-    if (!field) await wait(1000);
-  }
-  await wait(1000);
-  shot('step-field-loaded');
-  if (!field) {
-    // Contacts may ignore the name extra: type the message into its first empty field instead.
-    const empty = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && !(n.text ?? '').trim());
-    if (!empty || !contactsPkg || hostPkg !== contactsPkg) fail('host', 'the stock field never showed the prefilled message');
-    tap(...center(empty));
-    await wait(600);
-    execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${TEXT.replaceAll(' ', '%s')}'`]);
-    await wait(1000);
-    field = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && (n.text ?? '').includes('Sam'));
-    shot('step-field-typed');
-    if (!field) fail('host', 'typing into the Contacts name field did not take');
-  }
-  const [fx, fy] = center(field);
-
-  // Native selection toolbar: focus, select all, keyboard down, long-press on the
-  // selection until the toolbar reads. A cursor-state toolbar offers "Select all":
-  // tapping it widens to the whole message (proven on the fixture leg).
+/** Summon the native toolbar on the given field center; widen cursor states via Select all. */
+const summonToolbar = async (fx, fy, tag) => {
   const actionUp = () => {
     const looksAction = /^(copy|cut|share|select all)$/i;
     return nodes().some(n => n.clickable && looksAction.test(`${n.text || n.label || ''}`.trim()));
@@ -252,53 +212,169 @@ try {
     const looksToolbar = /^(copy|cut|share)$/i;
     return nodes().some(n => n.clickable && looksToolbar.test(`${n.text || n.label || ''}`.trim()));
   };
-  const selectAllItem = () => nodes().find(n => n.clickable && /select all/i.test(`${n.label} ${n.text}`));
-  const overflowItem = () => nodes().find(n => n.clickable && /more options/i.test(`${n.label} ${n.text}`));
   let toolbar = false;
   for (let i = 0; i < 3 && !toolbar; i++) {
     tap(fx, fy);
     await wait(600);
-    shell('input', 'keycombination', '113', '29'); // Ctrl+A: full selection even when the toolbar shows no Select all
+    shell('input', 'keycombination', '113', '29');
     await wait(600);
     if (shell('dumpsys', 'input_method').includes('mInputShown=true')) { shell('input', 'keyevent', '4'); await wait(800); }
-    shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100'); // long-press on the selection
+    shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100');
     await wait(1200);
     if (!actionUp()) continue;
-    const selectAll = selectAllItem();
+    const selectAll = nodes().find(n => n.clickable && /select all/i.test(`${n.label} ${n.text}`));
     if (selectAll) {
-      tap(...center(selectAll)); // cursor/word state: widen to the whole message
+      tap(...center(selectAll));
       await wait(1000);
       if (!actionUp()) {
-        shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100'); // selection taken but the toolbar closed: summon it back
+        shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100');
         await wait(1200);
       }
     }
     toolbar = copyUp();
   }
-  shot('step-toolbar');
-  dumpNodes('nodes-toolbar'); // uiautomator node dump of the stock full-selection toolbar (probe-backed, service-safe)
-  if (!toolbar) fail('toolbar', 'no Copy/Cut/Share toolbar on the stock field after three summons');
+  shot(`step-toolbar-${tag}`);
+  dumpNodes(`nodes-toolbar-${tag}`);
+  rawDump(`uidump-toolbar-${tag}`);
+  return toolbar;
+};
 
-  // Never the floating bubble (windowType 4): it is clickable and called Ownvoice, and
-  // tapping it opens the panel instead of the sheet.
-  const ownvoiceNode = list => list.find(n => n.windowType !== 4 && n.clickable && /ownvoice/i.test(`${n.label} ${n.text}`));
-  let ownvoice = ownvoiceNode(nodes());
-  if (!ownvoice) {
-    const overflow = overflowItem();
-    dumpNodes('nodes-overflow-hunt');
-    if (!overflow) fail('toolbar', 'neither the Ownvoice entry nor the toolbar overflow menu appeared on the stock field');
-    tap(...center(overflow)); // process-text entries sit in the overflow, not on the main bar
-    await wait(1200);
-    shot('step-overflow');
-    dumpNodes('nodes-overflow');
-    for (let i = 0; i < 6 && !ownvoice; i++) {
-      ownvoice = ownvoiceNode(nodes());
-      if (!ownvoice) await wait(700);
+/** Hunt the Ownvoice entry on an up toolbar; true when tapped. */
+const huntOwnvoice = async tag => {
+  if (ownvoiceNode(nodes())) { shot(`step-ownvoice-direct-${tag}`); return true; }
+  const overflow = overflowItem();
+  if (!overflow) return false;
+  tap(...center(overflow));
+  await wait(1200);
+  shot(`step-overflow-${tag}`);
+  for (let i = 0; i < 6 && !ownvoiceNode(nodes()); i++) await wait(700);
+  return !!ownvoiceNode(nodes());
+};
+
+try {
+  await freshSetup();
+  await connectOpenCode();
+
+  // Handler roll-call + enabled-state, saved before any host opens.
+  const handlers = shell('cmd', 'package', 'query-activities', '-a', 'android.intent.action.PROCESS_TEXT', '-t', 'text/plain');
+  writeFileSync(`${out}/handlers.txt`, handlers);
+  console.log(`handlers: ${handlers.split('\n').filter(l => l.trim()).length} lines`);
+  const dumpsysPkg = shell('dumpsys', 'package', pkg);
+  writeFileSync(`${out}/dumpsys-package.txt`, dumpsysPkg);
+  const accessState = [
+    `enabled_accessibility_services=${shell('settings', 'get', 'secure', 'enabled_accessibility_services').trim()}`,
+    `accessibility_enabled=${shell('settings', 'get', 'secure', 'accessibility_enabled').trim()}`,
+    ...shell('dumpsys', 'accessibility').split('\n').filter(l => /Bound services|OwnvoiceService/.test(l)).map(l => l.trim()),
+  ].join('\n');
+  writeFileSync(`${out}/access-state.txt`, accessState);
+  if (!/ownvoice/i.test(handlers)) fail('handlers', 'Ownvoice is not listed for PROCESS_TEXT/text/plain: product defect, stopping');
+
+  const packages = shell('pm', 'list', 'packages');
+  writeFileSync(`${out}/packages.txt`, packages);
+  const has = p => packages.split('\n').some(l => l.trim() === `package:${p}`);
+  const contactsPkg = ['com.google.android.contacts', 'com.android.contacts'].find(has);
+  const smsPkg = ['com.google.android.apps.messaging', 'com.android.messaging'].find(has);
+
+  // Field 1: Contacts new-contact name (INSERT prefill, else type into the Name field).
+  // Field 2: Messages compose body (recipient chipped first, then the body is a plain field).
+  let hostPkg = '', field = null, hostTag = '';
+  if (contactsPkg) {
+    hostPkg = contactsPkg; hostTag = 'contacts';
+    shell('am', 'start', '-a', 'android.intent.action.INSERT', '-t', 'vnd.android.cursor.dir/contact', '--es', 'name', `'${TEXT}'`);
+    await wait(2500);
+    if (await waitForFocus(hostPkg)) {
+      if (await textPresent('save.*contact|choose.*account|save to', 3)) {
+        const device = nodes().find(n => n.clickable && /device|phone|local/i.test(`${n.label} ${n.text}`));
+        if (device) { tap(...center(device)); await wait(1500); }
+      }
+      for (let i = 0; i < 15 && !field; i++) {
+        field = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && (n.text ?? '').includes('Sam'));
+        if (!field) await wait(1000);
+      }
+      if (!field) {
+        const empty = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && !(n.text ?? '').trim() && (n.label ?? '').length + (n.text ?? '').length < 60);
+        if (empty) {
+          tap(...center(empty));
+          await wait(600);
+          execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${TEXT.replaceAll(' ', '%s')}'`]);
+          await wait(1000);
+          field = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && (n.text ?? '').includes('Sam'));
+        }
+      }
+      shot('step-field-loaded-contacts');
+      if (field) console.log('contacts name field ready');
+      else console.log('contacts field never showed the message; moving to Messages');
+    } else console.log('contacts did not come to the front; moving to Messages');
+  }
+  if (!field && smsPkg) {
+    hostPkg = smsPkg; hostTag = 'messages';
+    shell('am', 'start', '-a', 'android.intent.action.SENDTO', '-d', 'sms:');
+    await wait(2500);
+    if (!(await waitForFocus(hostPkg))) fail('host', 'Messages did not come to the front');
+    const to = nodes().find(n => n.className === 'android.widget.EditText' && n.editable);
+    if (!to) fail('host', 'Messages shows no recipient field');
+    tap(...center(to));
+    await wait(600);
+    execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'5550100'`]);
+    await wait(800);
+    shell('input', 'keyevent', '66');
+    await wait(2000);
+    const body = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && !(n.text ?? '').includes('5550100'));
+    if (!body) fail('host', 'Messages compose body never opened after chipping the recipient');
+    tap(...center(body));
+    await wait(600);
+    execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${TEXT.replaceAll(' ', '%s')}'`]);
+    await wait(1000);
+    field = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && (n.text ?? '').includes('Sam'));
+    shot('step-field-loaded-messages');
+    if (!field) fail('host', 'typing into the Messages compose body did not take');
+  }
+  if (!field) fail('host', 'no stock field took the realistic message (Contacts and Messages both tried)');
+  const [fx, fy] = center(field);
+
+  if (!(await summonToolbar(fx, fy, hostTag))) fail('toolbar', `no Copy/Cut/Share toolbar on the ${hostTag} field after three summons`);
+  let tapped = await huntOwnvoice(hostTag);
+  if (!tapped) {
+    console.log(`no Ownvoice entry or overflow on ${hostTag}; trying the other stock field`);
+    dumpNodes(`nodes-no-entry-${hostTag}`);
+    const other = hostTag === 'contacts' ? 'messages' : 'contacts';
+    const otherPkg = hostTag === 'contacts' ? smsPkg : contactsPkg;
+    if (otherPkg) {
+      if (other === 'messages') {
+        shell('am', 'start', '-a', 'android.intent.action.SENDTO', '-d', 'sms:');
+        await wait(2500);
+        const to = nodes().find(n => n.className === 'android.widget.EditText' && n.editable);
+        if (to) {
+          tap(...center(to)); await wait(600);
+          execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'5550100'`]); await wait(800);
+          shell('input', 'keyevent', '66'); await wait(2000);
+          const fallbackBody = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && !(n.text ?? '').includes('5550100'));
+          if (fallbackBody) {
+            tap(...center(fallbackBody)); await wait(600);
+            execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${TEXT.replaceAll(' ', '%s')}'`]); await wait(1000);
+          }
+        }
+      } else {
+        shell('am', 'start', '-a', 'android.intent.action.INSERT', '-t', 'vnd.android.cursor.dir/contact', '--es', 'name', `'${TEXT}'`);
+        await wait(2500);
+      }
+      if (await waitForFocus(otherPkg)) {
+        await wait(1500);
+        const otherField = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && (n.text ?? '').includes('Sam'));
+        if (otherField) {
+          const [ox, oy] = center(otherField);
+          if (await summonToolbar(ox, oy, other)) {
+            tapped = await huntOwnvoice(other);
+            hostPkg = otherPkg; hostTag = other;
+          }
+        }
+      }
     }
   }
-  if (!ownvoice) fail('toolbar', 'the Ownvoice entry never appeared on the stock field (toolbar and overflow shots saved)');
+  if (!tapped) fail('toolbar', 'neither stock field showed the Ownvoice entry or a toolbar overflow (both dumps saved)');
+
   shot('step-ownvoice-entry');
-  tap(...center(ownvoice));
+  tap(...center(ownvoiceNode(nodes())));
   if (!(await waitForFocus('RewriteActivity', 15))) fail('sheet', 'the stock selection did not open Ownvoice');
   if (!(await textPresent('Replace', 5))) fail('sheet', 'Replace not offered on the editable stock selection');
   shot('step-replace-offered');
@@ -326,21 +402,25 @@ try {
   await wait(1000);
   shot('step-replaced-field');
 
-  // Read-back through the probe's uiautomator nodes (never a raw dump: that unbinds
-  // the service). PROCESS_TEXT hands the rewrite back into the field itself. This proof
-  // never sends, posts, saves, or leaves the stock app: it backs out after the read.
-  const fieldValue = (nodes().find(n => n.className === 'android.widget.EditText' && n.editable)?.text ?? '').trim();
-  const match = fieldValue === rewriteText.trim();
+  // Ordered read-back: raw uiautomator dump, probe cross-check. Backs out afterwards;
+  // nothing is ever sent, saved or posted.
+  const xml = rawDump('uidump-replaced');
+  const texts = editTexts(xml);
+  const probeText = (nodes().find(n => n.className === 'android.widget.EditText' && n.editable)?.text ?? '').trim();
+  const fieldValue = texts.find(t => t === rewriteText.trim()) ?? texts.sort((a, b) => b.length - a.length)[0] ?? '';
+  const match = fieldValue.trim() === rewriteText.trim();
   const lower = fieldValue.toLowerCase();
   const keepsFacts = lower.includes('sam') && lower.includes('friday') && /(3\s?pm|15:00)/.test(lower) && /\b12\b/.test(lower);
-  const result = { ok: match && keepsFacts, host: hostPkg, method: 'uiautomator-probe', rewrite: rewriteText, field: fieldValue, match, keepsFacts };
+  const result = { ok: match && keepsFacts, host: hostPkg, method: 'uiautomator-dump', probeText, rewrite: rewriteText, field: fieldValue, match, keepsFacts };
   writeFileSync(`${out}/replace-result.json`, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
   shell('input', 'keyevent', '4');
   await wait(800);
-  if (!match) fail('readback', `Replace did not put the rewrite in the stock field (field starts: "${fieldValue.slice(0, 120)}")`);
+  shell('input', 'keyevent', '4');
+  await wait(800);
+  if (!match) fail('readback', `Replace did not put the rewrite in the stock field (dump field starts: "${fieldValue.slice(0, 120)}")`);
   if (!keepsFacts) fail('readback', 'the replaced field lost a fact (name, time or number)');
-  console.log(`Replace proof saved to ${out}: probe read-back matches the Shorter rewrite, facts kept.`);
+  console.log(`Replace proof saved to ${out}: uiautomator read-back matches the Shorter rewrite, facts kept.`);
   process.exit(0);
 } catch (error) {
   try { dumpNodes('nodes-FAILED'); } catch {}
