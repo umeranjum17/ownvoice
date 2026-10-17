@@ -211,10 +211,11 @@ const preparePhone = () => {
   try {
     adb('shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', '3');
     adb('shell', 'settings', 'put', 'system', 'screen_off_timeout', '3600000');
+    // A phone that refuses the volume command still runs: the app plays no sound, and the log says so.
     const { max, current } = musicStream();
-    if (!max) throw new Error('The phone music volume cannot be read; the run stops.');
     const cap = Math.floor(max * 0.3);
-    if (current > cap && !setMusic(cap)) throw new Error(`The phone music volume could not be set to ${cap} (30%).`);
+    if (!max) console.error('The phone music volume cannot be read; it is left as it is.');
+    else if (current > cap && !setMusic(cap)) console.error(`The phone music volume could not be set to ${cap} (30%); it is left as it is.`);
   } catch (error) {
     restorePhone();
     throw error;
