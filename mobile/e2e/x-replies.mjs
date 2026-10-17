@@ -533,7 +533,6 @@ const readOutcomeStore = () => {
 // The outcome the insert wrote must read back the way a person reads it: on the app's own
 // "Replies you inserted" screen, and in its store.
 const readBackOutcome = async (screen, theme) => {
-  await killApp();
   const rows = await until('an outcome row in the app\'s store', () => { const read = JSON.parse(readOutcomeStore()['reply-outcomes'] ?? '[]'); return read.length && read; }, { seconds: 15, every: 1000 });
   const last = rows[rows.length - 1];
   const dir = outcomeDir();
@@ -541,11 +540,14 @@ const readBackOutcome = async (screen, theme) => {
   if (!last || last.card !== 'suggestion' || last.platform !== 'x') throw new Error(`The insert wrote no suggestion outcome record for X (got ${JSON.stringify(last ?? null)}).`);
   if (!Number.isFinite(last.at) || last.at <= 0) throw new Error('The outcome record carries no insert time.');
   if (last.level !== null && !LEVELS.includes(last.level)) throw new Error(`The outcome record's level is not a shown fit level: ${JSON.stringify(last.level)}.`);
-  await rebind();
-  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
   const readScreen = () => nodes().map(n => `${n.text ?? ''} ${n.label ?? ''}`.trim()).filter(Boolean).join(' | ');
-  const seen = await until('"Suggestion · X" on the "Replies you inserted" screen', () => { const text = readScreen(); return /Suggestion · X/.test(text) && text; }, { seconds: 20 });
+  // A running app can take the link without routing ("current task has been brought to the front"), so ask again each try.
+  const seen = await until('"Suggestion · X" on the "Replies you inserted" screen', () => {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
+    const text = readScreen(); return /Suggestion · X/.test(text) && text;
+  }, { seconds: 20, every: 2000 });
   shot(screen, 'outcome-reads', theme);
+  adb('shell', 'input', 'keyevent', 'KEYCODE_HOME');
   writeFileSync(join(dir, `read-screen-${screen}-${theme}.txt`), seen + '\n');
   log(`${screen}/${theme}: outcome record read back from the store and the app's own read screen (${last.platform}/${last.card}, level ${JSON.stringify(last.level)}, at ${last.at}).`);
 };
@@ -568,6 +570,8 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
       log(`no Edit card: withhold=${panelText('Reply ideas are unavailable')} xPlat=${panelText('X')} nodes=${nodes().length}`);
       log(`panel text: ${panel}`);
       log(`screen: ${screenText().slice(0, 300)}`);
+      log(`app pids: ${pidOf().trim() || 'none'}; ${adb('shell', 'dumpsys', 'window').split('\n').filter(l => /mCurrentFocus|mFocusedApp/.test(l)).join(' ').trim()}`);
+      log(`service: ${adb('shell', 'dumpsys', 'accessibility').split('\n').filter(l => /ownvoice/i.test(l)).map(l => l.trim().slice(0, 200)).join(' ; ')}`);
       mkdirSync(`${root}/verify-artifacts/${task}`, { recursive: true });
       writeFileSync(`${root}/verify-artifacts/${task}/${screen}-logcat-${theme}.txt`, adb('logcat', '-d'));
       log(`logcat saved: ${root}/verify-artifacts/${task}/${screen}-logcat-${theme}.txt`);
