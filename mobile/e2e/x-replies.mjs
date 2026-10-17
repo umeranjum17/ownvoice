@@ -160,7 +160,8 @@ const serviceOff = async () => {
 const pidOf = () => { try { return adb('shell', 'pidof', pkg).trim(); } catch { return ''; } };
 const killApp = async () => {
   const pids = pidOf().split(/\s+/).filter(Boolean);
-  if (pids.length) adb('shell', 'su', '0', 'kill', '-9', ...pids);
+  // am force-stop ends the app's processes without root (the Play image has no su); rebind then restores the service.
+  if (pids.length) adb('shell', 'am', 'force-stop', pkg);
   // The system may start a fresh process for the service at once; only the killed ones must be gone.
   await until('the killed Ownvoice process to end', () => !pidOf().split(/\s+/).some(pid => pids.includes(pid)), { seconds: 10, every: 300 });
 };
