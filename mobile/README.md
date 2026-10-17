@@ -88,7 +88,9 @@ that key), which the emulator stand-in proofs set. `fitBackends(app)` in
 `src/chatgpt/settings.ts` sends only under the same consent as a send for that account
 (source, visibility, pause, phone-only, sign-out epoch, remote switch), checked again at
 dispatch. Drafts the phone wrote are never sent. The fit uses the same account as the
-writer, so a rate limit on either pauses both until the plan recovers.
+writer, so a rate limit on either pauses both until the plan recovers. When the phone writes
+(**On this phone**), the fit runs on the phone's own model through `phoneFit()` in
+`src/grow/phoneFit.ts`, so nothing leaves the phone; a card that model can't answer keeps the plain unsure read.
 
 A reply typed under an X, LinkedIn or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
 the writer gets their text as `point` (with `typed` empty) so the replies start from it,

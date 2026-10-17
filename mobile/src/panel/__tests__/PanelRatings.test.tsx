@@ -6,6 +6,8 @@ import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import Panel from '../Panel';
+import { phoneWriter } from '../phoneWriter';
+import { askLocal } from '../../core/localModel';
 import { technicalWords, words } from '../../core/words';
 import * as FitModule from '../../grow/fit';
 import { LEVELS, UNSURE, type Fit } from '../../grow/fit';
@@ -20,6 +22,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
 
 const native = Native as jest.Mocked<typeof Native>;
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
+const askLocalMock = askLocal as jest.MockedFunction<typeof askLocal>;
 
 // Fictional X reply screen: the parent post's header, its body, the action row, then Umer's reply box at 900.
 const POST = 'Shipping one small fix beats another week polishing the launch page.';
@@ -301,6 +304,46 @@ describe('grow fit bar', () => {
       expect(screen.getAllByTestId('fit-bar').length).toBeGreaterThan(0);
       expect(screen.getAllByLabelText(UNSURE).length).toBeGreaterThan(0);
     } finally { spy.mockRestore(); }
+  });
+
+  // The phone wrote every card and nothing leaves the phone, so the on-device model answers the rubric.
+  const levelReply = (count: number, level: number) => Object.fromEntries(Array.from({ length: count }, (_, i) =>
+    [`fit_${i}`, { probabilities: Object.fromEntries(LEVELS.map((_, k) => [String(k), k === level ? 0.7 : 0.1])) }]));
+  const onPhone = async () => {
+    native.capture.mockResolvedValue(capture());
+    return render(
+      <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
+        <Panel select={async () => ({ writer: phoneWriter, note: null })} />
+      </SafeAreaProvider>);
+  };
+
+  test('on the phone writer the fit is rated on this phone, and the cards show its level', async () => {
+    const phone = jest.spyOn(phoneWriter, 'write').mockImplementation(async (_request, on) => {
+      CLEAN.forEach((text, slot) => on?.landed?.(text, slot));
+      return { drafts: [...CLEAN] };
+    });
+    // The model wraps its JSON in a fence, as small local models often do.
+    askLocalMock.mockResolvedValue('```json\n' + JSON.stringify(levelReply(CLEAN.length + 1, 2)) + '\n```');
+    try {
+      const screen = await onPhone();
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(CLEAN.length + 1));
+      expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(CLEAN.length + 1);
+      expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
+      expect(askLocalMock.mock.calls.some(([prompt]) => String(prompt).includes('An X reply.'))).toBe(true);
+    } finally { phone.mockRestore(); askLocalMock.mockReset(); }
+  });
+
+  test('on the phone writer a model that cannot answer still says not sure, plainly', async () => {
+    const phone = jest.spyOn(phoneWriter, 'write').mockImplementation(async (_request, on) => {
+      CLEAN.forEach((text, slot) => on?.landed?.(text, slot));
+      return { drafts: [...CLEAN] };
+    });
+    askLocalMock.mockRejectedValue(new Error('model stopped'));
+    try {
+      const screen = await onPhone();
+      await waitFor(() => expect(screen.getAllByLabelText(UNSURE)).toHaveLength(CLEAN.length + 1));
+      expect(screen.getAllByText(new RegExp(words.fitWhyUnsure))).toHaveLength(CLEAN.length + 1);
+    } finally { phone.mockRestore(); askLocalMock.mockReset(); }
   });
 });
 

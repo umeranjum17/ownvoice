@@ -13,6 +13,7 @@ import { feedRead } from '../core/feed';
 import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
 import { abstain, judgeFit, rated, type Fit } from '../grow/fit';
+import { phoneFit } from '../grow/phoneFit';
 import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
@@ -153,7 +154,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const [tones, setTones] = useState<Map<string, string>>(new Map());
   const toneFor = useRef(0);
-  // The fit per shown text, asked once per tap after the cards land; only when the writer's text left the phone.
+  // The fit per shown text, asked once per tap after the cards land: on the chosen cloud account, or on this phone's model when the phone wrote.
   const [fits, setFits] = useState<Map<string, Fit>>(new Map());
   const fitFor = useRef(0);
   const leaves = useRef(false);
@@ -375,10 +376,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     fitFor.current = id;
     // A refused account's line replaces the unsure read on every card it could not rate.
     let refusal: string | null = null;
-    const backends = leaves.current ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : [];
+    const backends = leaves.current ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : [phoneFit()];
     // Yours comes first in texts, so when the phone wrote the shown drafts only the typed reply is judged.
     const judged = shownOnPhone.current ? texts.slice(0, yours?.text ? 1 : 0) : texts;
-    void judgeFit({ post: postOf.current ?? '', candidates: judged, platform: platformOf.current, samples: samplesOf.current, backends })
+    void judgeFit({ post: postOf.current ?? '', candidates: judged, platform: platformOf.current, samples: samplesOf.current, backends, voice: leaves.current })
       .catch(() => judged.map(abstain))
       .then(found => {
         if (run.current !== id) return;
