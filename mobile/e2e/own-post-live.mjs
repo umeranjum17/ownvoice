@@ -177,7 +177,8 @@ export async function proveOwnPostLive(ctx) {
   // ask or starts the download, so a phone that still asks for it stops here.
   const connectPhoneInner = async () => {
     adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
-    await waitText(['how should ownvoice write'], 30);
+    // The deep link opens the chooser under its row title ("How Ownvoice writes"); the ask's title is the other one.
+    await waitText(['how ownvoice writes', 'how should ownvoice write'], 30);
     await tapText('on this phone');
     await wait(2000);
     for (let i = 0; i < 150 && !findText('ready. it writes right here'); i++) {
