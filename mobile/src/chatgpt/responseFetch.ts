@@ -4,9 +4,11 @@ import { fetch as expoFetch } from 'expo/fetch';
 // each concurrent request keep its own final consent check and answered-send mark.
 const requests = new WeakMap<AbortSignal, typeof fetch>();
 export const responseFetch: typeof fetch = (url, init) => {
-  // Emulator-only stand-in (EXPO_PUBLIC_E2E_OPENCODE_403): the OpenCode console lists no workspaces, so no request leaves.
+  // Emulator-only stand-in (EXPO_PUBLIC_E2E_OPENCODE_403): the console lists one workspace, so the connect step
+  // reaches the pick and then the chat call is refused; no request leaves.
   if (process.env.EXPO_PUBLIC_E2E_OPENCODE_403 === '1' && String(url).startsWith('https://opencode.ai/console/')) {
-    return Promise.resolve(new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } }));
+    const orgs = String(url).endsWith('/api/orgs') ? '[{"id":"wrk_e2e403","name":"Working2"}]' : '[]';
+    return Promise.resolve(new Response(orgs, { status: 200, headers: { 'content-type': 'application/json' } }));
   }
   return (init?.signal && requests.get(init.signal) || expoFetch as typeof fetch)(url, init);
 };
