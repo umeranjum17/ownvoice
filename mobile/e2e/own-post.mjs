@@ -199,9 +199,12 @@ const restorePhone = () => {
   restored = true;
   putBack('secure', 'enabled_accessibility_services', phoneKeep.services);
   putBack('secure', 'accessibility_enabled', phoneKeep.enabled);
-  putBack('global', 'stay_on_while_plugged_in', phoneKeep.stayOn);
-  putBack('system', 'screen_off_timeout', phoneKeep.timeout);
+  // The lead's fixed values for this phone (not the ones read before the run).
+  putBack('global', 'stay_on_while_plugged_in', '0');
+  putBack('system', 'screen_off_timeout', '60000');
   if (!setMusic(0)) console.error('The phone music volume could not be set back to 0.');
+  const readBack = ['global stay_on_while_plugged_in', 'system screen_off_timeout'].map(k => { const [a, b] = k.split(' '); return `${b}=${setting(a, b)}`; });
+  console.log(`phone restored: ${readBack.join(' ')} volume=${musicStream().current}`);
 };
 const preparePhone = () => {
   // A locked phone needs its PIN, which is never typed: the run stops before anything changes.
