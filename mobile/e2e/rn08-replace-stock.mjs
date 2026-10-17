@@ -10,6 +10,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
 import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
 
 const serial = process.env.ANDROID_SERIAL;
@@ -34,7 +35,7 @@ const phoneProbe = () => {
   return JSON.parse(json).filter(node => node.visible && node.bounds[2] > node.bounds[0] && node.bounds[3] > node.bounds[1]);
 };
 const nodes = () => (probe ??= phone ? phoneProbe : accessibilityProbe(serial, out))();
-const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
+const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 const shell = (...args) => adb('shell', ...args);
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const tap = (x, y) => shell('input', 'tap', String(Math.round(x)), String(Math.round(y)));
@@ -319,7 +320,8 @@ try {
   const has = p => packages.split('\n').some(l => l.trim() === `package:${p}`);
   // The phone's Contacts saves to the owner's synced account: Messages only there.
   const contactsPkg = phone ? undefined : ['com.google.android.contacts', 'com.android.contacts'].find(has);
-  const smsPkg = ['com.google.android.apps.messaging', 'com.android.messaging'].find(has);
+  // The phone has no SIM (Messages shows no body), so it uses a Chrome textarea instead.
+  const smsPkg = phone ? undefined : ['com.google.android.apps.messaging', 'com.android.messaging'].find(has);
 
   // Field 1: Contacts new-contact name (INSERT prefill, else type into the Name field).
   // Field 2: Messages compose body (recipient chipped first, then the body is a plain field).
@@ -347,6 +349,21 @@ try {
       if (field) console.log('contacts name field ready');
       else console.log('contacts field never showed the message; moving to Messages');
     } else console.log('contacts did not come to the front; moving to Messages');
+  }
+  if (phone && has('com.android.chrome')) {
+    hostPkg = 'com.android.chrome'; hostTag = 'chrome';
+    const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ownvoice textarea</title><style>body{font:18px sans-serif;padding:24px}textarea{display:block;width:100%;min-height:220px;padding:12px;font:18px sans-serif;border:2px solid #777}</style><textarea aria-label="Message">${TEXT}</textarea>`;
+    const server = createServer((_q, r) => r.end(html)).listen(8765);
+    process.on('exit', () => { server.close(); try { adb('reverse', '--remove', 'tcp:8765'); } catch {} });
+    adb('reverse', 'tcp:8765', 'tcp:8765');
+    shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://localhost:8765/', '-p', hostPkg);
+    if (!(await waitForFocus(hostPkg, 15))) fail('host', 'Chrome did not come to the front');
+    for (let i = 0; i < 15 && !field; i++) {
+      field = nodes().find(n => n.className === 'android.widget.EditText' && (n.text ?? '').includes('Sam'));
+      if (!field) await wait(1000);
+    }
+    shot('step-field-loaded-chrome');
+    if (!field) fail('host', 'the Chrome textarea never showed the message');
   }
   if (!field && smsPkg) {
     hostPkg = smsPkg; hostTag = 'messages';
