@@ -90,8 +90,15 @@ case "${1:-}" in
   motion-start)
     [ $# -eq 3 ] || { echo "usage: evidence.sh motion-start <task> <interaction>" >&2; exit 2; }
     dir="verify-artifacts/$2"; out="$dir/$3.mp4"; pidf="$dir/.motion.pid"; outf="$dir/.motion.out"
-    [ -e "$pidf" ] && { echo "a recording is already running (pid $(cat "$pidf"))" >&2; exit 1; }
+    # A pid file whose recorder is alive means a take is running; a dead one is left over from a failed stop.
+    if [ -e "$pidf" ]; then
+      old=$(cat "$pidf" 2>/dev/null || true)
+      if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then echo "a recording is already running (pid $old)" >&2; exit 1; fi
+      rm -f "$pidf" "$outf" "$dir/.motion.dev"
+    fi
     mkdir -p "$dir"
+    # Takes from failed runs stay on the phone; clear them so each take starts from nothing.
+    "${ADB[@]}" shell 'pkill -INT screenrecord; rm -f /data/local/tmp/ov-motion.mp4 /sdcard/ov-motion-*.mp4' >/dev/null 2>&1 || true
     # A fresh device-side name per take: screenrecord cannot write over an existing file on the phone.
     dev="/sdcard/ov-motion-$(date +%s)-$$.mp4"
     "${ADB[@]}" shell screenrecord --time-limit "$REC_LIMIT" "$dev" >"$dir/.motion-recorder.log" 2>&1 &
