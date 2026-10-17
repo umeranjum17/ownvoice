@@ -48,7 +48,11 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 // evidence.sh writes verify-artifacts/<task>/ relative to the repo root, so it runs from there.
 const evidence = (...args) => execFileSync('bash', [resolve(repoRoot, 'mobile/e2e/evidence.sh'), ...args],
   { env: { ...process.env, ANDROID_SERIAL: serial }, encoding: 'utf8', cwd: repoRoot });
-const shot = screen => evidence('shot', 'ov-own-posts', screen, label, theme);
+// Every shot comes with the accessible tree it was taken from, so a miss can be read from the dump.
+const shot = screen => {
+  evidence('shot', 'ov-own-posts', screen, label, theme);
+  try { writeFileSync(resolve(out, `${screen}-${label}-${theme}.nodes.json`), JSON.stringify(nodes(), null, 1)); } catch (error) { console.error(`nodes dump skipped: ${error.message}`); }
+};
 
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
