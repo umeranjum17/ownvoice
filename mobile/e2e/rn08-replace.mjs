@@ -266,11 +266,16 @@ try {
   if (await textPresent('Chrome notifications', 2)) { tap(Math.round(pw * 0.52), Math.round(ph * 0.73)); await wait(800); }
   else if (await textPresent('No thanks', 2)) { await tapText('No thanks'); openPage(); }
   if (!(await waitForFocus('com.android.chrome'))) fail('chrome', 'Chrome did not come to the front');
-  if (!(await textPresent('Message', 6))) fail('chrome', 'the test page did not load in front');
+  // The page's own precondition is the editable field, not the label text: Chrome's
+  // accessibility tree may never expose the surrounding label even when the page (and
+  // its onload selection) is fully rendered, as the step-page-loaded shot has shown.
+  let field;
+  for (let i = 0; i < 15 && !field; i++) {
+    field = nodes().find(n => n.editable && !n.password);
+    if (!field) await wait(1000);
+  }
   await wait(1500); // let the onload focus+select land
   shot('step-page-loaded');
-
-  const field = nodes().find(n => n.editable && !n.password);
   if (!field) fail('chrome', 'the test page shows no editable field');
   const [fx, fy] = center(field);
   shell('input', 'keycombination', '113', '29'); // full selection even when the toolbar shows no Select all
