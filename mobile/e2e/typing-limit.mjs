@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { accessibilityProbe, center } from './accessibility.mjs';
+import { hideKeyboard, typeKeys } from './keytype.mjs';
 const serial = process.env.ANDROID_SERIAL;
 const out = resolve(process.argv[2] ?? 'e2e/artifacts');
 const label = process.argv[3] ?? 'after';
@@ -43,7 +44,13 @@ const open = async size => {
   assert.ok(field, 'Chrome fixture field must be accessible');
   tap(field); await wait(500);
 };
-const type = async text => { adb('shell', 'input', 'text', text.replaceAll(' ', '%s')); await wait(1900); };
+const type = async text => {
+  // Hardware keys, not a paste: a paste runs through the soft keyboard's
+  // composing session, where autocorrect rewrites slips mid-type.
+  await hideKeyboard(adb, wait);
+  await typeKeys(adb, wait, text);
+  await wait(2500);
+};
 mkdirSync(out, { recursive: true });
 const prefs = adb('shell', 'su', '0', 'cat', '/data/data/dev.ownvoice.next/shared_prefs/ownvoice-native.xml');
 assert.match(prefs, /name="typingCheck" value="true"/, 'Enable typing checks before running this journey');
