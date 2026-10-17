@@ -17,10 +17,12 @@ type SheetProps = {
   /** The second body (the Why? note). While a cover is given, X, Back and an outside tap return to the main body. */
   cover?: Cover;
   onCloseCover?: () => void;
+  /** Stays under the scrolling body, so a closing line never falls below the fold on a short screen. */
+  footer?: ReactNode;
 };
 
 /** The bottom sheet. Slides up, holds still for less motion, and fades out when it closes. */
-export function Sheet({ title, note, mood, onClose, children, cover, onCloseCover }: SheetProps) {
+export function Sheet({ title, note, mood, onClose, children, cover, onCloseCover, footer }: SheetProps) {
   const t = useTheme();
   const reduced = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -73,6 +75,7 @@ export function Sheet({ title, note, mood, onClose, children, cover, onCloseCove
       <ScrollView contentContainerStyle={styles.body}>
         {covered && cover ? cover.children : children}
       </ScrollView>
+      {footer && !covered ? <View style={styles.footer}>{footer}</View> : null}
     </Animated.View>
   </View>;
 }
@@ -87,4 +90,5 @@ const styles = StyleSheet.create({
   dot: { width: 44, height: 44, marginRight: space.m },
   close: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
   body: { paddingHorizontal: space.l },
+  footer: { paddingHorizontal: space.l },
 });

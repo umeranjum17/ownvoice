@@ -518,6 +518,13 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       title: replies ? words.whyReply : words.whyVersion,
       children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} footnote={grow ? REACH_UNKNOWN : undefined} />,
     } : undefined}
+    footer={empty && mainNote
+      ? <Empty text={mainNote}>
+        {phase === 'ready' && !declined && mode !== 'empty' && mode !== 'own' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
+        {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
+        {phase === 'failed' && isPlanLimitLine(mainNote) ? <Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
+      </Empty>
+      : undefined}
     onCloseCover={() => setWhy(null)}>
     {limited ? <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{words.typingLimited}</Text> : null}
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
@@ -590,13 +597,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       ? <View style={{ alignItems: 'flex-end', marginBottom: space.m }}>
         <Button kind="text" label={words.writeNew} onPress={() => capture && start(capture, shown.map(draft => draft.text))} />
       </View>
-      : null}
-    {empty && mainNote
-      ? <Empty text={mainNote}>
-        {phase === 'ready' && !declined && mode !== 'empty' && mode !== 'own' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
-        {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
-        {phase === 'failed' && isPlanLimitLine(mainNote) ? <Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
-      </Empty>
       : null}
     {reason && shown.length ? <>
       <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{reason}</Text>
