@@ -335,7 +335,7 @@ if (live) {
     if (!(await textPresent('how ownvoice writes', 30))) throw new Error('the writer list did not open');
     for (let i = 0; i < 5 && !(await textPresent('with your opencode go', 2)); i++) await swipeUp();
     await tapText('with your opencode go');
-    await tapText('paste your opencode go key', 30);
+    await tapText('paste your opencode go key');
     await wait(700);
     execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${liveKey}'`]); // no shell echo: the key must never reach the log
     await wait(700);
