@@ -13,16 +13,18 @@ const echo = [
   'Replying to Umer Demo',
   'I understand your apologies for being offline last week.',
 ].join('\n');
+const lowerEcho = 'great point, thanks.\nagree and add one concrete detail from the post.';
+const preamble = 'Sure, here’s a sharp question about the post: How did work get in the way of your notes this week?';
 const clean = 'honestly, let\'s push the call to friday. my morning is full.';
-const preamble = 'Sure, here\'s a sharp question about the post: How did work get in the way of your notes this week?';
 const sureReply = 'Sure, see you then.';
-const cards = acceptReplies([echo, preamble], [], 3, 'remove', [], [], point, slots);
+const cards = acceptReplies([preamble, echo, lowerEcho], [], 3, 'remove', [], [], point, slots);
 const drafts = acceptReplies([clean], [], 3, 'remove', [], [], point, slots);
 
 const failures = [];
 for (const card of cards.filter(Boolean)) {
   if (/(^|\n)\s*\d\.\s/.test(card)) failures.push(`numbered list shown: ${card.slice(0, 60)}`);
-  if (slots.some(slot => card.includes(slot))) failures.push(`slot text shown: ${card.slice(0, 60)}`);
+  if (slots.some(slot => card.toLowerCase().includes(slot.toLowerCase()))) failures.push(`slot text shown: ${card.slice(0, 60)}`);
+  if (card.includes('How did work get in the way')) failures.push(`preamble shown: ${card.slice(0, 60)}`);
 }
 if (!drafts.some(Boolean)) failures.push('a clean draft was dropped');
 if (!acceptReplies([sureReply], [], 3, 'remove', [], [], point, slots).some(Boolean)) failures.push('a plain Sure reply was dropped');

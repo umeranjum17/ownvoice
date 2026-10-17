@@ -394,7 +394,7 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   // A draft that holds slot instructions, a numbered list of slots, or a 'Sure, here's…' preamble is the
   // model echoing its prompt (a live phone showed all three slots as a card). It is dropped, so the caller's
   // per-slot retry asks again.
-  const echoesSlots = (text: string) => /(^|\n)\s*\d\.\s/.test(text) || ALL_SLOTS.some(slot => text.includes(slot)) || /^sure[,!]?\s+here('s| is)\b/i.test(text.trim());
+  const echoesSlots = (text: string) => /(^|\n)\s*\d\.\s/.test(text) || ALL_SLOTS.some(slot => text.toLowerCase().includes(slot.toLowerCase())) || /^sure[,!]?\s+here(['’]s| is)\b/i.test(text.trim());
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
