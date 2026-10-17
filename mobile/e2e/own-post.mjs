@@ -155,6 +155,8 @@ if (phone) {
   // A real X on the phone is never replaced: only a fixture this run's adb installed may be.
   const installer = adb('shell', 'pm', 'list', 'packages', '-i', fixturePkg).trim();
   if (installer && !/installer=(com\.android\.shell|null)/.test(installer)) throw new Error(`${fixturePkg} on the phone is not our fixture (${installer}); the run stops.`);
+  // An earlier run's fixture, adb-installed, is removed so this build's fixture can install (its version is lower).
+  if (installer) adb('shell', 'pm', 'uninstall', fixturePkg);
 } else {
   // A leftover fixture from an earlier run is fine; the install below replaces it.
   try { adb('shell', 'pm', 'uninstall', fixturePkg); } catch { /* nothing installed yet */ }
