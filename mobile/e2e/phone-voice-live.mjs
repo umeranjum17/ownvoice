@@ -534,8 +534,26 @@ if (mode === 'recon') {
   console.log('gate: phone writer present on Home');
   // OV_ARMS selects phases (default all, in order); OV_APPEND=1 keeps prior results.
   // setNever is a no-op when the rule is already in the wanted state, so resuming
-  // never toggles a correct state.
+  // never toggles a correct state. OV_ARM_TAG suffixes repeat arm names (note re-runs).
   const arms = (process.env.OV_ARMS ?? 'off,on,note').split(',');
+  const armTag = process.env.OV_ARM_TAG ?? '';
+  // Best-effort prompt capture: whatever the release build already logs about the
+  // local writer prompt (usually nothing — release strips it; then the host-side
+  // execution of the same engine code with the same stored values stands as proof).
+  try {
+    const probe = adb('shell', 'logcat', '-d', '-v', 'time').split('\n')
+      .filter(l => /how they write|phoneReply|LocalModel|llama|byokit\/infer|askLocal/i.test(l)).slice(-40);
+    writeFileSync(resolve(out, 'logcat-prompt-probe.txt'), probe.join('\n') + '\n');
+  } catch (e) { writeFileSync(resolve(out, 'logcat-prompt-probe.txt'), `probe failed: ${String(e).slice(0, 200)}\n`); }
+  const requireRule = async (wanted, snapName) => {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://voice', pkg);
+    await wait(5000);
+    const r = read(snapName);
+    if (isRuleOn(r.text) !== wanted) throw new Error(`note arms need the rule ${wanted ? 'on' : 'off'} (see ${snapName}.png)`);
+    console.log(`precheck: rule ${wanted ? 'on' : 'off'} confirmed (no change)`);
+    adb('shell', 'input', 'keyevent', '4');
+    await wait(800);
+  };
   if (arms.includes('off')) {
     await setNever(false, 'voice-rule-off');
     for (let i = 0; i < 5; i++) await runArm(`off-${i}`);
@@ -545,8 +563,10 @@ if (mode === 'recon') {
     for (let i = 0; i < 5; i++) await runArm(`on-${i}`);
   }
   if (arms.includes('note')) {
-    await setNote('lowercase, blunt', 'voice-note-set');
-    await runArm('note-lowercase-blunt');
+    if (!arms.includes('on') && !arms.includes('off')) await requireRule(true, 'voice-note-precheck');
+    if (process.env.OV_SETNOTE !== '0') await setNote('lowercase, blunt', 'voice-note-set');
+    else console.log('note retype skipped (OV_SETNOTE=0): stored note reused');
+    await runArm(`note-lowercase-blunt${armTag}`);
   }
   console.log(`VOICE_DONE theme=${theme} out=${out}`);
 } else {
