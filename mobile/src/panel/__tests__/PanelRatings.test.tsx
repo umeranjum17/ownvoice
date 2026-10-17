@@ -319,33 +319,22 @@ describe('grow fit bar', () => {
       </SafeAreaProvider>);
   };
 
-  // The real model refuses a call while another runs, so the test records every refused call.
-  const oneAtATime = (answer: (prompt: string) => string) => {
-    let running = false;
-    const refused: string[] = [];
-    askLocalMock.mockImplementation(async prompt => {
-      if (running) { refused.push(String(prompt)); throw new Error('busy'); }
-      running = true;
-      try { await new Promise(resolve => setTimeout(resolve, 5)); return answer(String(prompt)); }
-      finally { running = false; }
-    });
-    return refused;
-  };
   const writesAll = () => jest.spyOn(phoneWriter, 'write').mockImplementation(async (_request, on) => {
     CLEAN.forEach((text, slot) => on?.landed?.(text, slot));
     return { drafts: [...CLEAN] };
   });
 
-  test('on the phone writer the fit waits for the tone call and shows its level', async () => {
+  test('on the phone writer the fit shows its level while the tone call is still in flight', async () => {
     const phone = writesAll();
     phoneModel('ready');
     // The model wraps its JSON in a fence, as small local models often do.
-    const refused = oneAtATime(prompt => prompt.includes('An X reply.') ? '```json\n' + JSON.stringify(levelReply(CLEAN.length + 1, 2)) + '\n```' : '');
+    askLocalMock.mockImplementation(prompt => prompt.includes('An X reply.')
+      ? Promise.resolve('```json\n' + JSON.stringify(levelReply(CLEAN.length + 1, 2)) + '\n```')
+      : new Promise<string>(() => {}));
     try {
       const screen = await onPhone();
       await waitFor(() => expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(CLEAN.length + 1));
       expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
-      expect(refused).toEqual([]);
     } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
 
@@ -382,20 +371,19 @@ describe('grow fit bar', () => {
 
   test('a fit left over from a replaced capture never asks the model', async () => {
     const phone = writesAll();
-    phoneModel('ready');
+    const readyChecks: Array<() => void> = [];
+    localModelStateMock.mockImplementation(() => new Promise(resolve => {
+      readyChecks.push(() => resolve({ phase: 'ready' } as Awaited<ReturnType<typeof localModelState>>));
+    }));
     const prompts: string[] = [];
-    let releaseTone: (answer: string) => void = () => {};
-    askLocalMock.mockImplementation(prompt => {
-      prompts.push(String(prompt));
-      return prompts.length === 1 ? new Promise<string>(resolve => { releaseTone = resolve; }) : Promise.resolve('');
-    });
+    askLocalMock.mockImplementation(async prompt => { prompts.push(String(prompt)); return ''; });
     try {
       const screen = await onPhone();
-      await waitFor(() => expect(prompts).toHaveLength(1));
+      await waitFor(() => expect(readyChecks.length).toBeGreaterThan(0));
       screen.unmount();
-      releaseTone('');
+      readyChecks.forEach(ready => ready());
       await new Promise(resolve => setTimeout(resolve, 50));
-      expect(prompts).toHaveLength(1);
+      expect(prompts).toEqual([]);
     } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
 });

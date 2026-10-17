@@ -1,3 +1,4 @@
+import { InferError } from '@byokit/infer';
 import { agreedToDownload, localModelState } from './localModel';
 
 export type PhoneCanWrite = 'ready' | 'needsDownload' | 'preparing' | 'cant';
@@ -14,5 +15,5 @@ export async function phoneCanWrite(): Promise<PhoneCanWrite> {
       case 'loading': return 'preparing';
       default: return 'cant';
     }
-  } catch { return 'cant'; }
+  } catch (error) { return error instanceof InferError && error.code === 'busy' ? 'ready' : 'cant'; }
 }

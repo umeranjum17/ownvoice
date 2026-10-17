@@ -7,7 +7,7 @@ jest.mock('../localModel', () => ({
   removeLocalModel: jest.fn(),
 }));
 import { agreedToDownload, localModelState } from '../localModel';
-import type { InferState } from '@byokit/infer';
+import { InferError, type InferState } from '@byokit/infer';
 import { phoneCanWrite } from '../phoneStatus';
 import { AGREED_KEY } from '../phoneDownload';
 
@@ -33,6 +33,11 @@ test.each([
 ] as const)('phase %s maps to %s', async (phase, expected) => {
   mockState.mockResolvedValue({ phase } as InferState);
   await expect(phoneCanWrite()).resolves.toBe(expected);
+});
+
+test('a call that lands while another on-device call runs reads as ready', async () => {
+  mockState.mockRejectedValue(new InferError('busy', 'Another on-device call is running.'));
+  await expect(phoneCanWrite()).resolves.toBe('ready');
 });
 
 test('a thrown state call maps to cant', async () => {

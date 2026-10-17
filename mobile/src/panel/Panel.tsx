@@ -154,7 +154,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const [tones, setTones] = useState<Map<string, string>>(new Map());
   const toneFor = useRef(0);
-  const toneDone = useRef<Promise<void>>(Promise.resolve());
   // The fit per shown text, asked once per tap after the cards land: on the chosen cloud account, or on this phone's model when the phone wrote.
   const [fits, setFits] = useState<Map<string, Fit>>(new Map());
   const fitFor = useRef(0);
@@ -354,7 +353,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const texts = [...(yours ? [yours.text] : []), ...shown.map(draft => draft.text)];
     if (!texts.length) return;
     toneFor.current = id;
-    toneDone.current = (async () => {
+    void (async () => {
       if (await phoneCanWrite() === 'cant' || run.current !== id) return;
       let answer: string | null = null;
       try { answer = await askLocal(Judge.tonePrompt(texts), 80); }
@@ -378,7 +377,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     void (async () => {
       // A refused account's line replaces the unsure read on every card it could not rate.
       let refusal: string | null = null;
-      if (!leaves.current) await toneDone.current;
       const backends = leaves.current ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : await phoneCanWrite() === 'cant' ? [] : [phoneFit()];
       if (run.current !== id) return;
       // Yours comes first in texts, so when the phone wrote the shown drafts only the typed reply is judged.
@@ -454,6 +452,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (whys.has(draft.text)) return;
     setWhys(prev => new Map(prev).set(draft.text, { state: 'running', meaning: draft.meaning }));
     const ask = async (prompt: string, maxTokens: number): Promise<string | null> => {
+      if (run.current !== id) return null;
       try { return await askLocal(prompt, maxTokens); } catch { return null; }
     };
     void (async () => {

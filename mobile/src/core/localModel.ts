@@ -69,9 +69,12 @@ export function agreedToDownload(): boolean {
   return !!store.get<boolean>(AGREED_KEY);
 }
 
-/** Generate text using the local model. */
-export async function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal): Promise<string> {
-  const local = getLocalModel();
-  const result = await local.complete({ prompt, maxOutputTokens: maxTokens, signal });
-  return result.text;
+// One native context takes one call at a time; a second overlapping call would reject busy.
+let onDevice: Promise<unknown> = Promise.resolve();
+
+/** Generate text using the local model; calls queue behind each other. */
+export function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal): Promise<string> {
+  const answer = onDevice.then(async () => (await getLocalModel().complete({ prompt, maxOutputTokens: maxTokens, signal })).text);
+  onDevice = answer.catch(() => {});
+  return answer;
 }
