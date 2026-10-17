@@ -5,6 +5,8 @@
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { fakeLlama } from '@byokit/infer/testing';
+import { initLlama } from 'llama.rn';
 import Panel from '../Panel';
 import { phoneWriter } from '../phoneWriter';
 import { askLocal, localModelState } from '../../core/localModel';
@@ -22,6 +24,15 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
 
 const native = Native as jest.Mocked<typeof Native>;
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
+jest.mock('llama.rn', () => ({ initLlama: jest.fn() }));
+jest.mock('../../core/localStore', () => ({
+  createLocalStore: () => ({
+    path: (m: { file: string }) => `/models/${m.file}`,
+    size: async (m: { bytes: number }) => m.bytes,
+    sha256: async (m: { sha256: string }) => m.sha256,
+    remove: async () => {},
+  }),
+}));
 const askLocalMock = askLocal as jest.MockedFunction<typeof askLocal>;
 const localModelStateMock = localModelState as jest.MockedFunction<typeof localModelState>;
 const phoneModel = (phase: 'ready' | 'unsupported') => localModelStateMock.mockResolvedValue({ phase } as Awaited<ReturnType<typeof localModelState>>);
@@ -387,6 +398,28 @@ describe('grow fit bar', () => {
       readyChecks.forEach(ready => ready());
       await new Promise(resolve => setTimeout(resolve, 50));
       expect(prompts).toEqual([]);
+    } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
+  });
+
+  test('on the phone writer the fit rates once a pending tone call settles, through the real on-device queue', async () => {
+    let release!: () => void;
+    const toneGate = new Promise<void>(resolve => { release = resolve; });
+    const llama = fakeLlama({ reply: async p => {
+      if (String(p.messages.at(-1)?.content ?? '').includes('An X reply.')) return JSON.stringify(levelReply(CLEAN.length + 1, 2));
+      await toneGate;
+      return '';
+    } });
+    (initLlama as jest.Mock).mockImplementation(llama.initLlama);
+    askLocalMock.mockImplementation(jest.requireActual<typeof import('../../core/localModel')>('../../core/localModel').askLocal);
+    const phone = writesAll();
+    phoneModel('ready');
+    try {
+      const screen = await onPhone();
+      await waitFor(() => expect(llama.contexts.flatMap(context => context.completions)).toHaveLength(1));
+      expect(screen.queryAllByLabelText(LEVELS[2])).toHaveLength(0);
+      release();
+      await waitFor(() => expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(CLEAN.length + 1));
+      expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
     } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
 });

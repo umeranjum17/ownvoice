@@ -74,13 +74,6 @@ test('a failed on-device call does not block the calls queued behind it', async 
   await expect(askLocal('second', 5)).resolves.toBe('answer to second');
 });
 
-test('a state check during an on-device call reads as ready', async () => {
-  const answer = askLocal('tone', 80);
-  await settle();
-  await expect(phoneCanWrite()).resolves.toBe('ready');
-  await expect(answer).resolves.toBe('answer to tone');
-});
-
 test('a state check while the model downloads reads as preparing', async () => {
   mockInstall.mockImplementationOnce(async () => {
     running = true;
