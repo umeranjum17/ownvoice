@@ -287,13 +287,14 @@ export default function SourceScreen() {
   // card never says nothing leaves next to its sign-in): nothing chosen means nothing is written or sent.
   // Each reads as a short headline first, with the full sentence under it; the read log opens its own screen.
   const writer = signIn?.key ?? chosen;
+  const writerName = writer ? ACCOUNT_COPY[writer as CloudKey]?.name : undefined;
   const notes: [typeof LockIcon, string, string, (() => void)?][] = [
     ...(writer === 'chatgpt' ? [[LockIcon, words.headGpt, words.privacyGpt], [ChatIcon, words.headSwitch, words.switchNote]] as [typeof LockIcon, string, string][]
       : writer === 'claude' ? [[LockIcon, words.headClaude, words.privacyClaude], [ChatIcon, words.headSwitch, words.switchNoteClaude]] as [typeof LockIcon, string, string][]
       : writer === 'openrouter' ? [[LockIcon, words.headOpenRouter, words.privacyOpenRouter], [ChatIcon, words.headSwitch, words.switchNoteOpenRouter]] as [typeof LockIcon, string, string][]
       : writer === 'opencode' ? [[LockIcon, words.headOpenCode, words.privacyOpenCode], [ChatIcon, words.headSwitch, words.switchNoteOpenCode]] as [typeof LockIcon, string, string][]
       : writer === 'phone' ? [[LockIcon, words.headPhone, words.privacyPhone]] as [typeof LockIcon, string, string][] : []),
-    [EyeIcon, words.headReads, words.readsNote, () => router.push('/reads')],
+    [EyeIcon, words.headReads, writerName ? words.readsNoteTo.replace('{name}', writerName) : words.readsNote, () => router.push('/reads')],
   ];
 
   return <View style={{ flex: 1 }}>
