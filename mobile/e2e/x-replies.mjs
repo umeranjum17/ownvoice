@@ -360,7 +360,29 @@ log(`URL bar: ${urlBar.text}`);
 // ---- the reply journey: focus composer, tap bubble, cards, edit, insert ----
 // A poll that clears any ANR dialog every fourth try while it waits.
 const clearingAnr = read => { let polls = 0; return () => read() || (++polls % 4 === 0 && dismissAnr() && null); };
-const bubble = () => until('the accessible Ownvoice bubble', clearingAnr(() => nodes().find(node => node.windowType === 4 && /^Ownvoice(?:,|$)/.test(node.label))), { seconds: 45, every: 500 });
+const findBubble = clearingAnr(() => nodes().find(node => node.windowType === 4 && /^Ownvoice(?:,|$)/.test(node.label)));
+// After a kill -9 the service may not come back from one toggle (see AGENTS.md on rebinding). Record
+// the state that left the bubble missing, then toggle once more and say so, so the evidence shows it.
+let missingBubbles = 0;
+const bubble = async () => {
+  try { return await until('the accessible Ownvoice bubble', findBubble, { seconds: 20, every: 500 }); }
+  catch (error) {
+    const n = ++missingBubbles;
+    const dir = `${root}/verify-artifacts/${task}/missing-bubble-${n}`;
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(`${dir}/state.txt`, [
+      `pids: ${pidOf() || 'none'}`,
+      `enabled: ${adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim()}`,
+      `accessibility_enabled: ${adb('shell', 'settings', 'get', 'secure', 'accessibility_enabled').trim()}`,
+      ...adb('shell', 'dumpsys', 'window').split('\n').filter(l => /mCurrentFocus|mFocusedApp/.test(l)).map(l => l.trim()),
+      ...adb('shell', 'dumpsys', 'accessibility').split('\n').filter(l => /ownvoice|Bound services|Enabled services|Crashed/i.test(l)).map(l => l.trim().slice(0, 400)),
+    ].join('\n') + '\n');
+    writeFileSync(`${dir}/logcat.txt`, adb('logcat', '-d', '-s', 'OwnvoiceNative:V', 'AndroidRuntime:E', 'ActivityManager:I', 'AccessibilityManagerService:V'));
+    log(`bubble missing after 20s (${error.message.split('.')[0]}); state saved in ${dir}; toggling the service once more`);
+    await rebind();
+    return until('the accessible Ownvoice bubble after a second toggle', findBubble, { seconds: 45, every: 500 });
+  }
+};
 const composerNode = all => all.find(node => node.editable && !node.password && !/x\.com|https?:|secure|find an app/i.test(`${node.text ?? ''} ${node.label ?? ''}`));
 const field = () => until('the composer field', clearingAnr(() => composerNode(nodes())), { seconds: 30, every: 500 });
 // Tap the composer until Chrome reports it focused, so the bubble's tap reads this box.
@@ -753,6 +775,8 @@ try {
   adb('shell', 'am', 'force-stop', 'com.android.chrome');
   await killApp();
   await rebind();
+  // The service restart's own lines, before a leg clears the log.
+  writeFileSync(`${root}/verify-artifacts/${task}/dark-restart-logcat.txt`, adb('logcat', '-d', '-s', 'OwnvoiceNative:V', 'AndroidRuntime:E', 'ActivityManager:I', 'AccessibilityManagerService:V'));
   await leg('refusal-notext-dark', () => withhold('x-notext', 'dark', IMAGE_ONLY));
   await leg('refusal-labels-dark', () => withhold('x-labels', 'dark', LABELS_ONLY));
   if (!refusalOnly) await leg('dark', () => journey('x-reply', 'dark', {}), { needsWriter: true });
