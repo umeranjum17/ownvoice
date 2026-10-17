@@ -555,13 +555,15 @@ if (mode === 'recon') {
     adb('shell', 'input', 'keyevent', '4');
     await wait(800);
   };
+  // OV_RULE_RUNS shortens the rule arms (default 5) for a one-run recheck.
+  const ruleRuns = Number(process.env.OV_RULE_RUNS ?? 5);
   if (arms.includes('off')) {
     await setNever(false, 'voice-rule-off');
-    for (let i = 0; i < 5; i++) await runArm(`off-${i}`);
+    for (let i = 0; i < ruleRuns; i++) await runArm(`off-${i}`);
   }
   if (arms.includes('on')) {
     await setNever(true, 'voice-rule-on');
-    for (let i = 0; i < 5; i++) await runArm(`on-${i}`);
+    for (let i = 0; i < ruleRuns; i++) await runArm(`on-${i}`);
   }
   if (arms.includes('note')) {
     if (!arms.includes('on') && !arms.includes('off')) await requireRule(true, 'voice-note-precheck');
