@@ -28,6 +28,21 @@ tasks.configureEach { task ->
     if (!config.modResults.contents.includes('task.inputs.property("expoPublic."')) {
       config.modResults.contents += flagInputs;
     }
+    // llama.rn's native code comes from its postinstall download, and its CMake step skips a
+    // missing set without failing: the APK then installs, but the phone writer can never start.
+    const nativeLibs = `
+// The phone writer needs llama.rn's downloaded native libraries; fail the build without them.
+tasks.register("ownvoiceNativeLibs") {
+    def lib = file("\${rootDir}/../node_modules/llama.rn/android/src/main/jniLibs/arm64-v8a/librnllama.so")
+    doLast {
+        if (!lib.exists()) throw new GradleException("Missing llama.rn native libraries (" + lib + "). Run: node node_modules/llama.rn/install/download-native-artifacts.js")
+    }
+}
+tasks.named("preBuild") { dependsOn("ownvoiceNativeLibs") }
+`;
+    if (!config.modResults.contents.includes('tasks.register("ownvoiceNativeLibs")')) {
+      config.modResults.contents += nativeLibs;
+    }
     // Read credentials only in Gradle's build process, never bake them into config.
     const signing = `
 // Dedicated release signing; local builds keep Expo's development key.
