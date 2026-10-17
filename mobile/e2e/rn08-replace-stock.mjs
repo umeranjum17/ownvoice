@@ -237,7 +237,8 @@ const typeVerified = async (xp, yp, tag) => {
 };
 
 const ownvoiceNode = list => list.find(n => n.windowType !== 4 && n.clickable && /ownvoice/i.test(`${n.label} ${n.text}`));
-const overflowItem = () => nodes().find(n => n.clickable && /more options/i.test(`${n.label} ${n.text}`));
+// The floating toolbar's ⋮ is labelled "Close overflow" on Android 16 even while closed.
+const overflowItem = () => nodes().find(n => n.clickable && /more options|overflow/i.test(`${n.label} ${n.text}`));
 
 /** Summon the native toolbar on the given field center; widen cursor states via Select all. */
 const summonToolbar = async (fx, fy, tag) => {
@@ -255,6 +256,8 @@ const summonToolbar = async (fx, fy, tag) => {
     await wait(600);
     shell('input', 'keycombination', '113', '29');
     await wait(600);
+    // Chrome raises the full-selection toolbar on Ctrl+A; hiding the keyboard would close it.
+    if (copyUp()) { toolbar = true; break; }
     if (shell('dumpsys', 'input_method').includes('mInputShown=true')) { shell('input', 'keyevent', '4'); await wait(800); }
     shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100');
     await wait(1200);
@@ -272,7 +275,7 @@ const summonToolbar = async (fx, fy, tag) => {
   }
   shot(`step-toolbar-${tag}`);
   dumpNodes(`nodes-toolbar-${tag}`);
-  rawDump(`uidump-toolbar-${tag}`);
+  if (!phone) rawDump(`uidump-toolbar-${tag}`); // a uiautomator dump would close Chrome's toolbar
   return toolbar;
 };
 
@@ -436,7 +439,7 @@ try {
   const before = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
   await tapText('Shorter');
   let answered = false;
-  for (let i = 0; i < 90 && !answered; i++) {
+  for (let i = 0; i < (phone ? 240 : 90) && !answered; i++) { // the phone writer loads its model first
     if (await textPresent('Copy', 1)) answered = true;
     else if (await textPresent("didn't answer", 1)) fail('writer', 'Shorter failed: the writer did not answer');
     else await wait(1000);
