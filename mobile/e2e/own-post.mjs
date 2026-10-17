@@ -28,6 +28,9 @@ if (!apk) throw new Error('Pass the release APK path.');
 const before = process.env.OWNVOICE_BEFORE === '1';
 const label = before ? 'before' : 'after';
 const theme = process.env.OWNVOICE_THEME ?? 'light';
+// The live leg (done-done journey own-posts): the real OpenCode Go writer connected through the
+// app's own connect field, no stub text. OWN_POST_NARROW=1 runs the round at 720x1280, font 1.3.
+const live = process.env.OWN_POST_WRITER === 'opencode';
 const out = resolve(process.argv[3] ?? 'mobile/.own-post');
 mkdirSync(out, { recursive: true });
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -105,6 +108,15 @@ function buildFixture(scratch) {
 
 // 1. The fixture, the app, and the service. A first install never keeps the service bound,
 //    so the documented off/on toggle follows; e2e/first-run.mjs restored its own settings.
+if (process.env.OWN_POST_NARROW === '1') {
+  evidence('font', 'largest');
+  adb('shell', 'wm', 'size', '720x1280');
+  adb('shell', 'wm', 'density', '320');
+} else {
+  evidence('font', 'default');
+  adb('shell', 'wm', 'size', 'reset');
+  adb('shell', 'wm', 'density', 'reset');
+}
 evidence('theme', theme);
 const fixtureApk = buildFixture(out);
 // A leftover fixture from an earlier run is fine; the install below replaces it.
@@ -113,6 +125,9 @@ execFileSync('adb', ['-s', serial, 'install', '-r', fixtureApk], { stdio: 'inher
 // Install the app only when it is missing: reinstalling kills the process, and the offline
 // sign-in stand-in (e2e/first-run.mjs) keeps its connected state in memory, not on disk.
 if (!adb('shell', 'pm', 'path', pkg).includes('package:')) execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
+// The live leg starts from a first install: a fresh process, setup not done, the service off, and
+// no stored writer, so the module walks the setup and connects the real key itself.
+if (live) adb('shell', 'pm', 'clear', pkg);
 adb('shell', 'logcat', '-c');
 const toggleService = async on => {
   const list = on ? [component] : ['com.example.disabled/NoService'];
@@ -121,9 +136,20 @@ const toggleService = async on => {
   await wait(1500);
 };
 await toggleService(false);
+const bound = () => /Bound services:\s*\{[^}]*Ownvoice/.test(adb('shell', 'dumpsys', 'accessibility'));
+if (live) {
+  const { proveOwnPostLive } = await import('./own-post-live.mjs');
+  await proveOwnPostLive({
+    adb, nodes, bubble, wait, evidence, theme, out, fixturePkg, pkg, type, key,
+    withNodes, composerText, screenText, center, bound, rebind: () => toggleService(true),
+    // A settings CHANGE re-triggers the bind (an on→on put is no event): off, then on again.
+    rebindCycle: async () => { await toggleService(false); await toggleService(true); },
+  });
+  process.exit(0);
+}
 await toggleService(true);
 await wait(2500);
-if (!/Bound services:\s*\{[^}]*Ownvoice/.test(adb('shell', 'dumpsys', 'accessibility'))) throw new Error('Ownvoice accessibility service is not bound.');
+if (!bound()) throw new Error('Ownvoice accessibility service is not bound.');
 
 if (process.env.OWNVOICE_OUTCOME_PROOF === '1') {
   const { proveOutcomes } = await import('./outcomes.mjs');
