@@ -425,14 +425,26 @@ if (live) {
   };
   const runAllFive = async scheme => {
     await openRewrite({ text: LIVE_TEXT });
-    await liveShot(`live-chips-${scheme}`);
-    for (const label of LIVE_OPTIONS) {
-      if (!(await textPresent(label, 3))) throw new Error(`chip ${label} missing (${scheme})`);
+    for (let i = 0; i < 4; i++) { // at narrow width with large text the chips start below the fold; scroll them in
+      let missing = false;
+      for (const label of LIVE_OPTIONS) if (!(await textPresent(label, 1))) { missing = true; break; }
+      if (!missing) break;
+      const [w, h] = dynWH();
+      shell('input', 'swipe', String(Math.round(w / 2)), String(Math.round(h * 0.75)), String(Math.round(w / 2)), String(Math.round(h * 0.4)), '400');
+      await wait(800);
     }
+    await liveShot(`live-chips-${scheme}`);
+    const missingChips = [];
+    for (const label of LIVE_OPTIONS) if (!(await textPresent(label, 3))) missingChips.push(label);
     // Readability is human-graded from the per-round chips shots: tesseract misreads this
     // rendering wholesale ("Shorter" as "GhorteD" on a human-fine light shot), so an OCR
     // gate can never pass here. Presence of all five buttons is still asserted above.
     await back();
+    if (missingChips.length) {
+      writeFileSync(`${out}/live-results-${scheme}.json`, JSON.stringify({ input: LIVE_TEXT, scheme, chipMiss: missingChips }, null, 2));
+      console.log(`live ${scheme} MISS: chips missing: ${missingChips.join(', ')}`);
+      return {};
+    }
     const results = {};
     for (const option of LIVE_OPTIONS) {
       try {
@@ -472,9 +484,9 @@ if (live) {
   let copyMiss = null;
   try {
     await openRewrite({ text: LIVE_TEXT });
+    const copyBefore = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
     await tapText('Shorter');
     await waitResult('Shorter');
-    const copyBefore = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
     const copyText = readNewResult(copyBefore);
     clearLog();
     { const [w, h] = dynWH(); shell('input', 'swipe', String(Math.round(w / 2)), String(Math.round(h * 0.8)), String(Math.round(w / 2)), String(Math.round(h * 0.4)), '400'); await wait(700); }
