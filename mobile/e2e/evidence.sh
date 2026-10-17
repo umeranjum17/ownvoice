@@ -92,9 +92,10 @@ case "${1:-}" in
     dir="verify-artifacts/$2"; out="$dir/$3.mp4"; pidf="$dir/.motion.pid"; outf="$dir/.motion.out"
     [ -e "$pidf" ] && { echo "a recording is already running (pid $(cat "$pidf"))" >&2; exit 1; }
     mkdir -p "$dir"
-    "${ADB[@]}" shell rm -f /data/local/tmp/ov-motion.mp4
-    "${ADB[@]}" shell screenrecord --time-limit "$REC_LIMIT" /data/local/tmp/ov-motion.mp4 >"$dir/.motion-recorder.log" 2>&1 &
-    echo $! > "$pidf"; printf '%s' "$out" > "$outf"
+    # A fresh device-side name per take: screenrecord cannot write over an existing file on the phone.
+    dev="/sdcard/ov-motion-$(date +%s)-$$.mp4"
+    "${ADB[@]}" shell screenrecord --time-limit "$REC_LIMIT" "$dev" >"$dir/.motion-recorder.log" 2>&1 &
+    echo $! > "$pidf"; printf '%s' "$out" > "$outf"; printf '%s' "$dev" > "$dir/.motion.dev"
     echo "recording to $out (cap ${REC_LIMIT}s — motion-stop when the interaction is done)" ;;
   motion-stop)
     dirpid=$(ls verify-artifacts/*/.motion.pid 2>/dev/null | head -1 || true)
@@ -108,10 +109,11 @@ case "${1:-}" in
       [ "${n:-0}" = 0 ] && break
       sleep 0.25
     done
-    "${ADB[@]}" pull /data/local/tmp/ov-motion.mp4 "$out" >/dev/null
-    "${ADB[@]}" shell rm -f /data/local/tmp/ov-motion.mp4
-    rm -f "$dirpid" "$dir/.motion.out"
-    [ -s "$out" ] || { echo "empty recording: $out" >&2; exit 1; }
+    dev=$(cat "$dir/.motion.dev")
+    "${ADB[@]}" pull "$dev" "$out" >/dev/null 2>&1 || true
+    "${ADB[@]}" shell rm -f "$dev"
+    rm -f "$dirpid" "$dir/.motion.out" "$dir/.motion.dev"
+    [ -s "$out" ] || { echo "empty recording: $out (recorder said: $(tr -d '\r' < "$dir/.motion-recorder.log" | tail -3))" >&2; exit 1; }
     if command -v ffprobe >/dev/null; then
       ffprobe -v error -show_entries format=duration -of csv=p=0 "$out" >/dev/null \
         || { echo "recording is not a valid mp4 (truncated?): $out — rerun with a shorter take" >&2; exit 1; }
