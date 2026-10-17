@@ -1,0 +1,45 @@
+// Phone echo guard: a draft that echoes the slot instructions, or a 'Sure, here's…: ' preamble that
+// repeats the post, never shows. Plain answers and clean drafts still do.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { acceptReplies } from '../dist/drafts.js';
+import { platformForApp } from '../dist/platforms.js';
+
+const slots = platformForApp('com.twitter.android').slots;
+const point = 'honestly no worries, take your time';
+const accept = (candidates, p = point) => acceptReplies(candidates, [], 3, 'remove', [], [], p, slots);
+
+test('a numbered echo of the slot instructions is dropped', () => {
+  const echo = [
+    '1. Agree and add one concrete detail from the post.',
+    '2. Push back kindly, with one reason from the post.',
+    '3. Ask one sharp question about the post.',
+  ].join('\n');
+  assert.deepEqual(accept([echo]), []);
+});
+
+test('a lowercase slot echo mid-text is dropped', () => {
+  assert.deepEqual(accept(['great point, thanks.\nagree and add one concrete detail from the post.']), []);
+});
+
+test('a Sure preamble whose line repeats the post is dropped', () => {
+  assert.deepEqual(accept([`Sure, here’s the reply: ${point}.`]), []);
+});
+
+test('a plain Sure answer with a colon is kept', () => {
+  const [card] = accept(['Sure, here is the address: 12 Elm St.'], "what's your address?");
+  assert.equal(card, 'Sure, here is the address: 12 Elm St.');
+});
+
+test('a plain Sure reply is kept', () => {
+  assert.equal(accept(['Sure, see you then.'])[0], 'Sure, see you then.');
+});
+
+test('a numbered line that is not a slot is kept', () => {
+  assert.equal(accept(['1. the venue']).filter(Boolean).length, 1);
+});
+
+test('a clean draft is kept', () => {
+  const clean = "honestly, let's push the call to friday. my morning is full.";
+  assert.equal(accept([clean])[0], clean);
+});
