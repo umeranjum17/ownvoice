@@ -52,9 +52,10 @@ const NONSENSE = 'the database got eaten backwards by purple toaster clouds bana
 const EMPTY = '';
 const MASH = 'asdf qwer zxcv';
 const MESSAGE = 'i think we should meet tomorrow at 10 to go over the plan and the budget';
-// A run-on with no stops: any stop a version adds is the writer's own sentence split, so the
-// casing at the split is actually observable (the autosave text below never split in practice).
-const SPLIT = 'we should meet tomorrow at 10 to go over the plan and the budget and i think ali can bring the chairs but he might be late so we should start without him if he is not there by ten';
+// A run-on with no stops and three clear thoughts: any stop a version adds is the writer's own
+// sentence split, so the casing at the split is actually observable (the autosave text below never
+// split in practice, and the earlier two-thought run-on gave the writer nothing to split).
+const SPLIT = 'we should meet tomorrow at 10 to go over the plan and the budget and ali can bring the extra chairs but he might be late so start without him if he is not there by ten and please send me the notes from last week because i want to check the numbers before we decide';
 const MAX = 'We should meet tomorrow to go over the plan and the budget. '.repeat(175);
 // The words the panel uses for each honest state (packages/engine/src/words.ts), asserted verbatim.
 const DECLINED_LINE = 'This text has no clear message to polish yet.';
