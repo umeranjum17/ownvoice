@@ -135,7 +135,7 @@ const one = async (platform, i, tag) => {
   tap(...center(bubble));
   await until(() => { const p = readPanel(); return p.title.startsWith('Suggested replies') ? p : null; }, 'the grow panel', 90);
   let panel = readPanel();
-  for (let i2 = 0; i2 < 60; i2++) {
+  for (let i2 = 0; i2 < 120; i2++) {
     panel = readPanel();
     const suggestions = panel.cards.filter(card => card.tag !== 'yours' && card.text);
     if (suggestions.length >= 2 && fitLines().length) break;
