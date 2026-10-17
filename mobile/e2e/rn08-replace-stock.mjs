@@ -57,7 +57,7 @@ const install = (...options) => {
 /** Re-enable the service and wait until dumpsys shows it BOUND (the cold-boot race). */
 const rebindService = async () => {
   const enabled = shell('settings', 'get', 'secure', 'enabled_accessibility_services').trim();
-  const services = new Set(enabled === 'null' ? [] : enabled.split(':'));
+  const services = new Set(enabled === 'null' ? [] : enabled.split(':').filter(Boolean));
   services.add(component);
   const without = [...services].filter(x => x !== component);
   shell('settings', 'put', 'secure', 'enabled_accessibility_services', without.length ? without.join(':') : 'com.example.disabled/NoService');
