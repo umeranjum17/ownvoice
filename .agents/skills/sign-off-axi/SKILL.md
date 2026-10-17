@@ -3,7 +3,6 @@ name: sign-off-axi
 description: "Ask the user yes/no, pick-one or A/B/C design questions on a local review board and read back their answers, using the sign-off-axi CLI. Use when you need a yes/no decision, a choice between a few options, a design pick between mocks, or approval from the user before going on, want the user to review or sign off on something, or need to read back the answers the user already gave."
 license: MIT
 metadata:
-  author: umeranjum17
   argument-hint: <the question to ask>
   hermes:
     tags:

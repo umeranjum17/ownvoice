@@ -18,7 +18,7 @@ test('original-point admission requires an explicit clear answer, never a fluent
   expect(await canPolish('autosave locally and make export easy.', async () => 'CLEAR')).toBe(true);
 });
 
-// Live phone 2026-10-09 (a4b93ea2, Qwen2.5-1.5B): the old point-check prompt answered UNCLEAR for
+// Live phone 2026-10-09 (Qwen2.5-1.5B): the old point-check prompt answered UNCLEAR for
 // 'see you at 6' and 'will do', so the panel refused short everyday replies. The fix declines wordless
 // input mechanically and asks the writer a narrow real-message-or-mash question with a few examples.
 test('a message with no words is declined without asking the writer', async () => {
@@ -36,7 +36,7 @@ test('the clarity question admits short everyday replies and declines keyboard m
   expect(prompts[0]).toMatch(/keyboard mash/i);
 });
 
-// Main279 actual SHORTER capture, candidate 54df2b7: a newly split sentence kept lowercase.
+// Captured SHORTER output: a newly split sentence kept lowercase.
 test.each(['accept', 'fix'] as const)('polish %s cases the captured newly split sentence before showing it', async method => {
   const acceptor = await polishAcceptor('autosave locally and make export easy.', 'keep', [], spell);
   expect(acceptor[method]('autosave locally. make export easy.', 1, 'Shorter')).toBe('autosave locally. Make export easy.');

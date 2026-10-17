@@ -54,7 +54,7 @@ export const cases: Case[] = [
     why: "writer's own dash, a clock time" },
   { id: 'P12-paragraphs', kind: 'polish', typed: "Hey Sam,\n\nThanks for the notes. I'll fix the header by Friday.\n\nThe pricing page can wait till next sprint.", screen: '', keep: ['Sam', 'header', 'Friday', 'pricing', 'sprint'],
     why: 'paragraph breaks must survive' },
-  // Captain's addition: the tent-list Shorter that lost both items on the test phone. Scored on the
+  // Field report: the tent-list Shorter that lost both items on a test phone. Scored on the
   // Shorter card of the P01 run (same input, same deterministic pipeline): it must exist, keep both items and markers.
   { id: 'P13-tent-shorter', kind: 'polish', typed: 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', screen: '', keep: ['tent', 'stove', 'Saturday', 'noon'], slot: 1, from: 'P01-noon-list',
     why: 'phone validation: Shorter on a two-item list lost both items' },

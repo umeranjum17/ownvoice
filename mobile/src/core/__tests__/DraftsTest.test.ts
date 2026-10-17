@@ -110,7 +110,7 @@ test('acceptReplies cleans, dedupes and respects the avoid list', () => {
 });
 
 test('acceptReplies drops a card that only echoes their line, so the empty slot is asked once more', () => {
-  // Main765: the one-line starter came back only re-capitalised; an echo-only card is never offered.
+  // The one-line starter came back only re-capitalised; an echo-only card is never offered.
   expect(acceptReplies(['Shipping offline notes.'], [], 3, 'remove', [], [], 'shipping offline notes')).toEqual([]);
   expect(acceptReplies(['coffee  tomorrow MORNING!'], [], 3, 'remove', [], [], 'Coffee tomorrow morning')).toEqual([]);
   expect(acceptReplies(['Fix the login bug'], [], 3, 'remove', [], [], 'fix the login bug.')).toEqual([]);

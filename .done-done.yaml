@@ -173,7 +173,7 @@ journeys:
     timeout: 45m
 
   phone-agent-length:
-    description: "Lab phone agent (EXPO_PUBLIC_PHONE_AGENT=1): every one of the six fixture tasks (mobile/e2e/agent-tasks.json), loop and script, must come out shorter than the person's own words (the instruction, or the typed panel note when shorter) with facts and names kept (P1) and writing rules kept (P2). Grades a folder of live A5LIVE captures (<mode>-<task>/events.json, from a lab build with the scratch live adapter, as in mobile/reports/phone-agent.md P3) with evaluate.mjs --gate. CAPTURES env names that folder."
+    description: "Lab phone agent (EXPO_PUBLIC_PHONE_AGENT=1): every one of the six fixture tasks (mobile/e2e/agent-tasks.json), loop and script, must come out shorter than the person's own words (the instruction, or the typed panel note when shorter) with facts and names kept (P1) and writing rules kept (P2). Grades a folder of live A5LIVE captures (<mode>-<task>/events.json, from a lab build with the scratch live adapter) with evaluate.mjs --gate. CAPTURES env names that folder."
     command: |
       set -u; : "${CAPTURES:?folder of live <mode>-<task>/events.json captures}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)/mobile"
       node --experimental-strip-types reports/phone-agent-live/evaluate.mjs "$CAPTURES" --gate >"$E/grade.jsonl" 2>"$E/grade.err"; code=$?; echo "gate exit=$code" | tee "$E/driver.log"; exit $code
