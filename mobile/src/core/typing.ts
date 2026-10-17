@@ -145,13 +145,15 @@ const AUTO_SPELLING = new Map([['shoud', 'should'], ['teh', 'the'], ['recieve', 
 export function fixedSentenceSplits(original: string, text: string, spell: Speller | null): string {
   const protectedSpans = [...text.matchAll(protectedTokens), ...text.matchAll(/`+[\s\S]*?`+/g)].map(m => [m.index!, m.index! + m[0].length]);
   const codeWords = new Set([...original.matchAll(/`+([\s\S]*?)`+/g)].flatMap(m => m[1].match(/[\p{L}\p{N}_-]+/gu) ?? []));
-  return text.replace(/([.!?])([ \t]+)(\p{Ll}[\p{L}\p{N}_-]*)(?![\p{L}\p{N}_])/gu, (match, stop: string, gap: string, word: string, at: number) => {
+  return text.replace(/([.!?])(\s+)(\p{Ll}[\p{L}\p{N}_-]*)(?![\p{L}\p{N}_])/gu, (match, stop: string, gap: string, word: string, at: number) => {
     const start = at + stop.length + gap.length;
     const prefix = text.slice(0, start).replace(/['’]/g, '');
-    if ((NOT_AN_END.test(prefix) && !/\d[.!?][ \t]+$/.test(prefix)) || protectedSpans.some(([a, b]) => start >= a && start < b)) return match;
+    if ((NOT_AN_END.test(prefix) && !/\d[.!?]\s+$/.test(prefix)) || protectedSpans.some(([a, b]) => start >= a && start < b)) return match;
     // Skip identifier syntax, source code words and unknown words; reuse the common-word list offline.
     if (!/^\p{Ll}+$/u.test(word) || /^(?:[ \t]*[(:=]|\.\p{L})/u.test(text.slice(start + word.length)) || codeWords.has(word)) return match;
-    if (!(spell?.correct(word) || COMMON.has(word))) return match;
+    // A dictionary word, a common word, or a proper noun (only the capitalised form is known: "ali" -> "Ali").
+    // A word the dictionary does not know at all ("npm") keeps its lowercase: it is a technical identifier.
+    if (!(spell?.correct(word) || COMMON.has(word) || spell?.correct(word[0].toUpperCase() + word.slice(1)))) return match;
     const previous = text.slice(0, at).match(/[\p{L}\p{N}_-]+$/u)?.[0] ?? '';
     if (new RegExp(`(?<![\\p{L}\\p{N}_-])${previous}[.!?]\\s+${word}(?![\\p{L}\\p{N}_-])`, 'iu').test(original)) return match;
     return stop + gap + word[0].toUpperCase() + word.slice(1);
