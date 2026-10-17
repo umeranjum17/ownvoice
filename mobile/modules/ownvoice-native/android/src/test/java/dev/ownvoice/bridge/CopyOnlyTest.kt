@@ -1,21 +1,15 @@
 package dev.ownvoice.bridge
 
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** Only Replace from the editable selection that sent it hands back; everything else only copies. */
+/** Copy-only everywhere: the sheet never hands a rewrite back to any field. */
 class CopyOnlyTest {
-  @Test fun replaceFromEditableHandsBack() {
-    assertTrue(RewriteActivity.shouldHandBack(true, true))
-  }
-
-  @Test fun replaceFromShareNeverHandsBack() {
-    assertFalse(RewriteActivity.shouldHandBack(true, false))
+  @Test fun replaceNeverHandsBack() {
+    assertFalse(RewriteActivity.shouldHandBack(true))
   }
 
   @Test fun copyNeverHandsBack() {
-    assertFalse(RewriteActivity.shouldHandBack(false, true))
-    assertFalse(RewriteActivity.shouldHandBack(false, false))
+    assertFalse(RewriteActivity.shouldHandBack(false))
   }
 }
