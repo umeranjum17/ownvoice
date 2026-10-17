@@ -204,6 +204,8 @@ const connectWriter = async tag => {
   tap(...center(field)); await wait(700);
   adb('shell', 'input', 'text', `'${key}'`); await wait(700); // never logged or screenshotted
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
+  // The key field sits in the last card, so its Connect button can land below the fold: scroll it up.
+  for (let i = 0; i < 3 && !findText('connect'); i++) { adb('shell', 'input', 'swipe', String(width / 2), String(height * 0.75), String(width / 2), String(height * 0.35), '300'); await wait(800); }
   await tapText('connect', 20);
   // A Go login key with several workspaces gets the kit's pick (PR 216): tap OPENCODE_WORKSPACE.
   await waitText([W.connected, W.signedOut, 'more than one workspace'], 60);
