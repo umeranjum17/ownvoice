@@ -1,8 +1,9 @@
 import { answerer, type Backend } from '@byokit/decide';
 import { askLocal } from '../core/localModel';
 
-// Level answers for every shown card fit in one reply: four probabilities plus a rationale each.
-const FIT_TOKENS = 400;
+// Level answers for every shown card in one reply. The on-device model refuses more than 256 output tokens
+// (@byokit/infer DEFAULT_LIMITS), so a larger budget never reaches the model.
+export const FIT_TOKENS = 256;
 
 /** The reply fit on this phone: the on-device model answers the same rubric the cloud judges get,
  *  so the post and the cards never leave the phone. A fenced JSON block is unwrapped first; any other

@@ -6,13 +6,14 @@ jest.mock('../localModel', () => ({
   installLocalModel: jest.fn(),
   removeLocalModel: jest.fn(),
 }));
-import { agreedToDownload, localModelState } from '../localModel';
+import { agreedToDownload, installLocalModel, localModelState } from '../localModel';
 import { InferError, type InferState } from '@byokit/infer';
 import { phoneCanWrite } from '../phoneStatus';
-import { AGREED_KEY } from '../phoneDownload';
+import { AGREED_KEY, getReady } from '../phoneDownload';
 
 const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const mockAgreed = agreedToDownload as jest.MockedFunction<typeof agreedToDownload>;
+const mockInstall = installLocalModel as jest.MockedFunction<typeof installLocalModel>;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 
 beforeEach(() => {
@@ -38,6 +39,16 @@ test.each([
 test('a call that lands while another on-device call runs reads as ready', async () => {
   mockState.mockRejectedValue(new InferError('busy', 'Another on-device call is running.'));
   await expect(phoneCanWrite()).resolves.toBe('ready');
+});
+
+test('a busy call while the phone model downloads still reads as preparing', async () => {
+  let finish!: () => void;
+  mockInstall.mockReturnValueOnce(new Promise<void>(resolve => { finish = resolve; }));
+  mockState.mockRejectedValue(new InferError('busy', 'Another on-device call is running.'));
+  const download = getReady(false);
+  await expect(phoneCanWrite()).resolves.toBe('preparing');
+  finish();
+  await download;
 });
 
 test('a thrown state call maps to cant', async () => {
