@@ -78,7 +78,10 @@ export async function proveOwnPostLive(ctx) {
   const masked = text => (planKey ? String(text).replaceAll(planKey, '<key>') : String(text));
   mkdirSync(out, { recursive: true });
   const results = { writer: phone ? 'phone' : 'opencode', workspace: phone ? null : workspace, round, cases: [] };
-  const shot = screen => evidence('shot', 'ov-own-posts', screen, 'live', round);
+  const shot = screen => {
+    evidence('shot', 'ov-own-posts', screen, 'live', round);
+    try { writeFileSync(resolve(out, `${screen}-live-${round}.nodes.json`), JSON.stringify(nodes(), null, 1)); } catch (error) { console.error(`nodes dump skipped: ${error.message}`); }
+  };
   const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
   const swipeUp = async () => { adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300'); await wait(1200); };
 
