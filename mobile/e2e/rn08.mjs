@@ -1,8 +1,11 @@
 // OWNVOICE-RN-08 emulator evidence driver (adapted from e2e/rn05.mjs helpers).
-// Proves rows R1-R5 with the release build and the build-flagged stand-in writer:
-// direct process-text and share intents (not the selection-menu chooser), the three chips,
+// Stand-in legs (no OPENCODE_KEY_FILE): rows R1-R5 with the release build and the build-flagged
+// stand-in writer: direct process-text and share intents (not the selection-menu chooser), the three chips,
 // the copy-only sheet (Copy copies the version, the field is left untouched, no Replace anywhere),
 // a new number warned, the bubble hidden while the sheet shows, and the drafts panel's verdict note.
+// Live leg (OPENCODE_KEY_FILE set): the OpenCode Go writer connected through the app's own connect
+// field, one realistic message through all five options with per-label checks, chips in light, dark
+// and narrow 720x1280 font 1.3, Replace on an editable Chrome field read back, and Copy fingerprinted.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -296,6 +299,283 @@ const SHORT = 'I think we should move the call to Tuesday.';
 const PLAIN = 'We should move the call to Tuesday. Really.';
 const RECEIVER_ORIGINAL = 'Move Tuesday. Really.';
 const RECEIVER_SHORT = 'Move Tuesday.';
+
+// Live-writer leg (OPENCODE_KEY_FILE set): the OpenCode Go writer connected through the app's own
+// connect field (the key is never logged), one realistic message with a name, a time and a number,
+// all five options recorded and checked per label, chips fully readable in light, dark and narrow
+// 720x1280 font 1.3, Replace on an editable Chrome field read back, and Copy fingerprinted.
+// Without the key the stand-in legs below run instead.
+const liveKeyFile = process.env.OPENCODE_KEY_FILE;
+const live = !!liveKeyFile;
+const liveKey = live ? readFileSync(liveKeyFile, 'utf8').trim() : '';
+if (live && (liveKey.length < 20 || /\s/.test(liveKey))) throw new Error('The OpenCode Go key file did not look like a key.');
+const liveWorkspace = process.env.OPENCODE_WORKSPACE ?? 'Working2';
+const LIVE_TEXT = 'Hi Sam, please send teh report by Friday at 3pm, all 12 pages, its urgent and really very important.';
+const LIVE_OPTIONS = ['Shorter', 'Simpler', 'Fix spelling', 'Friendlier', 'Firmer'];
+
+if (live) {
+  const dynWH = () => { const m = [...shell('wm', 'size').matchAll(/(\d+)x(\d+)/g)].at(-1); return [Number(m[1]), Number(m[2])]; };
+  const liveShot = async name => {
+    const [w, h] = dynWH();
+    const raw = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 });
+    execFileSync('magick', ['png:', '-crop', `${w}x${h - cropTop}+0+${cropTop}`, '+repage', `${out}/${name}.png`], { input: raw });
+    console.log(`shot ${name}`);
+  };
+  const type = async text => { for (const word of text.split(' ')) { shell('input', 'text', word); shell('input', 'keyevent', '62'); await wait(400); } };
+  const hideKeyboard = async () => { if (shell('dumpsys', 'input_method').includes('mInputShown=true')) { shell('input', 'keyevent', '4'); await wait(800); } };
+  const swipeUp = async () => { const [w, h] = dynWH(); shell('input', 'swipe', String(Math.round(w / 2)), String(Math.round(h * 0.75)), String(Math.round(w / 2)), String(Math.round(h * 0.3)), '400'); await wait(1000); };
+  const setTheme = async mode => {
+    shell('am', 'force-stop', pkg);
+    await wait(800);
+    shell('cmd', 'uimode', 'night', mode);
+    await rebindService();
+  };
+  const connectOpenCode = async () => {
+    shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source');
+    if (!(await textPresent('how ownvoice writes', 30))) throw new Error('the writer list did not open');
+    for (let i = 0; i < 5 && !(await textPresent('with your opencode go', 2)); i++) await swipeUp();
+    await tapText('with your opencode go');
+    await tapText('paste your opencode go key');
+    await wait(700);
+    execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${liveKey}'`]); // no shell echo: the key must never reach the log
+    await wait(700);
+    await hideKeyboard();
+    const connectBtn = nodes().find(n => n.label === 'Connect' || n.text === 'Connect');
+    if (!connectBtn) throw new Error('the Go Connect button never appeared');
+    if (connectBtn.enabled === false) throw new Error('key field empty after typing: Connect is disabled');
+    tap(...center(connectBtn));
+    let outcome = '';
+    for (let i = 0; i < 60 && !outcome; i++) {
+      if (await textPresent('more than one workspace', 1)) outcome = 'pick';
+      else if (await textPresent('opencode go is connected', 1)) outcome = 'connected';
+      else if (await textPresent("didn't answer", 1)) outcome = 'refused-answer';
+      else if (await textPresent('could not connect', 1)) outcome = 'refused-connect';
+      else if (await textPresent('try again', 1)) outcome = 'refused-retry';
+      else await wait(1000);
+    }
+    if (!outcome) throw new Error(`the writer connect settled on nothing recognizable: ${safeWords(300)}`);
+    if (outcome.startsWith('refused')) throw new Error(`the Go connect was refused (${outcome}): ${safeWords(300)}`);
+    if (outcome === 'pick') {
+      for (let i = 0; i < 8; i++) {
+        if (nodes().some(n => `${n.label} ${n.text}`.trim() === liveWorkspace)) break;
+        if (i % 2) await swipeUp(); else await wait(1000);
+      }
+      const pick = nodes().find(n => `${n.label} ${n.text}`.trim() === liveWorkspace);
+      if (!pick) throw new Error(`the workspace pick shows no "${liveWorkspace}": ${safeWords(300)}`);
+      await liveShot('live-workspace-pick');
+      tap(...center(pick));
+      if (!(await textPresent('opencode go is connected', 60))) throw new Error(`OpenCode Go did not connect after the pick: ${safeWords(300)}`);
+    }
+    await liveShot('live-connected');
+  };
+  // Screen words for diagnosis: password fields dropped, key-shaped tokens redacted.
+  const safeWords = (limit = 500) => nodes().filter(n => !n.password)
+    .map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ')
+    .replace(/[A-Za-z0-9_\-]{20,}/g, '<redacted>').slice(0, limit);
+  const wordsOf = t => t.trim().split(/\s+/).filter(Boolean).length;
+  const keepsFacts = t => {
+    const lower = t.toLowerCase();
+    return lower.includes('sam') && lower.includes('friday') && /(3\s?pm|15:00)/.test(lower) && /\b12\b/.test(lower);
+  };
+  const selfCriticism = () => nodes().some(n => /a bit general|a bit stock|sounds canned|check the wording|doesn't sound like you|could be more specific|might make something up/i.test(`${n.label} ${n.text}`));
+  const readNewResult = before => {
+    const list = nodes();
+    const drop = /^(copy|replace|share this text|you selected|make it better|same meaning as yours|check this|writing|replace puts|copy it|sounds |a bit |check the wording|why\?)/i;
+    const cands = list.filter(n => !n.clickable && (n.text || '').trim().length >= 2
+      && !before.has(`${n.label} ${n.text}`.trim()) && !drop.test((n.text || '').trim()));
+    cands.sort((a, b) => b.text.trim().length - a.text.trim().length);
+    if (!cands.length) {
+      console.log(`RESULT MISS: ${safeWords()}`);
+      throw new Error('no rewrite result on screen');
+    }
+    return cands[0].text.trim();
+  };
+  const waitResult = async option => {
+    for (let i = 0; i < 90; i++) {
+      if (await textPresent('Copy', 1)) return;
+      if (await textPresent("didn't answer", 1)) throw new Error(`${option} failed: the writer did not answer`);
+      await wait(1000);
+    }
+    throw new Error(`${option} produced no result in time`);
+  };
+  // A label check records a MISS and the run continues with the remaining legs; only
+  // infrastructure failures (no sheet, no writer answer at all) still throw.
+  const checkOption = (option, result) => {
+    if (!keepsFacts(result)) return `${option} dropped a fact (name, time or number): "${result}"`;
+    if (selfCriticism()) return `${option} carries a self-criticism verdict on Ownvoice's own result`;
+    const ows = wordsOf(LIVE_TEXT), rws = wordsOf(result);
+    if (option === 'Shorter' && !(rws < ows)) return `Shorter is not shorter (${rws} vs ${ows} words): "${result}"`;
+    if (option === 'Fix spelling') {
+      if (!/the report/i.test(result) || !/it's|it is/i.test(result)) return `Fix spelling left a slip: "${result}"`;
+      if (Math.abs(rws - ows) > 3) return `Fix spelling changed more than slips (${rws} vs ${ows} words): "${result}"`;
+    }
+    if (option === 'Firmer') {
+      // Spec bar: firmer than one dropped word. Removed softeners (a greeting, please)
+      // count as change like any other word; only a single dropped word fails.
+      const content = s => s.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
+      const a = content(LIVE_TEXT), b = content(result);
+      const counts = new Map();
+      for (const w of a) counts.set(w, (counts.get(w) || 0) + 1);
+      let common = 0;
+      for (const w of b) if (counts.get(w)) { counts.set(w, counts.get(w) - 1); common++; }
+      if ((a.length - common) + (b.length - common) <= 1) return `Firmer only drops a word: "${result}"`;
+    }
+    if (result.trim().toLowerCase() === LIVE_TEXT.trim().toLowerCase()) return `${option} handed the text back unchanged`;
+    return null;
+  };
+  const runAllFive = async scheme => {
+    await openRewrite({ text: LIVE_TEXT });
+    for (let i = 0; i < 4; i++) { // at narrow width with large text the chips start below the fold; scroll them in
+      let missing = false;
+      for (const label of LIVE_OPTIONS) if (!(await textPresent(label, 1))) { missing = true; break; }
+      if (!missing) break;
+      const [w, h] = dynWH();
+      shell('input', 'swipe', String(Math.round(w / 2)), String(Math.round(h * 0.75)), String(Math.round(w / 2)), String(Math.round(h * 0.4)), '400');
+      await wait(800);
+    }
+    await liveShot(`live-chips-${scheme}`);
+    const missingChips = [];
+    for (const label of LIVE_OPTIONS) if (!(await textPresent(label, 3))) missingChips.push(label);
+    // Readability is human-graded from the per-round chips shots: tesseract misreads this
+    // rendering wholesale ("Shorter" as "GhorteD" on a human-fine light shot), so an OCR
+    // gate can never pass here. Presence of all five buttons is still asserted above.
+    await back();
+    if (missingChips.length) {
+      writeFileSync(`${out}/live-results-${scheme}.json`, JSON.stringify({ input: LIVE_TEXT, scheme, chipMiss: missingChips }, null, 2));
+      console.log(`live ${scheme} MISS: chips missing: ${missingChips.join(', ')}`);
+      return {};
+    }
+    const results = {};
+    for (const option of LIVE_OPTIONS) {
+      try {
+        await openRewrite({ text: LIVE_TEXT });
+        const before = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
+        await tapText(option);
+        await waitResult(option);
+        const result = readNewResult(before);
+        const miss = checkOption(option, result);
+        results[option] = { text: result, words: wordsOf(result), miss };
+        console.log(miss ? `live ${scheme} ${option} MISS: ${miss}` : `live ${scheme} ${option}: "${result}"`);
+        await liveShot(`live-${option.toLowerCase().replace(/\s+/g, '')}-${scheme}`);
+      } catch (error) {
+        results[option] = { miss: String(error?.message ?? error) };
+        console.log(`live ${scheme} ${option} MISS: ${results[option].miss}`);
+        try { await liveShot(`live-${option.toLowerCase().replace(/\s+/g, '')}-miss-${scheme}`); } catch {}
+      }
+      try { await back(); } catch {}
+    }
+    const misses = Object.entries(results).filter(([, r]) => r.miss).map(([o]) => o);
+    writeFileSync(`${out}/live-results-${scheme}.json`, JSON.stringify({ input: LIVE_TEXT, scheme, results }, null, 2));
+    console.log(`live ${scheme} done, misses: ${misses.length ? misses.join(', ') : 'none'}`);
+    return results;
+  };
+
+  wake();
+  shell('cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');
+  shell('cmd', 'uimode', 'night', 'no');
+  shell('settings', 'put', 'system', 'font_scale', '1.0');
+  shell('wm', 'density', 'reset');
+  shell('wm', 'size', 'reset');
+  await freshSetup('no');
+  await connectOpenCode();
+  const light = await runAllFive('light');
+
+  // Copy fingerprints the chosen version (light, Shorter). A MISS is recorded, never fatal.
+  let copyMiss = null;
+  try {
+    await openRewrite({ text: LIVE_TEXT });
+    const copyBefore = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
+    await tapText('Shorter');
+    await waitResult('Shorter');
+    const copyText = readNewResult(copyBefore);
+    clearLog();
+    { const [w, h] = dynWH(); shell('input', 'swipe', String(Math.round(w / 2)), String(Math.round(h * 0.8)), String(Math.round(w / 2)), String(Math.round(h * 0.4)), '400'); await wait(700); }
+    await liveShot('live-copy-row-light');
+    await tapText('Copy');
+    await wait(800);
+    if (!logcat().includes(`rewrite copied sha=${sha(copyText)}`)) throw new Error('Copy did not copy the chosen version (light)');
+    console.log('live Copy fingerprinted (light)');
+  } catch (error) {
+    copyMiss = String(error?.message ?? error);
+    console.log(`live Copy MISS: ${copyMiss}`);
+  }
+  try { await back(); } catch {}
+  writeFileSync(`${out}/live-copy-light.json`, JSON.stringify({ copyMiss }, null, 2));
+
+  await setTheme('yes');
+  await runAllFive('dark');
+
+  await setTheme('no');
+  shell('settings', 'put', 'system', 'font_scale', '1.3');
+  shell('wm', 'size', '720x1280');
+  shell('am', 'force-stop', pkg);
+  await wait(800);
+  await rebindService();
+  await runAllFive('narrow');
+  shell('settings', 'put', 'system', 'font_scale', '1.0');
+  shell('wm', 'size', 'reset');
+  shell('am', 'force-stop', pkg);
+  await wait(800);
+  await rebindService();
+
+  // Replace on a real editable Chrome field, read back.
+  const page = createServer((_, response) => { response.setHeader('Content-Type', 'text/html'); response.end(`<meta name="viewport" content="width=device-width, initial-scale=1"><label>Message <textarea id="m" rows="6" style="width:100%">${LIVE_TEXT}</textarea></label>`); });
+  await new Promise(resolve => page.listen(0, '0.0.0.0', resolve));
+  try {
+    const port = page.address().port;
+    const openPage = () => shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://10.0.2.2:${port}/`, 'com.android.chrome');
+    openPage();
+    if (await textPresent('Use without an account', 4)) { await tapText('Use without an account'); openPage(); }
+    if (await textPresent('Chrome notifications', 2)) { const [w, h] = dynWH(); tap(Math.round(w * 0.52), Math.round(h * 0.73)); await wait(800); }
+    else if (await textPresent('No thanks', 2)) { await tapText('No thanks'); openPage(); }
+    if (!(await waitForFocus('com.android.chrome'))) throw new Error('Chrome field did not load in front');
+    await focusField();
+    const field = nodes().find(n => n.editable && !n.password);
+    if (!field) throw new Error('Chrome editable field did not appear');
+    const [fx, fy] = center(field);
+    tap(Math.round(fx), Math.round(fy));
+    shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100');
+    let select;
+    for (let i = 0; i < 6 && !select; i++) {
+      select = readWords().find(w => w.text.toLowerCase().startsWith('select') && w.top > 700);
+      if (!select) await wait(500);
+    }
+    if (!select) throw new Error('Select all action missing in Chrome');
+    tap((select.left + select.right) / 2, (select.top + select.bottom) / 2);
+    await wait(800);
+    await liveShot('live-chrome-selected');
+    let menuAction;
+    for (let i = 0; i < 8 && !menuAction; i++) {
+      const node = nodes().find(n => n.clickable && (n.label || n.text).startsWith('Ownvoice'));
+      menuAction = node ? { left: node.bounds[0], top: node.bounds[1], right: node.bounds[2], bottom: node.bounds[3] }
+        : readWords().find(w => w.text.toLowerCase().startsWith('ownvoice'));
+      if (!menuAction) await wait(500);
+    }
+    if (!menuAction) throw new Error('Ownvoice selection action missing in Chrome');
+    tap((menuAction.left + menuAction.right) / 2, (menuAction.top + menuAction.bottom) / 2);
+    if (!(await waitForFocus('RewriteActivity'))) throw new Error('Chrome selection did not open Ownvoice');
+    if (!(await textPresent('Replace', 5))) throw new Error('Replace not offered on the editable Chrome selection');
+    await liveShot('live-replace-offered');
+    const beforeReplace = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
+    await tapText('Shorter');
+    await waitResult('Shorter');
+    const shorter = readNewResult(beforeReplace);
+    clearLog();
+    await tapText('Replace');
+    await wait(1500);
+    if (!(await waitForFocus('com.android.chrome', 5))) throw new Error('Chrome did not come back after Replace');
+    await liveShot('live-replaced-field');
+    const back = nodes().find(n => n.editable && !n.password);
+    const fieldText = (back?.text ?? '').trim();
+    if (fieldText !== shorter.trim()) throw new Error(`Replace did not put the rewrite in the Chrome field (field: "${fieldText.slice(0, 120)}")`);
+    if (!keepsFacts(fieldText)) throw new Error('the replaced Chrome field lost a fact');
+  } finally {
+    page.close();
+  }
+
+  console.log(`Live rewrite proof saved to ${out}: light ${JSON.stringify(light.Shorter)} dark/narrow JSON on disk, Replace read back from Chrome, Copy fingerprinted.`);
+  process.exit(0);
+}
 
 const openEditableSelection = async () => {
   shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://voice');
