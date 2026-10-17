@@ -262,7 +262,7 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
 // The phone model gets the same rules condensed (≤ 700 characters of instructions), one call,
 // three replies, each labelled so cleanDrafts/parts() splits them.
 const phoneReplyInstructions = (slots: [string, string, string]) => [
-  'Write reply drafts from this screen.',
+  'Write the user\'s reply to the sender.',
   'Every draft must respond to everything the latest message asks or offers.',
   'Draft 1:, Draft 2:, Draft 3:, each the slot below, in this exact order, never swapped:',
   slotList(slots),
