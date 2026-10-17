@@ -188,6 +188,15 @@ const VOICE_THREAD = {
   post: 'Sorry I dropped the ball on the notes this week, work got away from me.',
   point: 'honestly no worries, take your time',
 };
+// Each note run gets its own post, so the phone writer makes a fresh draft per run: the kit
+// decodes greedily (temperature 0, seed 0), so the same post gives the same card every time.
+const NOTE_POSTS = [
+  VOICE_THREAD.post,
+  'Hey, did you ever send the revised plan? I need it before Thursday.',
+  'Sorry for the late reply, I was offline most of last week.',
+  'Can we push the call to Friday? My morning is full.',
+  'I forgot to send the invoice again, sorry. It goes out today.',
+];
 const results = resolve(out, 'results.jsonl');
 if (!process.env.OV_APPEND && mode === 'voice') writeFileSync(results, '');
 const record = row => { appendFileSync(results, JSON.stringify(row) + '\n'); console.log(JSON.stringify(row).slice(0, 300)); };
@@ -212,7 +221,6 @@ if (mode === 'recon') {
 } else if (mode === 'setup') {
   // Walk onboarding from whatever step it is on (shared device: another walk may have
   // advanced it) to Home. Stops early when the one-time model download starts.
-  adb('shell', 'cmd', 'uimode', 'night', theme === 'dark' ? 'yes' : 'no');
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
   await wait(5000);
   const tapFirst = (r, re) => { const l = r.lines.find(x => re.test(x.text)); if (l) tap(l.cx, l.cy); return !!l; };
@@ -334,9 +342,8 @@ if (mode === 'recon') {
   console.log(`DLWAIT ready=${ready} pollSeconds=${secs}`);
   if (!ready) throw new Error('NOT PROVEN: phone writer not ready within the poll budget.');
 } else if (mode === 'voice') {
-  adb('shell', 'cmd', 'uimode', 'night', theme === 'dark' ? 'yes' : 'no');
   await rebind();
-  const openThread = async () => {
+  const openThread = async (post = VOICE_THREAD.post) => {
     // Flip the foreground through Ownvoice first: the kit reshows the bubble on a
     // foreground change, not on refocusing the same field after a panel dismiss.
     adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
@@ -344,7 +351,7 @@ if (mode === 'recon') {
     adb('shell', 'am', 'force-stop', 'com.twitter.android');
     await wait(700);
     const q = s => `'${String(s).replaceAll("'", "'\\''")}'`;
-    adb('shell', 'am', 'start', '-n', 'com.twitter.android/.Composer', '--es', 'post', q(VOICE_THREAD.post), '--es', 'replyText', q(VOICE_THREAD.point), '--es', 'label', q('X'));
+    adb('shell', 'am', 'start', '-n', 'com.twitter.android/.Composer', '--es', 'post', q(post), '--es', 'replyText', q(VOICE_THREAD.point), '--es', 'label', q('X'));
     const r = await waitText('thread', /take your time|what's happening/i, 30);
     // Focus the field and LEAVE it focused (keyboard included): the bubble hides when
     // the field blurs, and a Back press here closes the field instead of the keyboard.
@@ -414,13 +421,13 @@ if (mode === 'recon') {
       await wait(1000);
     }
   };
-  const runArm = async name => {
+  const runArm = async (name, post = VOICE_THREAD.post) => {
     // Fresh service per run: after a panel is dismissed with Back the service can keep
     // thinking the panel covers the bubble, and only a restart brings the bubble back.
     await rebind();
-    const end = await openThread();
+    const end = await openThread(post);
     const { hits, capitalised, refusal, panelText, cardsMissing } = await generate(name, end);
-    record({ arm: name, theme, phraseInDrafts: hits, capitalisedLines: capitalised ?? null, cardsMissing: cardsMissing ?? null, refusal: refusal ?? null, panel: panelText ?? null, shot: `${name}.png` });
+    record({ arm: name, post, theme, phraseInDrafts: hits, capitalisedLines: capitalised ?? null, cardsMissing: cardsMissing ?? null, refusal: refusal ?? null, panel: panelText ?? null, shot: `${name}.png` });
     await dismiss(name);
     if (refusal && refusal !== 'no-panel') throw new Error(`writer refused: ${refusal}`);
     if (hits < 0) throw new Error(`no panel opened for ${name} (see ${name}-no-panel.png)`);
@@ -571,7 +578,7 @@ if (mode === 'recon') {
     else console.log('note retype skipped (OV_SETNOTE=0): stored note reused');
     // OV_NOTE_RUNS repeats the note arm (the lowercase pass bar is counted over 5 runs).
     const runs = Number(process.env.OV_NOTE_RUNS ?? 1);
-    for (let i = 0; i < runs; i++) await runArm(`note-lowercase-blunt${armTag}${runs > 1 ? `-${i}` : ''}`);
+    for (let i = 0; i < runs; i++) await runArm(`note-lowercase-blunt${armTag}${runs > 1 ? `-${i}` : ''}`, NOTE_POSTS[i % NOTE_POSTS.length]);
   }
   console.log(`VOICE_DONE theme=${theme} out=${out}`);
 } else {
