@@ -9,8 +9,8 @@ import * as Judge from '../core/judge';
 import * as Slop from '../core/slop';
 import * as Voice from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
-import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
+import { failure, phoneReady } from '../panel/phoneWriter';
 import { cloudOf, getSource, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { store } from '../core/store';
 import { causeOf, cloudWords, devlog, isPlanLimitLine, PlanLimit, SendVeto, type WriterEvents } from '../core/writers';
@@ -80,7 +80,16 @@ export default function Rewrite() {
       const text = fixedSentenceSplits(input.text, cleanSelection(input.text, Judge.clean(raw)), spell);
       return how === Judge.Rewrite.GRAMMAR ? preserveFragment(input.text, text) : text;
     };
-    const phoneRewrite = async () => finish(stub ?? await askLocal(Judge.selectionRewritePrompt(input.text, how, guide), 256));
+    // The phone path waits for the phone writer as the panel does; a model failure keeps its cause in logcat.
+    const phoneRewrite = async () => {
+      if (stub !== null) return finish(stub);
+      await phoneReady();
+      const raw = await askLocal(Judge.selectionRewritePrompt(input.text, how, guide), 256).catch((error: unknown) => {
+        devlog(`Ownvoice phone rewrite failed: ${causeOf(error)}`);
+        throw failure(error);
+      });
+      return finish(raw);
+    };
     // The meaning check stays on the phone when it can write; otherwise only the number check runs.
     const showResult = async (text: string, canWrite: boolean) => {
       if (id !== run.current) return false;
@@ -134,7 +143,8 @@ export default function Rewrite() {
       }
     } catch (error) {
       if (id !== run.current) return;
-      setNote(message(errorCode(error)));
+      // Only the phone path throws here, already in its plain line.
+      setNote(error instanceof Error ? error.message : String(error));
     } finally {
       if (id === run.current) setBusy(false);
     }

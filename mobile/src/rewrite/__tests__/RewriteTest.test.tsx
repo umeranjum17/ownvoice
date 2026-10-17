@@ -12,7 +12,7 @@ import { NO_RULES } from '../../core/slop';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
-  rewriteInput: jest.fn(), finishRewrite: jest.fn(async () => {}),
+  rewriteInput: jest.fn(), finishRewrite: jest.fn(async () => {}), logDev: jest.fn(),
 } }));
 jest.mock('../../chatgpt/responses', () => ({ streamSelectionRewrite: jest.fn() }));
 jest.mock('@byokit/infer', () => ({ InferError: class InferError extends Error {} }), { virtual: true });
@@ -24,7 +24,7 @@ import { store } from '../../core/store';
 const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
 const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const mockCloudRewrite = streamSelectionRewrite as jest.MockedFunction<typeof streamSelectionRewrite>;
-const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock };
+const native = Native as unknown as { rewriteInput: jest.Mock; finishRewrite: jest.Mock; logDev: jest.Mock };
 
 const renderRewrite = async (input: { text: string; editable: boolean } | null) => {
   native.rewriteInput.mockReturnValue(input);
@@ -182,6 +182,23 @@ test('a writer failure shows its plain error line', async () => {
   fireEvent.press(screen.getByRole('button', { name: 'Fix spelling' }));
   await waitFor(() => expect(visibleStrings(screen)).toContain(message(9)));
   expect(visibleStrings(screen)).not.toContain('HTTP 9 too much');
+});
+
+test('the phone writer not yet downloaded asks to get it ready and never calls the model', async () => {
+  mockState.mockResolvedValue({ phase: 'not-installed' });
+  const screen = await renderRewrite({ text: SELECTION, editable: true });
+  fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
+  await waitFor(() => expect(visibleStrings(screen)).toContain(words.readyPanel));
+  expect(mockAsk).not.toHaveBeenCalled();
+});
+
+test('a phone model failure keeps its cause in the developer log, not on screen', async () => {
+  mockAsk.mockRejectedValue(new Error('The native context could not start.', { cause: new Error('initLlama: no native library') }));
+  const screen = await renderRewrite({ text: SELECTION, editable: true });
+  fireEvent.press(screen.getByRole('button', { name: 'Shorter' }));
+  await waitFor(() => expect(visibleStrings(screen)).toContain(words.failed));
+  expect(native.logDev).toHaveBeenCalledWith(expect.stringContaining('initLlama: no native library'));
+  expect(visibleStrings(screen).join('\n')).not.toContain('initLlama');
 });
 
 test('a cloud rewrite failure shows the cloud line when the phone cannot write either', async () => {

@@ -97,7 +97,8 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   return made.filter((text): text is string => !!text);
 }
 
-function failure(error: unknown): Error {
+/** The phone writer's error as its plain line. */
+export function failure(error: unknown): Error {
   if (error instanceof Error && error.message === words.readyStopped) return error;
   if (error instanceof InferError) {
     if (error.code === 'busy') return new Error(words.busy);
@@ -107,6 +108,21 @@ function failure(error: unknown): Error {
     if (error.code === 'not-installed') return new Error(words.readyPanel);
   }
   return new Error(message(errorCode(error)));
+}
+
+/** Waits until the phone can write: refuses an unsupported phone or a download nobody agreed to, else joins or resumes the agreed one. */
+export async function phoneReady(on: WriterEvents = {}): Promise<void> {
+  let status: InferState;
+  try { status = await modelStatus(); } catch (error) { throw failure(error); }
+  if (status.phase === 'unsupported') throw new Error(words.unsupported);
+  // The one-time download needs the person's yes, which only Ownvoice itself asks for.
+  if ((status.phase === 'not-installed' || status.phase === 'failed') && !agreed()) throw new Error(words.readyPanel);
+  if (status.phase === 'ready' || status.phase === 'busy' || status.phase === 'installed') return;
+  on.state?.('downloading');
+  const stop = watch(fraction => { if (fraction != null) on.fraction?.(fraction); });
+  try { await (status.phase === 'not-installed' || status.phase === 'failed' ? getReady() : settle()); }
+  catch (error) { throw failure(error); }
+  finally { stop(); }
 }
 
 export const phoneWriter = {
@@ -140,18 +156,9 @@ export const phoneWriter = {
       drafts.forEach((text, slot) => on.landed?.(text, slot));
       return { drafts };
     }
-    let status: InferState;
-    try { status = await modelStatus(); } catch (error) { throw failure(error); }
-    if (status.phase === 'unsupported') throw new Error(words.unsupported);
-    // The one-time download needs the person's yes, which only Ownvoice itself asks for.
-    if ((status.phase === 'not-installed' || status.phase === 'failed') && !agreed()) throw new Error(words.readyPanel);
+    const started = Date.now();
+    await phoneReady(on);
     try {
-      const started = Date.now();
-      if (status.phase !== 'ready' && status.phase !== 'busy' && status.phase !== 'installed') {
-        on.state?.('downloading');
-        const stop = watch(fraction => { if (fraction != null) on.fraction?.(fraction); });
-        try { await (status.phase === 'not-installed' || status.phase === 'failed' ? getReady() : settle()); } finally { stop(); }
-      }
       on.state?.('writing');
       return request.typed.trim()
         ? await polish(request, on)
