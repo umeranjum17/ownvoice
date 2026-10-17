@@ -8,7 +8,8 @@
 //   6 max text      - the documented Chrome capture limit renders honestly with no clipping
 //   7 real message  - a plain message still gets versions (the decline only meets text with no clear message)
 // Declined cases show no spelling guesses: for mash they are made-up words.
-// Each case captured light and dark; the cases repeated once on a narrow phone at font scale 1.3.
+// Each case captured light and dark; the cases repeated once on a narrow phone at font scale 1.3
+// (POLISH_ROUNDS=narrow-dark repeats them there in dark too).
 // POLISH_ONLY=<ids> runs only those cases; POLISH_ROUNDS=light,dark (default light,dark,narrow; light
 // only with POLISH_ONLY) picks the rounds.
 // Build with no E2E flags: a stub build lets the canned phone writer stand in (the provenance guard
@@ -203,6 +204,8 @@ const connectWriter = async tag => {
   tap(...center(field)); await wait(700);
   adb('shell', 'input', 'text', `'${key}'`); await wait(700); // never logged or screenshotted
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
+  // The key field sits in the last card, so its Connect button can land below the fold: scroll it up.
+  for (let i = 0; i < 3 && !findText('connect'); i++) { adb('shell', 'input', 'swipe', String(width / 2), String(height * 0.75), String(width / 2), String(height * 0.35), '300'); await wait(800); }
   await tapText('connect', 20);
   // A Go login key with several workspaces gets the kit's pick (PR 216): tap OPENCODE_WORKSPACE.
   await waitText([W.connected, W.signedOut, 'more than one workspace'], 60);
@@ -359,6 +362,10 @@ try {
     // Narrow phone at font scale 1.3: the case set on a smaller screen, no clipping.
     await run('narrow-setup', async () => { adb('shell', 'wm', 'size', '720x1280'); adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3'); await theme(false); });
     for (const testCase of cases) await run(`narrow-${testCase.id}`, () => runCase(testCase, 'narrow', 'narrow'));
+  }
+  if (rounds.has('narrow-dark')) {
+    await run('narrow-dark-setup', async () => { adb('shell', 'wm', 'size', '720x1280'); adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3'); await theme(true); });
+    for (const testCase of cases) await run(`narrow-dark-${testCase.id}`, () => runCase(testCase, 'narrow-dark', 'narrow-dark'));
   }
 
   writeFileSync(resolve(out, 'coverage.json'), JSON.stringify(results, null, 2));
