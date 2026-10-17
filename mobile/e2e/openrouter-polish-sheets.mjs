@@ -52,6 +52,9 @@ const NONSENSE = 'the database got eaten backwards by purple toaster clouds bana
 const EMPTY = '';
 const MASH = 'asdf qwer zxcv';
 const MESSAGE = 'i think we should meet tomorrow at 10 to go over the plan and the budget';
+// A run-on with no stops: any stop a version adds is the writer's own sentence split, so the
+// casing at the split is actually observable (the autosave text below never split in practice).
+const SPLIT = 'we should meet tomorrow at 10 to go over the plan and the budget and i think ali can bring the chairs but he might be late so we should start without him if he is not there by ten';
 const MAX = 'We should meet tomorrow to go over the plan and the budget. '.repeat(175);
 // The words the panel uses for each honest state (packages/engine/src/words.ts), asserted verbatim.
 const DECLINED_LINE = 'This text has no clear message to polish yet.';
@@ -230,15 +233,28 @@ let page = null;
 const dismissChromeFirstRun = async () => {
   for (let i = 0; i < 12; i++) {
     if (findText('message lab')) return;
-    const n = ['accept & continue', 'without an account', 'no thanks', 'no thank you', 'got it'].map(findText).find(Boolean);
-    if (!n) { await wait(1000); continue; }
-    tap(...center(n)); await wait(1500);
+    const n = ['accept & continue', 'without an account', 'no thanks', 'no thank you', 'got it', 'i understand'].map(findText).find(Boolean);
+    if (n) { tap(...center(n)); await wait(1500); continue; }
+    if (findText('ad privacy in chrome')) {
+      // The one-time ad-privacy consent keeps its button below the fold on the narrow font-1.3
+      // screen (the tree ends at the More link): scroll the sheet up until the button shows.
+      const [w, h] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+      for (let s = 0; s < 5 && !findText('i understand'); s++) {
+        adb('shell', 'input', 'swipe', String(w / 2), String(h * .8), String(w / 2), String(h * .3), '300');
+        await wait(1000);
+      }
+      const ok = findText('i understand');
+      if (ok) { tap(...center(ok)); await wait(1500); continue; }
+      await wait(1000); continue;
+    }
+    await wait(1000);
   }
 };
 
 const CASES = [
   { id: 'autosave', text: AUTOSAVE, expect: 'versions' },
   { id: 'message', text: MESSAGE, expect: 'versions' },
+  { id: 'split', text: SPLIT, expect: 'versions' },
   { id: 'nonsense', text: NONSENSE, expect: 'declined' },
   { id: 'mash', text: MASH, expect: 'declined' },
   { id: 'empty', text: EMPTY, expect: 'empty' },
@@ -303,6 +319,16 @@ const runCase = async (testCase, tag, prefix) => {
   if (testCase.id === 'autosave') {
     const split = drafts.find(text => /[.!?]\s+\p{Ll}/u.test(text) && !/\b(?:p|e|i|etc)\.\s/u.test(text));
     if (split) throw new Error(`case autosave ${tag}: a sentence split lost its capital (${split.slice(0, 100)})`);
+  }
+  // The split capital needs a real split to check: the run-on input has no stops, so a draft with a
+  // stop followed by more words is a writer-introduced sentence split. No split offered = the
+  // casing at the split is not observable and the case fails honestly rather than passing vacuous.
+  if (testCase.id === 'split') {
+    const split = drafts.filter(text => /[.!?]\s+\S/.test(text));
+    if (!split.length) throw new Error(`case split ${tag}: the writer split no sentence, so the casing at the split is not observable`);
+    const bad = split.filter(text => /[.!?]\s+\p{Ll}/u.test(text));
+    if (bad.length) throw new Error(`case split ${tag}: a sentence split lost its capital (${bad[0].slice(0, 120)})`);
+    log(`case split ${tag}: ${split.length} draft(s) split the run-on, capitals kept`);
   }
   adb('shell', 'input', 'keyevent', '4'); // dismiss the panel (no keyboard is up)
   await wait(1200);
