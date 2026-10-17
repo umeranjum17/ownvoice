@@ -80,13 +80,38 @@ export async function proveOwnPostLive(ctx) {
   const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
   const swipeUp = async () => { adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300'); await wait(1200); };
 
+  // The setup welcome ("Write replies that sound like you."). A fresh boot can leave the
+  // keyguard up or a wedged MainActivity on top that redelivered intents never revive (run 8:
+  // forty "delivered to currently running top-most instance" with no welcome), so: dismiss the
+  // keyguard first, cold-start once with -S, and if the welcome still does not show, force-stop
+  // and cold-start again mid-loop instead of redelivering forever. On failure the last screen
+  // text, the focused app and a screenshot stay in the out dir, so the next diagnosis (run 8
+  // saved none of these) does not fly blind.
   const openUntil = async (phrase, tries = 40) => {
+    try { adb('shell', 'wm', 'dismiss-keyguard'); } catch { /* already unlocked or old API: the loop still tries */ }
+    await wait(1000);
+    adb('shell', 'am', 'start', '-S', '-n', `${pkg}/.MainActivity`);
+    await wait(2500);
     for (let i = 0; i < tries; i++) {
-      if (screenText().includes(phrase.toLowerCase())) return;
-      adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
-      await wait(1500);
-      if (/isn't responding|not responding/i.test(screenText())) { adb('shell', 'input', 'keyevent', '4'); await wait(2000); }
+      const seen = screenText();
+      if (seen.includes(phrase.toLowerCase())) return;
+      if (/isn't responding|not responding/i.test(seen)) { adb('shell', 'input', 'keyevent', '4'); await wait(2000); }
+      else if (i % 10 === 9) {
+        adb('shell', 'am', 'force-stop', pkg);
+        await wait(1500);
+        adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+        await wait(2500);
+      } else {
+        adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+        await wait(1500);
+      }
     }
+    const stuck = screenText();
+    shot('setup-stuck');
+    const focused = adb('shell', 'dumpsys', 'activity', 'activities').split('\n').filter(l => /mFocusedApp|mResumedActivity/.test(l)).join('\n').slice(0, 400);
+    writeFileSync(resolve(out, `own-post-live-${round}-setup-stuck.json`), JSON.stringify({
+      phrase, focused, screen: masked(stuck).slice(0, 500),
+    }, null, 2));
     throw new Error(`The "${phrase}" screen never showed.`);
   };
   const findText = label => nodes().find(node => `${node.label} ${node.text}`.toLowerCase().includes(label.toLowerCase()));
