@@ -166,9 +166,11 @@ const one = async (platform, i, tag) => {
   const field = await until(() => nodes().find(node => node.editable && node.text === c.reply), `the ${platform} reply field`, 120);
   tap(...center(field));
   // The bubble node is an accessibility overlay; when its label isn't exposed, tap its saved spot
-  // (right edge, halfway down) so the journey still opens the panel.
+  // (right edge, halfway down) so the journey still opens the panel — sized to the live display,
+  // which the narrow leg changes mid-run.
   const bubble = await until(bubbleNode, 'the bubble', 25).catch(() => null);
-  if (bubble) tap(...center(bubble)); else { console.log('no bubble node; using the right-edge fallback'); tap(1010, 1150); }
+  if (bubble) tap(...center(bubble));
+  else { console.log('no bubble node; using the right-edge fallback'); const [w, h] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number); tap(w - 70, h * 0.48); }
   // The writer round-trip runs first (12-44 s on Go), then the fit judge (up to 60 s): 180 s covers both.
   const t0 = Date.now();
   let line = null, error = null;
