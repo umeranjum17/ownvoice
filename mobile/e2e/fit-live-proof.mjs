@@ -163,7 +163,22 @@ const one = async (platform, i, tag) => {
   adb('logcat', '-c');
   const host = HOSTS[platform];
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `https://${host}/${i}`, '-e', 'com.android.browser.application_id', 'fit-live', 'com.android.chrome');
-  const field = await until(() => nodes().find(node => node.editable && node.text === c.reply), `the ${platform} reply field`, 120);
+  // A cold Chrome tab sometimes never renders the page (shared-emulator flake seen 2026-10-17):
+  // re-fire the intent once, then record the call as errored and move on instead of aborting the run.
+  const findField = () => nodes().find(node => node.editable && node.text === c.reply);
+  let field = await until(findField, `the ${platform} reply field`, 120).catch(() => null);
+  if (!field) {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `https://${host}/${i}`, '-e', 'com.android.browser.application_id', 'fit-live', 'com.android.chrome');
+    field = await until(findField, `the ${platform} reply field`, 60).catch(() => null);
+  }
+  if (!field) {
+    const msg = `no ${platform} reply field for case ${i}`;
+    snap(`FAIL-${tag}`);
+    appendFileSync(results, JSON.stringify({ platform, case: i, post: c.post, reply: c.reply, fits: null, ok: false, latencyMs: 0, error: msg, shot: `FAIL-${tag}.png` }) + '\n');
+    console.log(`${tag}: ERROR ${msg}`);
+    failures.push(`${tag}: ${msg}`);
+    return null;
+  }
   tap(...center(field));
   // The bubble node is an accessibility overlay; when its label isn't exposed, tap its saved spot
   // (right edge, halfway down) so the journey still opens the panel — sized to the live display,
