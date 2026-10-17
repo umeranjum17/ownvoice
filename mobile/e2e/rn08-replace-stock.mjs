@@ -433,8 +433,7 @@ try {
   shot('step-ownvoice-entry');
   tap(...center(ownvoiceNode(nodes())));
   if (!(await waitForFocus('RewriteActivity', 15))) fail('sheet', 'the stock selection did not open Ownvoice');
-  if (!(await textPresent('Replace', 5))) fail('sheet', 'Replace not offered on the editable stock selection');
-  shot('step-replace-offered');
+  shot('step-sheet-open');
 
   const before = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
   await tapText('Shorter');
@@ -453,6 +452,7 @@ try {
   const rewriteText = cands[0].text.trim();
   console.log(`rewrite: "${rewriteText}"`);
   shot('step-result');
+  if (!(await textPresent('Replace', 5))) fail('sheet', 'Replace not offered on the editable stock selection');
   await tapText('Replace');
   await wait(1500);
   if (!(await waitForFocus(hostPkg, 10))) fail('replace', 'the stock app did not come back after Replace');
