@@ -424,9 +424,17 @@ if (live) {
     for (const label of LIVE_OPTIONS) {
       if (!(await textPresent(label, 3))) throw new Error(`chip ${label} missing (${scheme})`);
     }
-    const groups = screenClusters(); // visual read: a cut chip ("Fix spe...") never holds its full label
+    const bare = s => s.toLowerCase().replace(/[^a-z]/g, '');
+    // Visual read, retried on fresh captures: a cut chip ("Fix spe...") never holds its full
+    // label, but one tesseract pass can also misread a small chip (light live-chips proved human-fine).
+    let groups = [];
+    for (let i = 0; i < 3; i++) {
+      groups = screenClusters();
+      if (LIVE_OPTIONS.every(label => groups.some(g => bare(g.text).includes(bare(label))))) break;
+      await wait(1500);
+    }
     for (const label of LIVE_OPTIONS) {
-      if (!groups.some(g => g.text.includes(label.toLowerCase()))) throw new Error(`chip ${label} not fully readable (${scheme})`);
+      if (!groups.some(g => bare(g.text).includes(bare(label)))) throw new Error(`chip ${label} not fully readable (${scheme})`);
     }
     await back();
     const results = {};
