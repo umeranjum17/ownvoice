@@ -180,9 +180,11 @@ export async function proveOwnPostLive(ctx) {
 
   // Tap the bubble over the typed line; wait for the live drafts (>= 2 "Use this" cards). Opening the
   // panel can recreate the fixture activity and lose the line, so a retry re-types it; a "Try again"
-  // the panel offers for a failed generation is tapped once and the wait goes on. On final failure
-  // the whole panel text and a screenshot stay in the out dir (run 10's longest case failed with
-  // fewer than 2 cards and no record of what was actually showing).
+  // the panel offers for a failed generation is tapped once and the wait goes on. Tall cards (the
+  // longest case) push the lower card's buttons below the fold, where the tree has no "Use this"
+  // to count — so the wait scrolls the sheet every tenth look (run 12 landed both versions yet
+  // never saw the second button). On final failure the whole panel text and a screenshot stay in
+  // the out dir.
   const tapForDrafts = async (line, id) => {
     const useThis = list => list.filter(n => /^Use this$/.test((n.text ?? '').trim())).length >= 2;
     const retype = async () => {
@@ -204,6 +206,7 @@ export async function proveOwnPostLive(ctx) {
         if (useThis(nodes())) return;
         const retry = nodes().find(n => /^Try again$/.test((n.text ?? '').trim()));
         if (retry && !tapped) { tapped = true; const p = center(retry); adb('shell', 'input', 'tap', String(Math.round(p[0])), String(Math.round(p[1]))); }
+        if (i % 10 === 9) await swipeUp();
         await wait(3000);
       }
         if (attempt === 2) {
