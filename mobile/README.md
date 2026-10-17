@@ -76,7 +76,7 @@ To produce a switch flag offline, keep a 32-byte private signing key as hex outs
 score question per shown text on X, LinkedIn and Reddit replies: the platform rubric is the
 question and the model's most probable level (`LEVELS`) becomes the card's engagement
 level. Below decide's 0.6 floor, or when nothing answered (no backend, no consent,
-offline, the 20 second deadline), the card abstains with the plain **Not sure about this
+offline, the 60 second deadline), the card abstains with the plain **Not sure about this
 one** bar; the panel never shows a number and never predicts reach. The level is never
 adjusted by hand rules. The panel asks once per tap after the writer settles, never per
 keystroke, and never for an edited text; each call uses a fresh in-memory cache.
@@ -114,7 +114,7 @@ EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18610` and run `node e2e/jev-proof.mjs
 e2e/jev-cases.json [out]` after setup with ChatGPT and Chrome switched on: Chrome
 maps x.com to the script's lab page, and each panel's levels and probabilities
 are read from the `ownvoice-fit` log line (no text is logged). Load the model first: a
-cold load outlasts the 20 second deadline and the cards then read plainly Not sure.
+cold load outlasts the 60 second deadline and the cards then read plainly Not sure.
 
 ### Card ratings
 
