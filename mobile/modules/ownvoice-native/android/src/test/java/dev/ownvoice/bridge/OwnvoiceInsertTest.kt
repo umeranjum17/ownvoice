@@ -6,6 +6,7 @@ import android.content.Intent
 import android.graphics.Rect
 import android.os.Looper
 import android.view.accessibility.AccessibilityNodeInfo
+import io.github.umeranjum17.byokit.overlay.FieldIdentity
 import io.github.umeranjum17.byokit.overlay.FieldNode
 import io.github.umeranjum17.byokit.overlay.FieldSelection
 import java.util.concurrent.CountDownLatch
@@ -86,6 +87,19 @@ class OwnvoiceInsertTest {
       assertFalse(sameInsertField(aid, null))
       assertFalse(sameInsertField(null, bid))
     } finally { a.recycle(); b.recycle() }
+  }
+
+  // From the emulator's insert log on x.com: the captured reply box had grown and moved once the
+  // draft landed (viewId=true app=true, bounds changed) while it was the same node (node=true).
+  @Test fun sameNodeStaysTheSameFieldWhenItsBoundsChange() {
+    val captured = FieldIdentity("reply-box", listOf(128, 2165, 832, 2314), "com.android.chrome")
+    val grown = captured.copy(bounds = listOf(128, 2068, 832, 2314))
+    assertTrue(sameInsertField(captured, grown, sameNode = true))
+    assertFalse(sameInsertField(captured, grown, sameNode = false))
+    assertFalse(sameInsertField(captured, grown.copy(viewId = "other-box"), sameNode = true))
+    assertFalse(sameInsertField(captured, grown.copy(app = "com.other"), sameNode = true))
+    assertFalse(sameInsertField(captured, null, sameNode = true))
+    assertFalse(sameInsertField(null, grown, sameNode = true))
   }
 
   @Test fun readbackRequiresExactTextAndCollapsedSelection() {

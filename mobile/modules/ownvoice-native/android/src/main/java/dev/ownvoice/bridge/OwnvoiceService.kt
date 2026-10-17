@@ -71,8 +71,10 @@ internal fun typingTextLimited(app: String, text: String, selection: FieldSelect
 internal fun includePracticeText(practice: Boolean, action: Boolean, viewId: String?): Boolean =
   !practice || action || viewId?.startsWith("practice-line-") == true
 
-internal fun sameInsertField(expected: FieldIdentity?, actual: FieldIdentity?): Boolean =
-  expected != null && actual == expected
+// X's reply box moves and grows once the draft lands, so its bounds change. The same framework
+// node with the same view id and package is still the captured field; another node needs every part to match.
+internal fun sameInsertField(expected: FieldIdentity?, actual: FieldIdentity?, sameNode: Boolean = false): Boolean =
+  expected != null && actual != null && (actual == expected || sameNode && actual.viewId == expected.viewId && actual.app == expected.app)
 
 internal fun insertTextMatches(app: String, text: String, readingApp: String, expected: String): Boolean =
   app == readingApp && text == expected
@@ -550,8 +552,10 @@ class OwnvoiceService : AccessibilityService() {
     try {
       if (reading == null || field == null || current == null) return false
       val identity = reading.insertField?.identity
-      resourceMatches = sameInsertField(identity, current.identity)
+      val now = current.identity
       nodeMatches = reading.input == field
+      resourceMatches = sameInsertField(identity, now, nodeMatches)
+      if (identity != null && !resourceMatches) Log.d(TAG, "insert identity viewId=${identity.viewId == now?.viewId} app=${identity.app == now?.app} bounds=${identity.bounds}->${now?.bounds}")
       // Chromium virtual fields lack view ids. Use exact framework node identity,
       // as the kit does, never package/bounds or another field with matching text.
       identityMatches = if (identity == null) nodeMatches else resourceMatches
