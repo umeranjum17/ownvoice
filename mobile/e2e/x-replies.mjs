@@ -364,11 +364,14 @@ await rebind(); // the bubble needs the service; bind it only now so the setup w
 log('Chrome bubble enabled.');
 
 // ---- Chrome first-run walk (the settle loop above owns every sheet Chrome shows) ----
-adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'https://x.com/x.html');
-await settleChrome('reply flow end to end today');
-log('fixture loaded in Chrome.');
-const urlBar = await until('the URL bar to read x.com (platform detection reads it)', () => nodes().find(node => node.text?.includes('x.com')), { seconds: 15 });
-log(`URL bar: ${urlBar.text}`);
+// The rewrite-only refused mode opens no page: its sheet runs on the process-text intent, not Chrome.
+if (process.env.X_REPLIES_LEGS !== 'rewrite-refused') {
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'https://x.com/x.html');
+  await settleChrome('reply flow end to end today');
+  log('fixture loaded in Chrome.');
+  const urlBar = await until('the URL bar to read x.com (platform detection reads it)', () => nodes().find(node => node.text?.includes('x.com')), { seconds: 15 });
+  log(`URL bar: ${urlBar.text}`);
+}
 
 // ---- the reply journey: focus composer, tap bubble, cards, edit, insert ----
 // A poll that clears any ANR dialog every fourth try while it waits.
