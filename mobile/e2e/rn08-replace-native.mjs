@@ -239,9 +239,14 @@ try {
   if (!field) fail('fixture', 'the fixture field never showed the prefilled message');
   const [fx, fy] = center(field);
   // Native selection toolbar: focus, select all, keyboard down, long-press on the
-  // selection until the toolbar (Copy/Cut/Share) reads. An overflow "Select all" is
-  // taken when the first summon only grabs a word.
-  const toolbarUp = () => {
+  // selection until the toolbar reads. A cursor-state toolbar offers "Select all"
+  // instead of Copy: tapping it widens to the whole message (run 1 summoned exactly
+  // that state three times and never took it).
+  const actionUp = () => {
+    const looksAction = /^(copy|cut|share|select all)$/i;
+    return nodes().some(n => n.clickable && looksAction.test(`${n.text || n.label || ''}`.trim()));
+  };
+  const copyUp = () => {
     const looksToolbar = /^(copy|cut|share)$/i;
     return nodes().some(n => n.clickable && looksToolbar.test(`${n.text || n.label || ''}`.trim()));
   };
@@ -256,20 +261,20 @@ try {
     if (shell('dumpsys', 'input_method').includes('mInputShown=true')) { shell('input', 'keyevent', '4'); await wait(800); }
     shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100'); // long-press on the selection
     await wait(1200);
-    toolbar = toolbarUp();
-    if (!toolbar) continue;
+    if (!actionUp()) continue;
     const selectAll = selectAllItem();
     if (selectAll) {
-      tap(...center(selectAll)); // a visible Select all means the first summon grabbed a word: widen to the whole message
-      await wait(800);
-      if (shell('dumpsys', 'input_method').includes('mInputShown=true')) { shell('input', 'keyevent', '4'); await wait(800); }
-      shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100');
-      await wait(1200);
-      toolbar = toolbarUp();
+      tap(...center(selectAll)); // cursor/word state: widen to the whole message
+      await wait(1000);
+      if (!actionUp()) {
+        shell('input', 'swipe', String(Math.round(fx)), String(Math.round(fy)), String(Math.round(fx)), String(Math.round(fy)), '1100'); // selection taken but the toolbar closed: summon it back
+        await wait(1200);
+      }
     }
+    toolbar = copyUp();
   }
   shot('step-toolbar');
-  if (!toolbar) fail('toolbar', 'the native selection toolbar never appeared after three long-presses');
+  if (!toolbar) fail('toolbar', 'no Copy/Cut/Share toolbar after three summons (Select-all states widened)');
 
   // Never the floating bubble (windowType 4): it is clickable and called Ownvoice, and
   // tapping it opens the panel instead of the sheet.
