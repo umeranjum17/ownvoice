@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { accessibilityProbe, center } from './accessibility.mjs';
+import { hideKeyboard, typeKeys } from './keytype.mjs';
 const serial = process.env.ANDROID_SERIAL;
 const out = resolve(process.argv[2] ?? 'e2e/artifacts');
 const nodes = accessibilityProbe(serial, out); // refuses non-owned AVDs before any changes
@@ -19,7 +20,13 @@ const pref = () => adb('shell', 'su', '0', 'cat', `/data/data/${pkg}/shared_pref
 const typing = () => /name="typingCheck" value="true"/.test(pref());
 const toggleTyping = async () => {
   await route('/');
-  const n = nodes().find(n => n.clickable && n.label.startsWith('Check my spelling as I type,'));
+  // The switch sits below Pause for now in Home's scroll: reveal it before tapping.
+  const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+  let n;
+  for (let i = 0; i < 6 && !(n = nodes().find(n => n.clickable && n.label.startsWith('Check my spelling as I type,'))); i++) {
+    adb('shell', 'input', 'swipe', String(Math.round(width / 2)), String(Math.round(height * .7)), String(Math.round(width / 2)), String(Math.round(height * .3)), '300');
+    await wait(1000);
+  }
   if (!n) throw new Error('Typing choice inaccessible');
   nodes(n.label); await wait(1000);
 };
@@ -37,15 +44,37 @@ async function typingFixProof() {
     checks.push({ name, ok, detail }); console.log(`${ok ? 'PASS' : 'FAIL'} ${name} ${detail}`);
     if (!ok) throw new Error(`${name}: ${detail}`);
   };
-  const field = () => nodes().find(n => n.editable && !n.password);
+  const field = () => nodes().find(n => n.editable && !n.password && n.bounds[1] > 300)
+    ?? nodes().find(n => n.editable && !n.password);
   const read = () => field()?.text ?? '';
+  // The page field, stable across two polls: after a font-scale change Chrome
+  // rebuilds its tree, and typing into the omnibox while the page settles
+  // passes the exact-input check on the wrong field, then fails the Fix.
+  const pageField = async () => {
+    let stable = '';
+    for (let i = 0; i < 14; i++) {
+      const f = nodes().find(n => n.editable && !n.password && n.bounds[1] > 300);
+      const key = f ? String(f.bounds) : '';
+      if (f && key === stable) return f;
+      stable = key;
+      await wait(1000);
+    }
+    throw new Error('Page field absent or unsettled');
+  };
   const fill = async text => {
-    const f = field(); if (!f) throw new Error('Editable field absent');
+    const f = await pageField();
     tap(f); await wait(500);
+    // Hardware keys, not a paste: a paste runs through the soft keyboard's
+    // composing session, where autocorrect rewrites slips mid-type.
+    await hideKeyboard(adb, wait);
+    // Hiding must not have walked the page away: re-verify the same field.
+    await pageField();
+    const focused = nodes().find(n => n.editable && n.focused && !n.password);
+    if (!focused) { const retry = field(); if (!retry) throw new Error('Editable field absent after hiding the keyboard'); tap(retry); await wait(500); }
     adb('shell', 'input', 'keycombination', '113', '29');
     adb('shell', 'input', 'keyevent', '67');
-    adb('shell', 'input', 'text', text.replaceAll(' ', '%s'));
-    await wait(2000);
+    await typeKeys(adb, wait, text);
+    await wait(2200);
     verify('exact field input', read() === text, JSON.stringify(read()));
   };
   const expectBadge = count => verify(`badge ${count}`, requireBubble().label ===
@@ -95,6 +124,14 @@ async function typingFixProof() {
     if (!typing()) await toggleTyping();
     await route('apps');
     const chrome = () => nodes().find(n => n.checkable && /chrome/i.test(`${n.label} ${n.text}`));
+    // The app list is a scroll: bring the Chrome row into view before reading it.
+    if (!chrome()) {
+      const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+      for (let i = 0; i < 8 && !chrome(); i++) {
+        adb('shell', 'input', 'swipe', String(Math.round(width / 2)), String(Math.round(height * .7)), String(Math.round(width / 2)), String(Math.round(height * .3)), '300');
+        await wait(1000);
+      }
+    }
     if (!chrome()?.checked) {
       const row = chrome(); if (!row) throw new Error('Chrome app row absent');
       nodes(row.label || row.text); await wait(1000);
@@ -129,6 +166,9 @@ async function typingFixProof() {
       } finally { if (recording) await recordStop(recording); }
     if (theme === 'dark') {
       adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
+      // A font change rebuilds Chrome's tree; let it settle before the page
+      // opens, or capture and insert straddle two trees and the Fix fails.
+      await wait(5000);
       await open('/x');
       await fill('I shoud finish the report by tonight'); await showPanel(); snap('font13-before-fix');
       await fix('I should finish the report by tonight'); expectBadge(0); snap('font13-after-fix');
