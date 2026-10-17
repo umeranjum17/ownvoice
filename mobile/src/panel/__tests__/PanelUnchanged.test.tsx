@@ -55,7 +55,7 @@ test('a failed polish still says it couldn\'t, not that it looks good', async ()
   expect(screen.getByRole('button', { name: words.tryAgain })).toBeTruthy();
 });
 
-// Main279 actual nonsense panel: semantic refusal was rendered as a transient failure, without header Dot.
+// Captured nonsense panel: semantic refusal was rendered as a transient failure, without header Dot.
 test('captured nonsense has honest refusal, no retry, retained repeat fix and the normal header mascot', async () => {
   native.typingCheck.mockResolvedValue(true);
   try {

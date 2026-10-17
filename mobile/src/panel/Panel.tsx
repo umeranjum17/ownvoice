@@ -586,7 +586,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />
             <View style={{ flex: 1 }} />
             {/* The edit field opens on a word boundary, so whatever the person types never
-                glues onto the card's last word (Main718): their words stay clearly theirs. */}
+                glues onto the card's last word: their words stay clearly theirs. */}
             <Button kind="text" label={words.edit} onPress={() => setEdit({ slot: card.slot, text: /\s$/.test(card.text) ? card.text : `${card.text} ` })} />
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>}

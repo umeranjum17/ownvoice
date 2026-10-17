@@ -385,7 +385,7 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   // asks once more; a second break stays empty (the bottom-level check remains the backstop).
   const banned = never.map(p => p.trim()).filter(Boolean);
   const breaks = (text: string) => banned.some(p => matcher(p).test(text));
-  // A card that only echoes their line (Main765: 'shipping offline notes' came back as
+  // A card that only echoes their line ('shipping offline notes' came back as
   // 'Shipping offline notes') is dropped the same way, so the same retry re-asks once.
   const echo = echoKey(point);
   const echoes = (text: string) => echo.length > 0 && echoKey(text) === echo;
