@@ -308,15 +308,22 @@ const connectOpenCode = async () => {
   await tapText('with your opencode go');
   await pasteKey('paste your opencode go key');
   await tapText('connect', 20);
-  // A login key that works with several workspaces shows the kit's pick; tap the plan's workspace.
+  // The connect result is read fresh: the connected line wins over any earlier read of the screen. A key that
+  // works with several workspaces shows the kit's pick instead; only then is the workspace tapped. Either
+  // wait fails after 20 s with a screenshot of what is on screen.
   const seen = await waitText(['more than one workspace', 'opencode go is connected', 'not accepted'], 40);
   if (`${seen.label} ${seen.text}`.toLowerCase().includes('not accepted')) throw new Error(`OpenCode Go rejected the key. On screen: ${words()}`);
+  await wait(1500);
+  if (findText('not accepted')) throw new Error(`OpenCode Go rejected the key. On screen: ${words()}`);
+  if (!findText('opencode go is connected')) {
+    await until('the connected line or the workspace pick', () => findText('opencode go is connected') || findText('more than one workspace'), { seconds: 20, every: 1200 });
+  }
   if (!findText('opencode go is connected')) {
     const pick = await until(`the "${goWorkspace}" workspace in the pick`, () => {
       const node = nodes().find(n => (n.text || n.label || '').trim() === goWorkspace);
       if (!node) adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
       return node;
-    }, { seconds: 30, every: 1200 });
+    }, { seconds: 20, every: 1200 });
     log(`workspace pick: ${goWorkspace}`);
     tap(...center(pick));
     await waitText(['opencode go is connected'], 60);
