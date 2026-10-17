@@ -17,7 +17,8 @@ const RUBRIC: Record<string, string> = {
 
 /** `probability`: the judge's probability for `level`, for logs and proof only; people see `words`. */
 /** `voice`: the same call's yes/no on whether the card sounds like them, from their selected samples. */
-export type Fit = { level: number | null; words: string; probability: number | null; voice: boolean | null };
+/** `refusal`: the writer account turned the rating away, so the bar says that instead of the unsure read. */
+export type Fit = { level: number | null; words: string; probability: number | null; voice: boolean | null; refusal?: string };
 
 /** Whether this platform has a rubric to rate against. */
 export const rated = (platform: Platform) => platform.id in RUBRIC;

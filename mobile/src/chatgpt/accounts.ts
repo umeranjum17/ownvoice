@@ -136,7 +136,7 @@ const openCodeSessionId = () => {
   return openCodeSession;
 };
 
-export type CloudAsk = { instructions: string; input: string; json: boolean; onText?: (text: string) => void; signal?: AbortSignal };
+export type CloudAsk = { instructions: string; input: string; json: boolean; onText?: (text: string) => void; signal?: AbortSignal; fetch?: typeof fetch };
 
 /** Claude sometimes wraps a JSON answer in prose or fences; the JSON readers need the object itself. */
 function jsonBody(text: string): string {
@@ -153,9 +153,11 @@ export async function askCloud(key: CloudKey, ask: CloudAsk): Promise<string> {
   // OpenCode Go's plan key on the plan's own endpoint (which also carries the run's session id,
   // so the adapter sends its session-affinity headers).
   if (key === 'openrouter' || key === 'opencode') {
+    // The adapter's SDK makes its own abort signal, so the app's per-request fetch is handed over explicitly:
+    // its consent checks and the status it reads run on the real request.
     const plan = key === 'opencode'
-      ? { account: OPENCODE_ROUTE, model: OPENCODE_MODEL, options: { maxTokens: 8192, signal: ask.signal, sessionId: openCodeSessionId() } }
-      : { account: 'openrouter', model: OPENROUTER_MODEL, options: { maxTokens: 8192, signal: ask.signal } };
+      ? { account: OPENCODE_ROUTE, model: OPENCODE_MODEL, options: { maxTokens: 8192, signal: ask.signal, sessionId: openCodeSessionId(), fetch: ask.fetch } }
+      : { account: 'openrouter', model: OPENROUTER_MODEL, options: { maxTokens: 8192, signal: ask.signal, fetch: ask.fetch } };
     let streamed = '';
     const result = await getInstance().respondKey(member, {
       ...plan,

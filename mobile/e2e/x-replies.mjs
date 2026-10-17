@@ -160,7 +160,8 @@ const serviceOff = async () => {
 const pidOf = () => { try { return adb('shell', 'pidof', pkg).trim(); } catch { return ''; } };
 const killApp = async () => {
   const pids = pidOf().split(/\s+/).filter(Boolean);
-  if (pids.length) adb('shell', 'su', '0', 'kill', '-9', ...pids);
+  // am force-stop ends the app's processes without root (the Play image has no su); rebind then restores the service.
+  if (pids.length) adb('shell', 'am', 'force-stop', pkg);
   // The system may start a fresh process for the service at once; only the killed ones must be gone.
   await until('the killed Ownvoice process to end', () => !pidOf().split(/\s+/).some(pid => pids.includes(pid)), { seconds: 10, every: 300 });
 };
@@ -308,15 +309,22 @@ const connectOpenCode = async () => {
   await tapText('with your opencode go');
   await pasteKey('paste your opencode go key');
   await tapText('connect', 20);
-  // A login key that works with several workspaces shows the kit's pick; tap the plan's workspace.
+  // The connect result is read fresh: the connected line wins over any earlier read of the screen. A key that
+  // works with several workspaces shows the kit's pick instead; only then is the workspace tapped. Either
+  // wait fails after 20 s with a screenshot of what is on screen.
   const seen = await waitText(['more than one workspace', 'opencode go is connected', 'not accepted'], 40);
   if (`${seen.label} ${seen.text}`.toLowerCase().includes('not accepted')) throw new Error(`OpenCode Go rejected the key. On screen: ${words()}`);
+  await wait(1500);
+  if (findText('not accepted')) throw new Error(`OpenCode Go rejected the key. On screen: ${words()}`);
+  if (!findText('opencode go is connected')) {
+    await until('the connected line or the workspace pick', () => findText('opencode go is connected') || findText('more than one workspace'), { seconds: 20, every: 1200 });
+  }
   if (!findText('opencode go is connected')) {
     const pick = await until(`the "${goWorkspace}" workspace in the pick`, () => {
       const node = nodes().find(n => (n.text || n.label || '').trim() === goWorkspace);
       if (!node) adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
       return node;
-    }, { seconds: 30, every: 1200 });
+    }, { seconds: 20, every: 1200 });
     log(`workspace pick: ${goWorkspace}`);
     tap(...center(pick));
     await waitText(['opencode go is connected'], 60);
@@ -327,6 +335,10 @@ const connectOpenCode = async () => {
 // read-list check means something only when a writer could have answered and the newest row
 // carries no "Sent to your AI account" mark.
 const refusalOnly = process.env.X_REPLIES_LEGS === 'refusal';
+const refusedOnly = process.env.X_REPLIES_LEGS === 'refused';
+// X_REPLIES_LEGS=rewrite-refused: only the rewrite sheet's refusal, light and dark. The sheet opens on the same
+// PROCESS_TEXT intent as the selection menu, so no page (and no X host) is needed; the reply cards need X.
+const rewriteOnly = process.env.X_REPLIES_LEGS === 'rewrite-refused';
 if (writer === 'opencode') await connectOpenCode();
 else await connectOpenRouter();
 log(`setup finished (live ${writer === 'opencode' ? 'OpenCode Go' : 'OpenRouter'} writer connected${refusalOnly ? '; refusal legs only, no writer call' : ''}).`);
@@ -353,11 +365,14 @@ await rebind(); // the bubble needs the service; bind it only now so the setup w
 log('Chrome bubble enabled.');
 
 // ---- Chrome first-run walk (the settle loop above owns every sheet Chrome shows) ----
-adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'https://x.com/x.html');
-await settleChrome('reply flow end to end today');
-log('fixture loaded in Chrome.');
-const urlBar = await until('the URL bar to read x.com (platform detection reads it)', () => nodes().find(node => node.text?.includes('x.com')), { seconds: 15 });
-log(`URL bar: ${urlBar.text}`);
+// The rewrite-only refused mode opens no page: its sheet runs on the process-text intent, not Chrome.
+if (process.env.X_REPLIES_LEGS !== 'rewrite-refused') {
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'https://x.com/x.html');
+  await settleChrome('reply flow end to end today');
+  log('fixture loaded in Chrome.');
+  const urlBar = await until('the URL bar to read x.com (platform detection reads it)', () => nodes().find(node => node.text?.includes('x.com')), { seconds: 15 });
+  log(`URL bar: ${urlBar.text}`);
+}
 
 // ---- the reply journey: focus composer, tap bubble, cards, edit, insert ----
 // A poll that clears any ANR dialog every fourth try while it waits.
@@ -736,6 +751,35 @@ const LABELS_ONLY = { query: '?case=labels', need: 'everyone can reply', note: '
 // A failed earlier run can leave its recording marker behind; clear it so motion-start is honest.
 for (const stale of ['.motion.pid', '.motion.out']) rmSync(`${root}/verify-artifacts/${task}/${stale}`, { force: true });
 
+// X_REPLIES_LEGS=refused: the plan key's gateway refuses the request (the build's 403 stand-in, no request
+// leaves the emulator). The reply panel and the rewrite sheet must both say so by name, with the next step,
+// and never show a card, a generic line or a vague rating.
+const REFUSED = 'OpenCode Go refused this account. Connect it again, or pick another writer.';
+const refusedLeg = async (screen, theme) => {
+  await verifyFixtureLive();
+  await field();
+  await focusComposer();
+  tap(...center(await bubble()));
+  await until(`the refusal line on ${screen}/${theme}`, () => panelText(REFUSED), { seconds: 120 });
+  if (await panelButton('Edit', 2)) throw new Error(`A card appeared on ${screen}/${theme}.`);
+  if (panelText("didn't answer") || panelText('Reply ideas are unavailable')) throw new Error(`A generic or withhold line showed on ${screen}/${theme}.`);
+  if (!(await panelButton('Choose another writer', 4))) throw new Error(`No "Choose another writer" button on ${screen}/${theme}.`);
+  shot(screen, 'refused', theme);
+  log(`${screen}/${theme}: the panel names the refused writer and offers another`);
+};
+const REWRITE_SELECTED = 'I think we should move the call to Tuesday. Really.';
+const rewriteRefused = async theme => {
+  // The selection menu's rewrite, opened on the process-text intent the way the rewrite proof opens it.
+  adb('shell', 'am', 'start', '-n', `${pkg}/dev.ownvoice.bridge.RewriteActivity`, '-a', 'android.intent.action.PROCESS_TEXT', '-t', 'text/plain', '--es', 'android.intent.extra.PROCESS_TEXT', REWRITE_SELECTED);
+  const chip = await until('the Shorter choice on the rewrite sheet', () => nodes().find(n => n.clickable && (n.text === 'Shorter' || n.label === 'Shorter')), { seconds: 20 });
+  tap(...center(chip));
+  await until(`the refusal note on the rewrite sheet (${theme})`, () => panelText(REFUSED), { seconds: 120 });
+  if (panelText("didn't answer") || panelText('Something went wrong')) throw new Error(`A generic line showed on the rewrite sheet (${theme}).`);
+  if (!(await panelButton('Choose another writer', 4))) throw new Error(`No "Choose another writer" button on the rewrite sheet (${theme}).`);
+  shot('x-rewrite', 'refused', theme);
+  log(`rewrite sheet/${theme}: names the refused writer`);
+};
+
 // Each leg is guarded so one failure is recorded rather than losing the rest of the run. A leg that
 // needs the writer is skipped once the writer has refused (more calls would only repeat the refusal),
 // while the refusal legs — which make no writer request — keep running.
@@ -769,7 +813,23 @@ const extreme = async on => {
 };
 
 try {
-  if (preflightOnly) {
+  if (refusedOnly) {
+    await leg('refused-light', () => refusedLeg('x-refused', 'light'));
+    await leg('refused-rewrite-light', () => rewriteRefused('light'));
+    evidence('theme', 'dark');
+    adb('shell', 'am', 'force-stop', 'com.android.chrome');
+    await killApp();
+    await rebind();
+    await leg('refused-dark', () => refusedLeg('x-refused', 'dark'));
+    await leg('refused-rewrite-dark', () => rewriteRefused('dark'));
+  } else if (rewriteOnly) {
+    await leg('refused-rewrite-light', () => rewriteRefused('light'));
+    evidence('theme', 'dark');
+    adb('shell', 'am', 'force-stop', 'com.android.chrome');
+    await killApp();
+    await rebind();
+    await leg('refused-rewrite-dark', () => rewriteRefused('dark'));
+  } else if (preflightOnly) {
     await leg('preflight', () => journey('x-preflight', 'light', {}), { needsWriter: true }); // stops after the label check
   } else {
   // Phase 1 (light): the refusal legs first, because they prove the withhold without any writer call

@@ -11,13 +11,15 @@ import type { CloudKey, Source } from './source';
 /** `samples`: the same selected replies the fit call judges as "Sounds like you"; the phone prompts fit the shortest that hold. */
 export type DraftRequest = { conversation: string; written: string; nodes?: ScreenText[]; fieldTop?: number; typed: string; point?: string; guide?: string; never?: string[]; samples?: string[]; dashes?: 'keep' | 'remove'; avoid?: string[]; platform?: Platform };
 export type WriterState = 'downloading' | 'writing';
-export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; fallback?: () => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
+export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; fallback?: () => void; refused?: (line: string) => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
 /** `unchanged`: no drafts because the writer gave their text back as it was, so it already reads well. */
 export type Choice = { drafts: string[]; reason?: string; unchanged?: boolean; declined?: boolean };
 export interface Writer { write(request: DraftRequest, on?: WriterEvents): Promise<Choice> }
 export class SendVeto extends Error {}
 /** The account's plan limit (a rate limit) was reached: the phone writes instead, with the plan's own line. */
 export class PlanLimit extends Error {}
+/** The writer account refused this phone's request (its key or workspace was turned away): the message names the writer and what to do. */
+export class AccountRefused extends Error {}
 
 /** No writer chosen yet: the panel says to choose first instead of drafting. */
 export const needWriter: Writer = { write: async () => { throw new Error(words.needWriterPanel); } };
@@ -30,21 +32,23 @@ export const thrower = (line: string): Writer => ({ write: async () => { throw n
 
 /** Whether a shown line is a cloud plan limit: the person can still pick another writer. */
 export const isPlanLimitLine = (line: string | null | undefined): boolean => !!line && line.startsWith(words.claudePlanLimit);
+/** Whether a shown line says the person's writer account needs another writer or a reconnect: the panel offers the switch. */
+export const isOtherWriterLine = (line: string | null | undefined): boolean => isPlanLimitLine(line) || line === words.openCodeRefused || line === words.openrouterRefused;
 
 /** The plain lines one cloud provider's route says; ChatGPT's stay the exact shipped strings. */
-export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string };
+export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string; refused?: string };
 export const cloudWords = (key: CloudKey): CloudWords => key === 'claude'
   ? { off: words.claudeOff, offNoPhone: words.claudeOffNoPhone, failedNoPhone: words.claudeFailed, fallback: words.claudeFallback, needNote: words.claudeNeedNote, switchUnavailable: words.claudeSwitchUnavailable, planLimit: words.claudePlanLimit }
   : key === 'openrouter'
-  ? { off: words.openrouterOff, offNoPhone: words.openrouterOffNoPhone, failedNoPhone: words.openrouterFailed, fallback: words.openrouterFallback, needNote: words.openrouterNeedNote, switchUnavailable: words.openrouterSwitchUnavailable }
+  ? { off: words.openrouterOff, offNoPhone: words.openrouterOffNoPhone, failedNoPhone: words.openrouterFailed, fallback: words.openrouterFallback, needNote: words.openrouterNeedNote, switchUnavailable: words.openrouterSwitchUnavailable, refused: words.openrouterRefused }
   : key === 'opencode'
-  ? { off: words.openCodeOff, offNoPhone: words.openCodeOffNoPhone, failedNoPhone: words.openCodeFailed, fallback: words.openCodeFallback, needNote: words.openCodeNeedNote, switchUnavailable: words.openCodeSwitchUnavailable }
+  ? { off: words.openCodeOff, offNoPhone: words.openCodeOffNoPhone, failedNoPhone: words.openCodeFailed, fallback: words.openCodeFallback, needNote: words.openCodeNeedNote, switchUnavailable: words.openCodeSwitchUnavailable, refused: words.openCodeRefused }
   : { off: CHATGPT_OFF, offNoPhone: words.gptOffNoPhone, failedNoPhone: words.gptFailedNoPhone, fallback: words.fallback, needNote: words.needWriterNote, switchUnavailable: words.switchUnavailable };
 
 /** The one plain line for a failed cloud call on a phone that cannot write instead. */
 export function noPhoneLine(error: unknown, lines: CloudWords): string {
   const message = error instanceof Error ? error.message : String(error);
-  if (error instanceof PlanLimit) return message;
+  if (error instanceof PlanLimit || error instanceof AccountRefused) return message;
   if (error instanceof SendVeto && message === lines.off) return lines.offNoPhone;
   if (classify(message)?.kind === 'network') return words.offlineNoPhone;
   return lines.failedNoPhone;
@@ -86,7 +90,7 @@ export async function withPhoneFallback(primary: Writer, phone: Writer, request:
     if (phoneStatus === 'cant') throw new Error(noPhoneLine(error, lines));
     const message = error instanceof Error ? error.message : String(error);
     const reason = error instanceof SendVeto ? error.message
-      : limit ?? (classify(message)?.kind === 'network' ? words.offlinePhone
+      : limit ?? (error instanceof AccountRefused ? error.message : classify(message)?.kind === 'network' ? words.offlinePhone
       : (await fallbackNote?.().catch(() => null)) ?? lines.fallback);
     on?.fallback?.();
     try {
