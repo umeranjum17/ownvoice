@@ -10,12 +10,17 @@ export function emulatorName(serial) {
   return name || execFileSync('adb', ['-s', serial, 'shell', 'getprop', 'ro.boot.qemu.avd_name'], { encoding: 'utf8' }).trim();
 }
 
-/** Build a standalone test APK: it instruments itself, leaving Ownvoice's process and service alone. */
-export function accessibilityProbe(serial, scratch) {
-  if (!/^emulator-\d+$/.test(serial)) throw new Error('Accessibility proof requires an owned emulator.');
-  const avd = process.env.OWNVOICE_AVD_NAME;
-  const actual = emulatorName(serial);
-  if (!avd || actual !== avd) throw new Error(`AVD ${actual} does not match OWNVOICE_AVD_NAME.`);
+/** Build a standalone test APK: it instruments itself, leaving Ownvoice's process and service alone.
+ *  `phone` takes a real lab phone's serial (the phone writer proof) instead of an owned emulator. */
+export function accessibilityProbe(serial, scratch, { phone = false } = {}) {
+  if (phone) {
+    if (!serial || /^emulator-/.test(serial)) throw new Error('The phone probe takes a phone serial.');
+  } else {
+    if (!/^emulator-\d+$/.test(serial)) throw new Error('Accessibility proof requires an owned emulator.');
+    const avd = process.env.OWNVOICE_AVD_NAME;
+    const actual = emulatorName(serial);
+    if (!avd || actual !== avd) throw new Error(`AVD ${actual} does not match OWNVOICE_AVD_NAME.`);
+  }
   const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? join(homedir(), 'Android/Sdk');
   const javaHome = process.env.JAVA_HOME;
   if (!javaHome) throw new Error('Set JAVA_HOME to the JDK used to build the app.');

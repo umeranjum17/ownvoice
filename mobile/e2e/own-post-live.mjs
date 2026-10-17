@@ -1,7 +1,9 @@
 // The live-writer leg of the own-posts journey (done-done journey own-posts), driven from
-// mobile/e2e/own-post.mjs when OWN_POST_WRITER=opencode. The writer is the real OpenCode Go plan
-// gateway connected through the app's own connect field (ownvoice://source), exactly as a person
-// would; there is no stub text anywhere in this path. On a blank X-style composer the panel asks
+// mobile/e2e/own-post.mjs when OWN_POST_WRITER=opencode or phone. The opencode writer is the real
+// OpenCode Go plan gateway connected through the app's own connect field (ownvoice://source), exactly
+// as a person would. The phone writer is the lab phone's own model, already got ready by the person
+// (the driver never starts its download); it is chosen on the same screen. No stub text anywhere in
+// this path. On a blank X-style composer the panel asks
 // for the one line the post is about, then drafts from it. Every draft is checked: on topic, at
 // most 280 characters, no placeholder, no "**", no assistant chatter, and no two drafts differing
 // by one word. One draft is edited, inserted, and the composer is read back for exactly that text.
@@ -67,15 +69,15 @@ export function draftTexts(list, line) {
 }
 
 export async function proveOwnPostLive(ctx) {
-  const { adb, nodes, bubble, wait, evidence, theme, out, fixturePkg, pkg, type, key, withNodes, composerText, screenText, center, rebind, rebindCycle, bound } = ctx;
+  const { adb, nodes, bubble, wait, evidence, theme, out, fixturePkg, pkg, type, key, withNodes, composerText, screenText, center, rebind, rebindCycle, bound, phone } = ctx;
   const narrow = process.env.OWN_POST_NARROW === '1';
   const round = narrow ? 'narrow' : theme;
   const workspace = process.env.OPENCODE_WORKSPACE ?? 'Working2';
-  const planKey = process.env.OC_KEY ?? '';
-  if (planKey.length < 20) throw new Error('OC_KEY is not set to the OpenCode Go plan key.');
-  const masked = text => String(text).replaceAll(planKey, '<key>');
+  const planKey = phone ? '' : (process.env.OC_KEY ?? '');
+  if (!phone && planKey.length < 20) throw new Error('OC_KEY is not set to the OpenCode Go plan key.');
+  const masked = text => (planKey ? String(text).replaceAll(planKey, '<key>') : String(text));
   mkdirSync(out, { recursive: true });
-  const results = { writer: 'opencode', workspace, round, cases: [] };
+  const results = { writer: phone ? 'phone' : 'opencode', workspace: phone ? null : workspace, round, cases: [] };
   const shot = screen => evidence('shot', 'ov-own-posts', screen, 'live', round);
   const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
   const swipeUp = async () => { adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300'); await wait(1200); };
@@ -125,9 +127,9 @@ export async function proveOwnPostLive(ctx) {
   // kit's workspace pick when the key acts for several. The key is typed once and never read back.
   // A connect failure saves the panel text, the focused app and a screenshot (the narrow round
   // died on an empty node tree with no record of what the screen showed).
-  const connectOpenCode = async () => {
+  const connectWriter = async () => {
     try {
-      await connectOpenCodeInner();
+      await (phone ? connectPhoneInner() : connectOpenCodeInner());
     } catch (error) {
       shot('connect-stuck');
       const focused = adb('shell', 'dumpsys', 'activity', 'activities').split('\n').filter(l => /mFocusedApp|mResumedActivity/.test(l)).join('\n').slice(0, 400);
@@ -168,6 +170,23 @@ export async function proveOwnPostLive(ctx) {
     }
     // Otherwise the seen node was the connected line itself; the screen may already have moved on,
     // so the connected node is not required to still be there.
+  };
+
+  // The phone's own writer: "On this phone" on the same chooser, and the phone must already show it is
+  // ready to write (the person's one-time yes and download came first). The driver never answers the
+  // ask or starts the download, so a phone that still asks for it stops here.
+  const connectPhoneInner = async () => {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
+    await waitText(['how should ownvoice write'], 30);
+    await tapText('on this phone');
+    await wait(2000);
+    for (let i = 0; i < 150 && !findText('ready. it writes right here'); i++) {
+      if (findText('get this phone ready to write')) throw new Error('This phone still asks for its one-time download; the driver does not start it.');
+      await wait(2000);
+    }
+    if (!findText('ready. it writes right here')) throw new Error('This phone never showed that it is ready to write.');
+    key(4);
+    await wait(1500);
   };
 
   const clearComposer = async () => {
@@ -302,10 +321,13 @@ export async function proveOwnPostLive(ctx) {
 
   // Setup finished with no writer (Back on the welcome), then the real key connected on the writer
   // screen; the bubble needs the service, which is bound only now so the setup walk stays first-run.
-  await openUntil('sound like you');
-  key(4);
-  await wait(2500);
-  await connectOpenCode();
+  // The phone keeps its setup as the person left it; the OpenCode leg starts from a first install.
+  if (!phone) {
+    await openUntil('sound like you');
+    key(4);
+    await wait(2500);
+  }
+  await connectWriter();
   await rebind();
   // A process restart around the connect eats the first bind (the setting changed only before the
   // death, and Android does not rebind until the setting changes again): fresh off/on cycles.
