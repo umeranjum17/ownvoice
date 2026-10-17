@@ -29,10 +29,18 @@ export function getLocalModel(): LocalModel {
   return instance;
 }
 
+// One native context takes one call at a time; a second overlapping call would reject busy.
+let onDevice: Promise<unknown> = Promise.resolve();
+
+function oneAtATime<T>(run: () => Promise<T>): Promise<T> {
+  const result = onDevice.then(run);
+  onDevice = result.catch(() => {});
+  return result;
+}
+
 /** Current model state: unsupported, not-installed, installing, installed, loading, ready, busy, failed. */
-export async function localModelState(): Promise<InferState> {
-  const local = getLocalModel();
-  return local.check();
+export function localModelState(): Promise<InferState> {
+  return oneAtATime(() => getLocalModel().check());
 }
 
 /** Install the local model with progress tracking. Wi-Fi-only unless mobile data was chosen. */
@@ -69,15 +77,10 @@ export function agreedToDownload(): boolean {
   return !!store.get<boolean>(AGREED_KEY);
 }
 
-// One native context takes one call at a time; a second overlapping call would reject busy.
-let onDevice: Promise<unknown> = Promise.resolve();
-
-/** Generate text using the local model; calls queue behind each other. */
+/** Generate text using the local model; calls and state checks queue behind each other. */
 export function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal): Promise<string> {
-  const answer = onDevice.then(async () => {
+  return oneAtATime(async () => {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return (await getLocalModel().complete({ prompt, maxOutputTokens: maxTokens, signal })).text;
   });
-  onDevice = answer.catch(() => {});
-  return answer;
 }

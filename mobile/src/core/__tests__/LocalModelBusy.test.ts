@@ -20,13 +20,24 @@ const llama = fakeLlama({ reply: async () => { await gate; return '{}'; } });
 const decodes = () => llama.contexts.reduce((count, context) => count + context.completions.length, 0);
 const tick = () => new Promise(resolve => setTimeout(resolve, 5));
 
-test('a state check during a real on-device decode is rejected busy, and the phone still reads ready', async () => {
+test('a state check and a decode started together both succeed without busy', async () => {
+  gate = Promise.resolve();
+  const answer = askLocal('tone', 80);
+  const state = localModelState();
+  const ready = phoneCanWrite();
+  await expect(answer).resolves.toBe('{}');
+  await expect(state).resolves.toMatchObject({ phase: 'ready' });
+  await expect(ready).resolves.toBe('ready');
+  expect(decodes()).toBe(1);
+});
+
+test('a state check during a real on-device decode waits for it instead of rejecting busy', async () => {
   let release!: () => void;
   gate = new Promise<void>(resolve => { release = resolve; });
   const answer = askLocal('tone', 80);
   while (decodes() === 0) await tick();
-  await expect(localModelState()).rejects.toMatchObject({ code: 'busy' });
-  await expect(phoneCanWrite()).resolves.toBe('ready');
+  const state = phoneCanWrite();
   release();
   await expect(answer).resolves.toBe('{}');
+  await expect(state).resolves.toBe('ready');
 });

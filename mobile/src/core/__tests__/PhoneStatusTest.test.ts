@@ -71,7 +71,8 @@ test('a call that lands during a real on-device decode reads as ready, not cant'
   gate = new Promise<void>(resolve => { release = resolve; });
   const answer = actual.askLocal('tone', 80);
   while (decodes() === 0) await tick();
-  await expect(phoneCanWrite()).resolves.toBe('ready');
+  const ready = phoneCanWrite();
   release();
   await expect(answer).resolves.toBe('{}');
+  await expect(ready).resolves.toBe('ready');
 });
