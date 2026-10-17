@@ -1,5 +1,5 @@
 // Draft-quality logic (look spec section 5). Pure TypeScript; the writers call it.
-import { platformLine, slotsFor, CHAT_SLOTS, type Platform } from './platforms.ts';
+import { platformLine, slotsFor, CHAT_SLOTS, ALL_SLOTS, type Platform } from './platforms.ts';
 import type { Rules } from './slop.ts';
 import { addedNumbers, inventedTimes, matcher } from './slop.ts';
 import { MAX_GUIDE_LENGTH, rulesOnly, selectExamples } from './samples.ts';
@@ -319,7 +319,10 @@ export function stripControlLines(text: string, controls: string[]): string {
 
 /** An echo only re-capitalises or re-punctuates the user's line, so it is never a draft. */
 export const echoKey = (text: string) =>
-  text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, '').replace(/\s+/g, ' ').trim();
+  text.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+
+/** A slot's words in order, whatever separates them: 'follow-up' matches 'follow up' and 'follow up'. */
+const wordsPattern = (text: string) => text.split(/[^\p{L}\p{N}]+/u).filter(Boolean).join('[^\\p{L}\\p{N}]+');
 
 /**
  * A card that opens with a slot instruction leaks the writer's prompt, not a reply (seen
@@ -346,9 +349,10 @@ function stripSlotInstruction(text: string, slots: string[]): string {
   const first = echoKey(lines[0]);
   if (first && slots.some(slot => echoKey(slot) === first)) return lines.slice(1).join('\n').trim();
   for (const slot of slots) {
-    const head = slot.replace(/\s*[.!?:;]+\s*$/, '');
-    if (!head || text.slice(0, head.length).toLowerCase() !== head.toLowerCase()) continue;
-    const rest = text.slice(head.length);
+    const words = wordsPattern(slot.replace(/\s*[.!?:;]+\s*$/, ''));
+    const head = words && new RegExp(`^${words}`, 'iu').exec(text);
+    if (!head) continue;
+    const rest = text.slice(head[0].length);
     if (/^\s*(?:[.:]\s*|\s+)\S/.test(rest)) return rest.replace(/^\s*(?:[.:]\s*|\s+)/, '').trim();
   }
   return text;
@@ -391,6 +395,9 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   const echoes = (text: string) => echo.length > 0 && echoKey(text) === echo;
   // A card that plainly does the opposite of its slot's job is dropped for the same re-ask.
   const contradicts = (text: string, slot: number) => slots.length > slot && slotContradiction(slots[slot], text);
+  // A draft that holds slot instructions is the model echoing its prompt (a live phone showed all three
+  // slots as a card). It is dropped, so the caller's per-slot retry asks again.
+  const echoesSlots = (text: string) => ALL_SLOTS.some(slot => new RegExp(wordsPattern(slot), 'iu').test(text));
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
@@ -398,7 +405,7 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
     // left as the reply itself: 'Agree and add ... from the post.\nDraft' must empty out.
     const clean = stripDraftLabel(stripSlotInstruction(stripControlLines(text, controls), slots));
     const draft = dashes === 'remove' ? undash(clean) : clean;
-    if (!draft || breaks(draft) || echoes(draft) || contradicts(draft, slot)) return;
+    if (!draft || breaks(draft) || echoes(draft) || echoesSlots(draft) || contradicts(draft, slot)) return;
     if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
   };
   for (const candidate of candidates) {
