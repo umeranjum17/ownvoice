@@ -263,8 +263,13 @@ if (live) {
 }
 await toggleService(false);
 await toggleService(true);
-await wait(2500);
-if (!bound()) throw new Error('Ownvoice accessibility service is not bound.');
+// The bind can take longer on a loaded emulator; poll before calling it a miss.
+for (let i = 0; i < 15 && !bound(); i++) await wait(2000);
+if (!bound()) {
+  // Keep the recent log, so the miss can be read from the record.
+  try { writeFileSync(resolve(out, 'bind-logcat.txt'), execFileSync('adb', ['-s', serial, 'logcat', '-d', '-t', '800'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 })); } catch { /* no log */ }
+  throw new Error('Ownvoice accessibility service is not bound.');
+}
 
 if (process.env.OWNVOICE_OUTCOME_PROOF === '1') {
   const { proveOutcomes } = await import('./outcomes.mjs');
