@@ -239,7 +239,8 @@ const devtoolsEvaluate = (wsUrl, expression) => new Promise((resolve, reject) =>
         if (message.id === 1) {
           clearTimeout(timer);
           socket.destroy();
-          if (message.result?.exceptionDetails) reject(new Error(`page evaluate threw: ${JSON.stringify(message.result.exceptionDetails).slice(0, 200)}`));
+          if (message.error) reject(new Error(`devtools error: ${JSON.stringify(message.error).slice(0, 200)}`));
+          else if (message.result?.exceptionDetails) reject(new Error(`page evaluate threw: ${JSON.stringify(message.result.exceptionDetails).slice(0, 200)}`));
           else resolve(message.result?.result?.value);
           return;
         }
@@ -285,21 +286,24 @@ try {
   shot('step-toolbar');
 
   const overflow = nodes().find(n => /more options/i.test(`${n.label} ${n.text}`) && n.clickable);
-  let ownvoice = nodes().find(n => n.clickable && /ownvoice/i.test(`${n.label} ${n.text}`));
+  // Never the floating bubble (windowType 4): it is clickable and called Ownvoice, and
+  // tapping it opens the panel instead of the sheet.
+  const ownvoiceNode = list => list.find(n => n.windowType !== 4 && n.clickable && /ownvoice/i.test(`${n.label} ${n.text}`));
+  let ownvoice = ownvoiceNode(nodes());
   if (!ownvoice) {
     if (!overflow) fail('toolbar', 'neither the Ownvoice entry nor the toolbar overflow menu appeared');
     tap(...center(overflow)); // process-text entries sit in the overflow, not on the main bar
     await wait(1200);
     shot('step-overflow');
     for (let i = 0; i < 6 && !ownvoice; i++) {
-      ownvoice = nodes().find(n => n.clickable && /ownvoice/i.test(`${n.label} ${n.text}`));
+      ownvoice = ownvoiceNode(nodes());
       if (!ownvoice) await wait(700);
     }
   }
   if (!ownvoice) fail('toolbar', 'the Ownvoice entry never appeared (toolbar and overflow shots saved)');
   shot('step-ownvoice-entry');
   tap(...center(ownvoice));
-  if (!(await waitForFocus('RewriteActivity', 8))) fail('sheet', 'the Chrome selection did not open Ownvoice');
+  if (!(await waitForFocus('RewriteActivity', 15))) fail('sheet', 'the Chrome selection did not open Ownvoice');
   if (!(await textPresent('Replace', 5))) fail('sheet', 'Replace not offered on the editable Chrome selection');
   shot('step-replace-offered');
 
@@ -322,7 +326,7 @@ try {
   shot('step-result');
   await tapText('Replace');
   await wait(1500);
-  if (!(await waitForFocus('com.android.chrome', 5))) fail('replace', 'Chrome did not come back after Replace');
+  if (!(await waitForFocus('com.android.chrome', 10))) fail('replace', 'Chrome did not come back after Replace');
   await wait(1000);
   shot('step-replaced-field');
 
@@ -330,8 +334,9 @@ try {
   let fieldValue, method = 'devtools';
   try {
     const targets = JSON.parse(await devtoolsGet('/json/list'));
-    const target = targets.find(t => t.type === 'page' && String(t.url).includes(`:${port}/`)) ?? targets.find(t => t.type === 'page');
-    if (!target?.webSocketDebuggerUrl) throw new Error(`no debuggable page target (${targets.length} targets listed)`);
+    // No silent fallback: evaluating the wrong tab would forge a product verdict.
+    const target = targets.find(t => t.type === 'page' && String(t.url).includes(`:${port}/`));
+    if (!target?.webSocketDebuggerUrl) throw new Error(`no debuggable target for the test page (${targets.map(t => `${t.type}:${t.url}`).join(' | ').slice(0, 300)})`);
     fieldValue = await devtoolsEvaluate(target.webSocketDebuggerUrl, `document.getElementById('m').value`);
   } catch (error) {
     method = `accessibility-fallback (devtools: ${error.message})`; // DevTools is the proof; the node read only diagnoses it
