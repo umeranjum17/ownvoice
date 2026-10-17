@@ -335,12 +335,15 @@ if (live) {
     if (!(await textPresent('how ownvoice writes', 30))) throw new Error('the writer list did not open');
     for (let i = 0; i < 5 && !(await textPresent('with your opencode go', 2)); i++) await swipeUp();
     await tapText('with your opencode go');
-    if (!(await textPresent('paste your opencode go key', 30))) throw new Error('the Go key field did not open');
+    await tapText('paste your opencode go key', 30);
     await wait(700);
     execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${liveKey}'`]); // no shell echo: the key must never reach the log
     await wait(700);
     await hideKeyboard();
-    await tapText('connect');
+    const connectBtn = nodes().find(n => n.label === 'Connect' || n.text === 'Connect');
+    if (!connectBtn) throw new Error('the Go Connect button never appeared');
+    if (connectBtn.enabled === false) throw new Error('key field empty after typing: Connect is disabled');
+    tap(...center(connectBtn));
     let outcome = '';
     for (let i = 0; i < 60 && !outcome; i++) {
       if (await textPresent('more than one workspace', 1)) outcome = 'pick';
