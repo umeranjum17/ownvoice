@@ -335,6 +335,9 @@ const connectOpenCode = async () => {
 // carries no "Sent to your AI account" mark.
 const refusalOnly = process.env.X_REPLIES_LEGS === 'refusal';
 const refusedOnly = process.env.X_REPLIES_LEGS === 'refused';
+// X_REPLIES_LEGS=rewrite-refused: only the rewrite sheet's refusal, light and dark. The sheet opens on the same
+// PROCESS_TEXT intent as the selection menu, so no page (and no X host) is needed; the reply cards need X.
+const rewriteOnly = process.env.X_REPLIES_LEGS === 'rewrite-refused';
 if (writer === 'opencode') await connectOpenCode();
 else await connectOpenRouter();
 log(`setup finished (live ${writer === 'opencode' ? 'OpenCode Go' : 'OpenRouter'} writer connected${refusalOnly ? '; refusal legs only, no writer call' : ''}).`);
@@ -814,6 +817,13 @@ try {
     await killApp();
     await rebind();
     await leg('refused-dark', () => refusedLeg('x-refused', 'dark'));
+    await leg('refused-rewrite-dark', () => rewriteRefused('dark'));
+  } else if (rewriteOnly) {
+    await leg('refused-rewrite-light', () => rewriteRefused('light'));
+    evidence('theme', 'dark');
+    adb('shell', 'am', 'force-stop', 'com.android.chrome');
+    await killApp();
+    await rebind();
     await leg('refused-rewrite-dark', () => rewriteRefused('dark'));
   } else if (preflightOnly) {
     await leg('preflight', () => journey('x-preflight', 'light', {}), { needsWriter: true }); // stops after the label check
