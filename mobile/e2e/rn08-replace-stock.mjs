@@ -5,6 +5,8 @@
 // value read back with a raw uiautomator dump (plus a probe cross-check). Saves the
 // dumpsys enabled-state and the query-activities roll-call. Never sends, saves or posts:
 // the proof backs out after the read. Needs OPENCODE_KEY_FILE and OPENCODE_WORKSPACE.
+// OWNVOICE_PHONE=1 runs it on a real phone already set up through the app's own UI with
+// the phone writer: no reinstall, no root seeding, no Go connect, no device settings changed.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -12,16 +14,26 @@ import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
 
 const serial = process.env.ANDROID_SERIAL;
 const avdName = process.env.OWNVOICE_AVD_NAME?.trim();
-if (!/^emulator-\d+$/.test(serial ?? '') || !avdName) throw new Error('Set ANDROID_SERIAL to an emulator and OWNVOICE_AVD_NAME to its owned AVD name.');
-const actualAvd = emulatorName(serial);
-if (actualAvd !== avdName) throw new Error(`Refusing ${serial}: AVD ${actualAvd} does not match ${avdName}.`);
+const phone = process.env.OWNVOICE_PHONE === '1';
+if (!phone) {
+  if (!/^emulator-\d+$/.test(serial ?? '') || !avdName) throw new Error('Set ANDROID_SERIAL to an emulator and OWNVOICE_AVD_NAME to its owned AVD name.');
+  const actualAvd = emulatorName(serial);
+  if (actualAvd !== avdName) throw new Error(`Refusing ${serial}: AVD ${actualAvd} does not match ${avdName}.`);
+} else if (!serial) throw new Error('Set ANDROID_SERIAL to the phone.');
 const apk = process.argv[2];
 if (!apk) throw new Error('Pass the release APK path.');
 const out = process.argv[3] ?? 'reports/rn08-replace-stock';
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
 let probe;
-const nodes = () => (probe ??= accessibilityProbe(serial, out))();
+// The phone reads through its own installed dev.ownvoice.probe2 (same Probe.java source).
+const phoneProbe = () => {
+  const output = execFileSync('adb', ['-s', serial, 'shell', 'am', 'instrument', '-w', 'dev.ownvoice.probe2/dev.ownvoice.probe2.Probe2'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
+  const json = output.match(/^INSTRUMENTATION_RESULT: nodes=(.+)$/m)?.[1];
+  if (!json || !output.includes('INSTRUMENTATION_CODE: 0')) throw new Error(`probe2 failed: ${output.slice(0, 300)}`);
+  return JSON.parse(json).filter(node => node.visible && node.bounds[2] > node.bounds[0] && node.bounds[3] > node.bounds[1]);
+};
+const nodes = () => (probe ??= phone ? phoneProbe : accessibilityProbe(serial, out))();
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
 const shell = (...args) => adb('shell', ...args);
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -145,8 +157,8 @@ XML`], { stdio: 'ignore' });
   if (!(await textPresent('Where the bubble shows', 3))) fail('setup', 'home never showed (setup not seeded?)');
 };
 
-const liveKey = readFileSync(process.env.OPENCODE_KEY_FILE ?? '', 'utf8').trim();
-if (liveKey.length < 20 || /\s/.test(liveKey)) throw new Error('The OpenCode Go key file did not look like a key.');
+const liveKey = phone ? '' : readFileSync(process.env.OPENCODE_KEY_FILE ?? '', 'utf8').trim();
+if (!phone && (liveKey.length < 20 || /\s/.test(liveKey))) throw new Error('The OpenCode Go key file did not look like a key.');
 const liveWorkspace = process.env.OPENCODE_WORKSPACE ?? 'Working2';
 const TEXT = 'Hi Sam, please send teh report by Friday at 3pm, all 12 pages, its urgent and really very important.';
 const safeWords = (limit = 300) => nodes().filter(n => !n.password)
@@ -276,8 +288,17 @@ const huntOwnvoice = async tag => {
 };
 
 try {
-  await freshSetup();
-  await connectOpenCode();
+  if (phone) {
+    shell('input', 'keyevent', 'KEYCODE_WAKEUP');
+    shell('input', 'keyevent', 'KEYCODE_HOME');
+    if (/isKeyguardShowing=true/.test(shell('dumpsys', 'window'))) fail('setup', 'the phone is locked');
+    const installedSha = shell('sha256sum', shell('pm', 'path', pkg).split('\n').find(l => l.trim().endsWith('/base.apk')).trim().slice(8)).trim().split(/\s+/)[0];
+    if (installedSha !== expectedApkSha) fail('setup', 'the phone runs a different build than the one under test');
+    await rebindService();
+  } else {
+    await freshSetup();
+    await connectOpenCode();
+  }
 
   // Handler roll-call + enabled-state, saved before any host opens.
   const handlers = shell('cmd', 'package', 'query-activities', '-a', 'android.intent.action.PROCESS_TEXT', '-t', 'text/plain');
@@ -296,7 +317,8 @@ try {
   const packages = shell('pm', 'list', 'packages');
   writeFileSync(`${out}/packages.txt`, packages);
   const has = p => packages.split('\n').some(l => l.trim() === `package:${p}`);
-  const contactsPkg = ['com.google.android.contacts', 'com.android.contacts'].find(has);
+  // The phone's Contacts saves to the owner's synced account: Messages only there.
+  const contactsPkg = phone ? undefined : ['com.google.android.contacts', 'com.android.contacts'].find(has);
   const smsPkg = ['com.google.android.apps.messaging', 'com.android.messaging'].find(has);
 
   // Field 1: Contacts new-contact name (INSERT prefill, else type into the Name field).
@@ -429,10 +451,21 @@ try {
   const result = { ok: match && keepsFacts, host: hostPkg, method: 'uiautomator-dump', probeText, rewrite: rewriteText, field: fieldValue, match, keepsFacts };
   writeFileSync(`${out}/replace-result.json`, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
-  shell('input', 'keyevent', '4');
-  await wait(800);
-  shell('input', 'keyevent', '4');
-  await wait(800);
+  if (phone && hostTag === 'messages') {
+    // Empty the body so Messages keeps no draft for the made-up number.
+    const [bx, by] = center(nodes().find(n => n.className === 'android.widget.EditText' && n.editable && !(n.text ?? '').includes('5550100')) ?? field);
+    tap(bx, by); await wait(600);
+    shell('input', 'keycombination', '113', '29'); await wait(600);
+    shell('input', 'keyevent', '67'); await wait(800);
+  }
+  for (let i = 0; i < 3; i++) {
+    const discard = nodes().find(n => n.clickable && /^(discard|don't save)$/i.test((n.text || n.label || '').trim()));
+    if (discard) { tap(...center(discard)); await wait(800); }
+    if (!(await waitForFocus(hostPkg, 1))) break;
+    shell('input', 'keyevent', '4');
+    await wait(1000);
+  }
+  shot('step-backed-out');
   if (!match) fail('readback', `Replace did not put the rewrite in the stock field (dump field starts: "${fieldValue.slice(0, 120)}")`);
   if (!keepsFacts) fail('readback', 'the replaced field lost a fact (name, time or number)');
   console.log(`Replace proof saved to ${out}: uiautomator read-back matches the Shorter rewrite, facts kept.`);
