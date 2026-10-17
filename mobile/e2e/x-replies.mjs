@@ -15,8 +15,8 @@
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned avd>, JAVA_HOME, SDK via
 // ANDROID_HOME, OPENROUTER_KEY_FILE optional, X_REPLIES_WRITER=openrouter|opencode (default
 // openrouter), OC_KEY (the OpenCode Go plan key, never printed or written), X_REPLIES_MOTION=1 to
-// record the tap-to-inserted motion, OPENCODE_WORKSPACE (default Working2) for a key with several workspaces, X_REPLIES_LEGS=refusal to run only the refusal legs (no writer
-// request anywhere, so it needs no funded account), X_REPLIES_LEGS=preflight to connect the writer and
+// record the tap-to-inserted motion, OPENCODE_WORKSPACE (default Working2) for a key with several workspaces, X_REPLIES_LEGS=refusal to run only the refusal legs, extreme one
+// included (a live writer is still connected, but no leg makes a writer request), X_REPLIES_LEGS=preflight to connect the writer and
 // prove one grounded, label-true generation answers, then stop. Args: <release-apk (no stub flags)> [task-slug].
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -323,11 +323,13 @@ const connectOpenCode = async () => {
   }
   log("openCode Go writer connected through the app's own connect field.");
 };
-// A refusal leg makes no writer call, so the refusal-only run skips connecting a writer entirely.
+// A refusal leg makes no writer call, but the run still connects the live writer first: the
+// read-list check means something only when a writer could have answered and the newest row
+// carries no "Sent to your AI account" mark.
 const refusalOnly = process.env.X_REPLIES_LEGS === 'refusal';
-if (!refusalOnly && writer === 'opencode') await connectOpenCode();
-else if (!refusalOnly) await connectOpenRouter();
-log(`setup finished (${refusalOnly ? 'no writer connected (refusal legs)' : `live ${writer === 'opencode' ? 'OpenCode Go' : 'OpenRouter'} writer connected`}).`);
+if (writer === 'opencode') await connectOpenCode();
+else await connectOpenRouter();
+log(`setup finished (live ${writer === 'opencode' ? 'OpenCode Go' : 'OpenRouter'} writer connected${refusalOnly ? '; refusal legs only, no writer call' : ''}).`);
 
 // ---- enable Chrome's bubble through the app's own UI ----
 const appRow = label => nodes().find(node => node.checkable && node.label === label);
@@ -663,13 +665,23 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
 // tap did: the newest Chrome row carries "Sent to your AI account" only once a cloud writer
 // answered, so a refusal leg must show that row without the mark. Rows are newest first.
 const newestReadBlock = async () => {
-  // A running app can take the link without routing (seen at the extreme display size), so ask again each try.
+  // A running app can take the link without routing (seen at the extreme display size), so route
+  // while the list is not up. Once it is, the newest Chrome row can still sit below the fold — the
+  // "Replies you inserted" block grows above the tap rows at the extreme size — so scroll down
+  // until one shows. The scroll step is smaller than the screen, so the newest row is seen before
+  // any older one (rows are newest first).
   return until('a Chrome row on the read list', () => {
-    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
     const texts = nodes().map(n => `${n.text ?? ''}\n${n.label ?? ''}`.trim()).filter(Boolean);
+    if (!texts.some(text => /what ownvoice read/i.test(text))) {
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
+      return false;
+    }
     const first = texts.findIndex(text => /in Chrome\b/i.test(text));
-    return first >= 0 && texts.slice(first, first + 3).join(' | ');
-  }, { seconds: 20, every: 1500 });
+    if (first >= 0) return texts.slice(first, first + 3).join(' | ');
+    const [w, h] = sizeNow();
+    adb('shell', 'input', 'swipe', String(w / 2), String(h * .8), String(w / 2), String(h * .45), '300');
+    return false;
+  }, { seconds: 30, every: 1500 });
 };
 // Every refusal surface shows a plain note and no card. `note` is the exact sentence the shipped
 // panel shows there; the leg prints it into its own evidence file, never only into this log.
@@ -782,13 +794,15 @@ try {
   if (!refusalOnly) await leg('dark', () => journey('x-reply', 'dark', {}), { needsWriter: true });
 
   // ---- extreme: narrowest supported screen + font scale 1.3 over the long post + quote ----
+  // The extreme refusal leg runs in refusal-only runs too: it is the leg the refusal-only run is
+  // for, and like every refusal leg it makes no writer call.
+  await extreme(true);
+  await leg('refusal-notext-extreme', () => withhold('x-notext-extreme', 'dark', IMAGE_ONLY));
   if (!refusalOnly) {
-    await extreme(true);
-    await leg('refusal-notext-extreme', () => withhold('x-notext-extreme', 'dark', IMAGE_ONLY));
     adb('shell', 'am', 'force-stop', 'com.android.chrome');
     await leg('font-1.3', () => journey('x-extreme', 'dark', {}), { needsWriter: true });
-    await extreme(false);
   }
+  await extreme(false);
   }
 } finally {
   // ---- restore ----
