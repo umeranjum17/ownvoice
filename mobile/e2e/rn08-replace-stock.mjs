@@ -197,6 +197,8 @@ try {
   const handlers = shell('cmd', 'package', 'query-activities', '-a', 'android.intent.action.PROCESS_TEXT', '-t', 'text/plain');
   writeFileSync(`${out}/handlers.txt`, handlers);
   console.log(`handlers: ${handlers.split('\n').filter(l => l.trim()).length} lines`);
+  const dumpsys = shell('dumpsys', 'package', pkg);
+  writeFileSync(`${out}/dumpsys-package.txt`, dumpsys);
   if (!/ownvoice/i.test(handlers)) fail('handlers', 'Ownvoice is not listed for PROCESS_TEXT/text/plain: product defect, stopping');
 
   // Pick the stock plain-EditText host from what the image actually ships.
@@ -205,13 +207,15 @@ try {
   const has = p => packages.split('\n').some(l => l.trim() === `package:${p}`);
   const smsPkg = ['com.google.android.apps.messaging', 'com.android.messaging'].find(has);
   const contactsPkg = ['com.google.android.contacts', 'com.android.contacts'].find(has);
+  // Contacts before Messages: GMS Messages answers SENDTO with a recipient picker
+  // (no compose body to prefill), while Contacts INSERT opens a plain name field.
   let hostPkg = '';
-  if (smsPkg) {
-    hostPkg = smsPkg;
-    shell('am', 'start', '-a', 'android.intent.action.SENDTO', '-d', 'sms:', '--es', 'sms_body', `'${TEXT}'`);
-  } else if (contactsPkg) {
+  if (contactsPkg) {
     hostPkg = contactsPkg;
     shell('am', 'start', '-a', 'android.intent.action.INSERT', '-t', 'vnd.android.cursor.dir/contact', '--es', 'name', `'${TEXT}'`);
+  } else if (smsPkg) {
+    hostPkg = smsPkg;
+    shell('am', 'start', '-a', 'android.intent.action.SENDTO', '-d', 'sms:', '--es', 'sms_body', `'${TEXT}'`);
   }
   if (!hostPkg) fail('host', 'no stock Messages or Contacts package on this image');
   await wait(2500);
