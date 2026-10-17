@@ -51,8 +51,13 @@ const rebindService = async () => {
   shell('settings', 'put', 'secure', 'enabled_accessibility_services', without.length ? without.join(':') : 'com.example.disabled/NoService');
   await wait(1500);
   shell('settings', 'put', 'secure', 'enabled_accessibility_services', [...services].join(':'));
+  shell('settings', 'put', 'secure', 'accessibility_enabled', '1'); // a cold boot leaves it 0 and the puts above do not flip it
   await wait(1500);
-  if (!shell('settings', 'get', 'secure', 'enabled_accessibility_services').includes(component) || shell('settings', 'get', 'secure', 'accessibility_enabled').trim() !== '1') throw new Error('service not enabled');
+  for (let i = 0; i < 4; i++) {
+    if (shell('settings', 'get', 'secure', 'enabled_accessibility_services').includes(component) && shell('settings', 'get', 'secure', 'accessibility_enabled').trim() === '1') return;
+    await wait(1000);
+  }
+  throw new Error('service not enabled');
 };
 
 mkdirSync(out, { recursive: true });
