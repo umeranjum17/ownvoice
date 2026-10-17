@@ -201,8 +201,7 @@ const restorePhone = () => {
   restored = true;
   putBack('secure', 'enabled_accessibility_services', phoneKeep.services);
   putBack('secure', 'accessibility_enabled', phoneKeep.enabled);
-  // The lead's fixed values for this phone (not the ones read before the run).
-  putBack('global', 'stay_on_while_plugged_in', '0');
+  // The lead's fixed timeout for this phone (not the one read before the run). Stay-awake is left on: the next run on the lock restores it.
   putBack('system', 'screen_off_timeout', '60000');
   if (!setMusic(0)) console.error('The phone music volume could not be set back to 0.');
   const readBack = ['global stay_on_while_plugged_in', 'system screen_off_timeout'].map(k => { const [a, b] = k.split(' '); return `${b}=${setting(a, b)}`; });
