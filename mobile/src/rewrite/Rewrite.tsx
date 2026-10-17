@@ -13,7 +13,7 @@ import { errorCode, message } from '../core/nano';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { cloudOf, getSource, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
 import { store } from '../core/store';
-import { causeOf, cloudWords, devlog, isPlanLimitLine, PlanLimit, SendVeto, type WriterEvents } from '../core/writers';
+import { AccountRefused, causeOf, cloudWords, devlog, isOtherWriterLine, PlanLimit, SendVeto, type WriterEvents } from '../core/writers';
 import { words } from '../core/words';
 import { preserveFragment, cleanSelection } from '../core/drafts';
 import { fixedSentenceSplits } from '../core/typing';
@@ -115,7 +115,9 @@ export default function Rewrite() {
         // The cloud failure's own plain line, whatever the phone then says: the phone's own
         // error (for example "get this phone ready") must never mask the selected writer's.
         // A veto stays the switch-off line, as when the phone cannot write at all below.
-        const cloudLine = veto ? lines.offNoPhone : (offline ? words.offlineNoPhone : lines.failedNoPhone);
+        // A refused account says so, by name, with what to do next.
+        const refused = error instanceof AccountRefused ? error.message : null;
+        const cloudLine = veto ? lines.offNoPhone : (offline ? words.offlineNoPhone : refused ?? lines.failedNoPhone);
         if (canWrite) {
           let shown = false;
           try { shown = await showResult(await phoneRewrite(), true); }
@@ -127,7 +129,7 @@ export default function Rewrite() {
             setNote(cloudLine); return;
           }
           if (!shown || id !== run.current) return;
-          setNote(veto ?? (offline ? words.offlinePhone : lines.fallback));
+          setNote(veto ?? (offline ? words.offlinePhone : refused ?? lines.fallback));
           return;
         }
         setNote(cloudLine);
@@ -150,7 +152,7 @@ export default function Rewrite() {
       <View style={{ marginVertical: space.m }}>
         <Choices options={Object.values(Judge.Rewrite)} value={choice} onPick={how => { void rewrite(how); }} />
       </View>
-      {isPlanLimitLine(note) ? <View style={{ marginBottom: space.m }}><Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /></View> : null}
+      {isOtherWriterLine(note) ?<View style={{ marginBottom: space.m }}><Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /></View> : null}
       {busy ? <Placeholder /> : null}
       {result ? <>
         <Card variant="outlined" label={choice ?? undefined}>

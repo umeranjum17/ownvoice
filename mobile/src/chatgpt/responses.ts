@@ -7,7 +7,7 @@ import { acceptReplies, avoidLine, latestMessage, rebuildLines, replyPrompt, rep
 import { lineRetryPrompt, rewritePrompt, selectionRewritePrompt, versionsList, writerVersions, type Rewrite } from '../core/judge';
 import { words } from '../core/words';
 import { canPolish, polishAcceptor } from '../core/polish';
-import { cloudWords, PlanLimit, SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
+import { AccountRefused, cloudWords, PlanLimit, SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 import type { CloudKey } from '../core/source';
 
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
@@ -32,6 +32,7 @@ const VERSION_INSTRUCTIONS = 'Return the requested rewrite versions as JSON.';
 async function ask(cloud: CloudKey, prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text' | 'fit', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch, signal?: AbortSignal): Promise<string[]> {
   let started = false;
   let marked = false;
+  let refused = false;
   try {
     // decide aborts its slow backend with `controller.abort()`. The signal reason is the plain cause to
     // carry, not a thrown AbortSignal helper: this call may abort before any dispatch, and that failure
@@ -42,14 +43,19 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
     // The kit resolves credentials before calling its configured fetch. Associate this
     // request's signal with the app's consent and read-log hooks so the last checks
     // still happen at dispatch, including after any credential wait.
-    const text = await withResponseFetch(async (url, init) => {
+    const send: typeof fetch = async (url, init) => {
       if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
       if (on?.beforeFetch && !on.beforeFetch()) throw new SendVeto(words.phoneWrote);
       started = true;
       on?.started?.();
       // Emulator-only stand-in (EXPO_PUBLIC_E2E_CLAUDE_429), like the ChatGPT stand-in: never a release build.
       if (process.env.EXPO_PUBLIC_E2E_CLAUDE_429 === '1' && cloud === 'claude') { limitResetAt = Date.now() + 3600_000; throw new ResponseError('Claude limit reached.', 'rate_limit'); }
-      const response = await fetcher(url, init);
+      // Emulator-only stand-in (EXPO_PUBLIC_E2E_OPENCODE_403): the gateway's refusal as its own answer, with no request sent.
+      const response = process.env.EXPO_PUBLIC_E2E_OPENCODE_403 === '1' && cloud === 'opencode'
+        ? new Response('{"error":"Workspace access denied"}', { status: 403, headers: { 'content-type': 'application/json' } })
+        : await fetcher(url, init);
+      // A key route's refusal reaches the kit as an untyped failure, so the status is read here, where it arrives.
+      if ((cloud === 'opencode' || cloud === 'openrouter') && (response.status === 401 || response.status === 403)) refused = true;
       if (cloud === 'claude' && response.status === 429) {
         const retryAfter = Number(response.headers.get('retry-after'));
         limitResetAt = Number.isFinite(retryAfter) && retryAfter > 0 ? Date.now() + retryAfter * 1000 : 0;
@@ -59,7 +65,8 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
       await on?.sent?.();
       marked = true;
       return response;
-    }, signal => askCloud(cloud, { instructions, input: prompt, json: key !== 'text', onText, signal }), signal);
+    };
+    const text = await withResponseFetch(send, signal => askCloud(cloud, { instructions, input: prompt, json: key !== 'text', onText, signal, fetch: send }), signal);
     if (key === 'text' || key === 'fit') {
       const line = text.trim();
       if (!line) throw new Error(cloudWords(cloud).failedNoPhone);
@@ -73,6 +80,11 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
     if (!started && marked) await on?.unsent?.();
     if (error instanceof SendVeto) throw error;
     if (signal?.aborted) throw error;
+    const refusedLine = cloudWords(cloud).refused;
+    if (refused && refusedLine && !(error instanceof ResponseError && error.kind != null)) {
+      on?.refused?.(refusedLine);
+      throw new AccountRefused(refusedLine);
+    }
     if (error instanceof IncompleteError) throw new Error(cloudWords(cloud).failedNoPhone);
     // The kit's wrapped message is generic; its ResponseError keeps the real kind, so a plan
     // limit (rate limit) is told apart from a sign-out and the phone writes instead.
@@ -107,7 +119,7 @@ export const streamSelectionRewrite = (cloud: CloudKey, text: string, how: Rewri
   ask(cloud, selectionRewritePrompt(text, how, guide), REWRITE_INSTRUCTIONS, 'text', 1, on).then(([line]) => line ?? '');
 
 const accountFailure = (error: unknown) => {
-  if (error instanceof PlanLimit) return true;
+  if (error instanceof PlanLimit || error instanceof AccountRefused) return true;
   const message = error instanceof Error ? error.message : String(error);
   const kind = error instanceof ResponseError ? error.kind ?? classify(message)?.kind : classify(message)?.kind;
   return kind != null && kind !== 'network';
@@ -220,7 +232,7 @@ export function cloudWriter(cloud: CloudKey): Writer {
       try {
         return request.typed.trim() ? await polish(cloud, request, on) : { drafts: await replies(cloud, request, on) };
       } catch (error) {
-        if (error instanceof SendVeto || error instanceof PlanLimit) throw error;
+        if (error instanceof SendVeto || error instanceof PlanLimit || error instanceof AccountRefused) throw error;
         const message = error instanceof Error ? error.message : String(error);
         const kind = classify(message)?.kind;
         if (kind === 'network') throw error;

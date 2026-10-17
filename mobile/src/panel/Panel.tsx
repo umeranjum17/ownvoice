@@ -17,7 +17,7 @@ import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
-import { isPlanLimitLine, retryLines, type Writer, type WriterRoute } from '../core/writers';
+import { isOtherWriterLine, retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
@@ -373,7 +373,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const texts = [...(yours?.text ? [yours.text] : []), ...shown.map(draft => draft.text)];
     if (!texts.length) return;
     fitFor.current = id;
-    const backends = leaves.current ? fitBackends(capture.app, { on: readLog(capture.id) }) : [];
+    // A refused account's line replaces the unsure read on every card it could not rate.
+    let refusal: string | null = null;
+    const backends = leaves.current ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : [];
     // Yours comes first in texts, so when the phone wrote the shown drafts only the typed reply is judged.
     const judged = shownOnPhone.current ? texts.slice(0, yours?.text ? 1 : 0) : texts;
     void judgeFit({ post: postOf.current ?? '', candidates: judged, platform: platformOf.current, samples: samplesOf.current, backends })
@@ -382,7 +384,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         if (run.current !== id) return;
         // Levels and probabilities only, never the text: what the proof reads from the device log.
         console.log(`ownvoice-fit ${JSON.stringify(found)}`);
-        setFits(new Map(texts.map((text, i) => [text, i < judged.length ? found[i] : abstain()])));
+        const judgedFit = (fit: Fit): Fit => refusal && fit.level == null ? { ...fit, refusal } : fit;
+        setFits(new Map(texts.map((text, i) => [text, i < judged.length ? judgedFit(found[i]) : abstain()])));
       });
   });
 
@@ -522,7 +525,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       ? <Empty text={mainNote}>
         {phase === 'ready' && !declined && mode !== 'empty' && mode !== 'own' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
         {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
-        {phase === 'failed' && isPlanLimitLine(mainNote) ? <Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
+        {phase === 'failed' && isOtherWriterLine(mainNote) ?<Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
       </Empty>
       : undefined}
     onCloseCover={() => setWhy(null)}>
@@ -600,7 +603,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       : null}
     {reason && shown.length ? <>
       <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{reason}</Text>
-      {isPlanLimitLine(reason) ? <Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
+      {isOtherWriterLine(reason) ?<Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
     </> : null}
   </Sheet>;
 }

@@ -39,6 +39,10 @@ jest.mock('expo-secure-store', () => {
 
 import { ResponseError } from '@byokit/accounts';
 import { OPENCODE_MODEL, OPENCODE_ROUTE, accountRoute, askCloud, connectOpenCode, openCodeReady, signOutOpenCode, status } from '../accounts';
+import { Rewrite } from '../../core/judge';
+import { AccountRefused } from '../../core/writers';
+import { words } from '../../core/words';
+import { streamSelectionRewrite } from '../responses';
 
 const PLAN_KEY = 'fixture-opencode-go-key';
 const REPLY = '{"drafts":["Yes, Saturday works."]}';
@@ -149,4 +153,21 @@ test('without the plan key the ask fails as signed out, and no request goes out'
   await expect(refusal).rejects.toMatchObject({ kind: 'signed_out' });
   expect(seen).toHaveLength(0);
   expect((await status(OPENCODE_ROUTE)).state).toBe('signed_out');
+});
+
+test('a plan key the gateway refuses (403 Workspace access denied) says so by name, once, on every surface', async () => {
+  const seen: string[] = [];
+  globalThis.fetch = jest.fn(async (url: string | URL) => {
+    if (String(url) === 'https://opencode.ai/console/api/orgs') return new Response('[]', { status: 200, headers: { 'content-type': 'application/json' } });
+    seen.push(String(url));
+    return new Response('{"error":"Workspace access denied"}', { status: 403, headers: { 'content-type': 'application/json' } });
+  }) as unknown as typeof globalThis.fetch;
+  await connectOpenCode(PLAN_KEY);
+  const refused = jest.fn();
+  // The kit's own error for this refusal says only "could not answer"; the app keeps the status from the wire.
+  const failure = await streamSelectionRewrite('opencode', 'Sam: Saturday?', Rewrite.TIGHTEN, '', { refused }).then(() => null, (error: unknown) => error);
+  expect(failure).toBeInstanceOf(AccountRefused);
+  expect((failure as Error).message).toBe(words.openCodeRefused);
+  expect(refused).toHaveBeenCalledWith(words.openCodeRefused);
+  expect(seen).toHaveLength(1);
 });

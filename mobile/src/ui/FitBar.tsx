@@ -35,7 +35,7 @@ const GLOSS = [words.fitWhySkipped, words.fitWhyVague, words.fitWhyGood, words.f
 /** Whether the bar shows for this card: a judged or abstained fit, or a rule flag on its own. */
 export function fitBarVisible(fit: Fit | undefined, ratings: Ratings | null): boolean {
   if (!fit) return false;
-  if (fitFlag(ratings)) return true;
+  if (fitFlag(ratings) || fit.refusal) return true;
   return fit.level != null || fit.words === UNSURE;
 }
 
@@ -59,7 +59,7 @@ export function FitBar({ fit, ratings }: { fit: Fit | undefined; ratings: Rating
   const level = flag ? 0 : fit.level;
   const label = level != null ? LEVELS[level] : fit.words;
   const found = details(ratings).filter(line => line !== flag);
-  const reason = sentence(flag ? [flag, ...found] : [...found, level != null ? GLOSS[level] : words.fitWhyUnsure]);
+  const reason = !flag && fit.refusal ? fit.refusal : sentence(flag ? [flag, ...found] : [...found, level != null ? GLOSS[level] : words.fitWhyUnsure]);
   const filled = level == null ? 0 : level + 1;
   return <View testID="fit-bar" style={{ marginTop: space.s }}>
     <View accessible accessibilityLabel={label}>

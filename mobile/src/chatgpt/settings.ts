@@ -174,7 +174,7 @@ const JEV_BASE = process.env.EXPO_PUBLIC_E2E_JEV_BASE;
  *  ChatGPT send for this app: the post and drafts leave the phone only when the writer's would.
  *  Jev is used only when this build carries `EXPO_PUBLIC_JEV_KEY` (emulator stand-in proof builds).
  *  Checked before sending and again at dispatch; a blocked call abstains with the plain unsure read. */
-export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent'> } = {}): Backend[] {
+export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent' | 'refused'> } = {}): Backend[] {
   // The fit backend follows the chosen cloud source, so the ratings reach whichever account writes.
   const cloud: CloudKey = cloudOf(store.peek<Source>(SOURCE_KEY)) ?? 'chatgpt';
   const bubble = cloudConsent(cloud, app);
