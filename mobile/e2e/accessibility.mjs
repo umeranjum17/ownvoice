@@ -10,12 +10,17 @@ export function emulatorName(serial) {
   return name || execFileSync('adb', ['-s', serial, 'shell', 'getprop', 'ro.boot.qemu.avd_name'], { encoding: 'utf8' }).trim();
 }
 
-/** Build a standalone test APK: it instruments itself, leaving Ownvoice's process and service alone. */
-export function accessibilityProbe(serial, scratch) {
-  if (!/^emulator-\d+$/.test(serial)) throw new Error('Accessibility proof requires an owned emulator.');
-  const avd = process.env.OWNVOICE_AVD_NAME;
-  const actual = emulatorName(serial);
-  if (!avd || actual !== avd) throw new Error(`AVD ${actual} does not match OWNVOICE_AVD_NAME.`);
+/** Build a standalone test APK: it instruments itself, leaving Ownvoice's process and service alone.
+ *  `phone` takes a real lab phone's serial (the phone writer proof) instead of an owned emulator. */
+export function accessibilityProbe(serial, scratch, { phone = false } = {}) {
+  if (phone) {
+    if (!serial || /^emulator-/.test(serial)) throw new Error('The phone probe takes a phone serial.');
+  } else {
+    if (!/^emulator-\d+$/.test(serial)) throw new Error('Accessibility proof requires an owned emulator.');
+    const avd = process.env.OWNVOICE_AVD_NAME;
+    const actual = emulatorName(serial);
+    if (!avd || actual !== avd) throw new Error(`AVD ${actual} does not match OWNVOICE_AVD_NAME.`);
+  }
   const sdk = process.env.ANDROID_HOME ?? process.env.ANDROID_SDK_ROOT ?? join(homedir(), 'Android/Sdk');
   const javaHome = process.env.JAVA_HOME;
   if (!javaHome) throw new Error('Set JAVA_HOME to the JDK used to build the app.');
@@ -36,6 +41,8 @@ export function accessibilityProbe(serial, scratch) {
   run(join(tools, 'aapt'), ['package', '-f', '-M', manifest, '-I', platform, '-F', apk]);
   run('zip', ['-j', apk, join(build, 'classes.dex')]);
   run(join(tools, 'apksigner'), ['sign', '--ks', fileURLToPath(new URL('../android/app/debug.keystore', import.meta.url)), '--ks-key-alias', 'androiddebugkey', '--ks-pass', 'pass:android', apk]);
+  // A probe left by an earlier run has a higher version code: this build's own test package is replaced.
+  if (phone) { try { execFileSync('adb', ['-s', serial, 'uninstall', 'dev.ownvoice.probe'], { stdio: 'pipe' }); } catch { /* none installed */ } }
   run('adb', ['-s', serial, 'install', '-r', apk]);
   return (click) => {
     const output = execFileSync('adb', ['-s', serial, 'shell', 'am', 'instrument', '-w', ...(click ? ['-e', 'click', "'" + click.replaceAll("'", "'\\'" + "'") + "'"] : []), 'dev.ownvoice.probe/dev.ownvoice.probe.Probe'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });

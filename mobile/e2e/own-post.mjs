@@ -1,7 +1,8 @@
 // ov-own-posts emulator proof: a blank X-style composer asks for the one line the post is
 // about, drafts from that line, one draft is edited, and the edited text lands in the
 // composer (read back from the fixture itself).
-// Own lane AVD only; refuses to run on any other emulator or on a phone.
+// Own lane AVD only; refuses to run on any other emulator or on a phone, except the lab phone for the
+// phone writer leg (OWN_POST_WRITER=phone), which keeps its own settings and writer.
 //
 //   ANDROID_SERIAL=emulator-XXXX OWNVOICE_AVD_NAME=fm-ownposts1 \
 //     node e2e/own-post.mjs <release-apk> [outdir]
@@ -11,7 +12,7 @@
 // Set OWNVOICE_BEFORE=1 against the base build: it captures the same screens without the
 // own-post assertions, so before and after sit side by side in one evidence folder.
 // Never UiAutomator: it would unbind the running Ownvoice service (e2e/accessibility.mjs).
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,29 +20,46 @@ import { homedir } from 'node:os';
 import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
 
 const serial = process.env.ANDROID_SERIAL?.trim();
-if (!/^emulator-\d+$/.test(serial ?? '')) throw new Error('Set ANDROID_SERIAL to an owned emulator (owner phones are refused).');
+// The phone leg (OWN_POST_WRITER=phone) runs only on the lab phone, with the phone's own writer and
+// none of the emulator-only settings (its font, size, night mode and fixture are left as they are).
+const LAB_PHONE = 'a4b93ea2';
+const writer = process.env.OWN_POST_WRITER ?? '';
+const phone = writer === 'phone';
 const avd = process.env.OWNVOICE_AVD_NAME;
-const actual = emulatorName(serial);
-if (!avd || actual !== avd) throw new Error(`Refusing ${serial}: AVD ${actual} is not ${avd}.`);
+if (phone) {
+  if (serial !== LAB_PHONE) throw new Error(`The phone writer proof runs only on the lab phone ${LAB_PHONE}.`);
+} else {
+  if (!/^emulator-\d+$/.test(serial ?? '')) throw new Error('Set ANDROID_SERIAL to an owned emulator (owner phones are refused).');
+  const actual = emulatorName(serial);
+  if (!avd || actual !== avd) throw new Error(`Refusing ${serial}: AVD ${actual} is not ${avd}.`);
+}
 const apk = process.argv[2];
 if (!apk) throw new Error('Pass the release APK path.');
 const before = process.env.OWNVOICE_BEFORE === '1';
 const label = before ? 'before' : 'after';
 const theme = process.env.OWNVOICE_THEME ?? 'light';
+// The live leg (done-done journey own-posts): the real writer connected through the app's own screens,
+// no stub text. OWN_POST_WRITER=opencode connects the OpenCode Go key; OWN_POST_WRITER=phone uses the
+// phone's own writer. OWN_POST_NARROW=1 runs the emulator round at 720x1280, font 1.3.
+const live = writer === 'opencode' || phone;
 const out = resolve(process.argv[3] ?? 'mobile/.own-post');
 mkdirSync(out, { recursive: true });
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 // evidence.sh writes verify-artifacts/<task>/ relative to the repo root, so it runs from there.
 const evidence = (...args) => execFileSync('bash', [resolve(repoRoot, 'mobile/e2e/evidence.sh'), ...args],
   { env: { ...process.env, ANDROID_SERIAL: serial }, encoding: 'utf8', cwd: repoRoot });
-const shot = screen => evidence('shot', 'ov-own-posts', screen, label, theme);
+// Every shot comes with the accessible tree it was taken from, so a miss can be read from the dump.
+const shot = screen => {
+  evidence('shot', 'ov-own-posts', screen, label, theme);
+  try { writeFileSync(resolve(out, `${screen}-${label}-${theme}.nodes.json`), JSON.stringify(nodes(), null, 1)); } catch (error) { console.error(`nodes dump skipped: ${error.message}`); }
+};
 
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
 const fixturePkg = 'com.twitter.android';
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const nodes = accessibilityProbe(serial, out);
+const nodes = accessibilityProbe(serial, out, { phone });
 // The first instrument run after the probe installs comes back empty; warm it up once.
 if (!nodes().length) await wait(1500);
 const withNodes = async (what, read, tries = 20) => {
@@ -103,27 +121,155 @@ function buildFixture(scratch) {
   return built;
 }
 
+// OnePlus phones (AGENTS.md) stop on a "Continue installation" page during adb install and leave an
+// "Installed" page after it. Continue is tapped only while that page is in front, on the OnePlus 13
+// it is known to sit at 540,1833; every install ends with Back on the installer's page.
+async function installOnPhone(file) {
+  let code = null;
+  const child = spawn('adb', ['-s', serial, 'install', '-r', file], { stdio: 'inherit' });
+  child.on('exit', status => { code = status ?? -1; });
+  const model = adb('shell', 'getprop', 'ro.product.model').trim();
+  const installerFocus = () => /InstallGuideActivity|PackageInstaller/.test(adb('shell', 'dumpsys', 'window').split('\n').find(line => line.includes('mCurrentFocus')) ?? '');
+  for (let i = 0; i < 180 && code === null; i++) {
+    await wait(1000);
+    if (i >= 5 && model === 'PJZ110' && installerFocus()) adb('shell', 'input', 'tap', '540', '1833');
+  }
+  if (code !== 0) throw new Error(`adb install of ${file} on ${serial} exited with ${code}; the app is unchanged.`);
+  await wait(1500);
+  if (installerFocus()) { adb('shell', 'input', 'keyevent', '4'); await wait(1500); }
+}
+
 // 1. The fixture, the app, and the service. A first install never keeps the service bound,
 //    so the documented off/on toggle follows; e2e/first-run.mjs restored its own settings.
-evidence('theme', theme);
+// The phone keeps its own font, size, density and night mode: only the emulator rounds set them.
+if (phone) {
+  if (process.env.OWN_POST_NARROW === '1') throw new Error('The narrow round runs on an emulator only: the phone keeps its font and size.');
+} else if (process.env.OWN_POST_NARROW === '1') {
+  evidence('font', 'largest');
+  adb('shell', 'wm', 'size', '720x1280');
+  adb('shell', 'wm', 'density', '320');
+} else {
+  evidence('font', 'default');
+  adb('shell', 'wm', 'size', 'reset');
+  adb('shell', 'wm', 'density', 'reset');
+}
+if (!phone) evidence('theme', theme);
 const fixtureApk = buildFixture(out);
-// A leftover fixture from an earlier run is fine; the install below replaces it.
-try { adb('shell', 'pm', 'uninstall', fixturePkg); } catch { /* nothing installed yet */ }
+if (phone) {
+  // A real X on the phone is never replaced: only a fixture this run's adb installed may be.
+  const installer = adb('shell', 'pm', 'list', 'packages', '-i', fixturePkg).trim();
+  if (installer && !/installer=(com\.android\.shell|null)/.test(installer)) throw new Error(`${fixturePkg} on the phone is not our fixture (${installer}); the run stops.`);
+  // An earlier run's fixture, adb-installed, is removed so this build's fixture can install (its version is lower).
+  if (installer) adb('shell', 'pm', 'uninstall', fixturePkg);
+} else {
+  // A leftover fixture from an earlier run is fine; the install below replaces it.
+  try { adb('shell', 'pm', 'uninstall', fixturePkg); } catch { /* nothing installed yet */ }
+}
 execFileSync('adb', ['-s', serial, 'install', '-r', fixtureApk], { stdio: 'inherit' });
-// Install the app only when it is missing: reinstalling kills the process, and the offline
-// sign-in stand-in (e2e/first-run.mjs) keeps its connected state in memory, not on disk.
-if (!adb('shell', 'pm', 'path', pkg).includes('package:')) execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
+// The phone install replaces the app in place, so its downloaded writer model stays. Otherwise install
+// the app only when it is missing: reinstalling kills the process, and the offline sign-in stand-in
+// (e2e/first-run.mjs) keeps its connected state in memory, not on disk.
+if (phone) await installOnPhone(apk);
+else if (!adb('shell', 'pm', 'path', pkg).includes('package:')) execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
+// The OpenCode leg starts from a first install: a fresh process, setup not done, the service off, and
+// no stored writer, so the module walks the setup and connects the real key itself.
+if (writer === 'opencode') adb('shell', 'pm', 'clear', pkg);
 adb('shell', 'logcat', '-c');
+// Phone only: the phone's own settings are kept while the run changes them and put back at the end,
+// also when the run is killed: its accessibility services, stay-awake and screen timeout. The music
+// stream is at 30% or lower for the run, then 0 (the lead's steer for this proof).
+const setting = (space, key) => adb('shell', 'settings', 'get', space, key).trim();
+const putBack = (space, key, value) => (value === 'null' || value === '')
+  ? adb('shell', 'settings', 'delete', space, key)
+  : adb('shell', 'settings', 'put', space, key, value);
+const phoneKeep = phone ? {
+  services: setting('secure', 'enabled_accessibility_services'),
+  enabled: setting('secure', 'accessibility_enabled'),
+  stayOn: setting('global', 'stay_on_while_plugged_in'),
+  timeout: setting('system', 'screen_off_timeout'),
+} : null;
+const musicStream = () => {
+  // "Current:" leads with the device id ("Current: 2 (speaker): 0"); the level is the stream's streamVolume.
+  const block = adb('shell', 'dumpsys', 'audio').split(/^\s*-\s*STREAM_MUSIC:/m)[1] ?? '';
+  return { max: Number(block.match(/Max:\s*(\d+)/)?.[1] ?? 0), current: Number(block.match(/streamVolume:\s*(\d+)/)?.[1] ?? -1) };
+};
+// This phone has no `media` shell command; `cmd media_session` is the one that exists.
+const setMusic = value => {
+  try { adb('shell', 'cmd', 'media_session', 'volume', '--show', '--stream', '3', '--set', String(value)); } catch { return false; }
+  return musicStream().current === value;
+};
+let restored = false;
+const restorePhone = () => {
+  if (!phoneKeep || restored) return;
+  restored = true;
+  putBack('secure', 'enabled_accessibility_services', phoneKeep.services);
+  putBack('secure', 'accessibility_enabled', phoneKeep.enabled);
+  // The lead's fixed values for this phone (not the ones read before the run).
+  putBack('global', 'stay_on_while_plugged_in', '0');
+  putBack('system', 'screen_off_timeout', '60000');
+  if (!setMusic(0)) console.error('The phone music volume could not be set back to 0.');
+  const readBack = ['global stay_on_while_plugged_in', 'system screen_off_timeout'].map(k => { const [a, b] = k.split(' '); return `${b}=${setting(a, b)}`; });
+  const volume = adb('shell', 'cmd', 'media_session', 'volume', '--stream', '3', '--get').trim().split(/\r?\n/).join(' | ');
+  console.log(`phone restored: ${readBack.join(' ')} volume(get)=${volume}`);
+};
+const preparePhone = () => {
+  // A locked phone needs its PIN, which is never typed: the run stops before anything changes.
+  if (/isKeyguardShowing=true|mShowingLockscreen=true|mDreamingLockscreen=true/.test(adb('shell', 'dumpsys', 'window'))) throw new Error('The phone is locked; the run stops (no PIN is typed).');
+  process.on('SIGTERM', () => { restorePhone(); process.exit(143); });
+  process.on('SIGINT', () => { restorePhone(); process.exit(130); });
+  try {
+    adb('shell', 'settings', 'put', 'global', 'stay_on_while_plugged_in', '2');
+    adb('shell', 'settings', 'put', 'system', 'screen_off_timeout', '3600000');
+    // A phone that refuses the volume command still runs: the app plays no sound, and the log says so.
+    const { max, current } = musicStream();
+    const cap = Math.floor(max * 0.3);
+    if (!max) console.error('The phone music volume cannot be read; it is left as it is.');
+    else if (current > cap && !setMusic(cap)) console.error(`The phone music volume could not be set to ${cap} (30%); it is left as it is.`);
+  } catch (error) {
+    restorePhone();
+    throw error;
+  }
+};
 const toggleService = async on => {
-  const list = on ? [component] : ['com.example.disabled/NoService'];
-  adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', list.join(':'));
+  if (phone) {
+    // Only Ownvoice's entry changes: the phone's other accessibility services stay on.
+    const others = phoneKeep.services.split(':').filter(s => s && s !== 'null' && s !== component);
+    const list = on ? [...others, component] : others;
+    if (list.length) adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', list.join(':'));
+    else adb('shell', 'settings', 'delete', 'secure', 'enabled_accessibility_services');
+  } else {
+    const list = on ? [component] : ['com.example.disabled/NoService'];
+    adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', list.join(':'));
+  }
   adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
   await wait(1500);
 };
+const bound = () => /Bound services:\s*\{[^}]*Ownvoice/.test(adb('shell', 'dumpsys', 'accessibility'));
+if (live) {
+  const { proveOwnPostLive } = await import('./own-post-live.mjs');
+  if (phone) preparePhone();
+  try {
+    await toggleService(false);
+    await proveOwnPostLive({
+      adb, nodes, bubble, wait, evidence, theme, out, fixturePkg, pkg, type, key,
+      withNodes, composerText, screenText, center, bound, phone, rebind: () => toggleService(true),
+      // A settings CHANGE re-triggers the bind (an on→on put is no event): off, then on again.
+      rebindCycle: async () => { await toggleService(false); await toggleService(true); },
+    });
+  } finally {
+    restorePhone();
+  }
+  process.exit(0);
+}
 await toggleService(false);
 await toggleService(true);
-await wait(2500);
-if (!/Bound services:\s*\{[^}]*Ownvoice/.test(adb('shell', 'dumpsys', 'accessibility'))) throw new Error('Ownvoice accessibility service is not bound.');
+// The bind can take longer on a loaded emulator; poll before calling it a miss.
+for (let i = 0; i < 15 && !bound(); i++) await wait(2000);
+if (!bound()) {
+  // Keep the recent log, so the miss can be read from the record.
+  try { writeFileSync(resolve(out, 'bind-logcat.txt'), execFileSync('adb', ['-s', serial, 'logcat', '-d', '-t', '800'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 })); } catch { /* no log */ }
+  throw new Error('Ownvoice accessibility service is not bound.');
+}
 
 if (process.env.OWNVOICE_OUTCOME_PROOF === '1') {
   const { proveOutcomes } = await import('./outcomes.mjs');
