@@ -185,8 +185,9 @@ const phoneKeep = phone ? {
   timeout: setting('system', 'screen_off_timeout'),
 } : null;
 const musicStream = () => {
+  // "Current:" leads with the device id ("Current: 2 (speaker): 0"); the level is the stream's streamVolume.
   const block = adb('shell', 'dumpsys', 'audio').split(/^\s*-\s*STREAM_MUSIC:/m)[1] ?? '';
-  return { max: Number(block.match(/Max:\s*(\d+)/)?.[1] ?? 0), current: Number(block.match(/Current:\s*(\d+)/)?.[1] ?? -1) };
+  return { max: Number(block.match(/Max:\s*(\d+)/)?.[1] ?? 0), current: Number(block.match(/streamVolume:\s*(\d+)/)?.[1] ?? -1) };
 };
 // This phone has no `media` shell command; `cmd media_session` is the one that exists.
 const setMusic = value => {

@@ -181,11 +181,17 @@ export async function proveOwnPostLive(ctx) {
     await waitText(['how ownvoice writes', 'how should ownvoice write'], 30);
     await tapText('on this phone');
     await wait(2000);
-    for (let i = 0; i < 150 && !findText('ready. it writes right here'); i++) {
+    // The accessible tree and the screenshot both carry the line; either one is enough.
+    const readyShown = () => findText('ready. it writes right here') || /ready\.\s*it writes right here/.test(screenText());
+    for (let i = 0; i < 150 && !readyShown(); i++) {
       if (findText('get this phone ready to write')) throw new Error('This phone still asks for its one-time download; the driver does not start it.');
       await wait(2000);
     }
-    if (!findText('ready. it writes right here')) throw new Error('This phone never showed that it is ready to write.');
+    if (!readyShown()) {
+      // Keep what the driver saw, so the next miss can be read from the record.
+      writeFileSync(resolve(out, 'connect-nodes.json'), JSON.stringify(nodes(), null, 1));
+      throw new Error('This phone never showed that it is ready to write.');
+    }
     key(4);
     await wait(1500);
   };
