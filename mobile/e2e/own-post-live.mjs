@@ -180,8 +180,10 @@ export async function proveOwnPostLive(ctx) {
 
   // Tap the bubble over the typed line; wait for the live drafts (>= 2 "Use this" cards). Opening the
   // panel can recreate the fixture activity and lose the line, so a retry re-types it; a "Try again"
-  // the panel offers for a failed generation is tapped once and the wait goes on.
-  const tapForDrafts = async line => {
+  // the panel offers for a failed generation is tapped once and the wait goes on. On final failure
+  // the whole panel text and a screenshot stay in the out dir (run 10's longest case failed with
+  // fewer than 2 cards and no record of what was actually showing).
+  const tapForDrafts = async (line, id) => {
     const useThis = list => list.filter(n => /^Use this$/.test((n.text ?? '').trim())).length >= 2;
     const retype = async () => {
       adb('shell', 'am', 'force-stop', fixturePkg);
@@ -204,10 +206,12 @@ export async function proveOwnPostLive(ctx) {
         if (retry && !tapped) { tapped = true; const p = center(retry); adb('shell', 'input', 'tap', String(Math.round(p[0])), String(Math.round(p[1]))); }
         await wait(3000);
       }
-      if (attempt === 2) {
-        const notes = nodes().map(n => (n.text ?? '').trim()).filter(Boolean);
-        throw new Error(`No live drafts arrived. On screen: ${masked(notes.join(' | ')).slice(0, 300)}`);
-      }
+        if (attempt === 2) {
+          const notes = nodes().map(n => (n.text ?? '').trim()).filter(Boolean);
+          shot(`${id}-no-drafts`);
+          writeFileSync(resolve(out, `own-post-live-${round}-${id}-no-drafts.json`), JSON.stringify({ line, screen: masked(notes.join(' | ')).slice(0, 2000) }, null, 2));
+          throw new Error(`No live drafts arrived. On screen: ${masked(notes.join(' | ')).slice(0, 300)}`);
+        }
     }
   };
 
@@ -222,7 +226,7 @@ export async function proveOwnPostLive(ctx) {
     await wait(1500);
     if (composerText() !== item.line) throw new Error(`The composer did not take the ${item.id} line (saw "${composerText() || 'nothing'}").`);
     shot(`${item.id}-one-line`);
-    await tapForDrafts(item.line);
+    await tapForDrafts(item.line, item.id);
     await wait(1500);
     const drafts = draftTexts(nodes(), item.line);
     if (drafts.length < 2 || drafts.length > 3) throw new Error(`Expected 2 or 3 drafts for ${item.id}, saw ${drafts.length}: ${JSON.stringify(drafts)}`);
