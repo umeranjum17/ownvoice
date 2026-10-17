@@ -199,6 +199,30 @@ const connectOpenCode = async () => {
   shot('step-connected');
 };
 
+/** Type text into a field and prove it landed; short probe first, then the full message
+ *  in two chunks (the Messages box once mangled a single long commit). */
+const typeVerified = async (xp, yp, tag) => {
+  const type = text => execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${text}'`]);
+  const readField = () => (nodes().find(n => n.className === 'android.widget.EditText' && n.editable && !(n.text ?? '').includes('5550100'))?.text ?? '').trim();
+  const clearField = async () => {
+    tap(xp, yp); await wait(600);
+    shell('input', 'keycombination', '113', '29'); await wait(600);
+    shell('input', 'keyevent', '67'); await wait(800);
+  };
+  tap(xp, yp); await wait(600);
+  type('Hello%Sam'); await wait(1000);
+  if (readField() !== 'Hello Sam') { await clearField(); type('Hello%Sam'); await wait(1000); }
+  if (readField() !== 'Hello Sam') fail('host', `the ${tag} body does not take typed text (diagnostic probe failed)`);
+  await clearField();
+  const half = Math.ceil(TEXT.length / 2);
+  const chunks = [TEXT.slice(0, half), TEXT.slice(half)].map(s => s.replaceAll(' ', '%s'));
+  type(chunks[0]); await wait(1000);
+  type(chunks[1]); await wait(1200);
+  shot(`step-body-typed-${tag}`);
+  const landed = readField();
+  if (!landed.includes('Sam') || /^(word )+/.test(landed)) fail('host', `the ${tag} body mangled the message on retype (starts: "${landed.slice(0, 60)}")`);
+};
+
 const ownvoiceNode = list => list.find(n => n.windowType !== 4 && n.clickable && /ownvoice/i.test(`${n.label} ${n.text}`));
 const overflowItem = () => nodes().find(n => n.clickable && /more options/i.test(`${n.label} ${n.text}`));
 
@@ -293,13 +317,9 @@ try {
       }
       if (!field) {
         const empty = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && !(n.text ?? '').trim() && (n.label ?? '').length + (n.text ?? '').length < 60);
-        if (empty) {
-          tap(...center(empty));
-          await wait(600);
-          execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${TEXT.replaceAll(' ', '%s')}'`]);
-          await wait(1000);
-          field = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && (n.text ?? '').includes('Sam'));
-        }
+        if (!empty || hostPkg !== contactsPkg) fail('host', 'the Contacts name field never showed the message and no empty field could take it');
+        await typeVerified(...center(empty), 'contacts');
+        field = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && (n.text ?? '').includes('Sam'));
       }
       shot('step-field-loaded-contacts');
       if (field) console.log('contacts name field ready');
@@ -321,10 +341,8 @@ try {
     await wait(2000);
     const body = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && !(n.text ?? '').includes('5550100'));
     if (!body) fail('host', 'Messages compose body never opened after chipping the recipient');
-    tap(...center(body));
-    await wait(600);
-    execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${TEXT.replaceAll(' ', '%s')}'`]);
-    await wait(1000);
+    shot('step-to-chipped');
+    await typeVerified(...center(body), 'messages');
     field = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && (n.text ?? '').includes('Sam'));
     shot('step-field-loaded-messages');
     if (!field) fail('host', 'typing into the Messages compose body did not take');
@@ -349,10 +367,7 @@ try {
           execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'5550100'`]); await wait(800);
           shell('input', 'keyevent', '66'); await wait(2000);
           const fallbackBody = nodes().find(n => n.className === 'android.widget.EditText' && n.editable && !(n.text ?? '').includes('5550100'));
-          if (fallbackBody) {
-            tap(...center(fallbackBody)); await wait(600);
-            execFileSync('adb', ['-s', serial, 'shell', 'input', 'text', `'${TEXT.replaceAll(' ', '%s')}'`]); await wait(1000);
-          }
+          if (fallbackBody) await typeVerified(...center(fallbackBody), 'messages');
         }
       } else {
         shell('am', 'start', '-a', 'android.intent.action.INSERT', '-t', 'vnd.android.cursor.dir/contact', '--es', 'name', `'${TEXT}'`);
