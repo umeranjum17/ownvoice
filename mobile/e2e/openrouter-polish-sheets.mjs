@@ -233,9 +233,21 @@ let page = null;
 const dismissChromeFirstRun = async () => {
   for (let i = 0; i < 12; i++) {
     if (findText('message lab')) return;
-    const n = ['accept & continue', 'without an account', 'no thanks', 'no thank you', 'got it'].map(findText).find(Boolean);
-    if (!n) { await wait(1000); continue; }
-    tap(...center(n)); await wait(1500);
+    const n = ['accept & continue', 'without an account', 'no thanks', 'no thank you', 'got it', 'i understand'].map(findText).find(Boolean);
+    if (n) { tap(...center(n)); await wait(1500); continue; }
+    if (findText('ad privacy in chrome')) {
+      // The one-time ad-privacy consent keeps its button below the fold on the narrow font-1.3
+      // screen (the tree ends at the More link): scroll the sheet up until the button shows.
+      const [w, h] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+      for (let s = 0; s < 5 && !findText('i understand'); s++) {
+        adb('shell', 'input', 'swipe', String(w / 2), String(h * .8), String(w / 2), String(h * .3), '300');
+        await wait(1000);
+      }
+      const ok = findText('i understand');
+      if (ok) { tap(...center(ok)); await wait(1500); continue; }
+      await wait(1000); continue;
+    }
+    await wait(1000);
   }
 };
 
