@@ -1,5 +1,5 @@
-// Phone echo guard: a draft that echoes the slot instructions, or a 'Sure, here's…: ' preamble that
-// repeats the post, never shows. Plain answers and clean drafts still do.
+// Phone echo guard: a draft that echoes the slot instructions never shows. Plain answers and clean
+// drafts still do.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { acceptReplies } from '../dist/drafts.js';
@@ -22,13 +22,14 @@ test('a lowercase slot echo mid-text is dropped', () => {
   assert.deepEqual(accept(['great point, thanks.\nagree and add one concrete detail from the post.']), []);
 });
 
-test('a Sure preamble whose line repeats the post is dropped', () => {
-  assert.deepEqual(accept([`Sure, here’s the reply: ${point}.`]), []);
-});
-
 test('a plain Sure answer with a colon is kept', () => {
   const [card] = accept(['Sure, here is the address: 12 Elm St.'], "what's your address?");
   assert.equal(card, 'Sure, here is the address: 12 Elm St.');
+});
+
+test('a short post does not drop a reply that contains it inside a word', () => {
+  const reply = 'Sure, here is the address: 12 Brooklyn Ave.';
+  assert.equal(accept([reply], 'ok')[0], reply);
 });
 
 test('a plain Sure reply is kept', () => {

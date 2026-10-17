@@ -391,11 +391,9 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
   const echoes = (text: string) => echo.length > 0 && echoKey(text) === echo;
   // A card that plainly does the opposite of its slot's job is dropped for the same re-ask.
   const contradicts = (text: string, slot: number) => slots.length > slot && slotContradiction(slots[slot], text);
-  // A draft that holds slot instructions, or a 'Sure, here's…: ' preamble whose line repeats the post, is the
-  // model echoing its prompt (a live phone showed all three slots as a card). It is dropped, so the caller's
-  // per-slot retry asks again. A plain 'Sure, here is the address: …' answer is kept.
-  const preamble = /^sure[,!]?\s+here(['’]s| is)\b[^\n:]*:/i;
-  const echoesSlots = (text: string) => ALL_SLOTS.some(slot => text.toLowerCase().includes(slot.toLowerCase())) || (preamble.test(text.trim()) && echo.length > 0 && echoKey(text.trim().split('\n')[0]).includes(echo));
+  // A draft that holds slot instructions is the model echoing its prompt (a live phone showed all three
+  // slots as a card). It is dropped, so the caller's per-slot retry asks again.
+  const echoesSlots = (text: string) => ALL_SLOTS.some(slot => text.toLowerCase().includes(slot.toLowerCase()));
   let next = 0;
   const accept = (text: string, slot: number) => {
     if (slot >= count || accepted[slot]) return;
