@@ -235,7 +235,13 @@ export async function proveOwnPostLive(ctx) {
     shot(`${item.id}-edited`);
     const edited = editor();
     if (edited?.text !== EDITED) throw new Error(`The edit did not take (saw "${edited?.text}").`);
-    nodes('Use this');
+    // The keyboard covers the card's controls once the editor grows, so drop it before the insert;
+    // the click retries while the sheet settles.
+    key(4);
+    await wait(1000);
+    let used = false;
+    for (let i = 0; i < 3 && !used; i++) { try { nodes('Use this'); used = true; } catch { await wait(1500); } }
+    if (!used) throw new Error('The Use this control never took the insert click.');
     await wait(4000);
     if (nodes().some(n => /^(Polish your post|Start your post)/.test((n.text ?? '').trim()))) { key(4); await wait(2000); }
     shot(`${item.id}-inserted`);
