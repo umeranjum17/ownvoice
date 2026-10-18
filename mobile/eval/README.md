@@ -3,8 +3,9 @@
 The fixed case set in [`cases.ts`](cases.ts), extended from the offline-model study, including four per-platform reply cases (R09-R12: X, LinkedIn, Reddit, Slack), two tone-polish selection cases (S06-S07: Friendlier, Firmer), one trailing-chatter selection case (S08: Shorter drops appended dash lines) and three tone-line cases (T01-T03), and six local cleanup cases (P14-P19: spelling, a proper noun, advisory grammar, cleanup ordering, mixed-case repetition and protected wording), run through the app's
 **live** phone-writer pipeline (`src/panel/phoneWriter.ts` polish + replies,
 `src/rewrite/Rewrite.tsx` selection) against an OpenAI-compatible endpoint.
-Nothing here ships: no app file imports `mobile/eval/`, and Metro only
-bundles from the app entry point.
+P01 (and P13, scored from P01's Shorter card) calls the same `polishVersions`
+function as the phone. Nothing here ships: no app file imports `mobile/eval/`,
+and Metro only bundles from the app entry point.
 
 ## Run
 
