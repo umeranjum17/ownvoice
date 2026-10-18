@@ -19,7 +19,7 @@ const measuredAnswer = async (prompt: string, signal?: AbortSignal): Promise<Raw
   const mass = Object.values(probabilities).reduce((sum, probability) => sum + probability, 0);
   const selected = LEVEL_TOKENS.indexOf(choice);
   const raw = { validMass: mass };
-  if (selected < 0 || mass < 0.5 || mass > 1.01 || probabilities[String(selected)] !== Math.max(...Object.values(probabilities))) return { probabilities: {}, raw };
+  if (selected < 0 || mass < 0.5 || mass > 1.01 || probabilities[String(selected)] !== Math.max(...Object.values(probabilities)) || probabilities[String(selected)] < 0.6) return { probabilities: {}, raw };
   return { probabilities: Object.fromEntries(Object.entries(probabilities).map(([key, probability]) => [key, probability / mass])), raw };
 };
 
