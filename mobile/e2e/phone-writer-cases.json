@@ -1,0 +1,26 @@
+{
+  "replies": [
+    { "post": "Shipping the new onboarding flow today. Thanks to everyone who tested the beta.", "point": "congrats, that took real effort, well done" },
+    { "post": "Hot take: most meetings should be emails. Change my mind.", "point": "some of them yes, the standups not so much" },
+    { "post": "We moved the whole team to a four day week and output went up. Anyone else tried this?", "point": "we tried it for a quarter, it worked but scheduling got messy" },
+    { "post": "Lost my wallet on the train. Honest question: how do people stay organised?", "point": "a tracker tag on your keys helped me a lot" },
+    { "post": "Our open source library just crossed 10k stars. Grateful for every issue and PR.", "point": "that is huge, the docs make it easy to pick up" },
+    { "post": "Reminder that rest is part of the work, not a reward for finishing it.", "point": "needed this today, thank you" },
+    { "post": "Switching from Android to iPhone after eight years. Wish me luck.", "point": "good luck, the camera alone is worth it" },
+    { "post": "Our city bike lanes finally got protected barriers. Safer for everyone.", "point": "about time, I cycle there every morning" },
+    { "post": "Q3 numbers are in. Revenue up 18 percent, churn down by a point.", "point": "strong quarter, what drove the churn drop" },
+    { "post": "Does anyone have a good recipe for lentil soup that is not bland?", "point": "add cumin and a squeeze of lemon at the end" }
+  ],
+  "polishes": [
+    "hey can u send me the file when u get a sec thx",
+    "I can't make Thursday. Could we move the call to Friday morning instead?",
+    "Here is what I need from you:\n1. send the deck by Friday\n2. confirm the budget\n3. book the room for Monday",
+    "sorry for the late reply, I was offline most of the weekend and missed your message",
+    "Thanks a lot for the quick turnaround on the invoice, it helped us close the month on time.",
+    "ok fine whatever, do it your way, I'm not arguing about this anymore",
+    "Our team noticed the export button is missing on mobile. Can you look into it when you have time?",
+    "The new build is ready for review. Please test the login flow and tell me what breaks.",
+    "Quick question: is the Tuesday slot still open for the demo, or should I pick another day?",
+    "Steps to reproduce:\n1. open settings\n2. tap sync\n3. the spinner never stops"
+  ]
+}
