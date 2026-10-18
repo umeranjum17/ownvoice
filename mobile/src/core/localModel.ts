@@ -1,4 +1,4 @@
-import { LocalModel, model, type InferState } from '@byokit/infer';
+import { LocalModel, model, type Completion, type InferState } from '@byokit/infer';
 import { initLlama, installJsi } from 'llama.rn';
 import Native from '../../modules/ownvoice-native';
 import { createLocalStore } from './localStore';
@@ -85,11 +85,15 @@ export function agreedToDownload(): boolean {
   return !!store.get<boolean>(AGREED_KEY);
 }
 
-/** Generate text using the local model; calls and state checks queue behind each other.
- *  With [jsonSchema], decoding is constrained to that JSON shape. */
-export function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal, jsonSchema?: object): Promise<string> {
+/** Complete a local-model request; calls and state checks queue behind each other. */
+export function completeLocal(prompt: string, maxTokens: number, signal?: AbortSignal, jsonSchema?: object, n_probs?: number): Promise<Completion> {
   return oneAtATime(async () => {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    return (await getLocalModel().complete({ prompt, maxOutputTokens: maxTokens, signal, jsonSchema })).text;
+    return getLocalModel().complete({ prompt, maxOutputTokens: maxTokens, signal, jsonSchema, n_probs });
   });
+}
+
+/** Generate text using the local model. With [jsonSchema], decoding is constrained to that JSON shape. */
+export async function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal, jsonSchema?: object): Promise<string> {
+  return (await completeLocal(prompt, maxTokens, signal, jsonSchema)).text;
 }

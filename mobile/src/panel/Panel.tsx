@@ -392,7 +392,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         .catch(() => texts.map(abstain))
         .then(found => {
           if (run.current !== id) return;
-          // Levels and probabilities only, never the text: what the proof reads from the device log.
+          // Rating evidence only, never the text: what the proof reads from the device log.
           console.log(`ownvoice-fit ${JSON.stringify(found)}`);
           const judgedFit = (fit: Fit): Fit => refusal && fit.level == null ? { ...fit, refusal } : fit;
           setFits(new Map(texts.map((text, i) => [text, judgedFit(found[i])])));

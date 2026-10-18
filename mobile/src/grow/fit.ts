@@ -18,7 +18,7 @@ const RUBRIC: Record<string, string> = {
 /** `probability`: the judge's probability for `level`, for logs and proof only; people see `words`. */
 /** `voice`: the same call's yes/no on whether the card sounds like them, from their selected samples. */
 /** `refusal`: the writer account turned the rating away, so the bar says that instead of the unsure read. */
-export type Fit = { level: number | null; words: string; probability: number | null; voice: boolean | null; refusal?: string };
+export type Fit = { level: number | null; words: string; probability: number | null; voice: boolean | null; validMass?: number | null; refusal?: string };
 
 /** Whether this platform has a rubric to rate against. */
 export const rated = (platform: Platform) => platform.id in RUBRIC;
@@ -46,8 +46,10 @@ export async function judgeFit(o: { post: string; candidates: string[]; platform
     const v = a[`voice_${i}`];
     // A failed, vetoed or slow backend abstains with no probabilities: nothing was judged.
     const voice = !v || v.abstained ? null : v.answer === true;
-    if (!f || f.abstained) return { ...abstain(), voice };
+    const raw = f?.raw as { validMass?: unknown } | undefined;
+    const validMass = typeof raw?.validMass === 'number' || raw?.validMass === null ? { validMass: raw.validMass } : {};
+    if (!f || f.abstained) return { ...abstain(), voice, ...validMass };
     const level = Number(f.answer);
-    return { level, words: LEVELS[level], probability: f.probabilities?.[String(level)] ?? f.confidence, voice };
+    return { level, words: LEVELS[level], probability: f.probabilities?.[String(level)] ?? f.confidence, voice, ...validMass };
   });
 }
