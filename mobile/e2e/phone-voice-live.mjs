@@ -709,7 +709,7 @@ if (mode === 'recon') {
         try { await replyRun(cases.replies[i], i); } catch (e) { record({ kind: 'reply', i, error: String(e.message).slice(0, 200) }); }
       }
     }
-    for (let i = 0; i < cases.polishes.length; i++) {
+    for (let i = 0; i < Math.min(cases.polishes.length, Number(process.env.OV_POLISH_COUNT ?? cases.polishes.length)); i++) {
       try { await polishRun(cases.polishes[i], i); } catch (e) { record({ kind: 'polish', i, error: String(e.message).slice(0, 200) }); }
     }
   } finally {

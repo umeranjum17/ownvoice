@@ -72,24 +72,44 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
 // Local cleanup uses the shared polish acceptor; slot-0 fixtures need no writer call.
 // Other polish fixtures collect the two writer cards, then retry flattened layouts.
 async function polish(c: any, calls: Call[]) {
+  const stepMs: Record<string, number> = { canPolish: 0, acceptance: 0 };
   const dashes = D.dashDecision(false, c.typed);
   // Slot-0 fixtures qualify local cleanup only; live polish includes the advisory point check, as the phone does.
+  const evalStarted = Date.now();
+  const beforeCalls = calls.length;
+  if (c.id === 'P01-noon-list') {
+    const checkStarted = Date.now();
+    const clearPromise = c.slot === 0 ? Promise.resolve(true) : canPolish(c.typed, prompt => call(prompt, 8, calls)).catch(error => {
+      if (error instanceof Error && error.message === words.noVersions) return false;
+      throw error;
+    }).finally(() => { stepMs.canPolish = Date.now() - checkStarted; });
+    const landed: { text: string; slot: number }[] = [];
+    let firstCardMs = 0;
+    const result = await polishVersions((prompt, tokens) => call(prompt, tokens, calls), {
+      typed: c.typed, conversation: c.screen, guide: c.guide ?? '', dashes, avoid: [],
+      platform: c.app ? platformForApp(c.app) : undefined, clear: clearPromise,
+    }, (text, slot) => {
+      if (!firstCardMs) firstCardMs = Date.now() - evalStarted;
+      landed.push({ text, slot });
+    }, spell);
+    const clear = await clearPromise;
+    stepMs.firstCard = firstCardMs;
+    stepMs.rewrite = calls.filter(call => !call.prompt.startsWith('Does the text below')).reduce((sum, call) => sum + call.ms, 0);
+    stepMs.acceptance = Math.max(0, Date.now() - evalStarted - stepMs.rewrite - stepMs.canPolish);
+    return { shown: landed, raw: {}, rescued: [], unchanged: result.unchanged, declined: result.declined, clear, stepMs, phonePolishVersions: true };
+  }
+  const checkStarted = Date.now();
   const clear = c.slot === 0 ? true : await canPolish(c.typed, prompt => call(prompt, 8, calls)).catch(error => {
     if (error instanceof Error && error.message === words.noVersions) return false;
     throw error;
-  });
-  if (c.id === 'P01-noon-list') {
-    const landed: { text: string; slot: number }[] = [];
-    const result = await polishVersions((prompt, tokens) => call(prompt, tokens, calls), {
-      typed: c.typed, conversation: c.screen, guide: c.guide ?? '', dashes, avoid: [],
-      platform: c.app ? platformForApp(c.app) : undefined, clear,
-    }, (text, slot) => landed.push({ text, slot }), spell);
-    return { shown: landed, raw: {}, rescued: [], unchanged: result.unchanged, declined: result.declined, clear, phonePolishVersions: true };
-  }
+  }).finally(() => { stepMs.canPolish = Date.now() - checkStarted; });
   const engine = { ask: (p: string, n: number) => call(p, n, calls) };
   const acceptor = await polishAcceptor(c.typed, dashes, [], spell);
   const raw: Record<string, string> = { LIGHT: acceptor.local ?? c.typed };
-  if (c.slot === 0) return { raw, shown: acceptor.results, rescued: [], clear };
+  if (c.slot === 0) {
+    stepMs.acceptance = Date.now() - evalStarted;
+    return { raw, shown: acceptor.results, rescued: [], clear, stepMs };
+  }
   await J.rewrite(engine, c.typed, c.screen, c.guide ?? '', (v: any, text: string) => {
     raw[v.name] = text;
     acceptor.accept(text, J.versionsList.findIndex((x: any) => x.name === v.name), v.label);
@@ -102,7 +122,9 @@ async function polish(c: any, calls: Call[]) {
     const fixed = acceptor.fix(await call(prompt, 256, calls), fail.slot, fail.label);
     if (fixed != null) rescued.push(fail.slot);
   }
-  return { raw, shown: acceptor.results.sort((a: any, b: any) => a.slot - b.slot), rescued, clear };
+  stepMs.rewrite = calls.slice(beforeCalls).reduce((sum, call) => sum + call.ms, 0);
+  stepMs.acceptance = Math.max(0, Date.now() - evalStarted - stepMs.rewrite);
+  return { raw, shown: acceptor.results.sort((a: any, b: any) => a.slot - b.slot), rescued, clear, stepMs };
 }
 
 // Same shape as Panel.tsx: one batched tonePrompt call for the single text,
