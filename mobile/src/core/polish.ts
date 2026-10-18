@@ -61,6 +61,7 @@ export type PolishRequest = {
 };
 export type PolishOutcome = { drafts: string[]; unchanged?: boolean; declined?: boolean };
 
+const ALTERNATIVE_WORDING = 'Give a genuinely different wording even when their text already reads well; do not copy it back. For a list, shorten or rephrase within the existing rows: keep the intro, every item and their order. If the main point is already first, rephrase in place instead of moving or merging rows. A row may stay as it is, but the complete version must use different words.';
 const DIFFERENT_WORDS = 'Their text came back unchanged: write each version in different words, keeping the same point.';
 
 /** The phone's polish (the eval supplies the same endpoint and bundled dictionary): the point check is advisory, so an UNCLEAR answer still gets the versions. With no usable
@@ -77,7 +78,7 @@ export async function polishVersions(
   const acceptor = await polishAcceptor(request.typed, request.dashes, request.avoid, spell);
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   const note = avoidLine(request.avoid);
-  const askWith = (extra: string) => (prompt: string, maxTokens: number) => ask(prompt + [note, extra].filter(Boolean).map(line => `\n\n${line}`).join(''), maxTokens);
+  const askWith = (extra: string) => (prompt: string, maxTokens: number) => ask(prompt + [note, ALTERNATIVE_WORDING, extra].filter(Boolean).map(line => `\n\n${line}`).join(''), maxTokens);
   const writeAll = (extra: string) => rewrite({ ask: askWith(extra) }, request.typed, request.conversation, request.guide, (version, text) => {
     const slot = versionsList.findIndex(v => v.name === version.name);
     const clean = acceptor.accept(text, slot, version.label);
@@ -85,20 +86,18 @@ export async function polishVersions(
   }, request.dashes, request.platform);
   await writeAll('');
   if (acceptor.unchanged) await writeAll(DIFFERENT_WORDS);
-  // A flattened list goes back row by row; the rebuild keeps the original markers, so the
-  // layout is kept by construction - only a missing row or a changed number/time drops it.
-  const retried = new Set<number>();
-  for (const fail of acceptor.layoutFails) {
-    if (retried.has(fail.slot) || acceptor.results.some(r => r.slot === fail.slot)) continue;
-    retried.add(fail.slot);
-    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide, request.dashes, request.platform);
+  // Retry each missing writer slot, including an echo when its sibling already landed.
+  // Rebuilding row by row keeps the intro, items and original markers together.
+  for (const [slot, version] of versionsList.entries()) {
+    if (slot === 0 || acceptor.results.some(r => r.slot === slot)) continue;
+    const prompt = lineRetryPrompt(request.typed, request.conversation, version, request.guide, request.dashes, request.platform);
     let rebuilt: string | null;
     try {
-      rebuilt = rebuildLines(request.typed, await askWith('')(prompt, 256));
+      rebuilt = rebuildLines(request.typed, await askWith(DIFFERENT_WORDS)(prompt, 256));
     } catch { continue; }
     if (rebuilt == null) continue;
-    const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
-    if (fixed != null) landed(fixed, fail.slot, fail.label);
+    const fixed = acceptor.fix(rebuilt, slot, version.label);
+    if (fixed != null) landed(fixed, slot, version.label);
   }
   const drafts = acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
   if (!drafts.length && !request.clear && acceptor.mash) return { drafts: [], declined: true };
