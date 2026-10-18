@@ -79,7 +79,7 @@ export async function polishVersions(
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   const note = avoidLine(request.avoid);
   const askWith = (extra: string) => (prompt: string, maxTokens: number) => ask(prompt + [note, ALTERNATIVE_WORDING, extra].filter(Boolean).map(line => `\n\n${line}`).join(''), maxTokens);
-  const writeAll = (extra: string) => rewrite({ ask: askWith(extra) }, request.typed, request.conversation, request.guide, (version, text) => {
+  const writeAll = (extra: string) => rewrite({ ask: askWith(extra) }, request.typed, '', request.guide, (version, text) => {
     const slot = versionsList.findIndex(v => v.name === version.name);
     const clean = acceptor.accept(text, slot, version.label);
     if (clean != null) landed(clean, slot, version.label);
@@ -90,7 +90,7 @@ export async function polishVersions(
   // Rebuilding row by row keeps the intro, items and original markers together.
   for (const [slot, version] of versionsList.entries()) {
     if (slot === 0 || acceptor.results.some(r => r.slot === slot)) continue;
-    const prompt = lineRetryPrompt(request.typed, request.conversation, version, request.guide, request.dashes, request.platform);
+    const prompt = lineRetryPrompt(request.typed, '', version, request.guide, request.dashes, request.platform);
     let rebuilt: string | null;
     try {
       rebuilt = rebuildLines(request.typed, await askWith(DIFFERENT_WORDS)(prompt, 256));
