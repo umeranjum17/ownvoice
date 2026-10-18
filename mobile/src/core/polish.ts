@@ -78,7 +78,7 @@ export async function polishVersions(
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   const note = avoidLine(request.avoid);
   const askWith = (extra: string) => (prompt: string, maxTokens: number) => ask(prompt + [note, extra].filter(Boolean).map(line => `\n\n${line}`).join(''), maxTokens);
-  const writeAll = (extra: string) => rewrite({ ask: askWith(extra) }, request.typed, request.conversation, request.guide, (version, text) => {
+  const writeAll = (extra: string) => rewrite({ ask: askWith(extra) }, request.typed, '', request.guide, (version, text) => {
     const slot = versionsList.findIndex(v => v.name === version.name);
     const clean = acceptor.accept(text, slot, version.label);
     if (clean != null) landed(clean, slot, version.label);
@@ -91,7 +91,7 @@ export async function polishVersions(
   for (const fail of acceptor.layoutFails) {
     if (retried.has(fail.slot) || acceptor.results.some(r => r.slot === fail.slot)) continue;
     retried.add(fail.slot);
-    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide, request.dashes, request.platform);
+    const prompt = lineRetryPrompt(request.typed, '', versionsList[fail.slot], request.guide, request.dashes, request.platform);
     let rebuilt: string | null;
     try {
       rebuilt = rebuildLines(request.typed, await askWith('')(prompt, 256));
