@@ -6,7 +6,7 @@ import { askLocal } from '../core/localModel';
 export const FIT_TOKENS = 256;
 
 const strict = (properties: Record<string, object>) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
-const answerKeys = (q: Question) => q.kind === 'score' ? q.levels.map((_, i) => String(i)) : q.kind === 'yesno' ? ['true', 'false'] : q.kind === 'choice' ? Object.keys(q.options) : [];
+const answerKeys = (q: Question) => (q as Extract<Question, { kind: 'score' }>).levels.map((_, i) => String(i));
 
 /** The reply shape decide reads, and nothing else: per question, one probability per answer key. Decoding to it keeps
  *  four cards' answers inside the 256-token cap (free-form JSON with rationales ran past it on the phone, so every
