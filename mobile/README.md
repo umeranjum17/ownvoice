@@ -81,7 +81,7 @@ one** bar; the panel never shows a number and never predicts reach. The level is
 adjusted by hand rules. The panel asks once per tap after the writer settles, never per
 keystroke, and never for an edited text; each call uses a fresh in-memory cache.
 
-By default the fit runs on the person's **signed-in account** — whichever cloud account is
+When a cloud account writes, the fit runs by default on the person's **signed-in account** — whichever cloud account is
 chosen, ChatGPT, Claude, OpenRouter or OpenCode Go — through the same `askCloud` boundary the writer uses, so no Jev
 key ships in the app. A build with `EXPO_PUBLIC_JEV_KEY` uses Jev instead (billed per use to
 that key), which the emulator stand-in proofs set. `fitBackends(app)` in
