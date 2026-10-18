@@ -35,6 +35,18 @@ const editWords = {
   editField:'Edit this draft',
 } as const;
 
+// Panel mic: tap to listen on this phone, tap again (or silence) to finish; the heard
+// words go into the focused field through the insert path.
+const dictateWords = {
+  dictateListen: 'Listen',
+  dictateStop: 'Stop listening',
+  dictateListening: 'Listening… tap Stop when you are done.',
+  dictateUnheard: 'Didn’t catch that. Try again.',
+  dictateUnavailable: 'This phone can’t listen yet.',
+  dictateLanguage: 'This phone can’t listen in your language yet.',
+  dictateMic: 'To listen, allow the microphone the next time it asks.',
+} as const;
+
 // Growth check-in (F6b): a quiet line about a day after an insert, a weekly numbers card, and the
 // growth screen. Every line stays in plain words with no digits; his own typed counts are the one
 // scoped exception, and they render only on the growth screen's number fields.
@@ -175,7 +187,7 @@ const openCodeWords = {
 } as const;
 
 export const words = {
-  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords,
+  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords,
   keepReplies: 'Keep my replies to learn from',
   keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
   outcomeTitle: 'Replies you inserted',

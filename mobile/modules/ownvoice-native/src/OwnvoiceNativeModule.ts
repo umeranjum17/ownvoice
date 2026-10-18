@@ -10,6 +10,8 @@ type Events = {
   onInserted: (event: { ok: boolean; newlinesLost: boolean; practice: boolean }) => void;
   /** A typing pause in a switched-on app, sent only while "Check my spelling as I type" is on. */
   onTyped: (event: { app: string; text: string }) => void;
+  /** Dictation segments for one mic session: { id, type: 'segment' | 'stopped' | 'error', segment?, code? }. */
+  onDictate: (event: { id: string; type: string; segment?: { id: string; text: string; final: boolean }; code?: string }) => void;
 };
 declare class OwnvoiceNativeModule extends NativeModule<Events> {
   serviceState(): Promise<ServiceState>;
@@ -37,6 +39,13 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   copy(text: string): Promise<void>;
   insert(text: string): Promise<{ ok: boolean; newlinesLost: boolean }>;
   closePanel(): Promise<void>;
+  /** On-device dictation port (Dictate.kt): segments arrive on the onDictate event. */
+  dictateAvailable(locale: string): Promise<'ready' | 'needs-download' | 'unsupported' | 'mic-blocked'>;
+  dictateStart(id: string, options: { locale: string; partial: boolean; punctuation: boolean }): Promise<void>;
+  dictateStop(id: string): Promise<void>;
+  dictateCancel(id: string): Promise<void>;
+  /** Debug-only proof hook: stage a recorded WAV for the next session; release builds refuse. */
+  dictateProofWav(path: string): Promise<boolean>;
   sharedMarkdown(): Promise<string | null>;
   rewriteInput(): { text: string; editable: boolean; markdown?: boolean } | null;
   finishRewrite(text: string | null, replace: boolean): Promise<void>;
