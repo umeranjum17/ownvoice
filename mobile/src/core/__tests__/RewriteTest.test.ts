@@ -82,6 +82,22 @@ test('tonePromptNamesOneWordPerTextAndParsesOnlyCleanOnes',()=>{
   expect(toneLine('friendly')).toBe('Sounds friendly');
   expect(toneLine('a bit sharp')).toBe('Sounds a bit sharp');
 });
+// Tone-line filler words (scorecard reply-8/reply-9: "Sounds add", "Sounds yes",
+// "Sounds what", "Sounds up"): echoed filler is dropped so the line hides;
+// only a real tone word shows.
+test('fillerToneWordsHideTheLine',()=>{
+  for(const filler of ['add','yes','what','up'])expect(cleanTone(filler)).toBeNull();
+  expect(parseTones('1: add\n2: yes\n3: what\n4: up')).toEqual([]);
+  const mixed=parseTones('1: add\n2: urgent');
+  expect(mixed[0]).toBeUndefined();
+  expect(mixed[1]).toBe('urgent');
+  for(const valid of ['urgent','formal','friendly','calm'])expect(cleanTone(valid)).toBe(valid);
+  expect(cleanTone('Sounds urgent')).toBe('urgent');
+  expect(toneLine('urgent')).toBe('Sounds urgent');
+  expect(cleanTone('warm and grateful')).toBe('warm');
+  expect(cleanTone('yes and friendly')).toBeNull();
+  expect(cleanTone('add and up')).toBeNull();
+});
 // S05 (offline-model study §5.1): selection Shorter/Simpler on a numbered list must
 // ask the model to keep the lines, or every model flattens it to one line.
 test('selectionPromptKeepsListLines',()=>{

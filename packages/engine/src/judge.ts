@@ -72,10 +72,16 @@ export function tonePrompt(texts:string[]):string{
 const numbered=texts.map((text,i)=>`${i+1}: ${text.replace(/\s+/g,' ').trim().slice(0,300)}`).join('\n');
 return `What tone does each text below sound like? Answer with one or two plain everyday words per text, like "friendly" or "a bit sharp". One line per text, like "1: friendly". No sentences, no punctuation.\n\n${numbered}`;}
 /** Short tone labels only; approval wording is dropped because a tone answer provides no writing-check evidence. */
+/** Real plain tone words the line may show. Anything else (a filler word like
+ *  "yes" or "add" echoed from the text, approval wording, a sentence) hides the line. */
+const TONE_WORDS=new Set(['friendly','warm','kind','polite','gentle','soft','calm','relaxed','casual','light','playful','cheerful','upbeat','happy','hopeful','grateful','sympathetic','supportive','encouraging','sincere','honest','direct','confident','firm','formal','professional','serious','neutral','matter-of-fact','blunt','sharp','stern','strict','cool','cold','distant','tense','annoyed','frustrated','angry','sad','worried','anxious','urgent','excited','apologetic','curious','thoughtful']);
+const TONE_SOFTENERS=['a bit ','a little '];
+const toneBase=(phrase:string)=>{let base=phrase;for(const softener of TONE_SOFTENERS)if(base.startsWith(softener)){base=base.slice(softener.length);break;}return TONE_WORDS.has(base)?phrase:null;};
 export function cleanTone(value:string):string|null{
-const tone=value.replace(/^["'“‘]+|["'”’.,;:!?]+$/g,'').trim().toLowerCase();
+const tone=value.replace(/^["'“‘]+|["'”’.,;:!?]+$/g,'').trim().toLowerCase().replace(/^sounds\s+/,'');
 if(!tone||tone.length>24||!/^[a-z][a-z' \-]*$/.test(tone)||tone.split(/\s+/).length>3||/\d/.test(tone)||technicalWords.test(tone)||/\b(natural|fluent|correct|perfect|flawless|polished|good|error-free|typo-free)\b/.test(tone))return null;
-return tone;}
+if(tone.includes(' and ')){const parts=tone.split(/\s+and\s+/);if(parts.length>2||parts.some(part=>!toneBase(part)))return null;return toneBase(parts[0]);}
+return toneBase(tone);}
 export function parseTones(answer:string|null):string[]{
 if(!answer)return[];
 const tones:string[]=[];
