@@ -11,7 +11,7 @@ const answerKeys = (q: Question) => (q as Extract<Question, { kind: 'score' }>).
 /** The reply shape decide reads, and nothing else: per question, one probability per answer key. Decoding to it keeps
  *  four cards' answers inside the 256-token cap (free-form JSON with rationales ran past it on the phone, so every
  *  card abstained) and keeps the keys to the level numbers decide expects. */
-export const answerSchema = (questions: Record<string, Question>) => strict(Object.fromEntries(Object.entries(questions).map(([k, q]) =>
+const answerSchema = (questions: Record<string, Question>) => strict(Object.fromEntries(Object.entries(questions).map(([k, q]) =>
   [k, strict({ probabilities: strict(Object.fromEntries(answerKeys(q).map(key => [key, { type: 'number' }]))) })])));
 
 /** The reply fit on this phone: the on-device model answers the same rubric the cloud judges get,
