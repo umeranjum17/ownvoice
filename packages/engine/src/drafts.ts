@@ -120,7 +120,8 @@ export function layoutKept(original: string, version: string): boolean {
   const had = listMarkers(original), has = listMarkers(version);
   return had.length === has.length && had.every((marker, i) => marker === has[i])
     && paragraphBreaks(original) === paragraphBreaks(version)
-    && (!original.includes('\n') || nonEmptyLines(version) >= nonEmptyLines(original) - 1);
+    // A list keeps every line, its intro included; other text may merge one line.
+    && (!original.includes('\n') || nonEmptyLines(version) >= nonEmptyLines(original) - (had.length ? 0 : 1));
 }
 
 const leadingMarker = /^\s*(?:\d+[.)]|[-*•])\s+/;

@@ -17,6 +17,7 @@ import * as T from 'ownvoice-engine/src/threads.ts';
 import nspell from 'nspell';
 import { canPolish, polishAcceptor, polishVersions } from '../src/core/polish.ts';
 import { fixedSentenceSplits } from '../src/core/typing.ts';
+import { words } from '../src/core/words.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
 
@@ -72,21 +73,23 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
 // Other polish fixtures collect the two writer cards, then retry flattened layouts.
 async function polish(c: any, calls: Call[]) {
   const dashes = D.dashDecision(false, c.typed);
+  // Slot-0 fixtures qualify local cleanup only; live polish includes the advisory point check, as the phone does.
+  const clear = c.slot === 0 ? true : await canPolish(c.typed, prompt => call(prompt, 8, calls)).catch(error => {
+    if (error instanceof Error && error.message === words.noVersions) return false;
+    throw error;
+  });
   if (c.id === 'P01-noon-list') {
-    if (!await canPolish(c.typed, prompt => call(prompt, 8, calls))) return { shown: [], rescued: [] };
     const landed: { text: string; slot: number }[] = [];
     const result = await polishVersions((prompt, tokens) => call(prompt, tokens, calls), {
       typed: c.typed, conversation: c.screen, guide: c.guide ?? '', dashes, avoid: [],
-      platform: c.app ? platformForApp(c.app) : undefined,
+      platform: c.app ? platformForApp(c.app) : undefined, clear,
     }, (text, slot) => landed.push({ text, slot }), spell);
-    return { shown: landed, raw: {}, rescued: [], unchanged: result.unchanged, phonePolishVersions: true };
+    return { shown: landed, raw: {}, rescued: [], unchanged: result.unchanged, declined: result.declined, clear, phonePolishVersions: true };
   }
   const engine = { ask: (p: string, n: number) => call(p, n, calls) };
-  // Slot-0 fixtures qualify local cleanup only; live polish includes the original-point gate.
-  if (c.slot !== 0 && !await canPolish(c.typed, prompt => call(prompt, 8, calls))) return { raw: {}, shown: [], rescued: [] };
   const acceptor = await polishAcceptor(c.typed, dashes, [], spell);
   const raw: Record<string, string> = { LIGHT: acceptor.local ?? c.typed };
-  if (c.slot === 0) return { raw, shown: acceptor.results, rescued: [] };
+  if (c.slot === 0) return { raw, shown: acceptor.results, rescued: [], clear };
   await J.rewrite(engine, c.typed, c.screen, c.guide ?? '', (v: any, text: string) => {
     raw[v.name] = text;
     acceptor.accept(text, J.versionsList.findIndex((x: any) => x.name === v.name), v.label);
@@ -99,7 +102,7 @@ async function polish(c: any, calls: Call[]) {
     const fixed = acceptor.fix(await call(prompt, 256, calls), fail.slot, fail.label);
     if (fixed != null) rescued.push(fail.slot);
   }
-  return { raw, shown: acceptor.results.sort((a: any, b: any) => a.slot - b.slot), rescued };
+  return { raw, shown: acceptor.results.sort((a: any, b: any) => a.slot - b.slot), rescued, clear };
 }
 
 // Same shape as Panel.tsx: one batched tonePrompt call for the single text,

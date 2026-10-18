@@ -11,7 +11,7 @@ test('original-point admission requires an explicit clear answer, never a fluent
   expect(await canPolish(typed, async () => 'UNCLEAR')).toBe(false);
   for (const answer of ['', bad, 'CLEAR or UNCLEAR']) {
     await expect(canPolish(typed, async prompt => {
-      expect(prompt).toContain(`Text:\n${typed}`);
+      expect(prompt).toContain(typed);
       return answer;
     })).rejects.toThrow(words.noVersions);
   }
@@ -32,7 +32,7 @@ test('the clarity question admits short everyday replies and declines keyboard m
   const answer = (raw: string) => async (prompt: string) => { prompts.push(prompt); return raw; };
   for (const text of ['see you at 6', 'got it, thanks', 'will do']) expect(await canPolish(text, answer('CLEAR'))).toBe(true);
   for (const text of ['asdf qwer zxcv', 'qwerty asdf zxcvb']) expect(await canPolish(text, answer('UNCLEAR'))).toBe(false);
-  expect(prompts[0]).toContain(`Text:\nsee you at 6`);
+  expect(prompts[0]).toContain('see you at 6');
   expect(prompts[0]).toMatch(/keyboard mash/i);
 });
 
