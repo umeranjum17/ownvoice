@@ -16,9 +16,10 @@
 //                 model download when asked (records download-start.txt), then leave it running
 //   dlwait <out>  wait until the phone writer is ready (records elapsed time)
 //   voice <out>   the ov-pm-17 protocol: 5 runs rule-off, 5 rule-on, 1 lowercase-blunt note
+//   journey <out> scorecard: 10 reply taps in the X composer, then 10 polishes in a Chrome page
 // Env: ANDROID_SERIAL must be a4b93ea2; OV_THEME=light|dark (default light).
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, openSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -189,7 +190,7 @@ const VOICE_THREAD = {
   point: 'honestly no worries, take your time',
 };
 const results = resolve(out, 'results.jsonl');
-if (!process.env.OV_APPEND && mode === 'voice') writeFileSync(results, '');
+if (!process.env.OV_APPEND && (mode === 'voice' || mode === 'journey')) writeFileSync(results, '');
 const record = row => { appendFileSync(results, JSON.stringify(row) + '\n'); console.log(JSON.stringify(row).slice(0, 300)); };
 
 if (mode === 'recon') {
@@ -568,6 +569,163 @@ if (mode === 'recon') {
     await runArm(`note-lowercase-blunt${armTag}`);
   }
   console.log(`VOICE_DONE theme=${theme} out=${out}`);
+} else if (mode === 'journey') {
+  // Scorecard journey: 10 reply taps in the X composer fixture, then 10 polishes typed into a
+  // host-served page in Chrome. Each run times the bubble tap to the first card ("first") and to
+  // the panel showing all three cards ("all"). Timings are bounded by the screenshot cadence
+  // (about 2-3 s per read), so they are upper bounds, not stopwatch values.
+  const { spawn } = await import('node:child_process');
+  const cases = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'phone-writer-cases.json'), 'utf8'));
+  const CARD_TAG = /^(agree|push back, kindly|ask a question|answer|disagree|ask for a detail)$/i;
+  const STRAY = /Skip\.|good practice|Couldn't polish|undefined|null|\[|\]|```|[{}]/i;
+  const PANEL = /Suggested replies|Polish your/i;
+  const READY = /Pick one to/i;
+  const FAILED = /Couldn't polish|went wrong|no-answer|offline|limit reached/i;
+  // The panel header sits at about 24% of the height on this phone; a crop that starts at 30% cuts it off.
+  const crop = [SW, Math.round(SH * 0.85), 0, Math.round(SH * 0.15)];
+  // Typed text: spaces as %s, other shell metacharacters escaped; one Enter per newline.
+  const typeLines = text => text.split('\n').forEach((line, k) => {
+    if (k) adb('shell', 'input', 'keyevent', '66');
+    if (line) adb('shell', 'input', 'text', line.replace(/ /g, '%s').replace(/[^A-Za-z0-9%s.,!?:\-\/]/g, c => `\\${c}`));
+  });
+  const openBubble = async tag => {
+    for (let i = 0; i < 8; i++) {
+      const f = bubbleFrame();
+      if (!f) { await wait(1500); continue; }
+      const t0 = Date.now();
+      tap((f.x0 + f.x1) / 2, (f.y0 + f.y1) / 2);
+      await wait(600);
+      if (PANEL.test(read(`${tag}-open-${i}`, crop).text)) return t0;
+    }
+    throw new Error(`${tag}: the bubble never opened the panel`);
+  };
+  // The panel's own lines: everything above the user's YOURS card and, when the Why? line shows, below it.
+  // The typed text sits in the YOURS card, so a refusal or card match never reads the user's words.
+  const panelOnly = lines => {
+    const yours = lines.findIndex(l => /^YOURS\b/.test(l.text.trim()));
+    if (yours < 0) return lines;
+    const why = lines.findIndex((l, i) => i > yours && /^Why\?/.test(l.text.trim()));
+    return why < 0 ? lines.slice(0, yours) : lines.filter((_, i) => i < yours || i > why);
+  };
+  // Polish cards carry an all-caps tag (SHORTER, ...); reply cards carry the CARD_TAG words.
+  const isCardTag = text => CARD_TAG.test(text) || /^[A-Z][A-Z ]{2,20}$/.test(text);
+  // A card's text can repeat the user's own words ("was offline"), so a failure word counts only with no card shown.
+  // Cards sit below the YOURS card; with no YOURS line on screen there are none.
+  const cardCount = lines => {
+    const yours = lines.findIndex(l => /^YOURS\b/.test(l.text.trim()));
+    return yours < 0 ? 0 : lines.slice(yours + 1).filter(l => isCardTag(l.text.trim())).length;
+  };
+  // Both kinds show three cards (reply slots, polish versions); a static screen alone is not done.
+  const CARDS = 3;
+  const settle = async (tag, t0) => {
+    let tFirst = null, tAll = null, r = null;
+    for (let k = 0; k < 30; k++) {
+      r = read(`${tag}-${k}`, crop);
+      const now = Date.now() - t0;
+      const own = panelOnly(r.lines).map(l => l.text).join('\n');
+      const cards = cardCount(r.lines);
+      if (tFirst === null && (cards > 0 || READY.test(own) || (!cards && FAILED.test(own)))) tFirst = now;
+      if (cards >= CARDS) { tAll = now; break; }
+      if (!cards && FAILED.test(own)) break;
+    }
+    return { tFirst, tAll, r };
+  };
+  const runPanel = async (tag, kind) => {
+    const t0 = await openBubble(tag);
+    const { tFirst, tAll, r } = await settle(tag, t0);
+    const own = panelOnly(r.lines);
+    const cards = cardCount(r.lines);
+    const refusal = cards ? null : FAILED.exec(own.map(l => l.text).join('\n'))?.[0] ?? null;
+    const strays = r.lines.map(l => l.text).filter(t => STRAY.test(t));
+    record({ kind, tag, theme, t_first_ms: tFirst, t_all_ms: tAll, cards, refusal, strays, shot: r.png });
+    for (let b = 0; b < 3 && PANEL.test(read(`${tag}-dismiss-${b}`).text); b++) {
+      adb('shell', 'input', 'keyevent', '4');
+      await wait(1000);
+    }
+  };
+  const replyRun = async (c, i) => {
+    await rebind();
+    adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+    await wait(1500);
+    adb('shell', 'am', 'force-stop', 'com.twitter.android');
+    await wait(700);
+    const q = s => `'${String(s).replaceAll("'", "'\\''")}'`;
+    adb('shell', 'am', 'start', '-n', 'com.twitter.android/.Composer', '--es', 'post', q(c.post), '--es', 'replyText', q(c.point), '--es', 'label', q('X'));
+    await wait(4000);
+    const r0 = read(`reply-${i}-thread`);
+    // The last word: OCR splits a line in two and garbles punctuation, so a longer key misses.
+    const key = c.point.split(' ').pop();
+    const fi = findLine(r0.lines, new RegExp(`(?<!\\w)${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?!\\w)`, 'i'));
+    if (fi < 0) throw new Error(`reply ${i}: reply text not on screen (see reply-${i}-thread.png)`);
+    // Focus the field at the end of its text and leave the keyboard up (the bubble hides on blur).
+    tap(Math.min(SW - 60, r0.lines[fi].x1 + 50), r0.lines[fi].cy);
+    await wait(1500);
+    adb('shell', 'input', 'text', '%s');
+    await wait(800);
+    adb('shell', 'input', 'keyevent', '67');
+    await wait(1500);
+    await runPanel(`reply-${i}`, 'reply');
+  };
+  const polishRun = async (text, i) => {
+    await rebind();
+    adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+    await wait(1500);
+    // Chrome rejects a data: URL from an intent, so the page comes from the host over adb reverse.
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `http://127.0.0.1:${polishPort}/`, '-p', 'com.android.chrome');
+    await wait(4000);
+    // Clear Chrome's first-run screens if they come up before the page.
+    for (let k = 0; k < 3; k++) {
+      const f = read(`polish-${i}-chrome-${k}`).lines.find(l => /accept & continue|without an account|no thanks|got it/i.test(l.text));
+      if (!f) break;
+      tap(f.cx, f.cy);
+      await wait(1500);
+    }
+    tap(SW / 2, SH * 0.35);
+    await wait(1200);
+    typeLines(text);
+    await wait(800);
+    await runPanel(`polish-${i}`, 'polish');
+  };
+  // One full flow on the screen recorder (the first reply flow, 170 s cap).
+  // Its stderr and exit code go to screenrecord.log: a recorder that dies at once leaves no file to pull.
+  // A per-run path: a file left by an earlier run under another user blocks the recorder's open.
+  const recLog = resolve(out, 'screenrecord.log');
+  const flowPath = `/sdcard/ov-journey-${Date.now()}.mp4`;
+  const rec = process.env.OV_RECORD === '1'
+    ? spawn('adb', ['-s', serial, 'shell', 'screenrecord', '--time-limit', '170', flowPath],{ detached: true, stdio: ['ignore', 'ignore', openSync(recLog, 'w')] })
+    : null;
+  rec?.on('exit', code => appendFileSync(recLog, `exit code=${code}\n`));
+  rec?.unref();
+  // The polish page: a host server on loopback, reached through adb reverse.
+  const { createServer } = await import('node:http');
+  const polishHtml = '<!doctype html><meta name="viewport" content="width=device-width"><body style="font:22px sans-serif;margin:16px"><textarea autofocus style="width:100%;height:60vh;font:22px sans-serif"></textarea></body>';
+  const polishServer = createServer((_req, res) => res.end(polishHtml));
+  await new Promise(done => polishServer.listen(0, '127.0.0.1', done));
+  const polishPort = polishServer.address().port;
+  try {
+    adb('reverse', `tcp:${polishPort}`, `tcp:${polishPort}`);
+    if (!process.env.OV_POLISH_ONLY) {
+      for (let i = 0; i < cases.replies.length; i++) {
+        try { await replyRun(cases.replies[i], i); } catch (e) { record({ kind: 'reply', i, error: String(e.message).slice(0, 200) }); }
+      }
+    }
+    for (let i = 0; i < cases.polishes.length; i++) {
+      try { await polishRun(cases.polishes[i], i); } catch (e) { record({ kind: 'polish', i, error: String(e.message).slice(0, 200) }); }
+    }
+  } finally {
+    try { adb('reverse', '--remove', `tcp:${polishPort}`); } catch { /* best-effort */ }
+    polishServer.close();
+  }
+  if (rec) {
+    // Stop the recorder so it writes the file's end (SIGINT), then pull.
+    try { adb('shell', 'pkill', '-INT', 'screenrecord'); } catch { /* already finished at its time limit */ }
+    await wait(2000);
+    try {
+      execFileSync('adb', ['-s', serial, 'pull', flowPath, resolve(out, 'flow.mp4')], { stdio: 'pipe' });
+    } catch (e) { console.log(`flow.mp4 not pulled: ${String(e.message).slice(0, 120)}`); }
+    adb('shell', 'rm', '-f', flowPath);
+  }
+  console.log(`JOURNEY_DONE theme=${theme} out=${out}`);
 } else {
-  throw new Error(`unknown mode ${mode}: recon, setup, dlwait or voice`);
+  throw new Error(`unknown mode ${mode}: recon, setup, dlwait, voice or journey`);
 }
