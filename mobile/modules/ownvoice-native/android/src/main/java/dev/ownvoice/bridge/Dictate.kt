@@ -159,6 +159,18 @@ object Dictate {
     }
   }
 
+  /** The exact pack to fetch: the requested tag when downloadable, else the first
+   *  supported tag sharing its language (the device may run en-AE while packs ship en-US). */
+  private suspend fun bestLanguage(active: SpeechRecognizer, locale: String): String {
+    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+      .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+      .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+    val tags = checkSupport(active, intent)?.supportedOnDeviceLanguages.orEmpty()
+    if (tags.any { it.equals(locale, ignoreCase = true) }) return locale
+    val want = locale.substringBefore('-').substringBefore('_')
+    return tags.firstOrNull { it.substringBefore('-').substringBefore('_').equals(want, ignoreCase = true) } ?: locale
+  }
+
   /** Fire-and-forget pack download trigger; the panel polls supportOf for arrival. */
   fun downloadPack(context: Context, locale: String) {
     scope.launch {
@@ -166,10 +178,11 @@ object Dictate {
         val (caller, via) = caller(context)
         note("pack download via $via")
         val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(caller).also { recognizer = it }
+        val target = bestLanguage(active, locale)
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
           .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-          .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-        note("pack download requested $locale")
+          .putExtra(RecognizerIntent.EXTRA_LANGUAGE, target)
+        note("pack download requested $target")
         note("pack download ${download(active, intent)}")
       } catch (e: Exception) {
         Log.w("Ownvoice", "dictate download failed", e)
