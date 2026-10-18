@@ -96,7 +96,7 @@ export type PolishRequest = {
   platform?: Parameters<typeof rewrite>[6];
   avoid: string[];
   /** The point check's verdict (canPolish). Advisory on the phone: only UNCLEAR keyboard mash with no usable version is declined. */
-  clear: boolean;
+  clear: boolean | Promise<boolean> | (() => Promise<boolean>);
 };
 export type PolishOutcome = { drafts: string[]; unchanged?: boolean; declined?: boolean };
 
@@ -146,6 +146,6 @@ export async function polishVersions(
     if (fixed != null) landed(fixed, slot, version.label);
   }
   const drafts = acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
-  if (!drafts.length && !request.clear && await isKeyboardMash(request.typed, ask).catch(() => false)) return { drafts: [], declined: true };
+  if (!drafts.length && !(await (typeof request.clear === 'function' ? request.clear() : request.clear)) && await isKeyboardMash(request.typed, ask).catch(() => false)) return { drafts: [], declined: true };
   return { drafts, unchanged: acceptor.unchanged };
 }

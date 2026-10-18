@@ -201,10 +201,11 @@ async function polish(cloud: CloudKey, request: DraftRequest, on: WriterEvents):
   const note = avoidLine(avoid);
   const landed = on.landed ?? (() => {});
   // A new post's one-line topic is asked too: the question counts a line about a post as clear.
-  if (!await canPolish(request.typed, prompt => ask(cloud, prompt, 'Answer only CLEAR or UNCLEAR.', 'text', 1, on).then(([text]) => text))) return { drafts: [], declined: true };
+  const clearPromise = canPolish(request.typed, prompt => ask(cloud, prompt, 'Answer only CLEAR or UNCLEAR.', 'text', 1, on).then(([text]) => text));
   const acceptor = await polishAcceptor(request.typed, dashes, avoid);
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   const raw = await ask(cloud, rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', writerVersions.length, on);
+  if (!await clearPromise) return { drafts: [], declined: true };
   raw.forEach((text, index) => {
     const slot = index + 1;
     const clean = acceptor.accept(text, slot, versionsList[slot].label);

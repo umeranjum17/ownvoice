@@ -26,10 +26,6 @@ async function ask(prompt: string, maxTokens: number): Promise<string> {
 async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> {
   // A new post's one-line topic is asked too: the point check counts a line about a post as clear.
   // Its verdict is advisory: polishVersions still asks for versions; with none usable, only UNCLEAR keyboard mash is declined.
-  const clear = await canPolish(request.typed, prompt => ask(prompt, 8)).catch(error => {
-    if (error instanceof Error && error.message === words.noVersions) return false;
-    throw error;
-  });
   return polishVersions(ask, {
     typed: request.typed,
     conversation: request.conversation,
@@ -37,7 +33,10 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     dashes: request.dashes ?? 'remove',
     platform: request.platform,
     avoid: request.avoid ?? [],
-    clear,
+    clear: () => canPolish(request.typed, prompt => ask(prompt, 8)).catch(error => {
+      if (error instanceof Error && error.message === words.noVersions) return false;
+      throw error;
+    }),
   }, on.landed ?? (() => {}));
 }
 
