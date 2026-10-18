@@ -79,6 +79,7 @@ export async function dictateReady(): Promise<string | null> {
 export async function ensurePack(pollMs = 5000, timeoutMs = 8 * 60 * 1000): Promise<boolean> {
   try {
     trace('pack download starting');
+    await Native.dictatePanelVisible(false);
     await Native.dictateDownload('');
     const deadline = Date.now() + timeoutMs;
     for (;;) {
@@ -88,6 +89,7 @@ export async function ensurePack(pollMs = 5000, timeoutMs = 8 * 60 * 1000): Prom
       if (Date.now() > deadline) { trace('pack wait timed out'); return false; }
     }
   } catch { return false; }
+  finally { await Native.dictatePanelVisible(true).catch(() => {}); }
 }
 
 /** Proof-only path, set for the silent phone run: the next tap feeds this on-device WAV

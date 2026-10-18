@@ -144,6 +144,10 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("dictateAvailable") { locale: String -> Dictate.available(context) }.runOnQueue(Queues.MAIN)
     // Fresh on-device language verdict: ready, needs-download or unknown.
     AsyncFunction("dictateSupport") Coroutine { locale: String -> Dictate.supportOf(context, locale.ifEmpty { java.util.Locale.getDefault().toLanguageTag() }) }
+    // Hide the full-screen transparent panel while Android's speech-pack confirmation is shown.
+    AsyncFunction("dictatePanelVisible") { visible: Boolean ->
+      PanelActivity.current?.window?.decorView?.visibility = if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+    }.runOnQueue(Queues.MAIN)
     // Fire-and-forget pack download trigger; the panel polls dictateSupport for arrival.
     AsyncFunction("dictateDownload") Coroutine { locale: String ->
       Dictate.downloadPack(context, locale.ifEmpty { java.util.Locale.getDefault().toLanguageTag() })

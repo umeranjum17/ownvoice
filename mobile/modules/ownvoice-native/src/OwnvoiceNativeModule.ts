@@ -48,6 +48,8 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   dictateProofWav(path: string): Promise<boolean>;
   /** Fresh on-device language verdict: ready, needs-download or unknown. */
   dictateSupport(locale: string): Promise<'ready' | 'needs-download' | 'unknown'>;
+  /** Hide or restore the full-screen transparent panel around the system pack prompt. */
+  dictatePanelVisible(visible: boolean): Promise<void>;
   /** Fire-and-forget pack download trigger; poll dictateSupport for arrival. */
   dictateDownload(locale: string): Promise<string>;
   sharedMarkdown(): Promise<string | null>;
