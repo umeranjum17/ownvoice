@@ -7,6 +7,7 @@
 // Env: MODEL (default llama-server's loaded model), TEMP (default 0),
 //      SEED (default 7), ONLY (comma prefixes, e.g. ONLY=R07 or ONLY=P01,P13,S05,R01,R07).
 import { readFileSync, writeFileSync } from 'node:fs';
+import { codexAnswer } from './codex.ts';
 import { cases } from './cases.ts';
 import { platformForApp } from 'ownvoice-engine/src/platforms.ts';
 import * as J from 'ownvoice-engine/src/judge.ts';
@@ -29,6 +30,16 @@ type Call = { prompt: string; maxTokens: number; answer: string; ms: number; pro
 
 async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<string> {
   const started = Date.now();
+  if (process.env.EVAL_BACKEND === 'codex-cli') {
+    try {
+      const answer = await codexAnswer(prompt, maxTokens);
+      calls.push({ prompt, maxTokens, answer, ms: Date.now() - started, promptTokens: 0, genTokens: 0 });
+      return answer;
+    } catch (error) {
+      calls.push({ prompt, maxTokens, answer: '', ms: Date.now() - started, promptTokens: 0, genTokens: 0, error: String(error) });
+      throw error;
+    }
+  }
   const res = await fetch(`${base}/v1/chat/completions`, {
     method: 'POST',
     signal: AbortSignal.timeout(120_000),
