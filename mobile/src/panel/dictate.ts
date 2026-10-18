@@ -65,6 +65,13 @@ export async function dictateReady(): Promise<string | null> {
   return words.dictateUnavailable;
 }
 
+/** Proof-only path, set for the silent phone run: the next tap feeds this on-device WAV
+ *  through EXTRA_AUDIO_SOURCE instead of the mic. Unset in every other build, and the native
+ *  side refuses it outside debug builds, so release behaviour never sees it. */
+const proofWav = process.env.EXPO_PUBLIC_E2E_DICTATION_WAV;
+
+export const proofWavPath = (): string | undefined => proofWav || undefined;
+
 /** Tap-to-listen through the published kit: Android's on-device recognizer, enforced by the native port. */
 export function listenForDictation(onPartial?: (text: string) => void): DictationHandle {
   const handle = new Dictation({ engine: systemEngine(port) }).listen({ onDeviceOnly: true });

@@ -20,7 +20,7 @@ import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
 import { isOtherWriterLine, retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
-import { ensureMic, dictateReady, listenForDictation, messageForDictationError } from './dictate';
+import { armProofWav, ensureMic, dictateReady, listenForDictation, messageForDictationError, proofWavPath } from './dictate';
 import type { DictationHandle } from '@byokit/dictation';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
@@ -456,6 +456,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         if (!(await ensureMic())) { setDictateMsg(words.dictateMic); return; }
         const blocked = await dictateReady();
         if (blocked) { setDictateMsg(blocked); return; }
+        // The silent proof run stages its WAV here; an unstageable path says so now.
+        const staged = proofWavPath();
+        if (staged && !(await armProofWav(staged))) { setDictateMsg(words.dictateUnavailable); return; }
         const handle = listenForDictation(text => setHeard(text || null));
         dictateHandle.current = handle;
         setListening(true);
