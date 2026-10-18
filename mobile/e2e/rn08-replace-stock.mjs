@@ -100,8 +100,8 @@ const saveLogcat = () => {
   console.log(`logcat saved (pid ${pid || 'gone'})`);
 };
 const fail = (step, message) => {
-  try { shot(`step-${step}-FAILED`); } catch {}
-  try { saveLogcat(); } catch {}
+  try { shot(`step-${step}-FAILED`); } catch (e) { console.error('fail: FAILED screenshot failed', e.message); }
+  try { saveLogcat(); } catch (e) { console.error('fail: saveLogcat failed', e.message); }
   writeFileSync(`${out}/replace-result.json`, JSON.stringify({ ok: false, step, message }, null, 2));
   throw new Error(`[${step}] ${message}`);
 };
@@ -383,7 +383,7 @@ try {
       let body = '';
       q.on('data', c => { body += c; }).on('end', () => { pageValues.push(body); r.end(); });
     }).listen(8765);
-    process.on('exit', () => { server.close(); try { adb('reverse', '--remove', 'tcp:8765'); } catch {} });
+    process.on('exit', () => { server.close(); try { adb('reverse', '--remove', 'tcp:8765'); } catch (e) { console.error('cleanup: adb reverse --remove failed', e.message); } });
     adb('reverse', 'tcp:8765', 'tcp:8765');
     shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://localhost:8765/', '-p', hostPkg);
     if (!(await waitForFocus(hostPkg, 15))) fail('host', 'Chrome did not come to the front');
@@ -550,6 +550,6 @@ try {
   console.log(`Replace proof saved to ${out}: ${result.method} read-back matches the ${option} rewrite (${path}), facts kept.`);
   process.exit(0);
 } catch (error) {
-  try { dumpNodes('nodes-FAILED'); } catch {}
+  try { dumpNodes('nodes-FAILED'); } catch (e) { console.error('fail: dumpNodes FAILED failed', e.message); }
   throw error;
 }

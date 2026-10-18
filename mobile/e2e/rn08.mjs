@@ -460,9 +460,9 @@ if (live) {
       } catch (error) {
         results[option] = { miss: String(error?.message ?? error) };
         console.log(`live ${scheme} ${option} MISS: ${results[option].miss}`);
-        try { await liveShot(`live-${option.toLowerCase().replace(/\s+/g, '')}-miss-${scheme}`); } catch {}
+        try { await liveShot(`live-${option.toLowerCase().replace(/\s+/g, '')}-miss-${scheme}`); } catch (e) { console.error('live: miss screenshot failed', e.message); }
       }
-      try { await back(); } catch {}
+      try { await back(); } catch (e) { console.error('live: back after a miss failed', e.message); }
     }
     const misses = Object.entries(results).filter(([, r]) => r.miss).map(([o]) => o);
     writeFileSync(`${out}/live-results-${scheme}.json`, JSON.stringify({ input: LIVE_TEXT, scheme, results }, null, 2));
@@ -499,7 +499,7 @@ if (live) {
     copyMiss = String(error?.message ?? error);
     console.log(`live Copy MISS: ${copyMiss}`);
   }
-  try { await back(); } catch {}
+  try { await back(); } catch (e) { console.error('live: back after the live leg failed', e.message); }
   writeFileSync(`${out}/live-copy-light.json`, JSON.stringify({ copyMiss }, null, 2));
 
   await setTheme('yes');
