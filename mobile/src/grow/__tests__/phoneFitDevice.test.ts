@@ -20,13 +20,14 @@ jest.mock('../../core/localStore', () => ({
 const CUT = '{\n  "fit_0": {\n    "probabilities": {\n      "0": 0.1,\n      "1": 0.8,\n      "2": 0.1,\n      "3": 0\n    },\n    "rationale": "The post is about the balance between emails and face-to-face meetings."\n  },\n  "fit_1": {\n    "probabilities": {\n      "0": 0.1,\n      "1": 0.8,\n      "2": 0.1,\n      "3": 0\n    },\n    "rationale": "';
 type Params = { response_format?: { json_schema: { schema: { properties: Record<string, { properties: { probabilities: { properties: Record<string, unknown> } } }> } } } };
 const sent: Params[] = [];
+let cutAnswers = false;
 const llama = fakeLlama({ reply: request => {
   const p = request as unknown as Params;
   sent.push(p);
   const schema = p.response_format?.json_schema.schema;
   // Like llama.rn on the phone, a schema-constrained decode answers in exactly the requested shape and ends on its
   // own, but the text opens with the chat template's assistant header (seen on every rating on the test phone).
-  if (!schema) return { text: CUT, content: CUT, stopped_eos: false, stopped_limit: 1, tokens_predicted: 255 };
+  if (!schema || cutAnswers) return { text: CUT, content: CUT, stopped_eos: false, stopped_limit: 1, tokens_predicted: 255 };
   const answer = Object.fromEntries(Object.keys(schema.properties).map((k, i) => [k, { probabilities: i % 2 ? { 0: 0.1, 1: 0.1, 2: 0.7, 3: 0.1 } : { 0: 0.1, 1: 0.8, 2: 0.1, 3: 0 } }]));
   return `<|im_start|>assistant\n${JSON.stringify(answer, null, 2)}`;
 } });
@@ -50,10 +51,10 @@ test('every phone-written card gets its level back from the on-device model', as
   expect(fits.map(f => [f.level, f.probability])).toEqual([[1, 0.8], [2, 0.7], [1, 0.8], [2, 0.7]]);
 });
 
+afterEach(() => { cutAnswers = false; });
+
 test('an answer cut off at the token cap keeps the plain unsure card instead of inventing a level', async () => {
-  // The same backend without the schema reproduces the phone failure: the reply runs past the cap.
-  const { answerer } = jest.requireActual('@byokit/decide');
-  const { askLocal } = jest.requireActual('../../core/localModel');
-  const fits = await rate(answerer({ name: 'phone', leaves: false, ask: (prompt: string, signal: AbortSignal) => askLocal(prompt, 256, signal) }));
+  cutAnswers = true;
+  const fits = await rate();
   expect(fits.map(f => [f.level, f.words])).toEqual(cards.map(() => [null, 'Not sure about this one']));
 });
