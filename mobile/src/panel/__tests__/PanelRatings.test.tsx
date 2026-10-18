@@ -224,11 +224,13 @@ describe('grow fit bar', () => {
     const failing: Writer = { write: async () => { throw new Error('ChatGPT could not answer.'); } };
     const phone: Writer = { write: async (_request, on) => { on?.landed?.(CLEAN[0], 0); throw new Error('phone model stopped'); } };
     const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
+    phoneModel('ready');
     try {
       await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, cloudWords('chatgpt'), on, undefined, 'ready') });
       await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
       expect(spy.mock.calls[0][0].candidates).toEqual([TYPED, CLEAN[0]]);
-    } finally { spy.mockRestore(); }
+      expect(spy.mock.calls[0][0].backends.map(backend => backend.name)).toEqual(['phone']);
+    } finally { spy.mockRestore(); phoneModel('unsupported'); }
   });
 
   test('an abstained card says it is not sure, with an empty bar', async () => {
