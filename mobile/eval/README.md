@@ -27,8 +27,9 @@ one model call for the split plus 3 hooks, checked for the cap, kept words,
 
 `TEMP` (default 0), `SEED` (default 7), `MAXTOK_EXTRA` (extra headroom for
 thinking models, default 0), `ONLY` (comma prefixes, e.g.
-`ONLY=P01,P13,S05,R01,R07` for the gate cases only). All commands run from
-this directory. The pure core it imports (`judge`, `drafts`, `slop`,
+`ONLY=P01,P13,S05,R01,R07` for the gate cases only). Set
+`EVAL_BACKEND=codex-cli` to use installed Codex (`gpt-6-luna`) instead of HTTP
+(keep a placeholder base URL); `CODEX_BIN` optionally selects the executable. All commands run from this directory. The pure core it imports (`judge`, `drafts`, `slop`,
 `platforms`, `voice`, `threads`, `words`) comes straight from the
 `ownvoice-engine` package (`packages/engine`), the same published seam
 Crewhouse consumes; it loads under plain node with type stripping and no
