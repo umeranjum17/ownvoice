@@ -62,21 +62,20 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
 // Other polish fixtures collect the two writer cards, then retry flattened layouts.
 async function polish(c: any, calls: Call[]) {
   const dashes = D.dashDecision(false, c.typed);
-  if (c.id === 'P01-noon-list') {
-    if (!await canPolish(c.typed, prompt => call(prompt, 8, calls))) return { shown: [], rescued: [] };
-    const landed: { text: string; slot: number }[] = [];
-    const result = await polishVersions((prompt, tokens) => call(prompt, tokens, calls), {
-      typed: c.typed, conversation: c.screen, guide: c.guide ?? '', dashes, avoid: [],
-      platform: c.app ? platformForApp(c.app) : undefined,
-    }, (text, slot) => landed.push({ text, slot }), spell);
-    return { shown: landed, raw: {}, rescued: [], unchanged: result.unchanged, phonePolishVersions: true };
-  }
-  const engine = { ask: (p: string, n: number) => call(p, n, calls) };
   // Slot-0 fixtures qualify local cleanup only; live polish includes the advisory point check, as the phone does.
   const clear = c.slot === 0 ? true : await canPolish(c.typed, prompt => call(prompt, 8, calls)).catch(error => {
     if (error instanceof Error && error.message === words.noVersions) return false;
     throw error;
   });
+  if (c.id === 'P01-noon-list') {
+    const landed: { text: string; slot: number }[] = [];
+    const result = await polishVersions((prompt, tokens) => call(prompt, tokens, calls), {
+      typed: c.typed, conversation: c.screen, guide: c.guide ?? '', dashes, avoid: [],
+      platform: c.app ? platformForApp(c.app) : undefined, clear,
+    }, (text, slot) => landed.push({ text, slot }), spell);
+    return { shown: landed, raw: {}, rescued: [], unchanged: result.unchanged, declined: result.declined, clear, phonePolishVersions: true };
+  }
+  const engine = { ask: (p: string, n: number) => call(p, n, calls) };
   const acceptor = await polishAcceptor(c.typed, dashes, [], spell);
   const raw: Record<string, string> = { LIGHT: acceptor.local ?? c.typed };
   if (c.slot === 0) return { raw, shown: acceptor.results, rescued: [], clear };

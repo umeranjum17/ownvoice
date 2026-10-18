@@ -63,7 +63,7 @@ export type PolishOutcome = { drafts: string[]; unchanged?: boolean; declined?: 
 
 const DIFFERENT_WORDS = 'Their text came back unchanged: write each version in different words, keeping the same point.';
 
-/** The phone's polish: the point check is advisory, so an UNCLEAR answer still gets the versions. With no usable
+/** The phone's polish (the eval supplies the same endpoint and bundled dictionary): the point check is advisory, so an UNCLEAR answer still gets the versions. With no usable
  *  version, only UNCLEAR keyboard mash is declined with the unclear message; real text is never declined, so it
  *  ends as their own text when the writer handed it back, else "Couldn't polish that this time. Try again."
  *  Versions that come back as their own text get one more pass asking for different words. */
@@ -71,9 +71,10 @@ export async function polishVersions(
   ask: (prompt: string, maxTokens: number) => Promise<string>,
   request: PolishRequest,
   landed: (text: string, slot: number, label?: string) => void,
+  spell?: Speller | null,
 ): Promise<PolishOutcome> {
   if (!hasWords(request.typed)) return { drafts: [], declined: true };
-  const acceptor = await polishAcceptor(request.typed, request.dashes, request.avoid);
+  const acceptor = await polishAcceptor(request.typed, request.dashes, request.avoid, spell);
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
   const note = avoidLine(request.avoid);
   const askWith = (extra: string) => (prompt: string, maxTokens: number) => ask(prompt + [note, extra].filter(Boolean).map(line => `\n\n${line}`).join(''), maxTokens);
