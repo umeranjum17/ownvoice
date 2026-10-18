@@ -77,10 +77,11 @@ export function agreedToDownload(): boolean {
   return !!store.get<boolean>(AGREED_KEY);
 }
 
-/** Generate text using the local model; calls and state checks queue behind each other. */
-export function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal): Promise<string> {
+/** Generate text using the local model; calls and state checks queue behind each other.
+ *  With [jsonSchema], decoding is constrained to that JSON shape. */
+export function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal, jsonSchema?: object): Promise<string> {
   return oneAtATime(async () => {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    return (await getLocalModel().complete({ prompt, maxOutputTokens: maxTokens, signal })).text;
+    return (await getLocalModel().complete({ prompt, maxOutputTokens: maxTokens, signal, jsonSchema })).text;
   });
 }
