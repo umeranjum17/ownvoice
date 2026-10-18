@@ -49,6 +49,11 @@ object Dictate {
 
   private fun note(msg: String) = Log.i("Ownvoice", "dictate ${SystemClock.elapsedRealtime()} $msg")
   private fun onMain() = Looper.myLooper() === Looper.getMainLooper()
+  // The system pack dialog only surfaces from a foreground Activity; log which context each call uses.
+  private fun caller(context: Context): Pair<Context, String> {
+    val activity = PanelActivity.current
+    return if (activity != null) activity to "activity" else context to "react"
+  }
 
   fun available(context: Context): String {
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
@@ -74,8 +79,9 @@ object Dictate {
       val main = onMain()
       try {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) throw IllegalStateException("unsupported")
-        val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { recognizer = it }
-        note("start id=$id locale=$locale main=$main recognizer=${active.hashCode()} proof=${proof != null}")
+        val (caller, via) = caller(context)
+        val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(caller).also { recognizer = it }
+        note("start id=$id locale=$locale main=$main via=$via recognizer=${active.hashCode()} proof=${proof != null}")
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
           .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
           .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
@@ -84,7 +90,7 @@ object Dictate {
         val checked = checkSupport(active, intent)
         if (pending != id) return@launch
         if (checked != null) {
-          note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages}")
+          note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages} supported=${checked.supportedOnDeviceLanguages}")
           if (!hasLanguage(checked, locale)) {
             note("language missing, triggering download")
             note("download ${download(active, intent)}")
@@ -155,7 +161,9 @@ object Dictate {
   fun downloadPack(context: Context, locale: String) {
     scope.launch {
       try {
-        val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { recognizer = it }
+        val (caller, via) = caller(context)
+        note("pack download via $via")
+        val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(caller).also { recognizer = it }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
           .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
           .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
