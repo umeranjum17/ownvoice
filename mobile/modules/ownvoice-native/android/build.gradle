@@ -26,8 +26,6 @@ dependencies {
   // The floating bubble (window host, per-app rules, keyboard inset, focused-field insert) lives in the kit (OV-7).
   implementation project(':byokit-overlay')
   implementation 'com.facebook.react:react-android'
-  implementation 'com.google.mlkit:genai-prompt:1.0.0-beta4'
-  implementation 'com.google.ai.edge.litertlm:litertlm-android:0.17.1'
   implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.10.2'
   testImplementation 'junit:junit:4.13.2'
   testImplementation 'org.robolectric:robolectric:4.16.1'
