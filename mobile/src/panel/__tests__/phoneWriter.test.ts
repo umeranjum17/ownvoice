@@ -305,6 +305,12 @@ test('a hard failure surfaces as plain words', async () => {
   await expect(phoneWriter.write(request())).rejects.toThrow(words.busy);
 });
 
+test('a point-check transport failure shows its real message, not the no-clear panel', async () => {
+  jest.requireMock('../../core/polish').canPolish.mockRejectedValueOnce(new Error('9'));
+  await expect(phoneWriter.write(request({ typed: 'send me the file' }))).rejects.toThrow(words.busy);
+  expect(mockAsk).not.toHaveBeenCalled();
+});
+
 test('download does not spend the reply-fill window', async () => {
   mockState.mockResolvedValue({ phase: 'not-installed' });
   kv.set(AGREED_KEY, 'true');
@@ -362,16 +368,38 @@ test('a phone still getting ready is waited for without recording a yes', async 
 
 // ---- Polish and compose ----
 
-test('phone polish declines the exact captured nonsense before a reordered alternate', async () => {
+test('phone polish declines an UNCLEAR text only when the writer hands back nothing usable', async () => {
   jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
   const typed = 'purple toaster clouds ate the database backwards banana banana';
-  const bad = 'the database got eaten backwards by purple toaster clouds banana banana';
-  mockAsk.mockResolvedValueOnce('UNCLEAR').mockResolvedValueOnce(JSON.stringify({ versions: [typed, bad] }));
+  mockAsk.mockResolvedValueOnce('UNCLEAR').mockResolvedValue(JSON.stringify({ versions: [typed, typed] }));
   const landed = jest.fn();
   expect(await phoneWriter.write(request({ typed }), { landed })).toEqual({ drafts: [], declined: true });
-  expect(mockAsk).toHaveBeenCalledTimes(1);
   expect(mockAsk.mock.calls[0][0]).toContain(typed);
   expect(landed).not.toHaveBeenCalled();
+  mockAsk.mockReset();
+});
+
+// The point check's leading word decides: a model that explains after its verdict is still read.
+test.each([
+  ['CLEAR: it makes sense', false],
+  ['**UNCLEAR**.', true],
+  ['maybe', true],
+])('phone polish with nothing usable reads the point check answer %j (unclear message: %s)', async (verdict, declined) => {
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
+  const typed = 'see you at 6';
+  mockAsk.mockResolvedValueOnce(verdict).mockResolvedValue(JSON.stringify({ versions: [typed, typed] }));
+  expect(!!(await phoneWriter.write(request({ typed }))).declined).toBe(declined);
+  mockAsk.mockReset();
+});
+
+test('phone polish shows usable versions even when the point check says UNCLEAR', async () => {
+  jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
+  const typed = 'hey can u send me the file when u get a sec thx';
+  mockAsk.mockResolvedValueOnce('UNCLEAR').mockResolvedValue(JSON.stringify({ versions: ['Could you send me the file when you get a second? Thanks.', typed] }));
+  const landed = jest.fn();
+  const result = await phoneWriter.write(request({ typed }), { landed });
+  expect(result.declined).toBeFalsy();
+  expect(result.drafts).toContain('Could you send me the file when you get a second? Thanks.');
   mockAsk.mockReset();
 });
 
