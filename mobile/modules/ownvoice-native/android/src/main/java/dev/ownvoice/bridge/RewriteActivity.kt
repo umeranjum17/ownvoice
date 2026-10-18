@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -17,9 +18,22 @@ class RewriteActivity : ReactActivity() {
   override fun getMainComponentName() = "rewrite"
   override fun createReactActivityDelegate(): ReactActivityDelegate = DefaultReactActivityDelegate(this, mainComponentName, true)
 
+  /** The editable field the selection came from, with its text and selection read before this sheet takes the
+   *  focus (Chrome drops the selection then); Replace writes there. */
+  private var sourceField: AccessibilityNodeInfo? = null
+  private var sourceText = ""
+  private var sourceStart = -1
+  private var sourceEnd = -1
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     current = this
+    sourceField = OwnvoiceService.instance?.editableBehindSheet()?.also {
+      sourceText = it.text?.toString().orEmpty()
+      sourceStart = it.textSelectionStart
+      sourceEnd = it.textSelectionEnd
+    }
+    Log.i(OwnvoiceService.TAG, "rewrite source field=${sourceField != null} service=${OwnvoiceService.instance != null}")
   }
 
   override fun onDestroy() {
@@ -72,7 +86,15 @@ class RewriteActivity : ReactActivity() {
       return
     }
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", text))
-    if (shouldHandBack(replace, editable)) {
+    val field = sourceField
+    val service = OwnvoiceService.instance
+    val whole = withReplaced(sourceText, sourceStart, sourceEnd, selectedText, text)
+    if (shouldHandBack(replace, editable) && field != null && service != null && whole != null) {
+      // One write path: the field's whole text with the selection swapped, set once the sheet closes.
+      service.replaceField(field, whole)
+      Toast.makeText(this, "Replaced. Also copied, in case the app didn't take it.", Toast.LENGTH_SHORT).show()
+      Log.i(OwnvoiceService.TAG, "rewrite replaces the selection sha=${sha(text)}")
+    } else if (shouldHandBack(replace, editable)) {
       setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text))
       Toast.makeText(this, "Replaced. Also copied, in case the app didn't take it.", Toast.LENGTH_SHORT).show()
       Log.i(OwnvoiceService.TAG, "rewrite returned sha=${sha(text)}")
@@ -94,6 +116,13 @@ class RewriteActivity : ReactActivity() {
      * Pinned by CopyOnlyTest. */
     @JvmStatic
     fun shouldHandBack(replace: Boolean, editable: Boolean) = replace && editable
+
+    /** [field] with [selected] swapped for [text]: at the read selection, else at its only occurrence; null if unsure. */
+    fun withReplaced(field: String, start: Int, end: Int, selected: String, text: String): String? {
+      if (start in 0 until end && end <= field.length && field.substring(start, end) == selected) return field.replaceRange(start, end, text)
+      val at = field.indexOf(selected)
+      return if (selected.isNotEmpty() && at >= 0 && field.indexOf(selected, at + 1) < 0) field.replaceRange(at, at + selected.length, text) else null
+    }
 
     /** A stable fingerprint for the on-device test; the text itself never goes to the log. */
     fun sha(text: String) = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }.take(12)
