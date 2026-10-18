@@ -3,9 +3,9 @@ import { InferError, type InferState } from '@byokit/infer';
 import { errorCode, message } from '../core/nano';
 import { agreed, getReady, modelStatus, settle, watch } from '../core/phoneDownload';
 import { words } from '../core/words';
-import { canPolish, polishAcceptor } from '../core/polish';
-import { acceptReplies, avoidLine, latestMessage, phoneReplyPrompt, phoneSlotPrompt, rebuildLines, slotsFor } from '../core/drafts';
-import { lineRetryPrompt, rewrite, versionsList } from '../core/judge';
+import { canPolish, polishAcceptor, polishVersions } from '../core/polish';
+import { acceptReplies, latestMessage, phoneReplyPrompt, phoneSlotPrompt, slotsFor } from '../core/drafts';
+import { versionsList } from '../core/judge';
 import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
 // Demo fixture drafts live in their own module so normal bundles carry none of them: the
 // constant-false branch drops the require (as app/agent.tsx drops the lab screen).
@@ -25,32 +25,15 @@ async function ask(prompt: string, maxTokens: number): Promise<string> {
 /** Polish and compose: the C2 rewrite, streamed as versions land, with layout kept and near-duplicates dropped. */
 async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> {
   const dashes = request.dashes ?? 'remove';
-  const avoid = request.avoid ?? [];
-  const note = avoidLine(avoid);
-  const engine = { ask: (prompt: string, maxTokens: number) => ask(prompt + (note ? `\n\n${note}` : ''), maxTokens) };
-  const landed = on.landed ?? (() => {});
-  // A new post's one-line topic is asked too: the question counts a line about a post as clear.
   if (!await canPolish(request.typed, prompt => ask(prompt, 8))) return { drafts: [], declined: true };
-  const acceptor = await polishAcceptor(request.typed, dashes, avoid);
-  if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
-  await rewrite(engine, request.typed, request.conversation, request.guide ?? '', (version, text) => {
-    const slot = versionsList.findIndex(v => v.name === version.name);
-    const clean = acceptor.accept(text, slot, version.label);
-    if (clean != null) landed(clean, slot, version.label);
-  }, dashes, request.platform);
-  // A flattened list goes back row by row; the rebuild keeps the original markers, so the
-  // layout is kept by construction - only a missing row or a changed number/time drops it.
-  for (const fail of acceptor.layoutFails) {
-    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : '');
-    let rebuilt: string | null;
-    try {
-      rebuilt = rebuildLines(request.typed, await engine.ask(prompt, 256));
-    } catch { continue; }
-    if (rebuilt == null) continue;
-    const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
-    if (fixed != null) landed(fixed, fail.slot, fail.label);
-  }
-  return { drafts: acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text), unchanged: acceptor.unchanged };
+  return polishVersions(ask, {
+    typed: request.typed,
+    conversation: request.conversation,
+    guide: request.guide ?? '',
+    dashes,
+    avoid: request.avoid ?? [],
+    platform: request.platform,
+  }, on.landed ?? (() => {}));
 }
 
 /** Replies: one numbered call, then one retry per empty slot within 8 s of its answer. */

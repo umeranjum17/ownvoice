@@ -14,7 +14,7 @@ import * as D from 'ownvoice-engine/src/drafts.ts';
 import * as T from 'ownvoice-engine/src/threads.ts';
 
 import nspell from 'nspell';
-import { canPolish, polishAcceptor } from '../src/core/polish.ts';
+import { canPolish, polishAcceptor, polishVersions } from '../src/core/polish.ts';
 import { fixedSentenceSplits } from '../src/core/typing.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
@@ -61,6 +61,15 @@ async function call(prompt: string, maxTokens: number, calls: Call[]): Promise<s
 // Other polish fixtures collect the two writer cards, then retry flattened layouts.
 async function polish(c: any, calls: Call[]) {
   const dashes = D.dashDecision(false, c.typed);
+  if (c.id === 'P01-noon-list') {
+    if (!await canPolish(c.typed, prompt => call(prompt, 8, calls))) return { shown: [], rescued: [] };
+    const landed: { text: string; slot: number }[] = [];
+    const result = await polishVersions((prompt, tokens) => call(prompt, tokens, calls), {
+      typed: c.typed, conversation: c.screen, guide: c.guide ?? '', dashes, avoid: [],
+      platform: c.app ? platformForApp(c.app) : undefined,
+    }, (text, slot) => landed.push({ text, slot }), spell);
+    return { shown: landed, raw: {}, rescued: [], unchanged: result.unchanged, phonePolishVersions: true };
+  }
   const engine = { ask: (p: string, n: number) => call(p, n, calls) };
   // Slot-0 fixtures qualify local cleanup only; live polish includes the original-point gate.
   if (c.slot !== 0 && !await canPolish(c.typed, prompt => call(prompt, 8, calls))) return { raw: {}, shown: [], rescued: [] };

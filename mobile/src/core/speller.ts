@@ -1,4 +1,4 @@
-import type { Speller } from './typing';
+import type { Speller } from './typing.ts';
 
 let loading: Promise<Speller> | null = null;
 
