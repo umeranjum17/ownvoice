@@ -30,6 +30,28 @@ test('a text with no words is declined without asking', async () => {
   expect(ask).not.toHaveBeenCalled();
 });
 
+test.each(['mañana hablamos', 'کل صبح ملاقات ہے', 'see you at 6'])('%s is not declined as mash when the dictionary misses it', async text => {
+  const ask = jest.fn(async (prompt: string) => prompt.includes('Answer only MASH or WORDS') ? 'WORDS' : json([text, text]));
+  const out = await polishVersions(ask, request(text, false), () => {}, { correct: () => false } as any);
+  expect(out.declined).toBeFalsy();
+  expect(ask).toHaveBeenCalledWith(expect.stringContaining('Answer only MASH or WORDS'), 8);
+});
+
+test('a failed mash check fails open for real non-English text', async () => {
+  const ask = jest.fn(async (prompt: string) => {
+    if (prompt.includes('Answer only MASH or WORDS')) throw new Error('offline');
+    return json(['mañana hablamos', 'mañana hablamos']);
+  });
+  const out = await polishVersions(ask, request('mañana hablamos', false), () => {}, { correct: () => false } as any);
+  expect(out.declined).toBeFalsy();
+});
+
+test('dictionary misses still decline confirmed keyboard mash', async () => {
+  const ask = jest.fn(async (prompt: string) => prompt.includes('Answer only MASH or WORDS') ? 'MASH' : json(['asdf jkl qwer', 'asdf jkl qwer']));
+  const out = await polishVersions(ask, request('asdf jkl qwer', false), () => {}, { correct: () => false } as any);
+  expect(out.declined).toBe(true);
+});
+
 test('a list text is judged by its verdict, whether the answer is bare or wrapped in markup', async () => {
   const list = 'Here is what I need from you:\n1. send the deck by Friday\n2. Confirm the budget\n3. book the room for Monday';
   expect(await canPolish(list, async () => 'UNCLEAR')).toBe(false);

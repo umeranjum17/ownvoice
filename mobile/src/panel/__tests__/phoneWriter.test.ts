@@ -371,7 +371,7 @@ test('a phone still getting ready is waited for without recording a yes', async 
 test('phone polish declines UNCLEAR keyboard mash only when the writer hands back nothing usable', async () => {
   jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
   const typed = 'asdf qwer zxcv jkl';
-  mockAsk.mockResolvedValueOnce('UNCLEAR').mockResolvedValue(JSON.stringify({ versions: [typed, typed] }));
+  mockAsk.mockResolvedValueOnce('UNCLEAR').mockImplementation(async prompt => prompt.includes('Answer only MASH or WORDS') ? 'MASH' : JSON.stringify({ versions: [typed, typed] }));
   const landed = jest.fn();
   expect(await phoneWriter.write(request({ typed }), { landed })).toEqual({ drafts: [], declined: true });
   expect(mockAsk.mock.calls[0][0]).toContain(typed);
@@ -387,7 +387,7 @@ test.each([
   ['**UNCLEAR**.', 'see you at 6', false],
 ])('phone polish with nothing usable reads the point check answer %j on %j (unclear message: %s)', async (verdict, typed, declined) => {
   jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
-  mockAsk.mockResolvedValueOnce(verdict).mockResolvedValue(JSON.stringify({ versions: [typed, typed] }));
+  mockAsk.mockResolvedValueOnce(verdict).mockImplementation(async prompt => prompt.includes('Answer only MASH or WORDS') ? (typed.includes('asdf') ? 'MASH' : 'WORDS') : JSON.stringify({ versions: [typed, typed] }));
   expect(!!(await phoneWriter.write(request({ typed }))).declined).toBe(declined);
   mockAsk.mockReset();
 });

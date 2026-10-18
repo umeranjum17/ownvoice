@@ -25,11 +25,21 @@ export async function canPolish(text: string, ask: (prompt: string) => Promise<s
   throw new Error(words.noVersions);
 }
 
-/** Keyboard mash: under half of its words are in the dictionary. Without a dictionary, text counts as real.
- *  ponytail: English dictionary only, so UNCLEAR non-English text still reads as mash; a per-language list fixes it. */
+/** Keyboard mash: under half of its words are in the English dictionary. Without a dictionary, text counts as real.
+ *  The dictionary is only the fast path: it misses every other language, so a miss below goes to the writer
+ *  for a second opinion instead of declining. */
 const isMash = (text: string, dictionary: Speller | null) => {
   const found = text.match(/\p{L}+/gu) ?? [];
   return !!dictionary && found.filter(w => dictionary.correct(w) || dictionary.correct(w.toLowerCase())).length * 2 < found.length;
+};
+
+/** Model-side mash check, asked only after the dictionary misses: random keystrokes are MASH in any
+ *  language, while real words in any language the writer cannot translate are still WORDS. An unreadable
+ *  answer fails open, so real text never dead-ends on a weak model. */
+const isKeyboardMash = async (text: string, ask: (prompt: string, maxTokens: number) => Promise<string>) => {
+  const answer = await ask(`Is the text below random keyboard mash with no real words, or real words in any language? Random letters with no meaning are MASH. Real words in any language, even words you cannot translate, are WORDS. Answer only MASH or WORDS.\n\nasdf qwer zxcv -> MASH\nqwerty asdf zxcvb -> MASH\nma\u00f1ana hablamos -> WORDS\nsee you at 6 -> WORDS\n\nText, between the lines:\n---\n${text}\n---\nAnswer MASH or WORDS for that text only.`, 8);
+  const verdict = answer.replace(/[*_`"']/g, '').trim().toUpperCase();
+  return verdict.match(/^[A-Z]+/)?.[0] === 'MASH';
 };
 
 export async function polishAcceptor(original: string, dashes: 'keep' | 'remove', avoid: string[], spell?: Speller | null) {
@@ -97,7 +107,7 @@ const DIFFERENT_WORDS = 'Their text came back unchanged: write each version in d
 const KEEP_ROWS_WORDS = 'Copy each row word-for-word in its original order. Do not reword, add or drop any word, day or time; you may only change the first letter\'s casing.';
 
 /** The phone's polish (the eval supplies the same endpoint and bundled dictionary): the point check is advisory, so an UNCLEAR answer still gets the versions. With no usable
- *  version, only UNCLEAR keyboard mash is declined with the unclear message; real text is never declined, so it
+ *  version, only UNCLEAR keyboard mash the writer confirms as mash is declined with the unclear message; real text is never declined, so it
  *  ends as their own text when the writer handed it back, else "Couldn't polish that this time. Try again."
  *  Versions that come back as their own text get one more pass asking for different words. */
 export async function polishVersions(
@@ -136,6 +146,6 @@ export async function polishVersions(
     if (fixed != null) landed(fixed, slot, version.label);
   }
   const drafts = acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
-  if (!drafts.length && !request.clear && acceptor.mash) return { drafts: [], declined: true };
+  if (!drafts.length && !request.clear && await isKeyboardMash(request.typed, ask).catch(() => false)) return { drafts: [], declined: true };
   return { drafts, unchanged: acceptor.unchanged };
 }
