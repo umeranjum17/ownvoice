@@ -26,7 +26,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -123,8 +122,8 @@ object Dictate {
     }
   }
 
-  /** Fresh support verdict for the panel's pre-check (background queue): ready, needs-download or unknown. */
-  fun supportOf(context: Context, locale: String): String = kotlinx.coroutines.runBlocking {
+  /** Fresh support verdict for the panel's pre-check: ready, needs-download or unknown. */
+  suspend fun supportOf(context: Context, locale: String): String {
     try {
       val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { recognizer = it }
       val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
@@ -143,12 +142,12 @@ object Dictate {
           })
         }
       }
-      if (checked == null) { note("support check timed out"); return@runBlocking "unknown" }
+      if (checked == null) { note("support check timed out"); return "unknown" }
       note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages}")
-      if (hasLanguage(checked, locale)) "ready" else "needs-download"
+      return if (hasLanguage(checked, locale)) "ready" else "needs-download"
     } catch (e: Exception) {
       Log.w("Ownvoice", "dictate support failed", e)
-      "unknown"
+      return "unknown"
     }
   }
 

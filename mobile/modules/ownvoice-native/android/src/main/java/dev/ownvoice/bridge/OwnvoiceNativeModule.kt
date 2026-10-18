@@ -142,13 +142,13 @@ class OwnvoiceNativeModule : Module() {
     Function("logDev") { line: String -> Log.d("Ownvoice", line.take(2000)) }
     // On-device dictation for the panel mic: the kit's systemEngine port (Dictate.kt owns the recognizer).
     AsyncFunction("dictateAvailable") { locale: String -> Dictate.available(context) }.runOnQueue(Queues.MAIN)
-    // Fresh on-device language check (background: it blocks for the service answer).
-    AsyncFunction("dictateSupport") { locale: String -> Dictate.supportOf(context, locale.ifEmpty { java.util.Locale.getDefault().toLanguageTag() }) }.runOnQueue(Queues.BACKGROUND)
+    // Fresh on-device language verdict: ready, needs-download or unknown.
+    AsyncFunction("dictateSupport") Coroutine { locale: String -> Dictate.supportOf(context, locale.ifEmpty { java.util.Locale.getDefault().toLanguageTag() }) }
     // Fire-and-forget pack download trigger; the panel polls dictateSupport for arrival.
-    AsyncFunction("dictateDownload") { locale: String ->
+    AsyncFunction("dictateDownload") Coroutine { locale: String ->
       Dictate.downloadPack(context, locale.ifEmpty { java.util.Locale.getDefault().toLanguageTag() })
       "started"
-    }.runOnQueue(Queues.MAIN)
+    }
     AsyncFunction("dictateStart") { id: String, options: Map<String, Any?> ->
       Dictate.start(context, id, options["locale"] as? String ?: "en-US",
         options["partial"] as? Boolean ?: true, options["punctuation"] as? Boolean ?: true)
