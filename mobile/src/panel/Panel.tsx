@@ -671,7 +671,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: space.s, marginTop: space.m, marginLeft: -space.xs },
-  dictateRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, marginBottom: space.m },
+  dictateRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, marginTop: space.m, marginBottom: space.m },
   quote: { flexDirection: 'row', gap: space.m, borderRadius: shape.card, padding: space.l },
   slip: { flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 56, paddingVertical: space.s },
   slipText: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s },
