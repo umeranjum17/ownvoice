@@ -10,7 +10,10 @@ test('original-point admission requires an explicit clear answer, never a fluent
   const bad = 'the database got eaten backwards by purple toaster clouds banana banana';
   expect(await canPolish(typed, async () => 'UNCLEAR')).toBe(false);
   for (const answer of ['', bad, 'CLEAR or UNCLEAR']) {
-    await expect(canPolish(typed, async () => answer)).rejects.toThrow(words.noVersions);
+    await expect(canPolish(typed, async prompt => {
+      expect(prompt).toContain(typed);
+      return answer;
+    })).rejects.toThrow(words.noVersions);
   }
   expect(await canPolish('autosave locally and make export easy.', async () => 'CLEAR')).toBe(true);
 });
@@ -24,10 +27,13 @@ test('a message with no words is declined without asking the writer', async () =
   expect(ask).not.toHaveBeenCalled();
 });
 
-test('the clarity verdict admits short everyday replies and declines keyboard mash', async () => {
-  const answer = (raw: string) => async () => raw;
+test('the clarity question admits short everyday replies and declines keyboard mash', async () => {
+  const prompts: string[] = [];
+  const answer = (raw: string) => async (prompt: string) => { prompts.push(prompt); return raw; };
   for (const text of ['see you at 6', 'got it, thanks', 'will do']) expect(await canPolish(text, answer('CLEAR'))).toBe(true);
   for (const text of ['asdf qwer zxcv', 'qwerty asdf zxcvb']) expect(await canPolish(text, answer('UNCLEAR'))).toBe(false);
+  expect(prompts[0]).toContain('see you at 6');
+  expect(prompts[0]).toMatch(/keyboard mash/i);
 });
 
 // Captured SHORTER output: a newly split sentence kept lowercase.
