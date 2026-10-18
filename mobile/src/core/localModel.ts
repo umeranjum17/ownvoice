@@ -29,15 +29,26 @@ export function getLocalModel(): LocalModel {
   return instance;
 }
 
+// One native context takes one call at a time; a second overlapping call would reject busy.
+let onDevice: Promise<unknown> = Promise.resolve();
+
+function oneAtATime<T>(run: () => Promise<T>): Promise<T> {
+  const result = onDevice.then(run);
+  onDevice = result.catch(() => {});
+  return result;
+}
+
 /** Current model state: unsupported, not-installed, installing, installed, loading, ready, busy, failed. */
-export async function localModelState(): Promise<InferState> {
-  const local = getLocalModel();
-  // A model file can sit on the phone while llama.rn's JNI library is missing from the APK; then nothing can start.
-  try { await installJsi(); } catch (error) {
-    console.warn(`Ownvoice native library did not load: ${error instanceof Error ? error.message : String(error)}`);
-    return { phase: 'unsupported' };
-  }
-  return local.check();
+export function localModelState(): Promise<InferState> {
+  return oneAtATime(async (): Promise<InferState> => {
+    const local = getLocalModel();
+    // A model file can sit on the phone while llama.rn's JNI library is missing from the APK; then nothing can start.
+    try { await installJsi(); } catch (error) {
+      console.warn(`Ownvoice native library did not load: ${error instanceof Error ? error.message : String(error)}`);
+      return { phase: 'unsupported' };
+    }
+    return local.check();
+  });
 }
 
 /** Install the local model with progress tracking. Wi-Fi-only unless mobile data was chosen. */
@@ -74,9 +85,11 @@ export function agreedToDownload(): boolean {
   return !!store.get<boolean>(AGREED_KEY);
 }
 
-/** Generate text using the local model. */
-export async function askLocal(prompt: string, maxTokens: number): Promise<string> {
-  const local = getLocalModel();
-  const result = await local.complete({ prompt, maxOutputTokens: maxTokens });
-  return result.text;
+/** Generate text using the local model; calls and state checks queue behind each other.
+ *  With [jsonSchema], decoding is constrained to that JSON shape. */
+export function askLocal(prompt: string, maxTokens: number, signal?: AbortSignal, jsonSchema?: object): Promise<string> {
+  return oneAtATime(async () => {
+    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
+    return (await getLocalModel().complete({ prompt, maxOutputTokens: maxTokens, signal, jsonSchema })).text;
+  });
 }

@@ -13,6 +13,7 @@ import { feedRead } from '../core/feed';
 import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
 import { abstain, judgeFit, rated, type Fit } from '../grow/fit';
+import { phoneFit } from '../grow/phoneFit';
 import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
@@ -153,7 +154,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [whys, setWhys] = useState<Map<string, WhyState>>(new Map());
   const [tones, setTones] = useState<Map<string, string>>(new Map());
   const toneFor = useRef(0);
-  // The fit per shown text, asked once per tap after the cards land; only when the writer's text left the phone.
+  // The fit per shown text, asked once per tap after the cards land: on the chosen cloud account, or on this phone's model when the phone wrote.
   const [fits, setFits] = useState<Map<string, Fit>>(new Map());
   const fitFor = useRef(0);
   const leaves = useRef(false);
@@ -353,7 +354,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (!texts.length) return;
     toneFor.current = id;
     void (async () => {
-      if (await phoneCanWrite() === 'cant') return;
+      if (await phoneCanWrite() === 'cant' || run.current !== id) return;
       let answer: string | null = null;
       try { answer = await askLocal(Judge.tonePrompt(texts), 80); }
       catch { return; }
@@ -373,20 +374,22 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     const texts = [...(yours?.text ? [yours.text] : []), ...shown.map(draft => draft.text)];
     if (!texts.length) return;
     fitFor.current = id;
-    // A refused account's line replaces the unsure read on every card it could not rate.
-    let refusal: string | null = null;
-    const backends = leaves.current ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : [];
-    // Yours comes first in texts, so when the phone wrote the shown drafts only the typed reply is judged.
-    const judged = shownOnPhone.current ? texts.slice(0, yours?.text ? 1 : 0) : texts;
-    void judgeFit({ post: postOf.current ?? '', candidates: judged, platform: platformOf.current, samples: samplesOf.current, backends })
-      .catch(() => judged.map(abstain))
-      .then(found => {
-        if (run.current !== id) return;
-        // Levels and probabilities only, never the text: what the proof reads from the device log.
-        console.log(`ownvoice-fit ${JSON.stringify(found)}`);
-        const judgedFit = (fit: Fit): Fit => refusal && fit.level == null ? { ...fit, refusal } : fit;
-        setFits(new Map(texts.map((text, i) => [text, i < judged.length ? judgedFit(found[i]) : abstain()])));
-      });
+    void (async () => {
+      // A refused account's line replaces the unsure read on every card it could not rate.
+      let refusal: string | null = null;
+      const onPhone = !leaves.current || shownOnPhone.current;
+      const backends = !onPhone ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : await phoneCanWrite() === 'cant' ? [] : [phoneFit()];
+      if (run.current !== id) return;
+      void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, samples: samplesOf.current, backends, voice: !onPhone })
+        .catch(() => texts.map(abstain))
+        .then(found => {
+          if (run.current !== id) return;
+          // Levels and probabilities only, never the text: what the proof reads from the device log.
+          console.log(`ownvoice-fit ${JSON.stringify(found)}`);
+          const judgedFit = (fit: Fit): Fit => refusal && fit.level == null ? { ...fit, refusal } : fit;
+          setFits(new Map(texts.map((text, i) => [text, judgedFit(found[i])])));
+        });
+    })();
   });
 
   // Puts [text] in their message box, only on their tap, through the same way as a draft.
@@ -448,6 +451,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (whys.has(draft.text)) return;
     setWhys(prev => new Map(prev).set(draft.text, { state: 'running', meaning: draft.meaning }));
     const ask = async (prompt: string, maxTokens: number): Promise<string | null> => {
+      if (run.current !== id) return null;
       try { return await askLocal(prompt, maxTokens); } catch { return null; }
     };
     void (async () => {

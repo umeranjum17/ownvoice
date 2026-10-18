@@ -5,7 +5,11 @@
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { fakeLlama } from '@byokit/infer/testing';
+import { initLlama } from 'llama.rn';
 import Panel from '../Panel';
+import { phoneWriter } from '../phoneWriter';
+import { askLocal, localModelState } from '../../core/localModel';
 import { technicalWords, words } from '../../core/words';
 import * as FitModule from '../../grow/fit';
 import { LEVELS, UNSURE, type Fit } from '../../grow/fit';
@@ -20,6 +24,18 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
 
 const native = Native as jest.Mocked<typeof Native>;
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
+jest.mock('llama.rn', () => ({ initLlama: jest.fn() }));
+jest.mock('../../core/localStore', () => ({
+  createLocalStore: () => ({
+    path: (m: { file: string }) => `/models/${m.file}`,
+    size: async (m: { bytes: number }) => m.bytes,
+    sha256: async (m: { sha256: string }) => m.sha256,
+    remove: async () => {},
+  }),
+}));
+const askLocalMock = askLocal as jest.MockedFunction<typeof askLocal>;
+const localModelStateMock = localModelState as jest.MockedFunction<typeof localModelState>;
+const phoneModel = (phase: 'ready' | 'unsupported') => localModelStateMock.mockResolvedValue({ phase } as Awaited<ReturnType<typeof localModelState>>);
 
 // Fictional X reply screen: the parent post's header, its body, the action row, then Umer's reply box at 900.
 const POST = 'Shipping one small fix beats another week polishing the launch page.';
@@ -186,30 +202,35 @@ describe('grow fit bar', () => {
     } finally { spy.mockRestore(); }
   });
 
-  test('after a ChatGPT failure the phone-written drafts are not judged, and the typed reply still is', async () => {
+  test('after a ChatGPT failure the phone-written drafts are judged on the phone, and the typed reply too', async () => {
     const failing: Writer = { write: async () => { throw new Error('ChatGPT could not answer.'); } };
     const phone: Writer = { write: async (_request, on) => { CLEAN.forEach((text, slot) => on?.landed?.(text, slot)); return { drafts: [...CLEAN] }; } };
     const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
+    phoneModel('ready');
+    askLocalMock.mockResolvedValue('');
     try {
       const screen = await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, cloudWords('chatgpt'), on, undefined, 'ready') });
       await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(CLEAN.length + 1));
       expect(spy).toHaveBeenCalledTimes(1);
-      expect(spy.mock.calls[0][0].candidates).toEqual([TYPED]);
-      expect(spy.mock.calls[0][0].backends.length).toBeGreaterThan(0);
-      expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(1);
-      expect(screen.getAllByLabelText(UNSURE)).toHaveLength(CLEAN.length);
-    } finally { spy.mockRestore(); }
+      expect(spy.mock.calls[0][0].candidates).toEqual([TYPED, ...CLEAN]);
+      expect(spy.mock.calls[0][0].backends.map(backend => backend.name)).toEqual(['phone']);
+      expect(spy.mock.calls[0][0].voice).toBe(false);
+      expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(CLEAN.length + 1);
+      expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
+    } finally { spy.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
 
-  test('a phone write that fails after landing a draft still keeps that draft out of fit', async () => {
+  test('a phone write that fails after landing a draft still judges that draft on the phone', async () => {
     const failing: Writer = { write: async () => { throw new Error('ChatGPT could not answer.'); } };
     const phone: Writer = { write: async (_request, on) => { on?.landed?.(CLEAN[0], 0); throw new Error('phone model stopped'); } };
     const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
+    phoneModel('ready');
     try {
       await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, cloudWords('chatgpt'), on, undefined, 'ready') });
       await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
-      expect(spy.mock.calls[0][0].candidates).toEqual([TYPED]);
-    } finally { spy.mockRestore(); }
+      expect(spy.mock.calls[0][0].candidates).toEqual([TYPED, CLEAN[0]]);
+      expect(spy.mock.calls[0][0].backends.map(backend => backend.name)).toEqual(['phone']);
+    } finally { spy.mockRestore(); phoneModel('unsupported'); }
   });
 
   test('an abstained card says it is not sure, with an empty bar', async () => {
@@ -301,6 +322,97 @@ describe('grow fit bar', () => {
       expect(screen.getAllByTestId('fit-bar').length).toBeGreaterThan(0);
       expect(screen.getAllByLabelText(UNSURE).length).toBeGreaterThan(0);
     } finally { spy.mockRestore(); }
+  });
+
+  // The phone wrote every card and nothing leaves the phone, so the on-device model answers the rubric.
+  const levelReply = (count: number, level: number) => Object.fromEntries(Array.from({ length: count }, (_, i) =>
+    [`fit_${i}`, { probabilities: Object.fromEntries(LEVELS.map((_, k) => [String(k), k === level ? 0.7 : 0.1])) }]));
+  const onPhone = async () => {
+    native.capture.mockResolvedValue(capture());
+    return render(
+      <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}>
+        <Panel select={async () => ({ writer: phoneWriter, note: null })} />
+      </SafeAreaProvider>);
+  };
+
+  const writesAll = () => jest.spyOn(phoneWriter, 'write').mockImplementation(async (_request, on) => {
+    CLEAN.forEach((text, slot) => on?.landed?.(text, slot));
+    return { drafts: [...CLEAN] };
+  });
+
+  test('on the phone writer the fit shows its level from a fenced model reply', async () => {
+    const phone = writesAll();
+    phoneModel('ready');
+    // The model wraps its JSON in a fence, as small local models often do.
+    askLocalMock.mockImplementation(prompt => prompt.includes('An X reply.')
+      ? Promise.resolve('```json\n' + JSON.stringify(levelReply(CLEAN.length + 1, 2)) + '\n```')
+      : Promise.resolve(''));
+    try {
+      const screen = await onPhone();
+      await waitFor(() => expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(CLEAN.length + 1));
+      expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
+    } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
+  });
+
+  test('on the phone writer a model that cannot answer still says not sure, plainly', async () => {
+    const phone = writesAll();
+    phoneModel('ready');
+    askLocalMock.mockRejectedValue(new Error('model stopped'));
+    try {
+      const screen = await onPhone();
+      await waitFor(() => expect(screen.getAllByLabelText(UNSURE)).toHaveLength(CLEAN.length + 1));
+      expect(screen.getAllByText(new RegExp(words.fitWhyUnsure))).toHaveLength(CLEAN.length + 1);
+    } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
+  });
+
+  test('on a phone that cannot write the fit abstains at once without asking the model', async () => {
+    const phone = writesAll();
+    askLocalMock.mockResolvedValue('');
+    try {
+      const screen = await onPhone();
+      await waitFor(() => expect(screen.getAllByLabelText(UNSURE)).toHaveLength(CLEAN.length + 1));
+      expect(askLocalMock.mock.calls.some(([prompt]) => String(prompt).includes('An X reply.'))).toBe(false);
+    } finally { phone.mockRestore(); askLocalMock.mockReset(); }
+  });
+
+  test('a fit left over from a replaced capture never asks the model', async () => {
+    const phone = writesAll();
+    const readyChecks: Array<() => void> = [];
+    localModelStateMock.mockImplementation(() => new Promise(resolve => {
+      readyChecks.push(() => resolve({ phase: 'ready' } as Awaited<ReturnType<typeof localModelState>>));
+    }));
+    const prompts: string[] = [];
+    askLocalMock.mockImplementation(async prompt => { prompts.push(String(prompt)); return ''; });
+    try {
+      const screen = await onPhone();
+      await waitFor(() => expect(readyChecks.length).toBeGreaterThan(0));
+      screen.unmount();
+      readyChecks.forEach(ready => ready());
+      await new Promise(resolve => setTimeout(resolve, 50));
+      expect(prompts).toEqual([]);
+    } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
+  });
+
+  test('on the phone writer the fit rates once a pending tone call settles, through the real on-device queue', async () => {
+    let release!: () => void;
+    const toneGate = new Promise<void>(resolve => { release = resolve; });
+    const llama = fakeLlama({ reply: async p => {
+      if (String(p.messages.at(-1)?.content ?? '').includes('An X reply.')) return JSON.stringify(levelReply(CLEAN.length + 1, 2));
+      await toneGate;
+      return '';
+    } });
+    (initLlama as jest.Mock).mockImplementation(llama.initLlama);
+    askLocalMock.mockImplementation(jest.requireActual<typeof import('../../core/localModel')>('../../core/localModel').askLocal);
+    const phone = writesAll();
+    phoneModel('ready');
+    try {
+      const screen = await onPhone();
+      await waitFor(() => expect(llama.contexts.flatMap(context => context.completions)).toHaveLength(1));
+      expect(screen.queryAllByLabelText(LEVELS[2])).toHaveLength(0);
+      release();
+      await waitFor(() => expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(CLEAN.length + 1));
+      expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
+    } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
 });
 

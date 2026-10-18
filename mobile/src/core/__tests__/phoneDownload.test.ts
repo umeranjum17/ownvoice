@@ -7,7 +7,9 @@ jest.mock('../localModel', () => ({
   installLocalModel: jest.fn(),
   removeLocalModel: jest.fn(),
 }));
+import { InferError } from '@byokit/infer';
 import { agreedToDownload, installLocalModel, localModelState, removeLocalModel } from '../localModel';
+import { phoneCanWrite } from '../phoneStatus';
 import { AGREED_KEY, MOBILE_KEY, agreed, getReady, removeDownload, resume } from '../phoneDownload';
 
 const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
@@ -30,6 +32,18 @@ beforeEach(() => {
   mockState.mockResolvedValue({ phase: 'not-installed' });
   mockInstall.mockResolvedValue(undefined);
   mockRemove.mockImplementation(async () => { kv.delete(AGREED_KEY); kv.delete(MOBILE_KEY); });
+});
+
+test('a phone that is removing its model reads cant, not ready', async () => {
+  let during: Awaited<ReturnType<typeof phoneCanWrite>> | undefined;
+  mockRemove.mockImplementationOnce(async () => {
+    mockState.mockRejectedValueOnce(new InferError('busy', 'Another on-device call is running.'));
+    during = await phoneCanWrite();
+  });
+  await removeDownload();
+  expect(during).toBe('cant');
+  mockState.mockRejectedValueOnce(new InferError('busy', 'Another on-device call is running.'));
+  await expect(phoneCanWrite()).resolves.toBe('ready');
 });
 
 test('a mobile-data download picks up on mobile data after a restart', async () => {

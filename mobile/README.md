@@ -64,7 +64,7 @@ Setup asks **How should Ownvoice write?**, and Home's **How Ownvoice writes** ro
 
 The lab-only compose-from-request script asks its text writer for a single-field JSON object, `{"note":"finished message"}`. It decodes only a complete envelope with exactly one nonblank string field named `note`, optionally enclosed in a JSON fence; other text stays intact, including literal brackets, stars and backticks. The extracted note is the same text displayed, checked and offered for approval. The shared writing instructions require task facts and requested tone changes to be preserved, a note shorter than the person's own words (the tone comes from word choice, not added sentences), plain text with `•` for requested lists, unknown recipient names to be omitted, and signatures only when supplied by the task. Capability explanations belong outside the note and only when an action such as sending is requested; the script's text-only writing call omits them entirely. These are instructions to the writer, not enforced prose guarantees. Local writing-rule and number checks do not establish prose faithfulness; live outputs still need inspection. `EXPO_PUBLIC_PHONE_AGENT=1` remains required for the lab screen, and real lab QA uses an isolated adapter without E2E writer or account flags.
 
-**Privacy:** For an enabled app, cloud drafting (ChatGPT, Claude, OpenRouter or OpenCode Go, whichever is chosen) sends the text being rewritten or replied to, visible screen context and writing rules to that provider (OpenAI, Anthropic, OpenRouter or OpenCode Go). Phone-only drafting does not send that content. The reply fit on X, LinkedIn and Reddit sends the post and the cards it rates under the same consent (see **Reply fit**). The read log stores one native tap fact per bubble tap (app, time, what was read and whether a cloud request (ChatGPT, Claude, OpenRouter or OpenCode Go) reached the server — marked only once the server answers, so a vetoed or offline-before-connect request leaves no Sent mark), not the screen or message text, for up to 30 days. Checking the public remote switch makes a GET to GitHub without app-added identifiers; the request still exposes ordinary connection information such as the device's IP address to the host. The signed switch accepts newer verified choices, retains the last verified choice if fetching fails, and is checked again before sending; before any verified flag, it defaults to on. If saving a verified choice fails, that choice lasts only until the process restarts; after a restart with no network, an older saved choice may apply. The signed switch is published at `switch/chatgpt.json` on the default branch. A switch permitting cloud writing never overrides the chosen source or the phone-only list. Immediately before starting a ChatGPT request, the app checks its latest source, sign-in, pause, phone-only and switch state; withdrawing consent before this last check keeps drafts on the phone. The selection rewrite sends through the same latest sign-in, pause and switch checks plus its stored writing choice; it rewrites text from any app, so no phone-only choice applies to it.
+**Privacy:** For an enabled app, cloud drafting (ChatGPT, Claude, OpenRouter or OpenCode Go, whichever is chosen) sends the text being rewritten or replied to, visible screen context and writing rules to that provider (OpenAI, Anthropic, OpenRouter or OpenCode Go). Phone-only drafting does not send that content. A cloud-written reply fit on X, LinkedIn and Reddit sends the post and the cards it rates under the same consent; the on-device fit sends nothing (see **Reply fit**). The read log stores one native tap fact per bubble tap (app, time, what was read and whether a cloud request (ChatGPT, Claude, OpenRouter or OpenCode Go) reached the server — marked only once the server answers, so a vetoed or offline-before-connect request leaves no Sent mark), not the screen or message text, for up to 30 days. Checking the public remote switch makes a GET to GitHub without app-added identifiers; the request still exposes ordinary connection information such as the device's IP address to the host. The signed switch accepts newer verified choices, retains the last verified choice if fetching fails, and is checked again before sending; before any verified flag, it defaults to on. If saving a verified choice fails, that choice lasts only until the process restarts; after a restart with no network, an older saved choice may apply. The signed switch is published at `switch/chatgpt.json` on the default branch. A switch permitting cloud writing never overrides the chosen source or the phone-only list. Immediately before starting a ChatGPT request, the app checks its latest source, sign-in, pause, phone-only and switch state; withdrawing consent before this last check keeps drafts on the phone. The selection rewrite sends through the same latest sign-in, pause and switch checks plus its stored writing choice; it rewrites text from any app, so no phone-only choice applies to it.
 
 Live proofs run through the app on the test emulator, using its byokit account (device-code sign-in, or the OpenRouter key route). Never read or copy another tool's credentials for a proof.
 
@@ -76,19 +76,21 @@ To produce a switch flag offline, keep a 32-byte private signing key as hex outs
 score question per shown text on X, LinkedIn and Reddit replies: the platform rubric is the
 question and the model's most probable level (`LEVELS`) becomes the card's engagement
 level. Below decide's 0.6 floor, or when nothing answered (no backend, no consent,
-offline, the 20 second deadline), the card abstains with the plain **Not sure about this
+offline, the 60 second deadline), the card abstains with the plain **Not sure about this
 one** bar; the panel never shows a number and never predicts reach. The level is never
 adjusted by hand rules. The panel asks once per tap after the writer settles, never per
 keystroke, and never for an edited text; each call uses a fresh in-memory cache.
 
-By default the fit runs on the person's **signed-in account** — whichever cloud account is
+When a cloud account writes, the fit runs by default on the person's **signed-in account** — whichever cloud account is
 chosen, ChatGPT, Claude, OpenRouter or OpenCode Go — through the same `askCloud` boundary the writer uses, so no Jev
 key ships in the app. A build with `EXPO_PUBLIC_JEV_KEY` uses Jev instead (billed per use to
 that key), which the emulator stand-in proofs set. `fitBackends(app)` in
 `src/chatgpt/settings.ts` sends only under the same consent as a send for that account
 (source, visibility, pause, phone-only, sign-out epoch, remote switch), checked again at
 dispatch. Drafts the phone wrote are never sent. The fit uses the same account as the
-writer, so a rate limit on either pauses both until the plan recovers.
+writer, so a rate limit on either pauses both until the plan recovers. When the phone wrote the drafts
+(**On this phone**, or as the fallback after the chosen account fails), the fit runs on the phone's own model through `phoneFit()` in
+`src/grow/phoneFit.ts`, so nothing leaves the phone; a card that model can't answer keeps the plain unsure read.
 
 A reply typed under an X, LinkedIn or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
 the writer gets their text as `point` (with `typed` empty) so the replies start from it,
@@ -112,7 +114,7 @@ EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18610` and run `node e2e/jev-proof.mjs
 e2e/jev-cases.json [out]` after setup with ChatGPT and Chrome switched on: Chrome
 maps x.com to the script's lab page, and each panel's levels and probabilities
 are read from the `ownvoice-fit` log line (no text is logged). Load the model first: a
-cold load outlasts the 20 second deadline and the cards then read plainly Not sure.
+cold load outlasts the 60 second deadline and the cards then read plainly Not sure.
 
 ### Card ratings
 
