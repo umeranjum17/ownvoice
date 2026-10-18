@@ -127,6 +127,24 @@ export function layoutKept(original: string, version: string): boolean {
 const leadingMarker = /^\s*(?:\d+[.)]|[-*•])\s+/;
 const rowLine = /^\s*row\s*(\d+)\s*[.:)-]\s*(.*)$/i;
 
+/** An item's own verb: the first word after its list marker, lowercased. */
+const itemVerb = (line: string) => line.replace(leadingMarker, '').match(/[\p{L}\p{N}]+/u)?.[0].toLowerCase() ?? '';
+const itemRows = (text: string) => text.split(/\r?\n/).filter(line => leadingMarker.test(line));
+/**
+ * True when a reordered list keeps every item's own verb: the multiset of item first-words
+ * matches order-insensitively, so items may move but no verb may change. Anything that is
+ * not a list passes here; an item-count change is already a layout fail.
+ * ponytail: first-word equality, not parsing; a reworded item that keeps its verb still passes.
+ */
+export function itemVerbsKept(original: string, version: string): boolean {
+  const from = itemRows(original).map(itemVerb);
+  if (!from.length) return true;
+  const to = itemRows(version).map(itemVerb);
+  if (from.length !== to.length) return false;
+  const key = (verbs: string[]) => verbs.slice().sort().join(' ');
+  return key(from) === key(to);
+}
+
 /** A row answer that is only its list marker ('1.', '2)', '-') carries no content. */
 const shellOnly = (text: string) => /^\s*(?:\d+[.)]|[-*•])?\s*$/.test(text);
 

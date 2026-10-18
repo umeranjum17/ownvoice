@@ -423,7 +423,7 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
     if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove. 1. I will bring the stove. 2. You can bring the tent."]}';
     if (prompt.includes('Row 1:')) return 'Row 1: Stove is on me.\nRow 2: I will bring the stove.\nRow 3: You can bring the tent.';
     if (prompt.includes('Tighter:')) return 'Stove split.\n1. I bring the stove.\n2. Tent is yours.';
-    return 'Stove and tent split:\n1. The stove is mine to bring.\n2. The tent is yours to bring.';
+    return 'Stove and tent split:\n1. I bring the stove.\n2. You bring the tent.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
   expect(drafts).toHaveLength(2);
@@ -434,8 +434,8 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
 
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
   mockAsk.mockImplementation(async (prompt: string) => {
-    if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Stove plan:\\n1. Stove: mine.\\n2. Tent: yours."]}';
-    return 'Stove plan:\n1. Stove: mine.\n2. Tent: yours.';
+    if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Stove split:\\n1. I bring the stove.\\n2. You bring the tent."]}';
+    return 'Row 1: Stove split:\nRow 2: I bring the stove.\nRow 3: You bring the tent.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
   expect(drafts).toHaveLength(1);

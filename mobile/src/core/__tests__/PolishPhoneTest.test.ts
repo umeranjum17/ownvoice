@@ -1,4 +1,5 @@
 import { canPolish, polishAcceptor, polishVersions } from '../polish';
+import { itemVerbsKept } from '../drafts';
 import { lineRetryPrompt, versionsList } from '../judge';
 
 // The phone polish with the outputs a small model gives: an UNCLEAR point check still gets versions,
@@ -130,4 +131,47 @@ test('a Shorter that stays the same length is retried once, then not shown', asy
   expect(retries).toBe(1);
   expect(out.drafts).toEqual([reordered]);
   expect(landed).not.toContain(cased);
+});
+
+// Round 2 (never trade a card for no card): a reorder that changes an item's verbs is not
+// shown; the row retry falls back to the polished same-order version instead of dropping it.
+const verbChanged = 'Here is what I need from you:\n1. Please provide the deck by Friday.\n2. Confirm the budget.\n3. Book the room for Monday.';
+
+test('itemVerbsKept compares each item\'s own verb, order-insensitively', () => {
+  const reordered = 'Here is what I need from you:\n1. book the room for Monday\n2. send the deck by Friday\n3. confirm the budget';
+  expect(itemVerbsKept(wordingList, reordered)).toBe(true);
+  expect(itemVerbsKept(wordingList, verbChanged)).toBe(false);
+  expect(itemVerbsKept(wordingList, 'Here is what I need from you:\n1. Send the deck by Friday.\n2. Confirm the budget.')).toBe(false);
+  expect(itemVerbsKept('bring this back', 'bring this back!')).toBe(true);
+});
+
+test('Main point first drops a reorder that changes an item\'s verb and queues the same-order retry', async () => {
+  const acceptor = await polishAcceptor(wordingList, 'remove', [], null);
+  expect(acceptor.accept(verbChanged, 2, 'Main point first')).toBeNull();
+  expect(acceptor.results).toEqual([]);
+  expect(acceptor.layoutFails).toEqual([{ slot: 2, label: 'Main point first' }]);
+});
+
+test('Main point first fix shows the polished same-order fallback', async () => {
+  const kept = await polishAcceptor(wordingList, 'remove', [], null);
+  const fallback = 'Here is what I need from you:\n1. Send the deck by Friday\n2. Confirm the budget\n3. Book the room for Monday';
+  expect(kept.fix(fallback, 2, 'Main point first')).toBe(fallback);
+  // The fallback is same-order by construction, so a card is never traded for no card even
+  // when the rows mildly reword a verb; the reorder attempt above is what refuses verb changes.
+  const reworded = await polishAcceptor(wordingList, 'remove', [], null);
+  const rows = 'Here is what I need from you:\n1. Bring the deck by Friday\n2. Confirm the budget\n3. Book the room for Monday';
+  expect(reworded.fix(rows, 2, 'Main point first')).toBe(rows);
+});
+
+test('only the Shorter card hides while Main point first falls back to same-order polish', async () => {
+  const cased = 'Here Is What I Need From You:\n1. Send The Deck By Friday\n2. Confirm The Budget\n3. Book The Room For Monday';
+  const fallbackRows = 'Row 1: Here is what I need from you:\nRow 2: Send the deck by Friday\nRow 3: Confirm the budget\nRow 4: Book the room for Monday';
+  const fallback = 'Here is what I need from you:\n1. Send the deck by Friday\n2. Confirm the budget\n3. Book the room for Monday';
+  const landed: string[] = [];
+  const out = await polishVersions(async prompt => {
+    if (!prompt.includes('Their text, by row:')) return json([cased, verbChanged]);
+    return prompt.includes('may reorder') ? fallbackRows : 'chatter with no rows';
+  }, request(wordingList, true), text => landed.push(text));
+  expect(out.drafts).toEqual([fallback]);
+  expect(landed).toEqual([fallback]);
 });
