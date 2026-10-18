@@ -1,6 +1,9 @@
 import { PermissionsAndroid, Platform } from 'react-native';
 import { DictateError, Dictation, systemEngine, type DictateErrorCode, type DictateSystemNative, type DictateSegment, type DictationHandle } from '@byokit/dictation';
 import Native from '../../modules/ownvoice-native';
+
+/** Device-side breadcrumbs for the silent phone proof (logcat); the panel itself stays plain. */
+const trace = (line: string) => { try { Native.logDev?.(`dictate ${line}`); } catch {} };
 import { words } from '../core/words';
 
 type Session = { on: (segment: DictateSegment) => void; done?: () => void; fail?: (error: Error) => void; error?: Error };
@@ -59,6 +62,7 @@ export async function ensureMic(): Promise<boolean> {
 /** A kit failure code in plain words; null when the recognizer is ready. */
 export async function dictateReady(): Promise<string | null> {
   const ready = await new Dictation({ engine: systemEngine(port) }).available({ onDeviceOnly: true });
+  trace(ready.ok ? 'available ok' : `available ${ready.code}`);
   if (ready.ok) return null;
   if (ready.code === 'mic-blocked') return words.dictateMic;
   if (ready.code === 'needs-download') return words.dictateLanguage;
@@ -81,13 +85,18 @@ export function listenForDictation(onPartial?: (text: string) => void): Dictatio
 
 /** Debug-only: hand the next session a recorded WAV instead of the mic. Release builds refuse. */
 export async function armProofWav(path: string): Promise<boolean> {
-  if (!__DEV__) return false;
-  try { return await Native.dictateProofWav(path); } catch { return false; }
+  if (!__DEV__) { trace('proof refused: release'); return false; }
+  try {
+    const armed = await Native.dictateProofWav(path);
+    trace(`proof ${armed ? 'armed' : 'refused'} ${path}`);
+    return armed;
+  } catch { trace(`proof threw ${path}`); return false; }
 }
 
 /** A kit failure in plain words; null when there is nothing to say (the person cancelled). */
 export function messageForDictationError(error: unknown): string | null {
   const code = error instanceof DictateError ? error.code : 'unsupported';
+  trace(`finish ${code}`);
   if (code === 'cancelled') return null;
   if (code === 'mic-blocked') return words.dictateMic;
   if (code === 'needs-download') return words.dictateLanguage;
