@@ -633,10 +633,23 @@ test('captured nonsense is declined before any alternate can land or trigger pho
   try {
     expect(await withPhoneFallback(chatgptWriter, phone, { typed, conversation: '', written: '' }, cloudWords('chatgpt'), { landed }, undefined, 'cant'))
       .toEqual({ drafts: [], declined: true });
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
     expect(JSON.stringify((global.fetch as jest.Mock).mock.calls[0])).toContain(typed);
     expect(landed).not.toHaveBeenCalled();
     expect(phone.write).not.toHaveBeenCalled();
+  } finally { global.fetch = originalFetch; }
+});
+
+test('an unclear point check does not expose a local cleanup card', async () => {
+  const originalFetch = global.fetch;
+  jest.requireMock('../../core/polish').canPolish.mockResolvedValueOnce(false);
+  global.fetch = jest.fn();
+  const landed = jest.fn();
+  try {
+    await expect(chatgptWriter.write({ typed: 'I shoud bring the stove.', conversation: '', written: '' }, { landed }))
+      .resolves.toEqual({ drafts: [], declined: true });
+    expect(landed).not.toHaveBeenCalled();
+    expect(global.fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
 
@@ -650,6 +663,6 @@ test('an unreadable point check remains a transient failure, allowing fallback r
     expect(choice).toEqual({ drafts: ['autosave locally. Make export easy.'], reason: words.fallback });
     expect(choice.declined).toBeUndefined();
     expect(phone.write).toHaveBeenCalledTimes(1);
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   } finally { global.fetch = originalFetch; }
 });
