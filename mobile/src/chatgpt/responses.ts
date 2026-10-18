@@ -201,12 +201,25 @@ async function polish(cloud: CloudKey, request: DraftRequest, on: WriterEvents):
   const note = avoidLine(avoid);
   const landed = on.landed ?? (() => {});
   // A new post's one-line topic is asked too: the question counts a line about a post as clear.
-  const clearPromise = canPolish(request.typed, prompt => ask(cloud, prompt, 'Answer only CLEAR or UNCLEAR.', 'text', 1, on).then(([text]) => text));
+  let checkReady = false;
+  const clearPromise = canPolish(request.typed, prompt => ask(cloud, prompt, 'Answer only CLEAR or UNCLEAR.', 'text', 1, on).then(([text]) => text))
+    .then(clear => ({ clear }), error => ({ error }))
+    .then(result => { checkReady = true; return result; });
   const acceptor = await polishAcceptor(request.typed, dashes, avoid);
+  if (checkReady) {
+    const check = await clearPromise;
+    if ('error' in check) throw check.error;
+    if (!check.clear) return { drafts: [], declined: true };
+  }
+  const rewritePromise = ask(cloud, rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', writerVersions.length, on)
+    .then(raw => ({ raw }), error => ({ error }));
+  const check = await clearPromise;
+  if ('error' in check) { await rewritePromise; throw check.error; }
+  if (!check.clear) { await rewritePromise; return { drafts: [], declined: true }; }
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
-  const raw = await ask(cloud, rewritePrompt(request.typed, request.conversation, request.guide ?? '', dashes, request.platform) + (note ? `\n\n${note}` : ''), VERSION_INSTRUCTIONS, 'versions', writerVersions.length, on);
-  if (!await clearPromise) return { drafts: [], declined: true };
-  raw.forEach((text, index) => {
+  const rewrite = await rewritePromise;
+  if ('error' in rewrite) throw rewrite.error;
+  rewrite.raw.forEach((text, index) => {
     const slot = index + 1;
     const clean = acceptor.accept(text, slot, versionsList[slot].label);
     if (clean != null) landed(clean, slot, versionsList[slot].label);

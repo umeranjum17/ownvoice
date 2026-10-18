@@ -506,9 +506,10 @@ test('a limit gives the same tap byokits words over phone drafts', async () => {
   global.fetch = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'Too many requests', body: null } as Response));
   try {
     expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: 'ChatGPT is resting until 3:40pm.' });
-    expect(accounts.failed).toHaveBeenCalledTimes(1);
+    // The hosted point check and rewrite are dispatched together for first-card latency.
+    expect(accounts.failed).toHaveBeenCalledTimes(2);
     expect(reportFailure).not.toHaveBeenCalled();
-    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(2);
   } finally { global.fetch = originalFetch; }
 });
 
