@@ -38,14 +38,36 @@ export async function polishAcceptor(original: string, dashes: 'keep' | 'remove'
   const corrected = fixedSlips(original, dictionary);
   const localText = dashes === 'remove' ? undash(corrected) : corrected;
   const local = localText === original ? null : acceptor.accept(localText, 0, versionsList[0].label);
+  const countWords = (text: string) => text.match(/[\p{L}\p{N}]+/gu)?.length ?? 0;
+  const originalWords = countWords(original);
+  // Lists only (ordinary single-line text is out of scope): the Shorter card must cut words,
+  // so a casing-only or same-length version is not accepted. An exact echo still delegates,
+  // keeping the unchanged evidence the panel reports as their own text.
+  const isList = original.includes('\n');
+  const flatLines = (value: string) => value.replace(/\r\n/g, '\n').split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).join('\n').trim();
+  const shorterKept = (text: string) => countWords(text) < originalWords;
+  /** A rejected Shorter still gets the existing one-row retry: queue it when nothing usable landed. */
+  const queueShorterRetry = (slot: number, label?: string) => {
+    if (!acceptor.results.some(r => r.slot === slot) && !acceptor.layoutFails.some(f => f.slot === slot)) acceptor.layoutFails.push({ slot, label });
+  };
   return {
     local,
     mash: isMash(original, dictionary),
     results: acceptor.results,
     layoutFails: acceptor.layoutFails,
     get unchanged() { return acceptor.unchanged; },
-    accept(text: string, slot: number, label?: string) { return slot === 0 ? null : acceptor.accept(fixedSentenceSplits(original, text, dictionary), slot, label); },
-    fix(text: string, slot: number, label?: string) { return slot === 0 ? null : acceptor.fix(fixedSentenceSplits(original, text, dictionary), slot, label); },
+    accept(text: string, slot: number, label?: string) {
+      if (slot === 0) return null;
+      const fixed = fixedSentenceSplits(original, text, dictionary);
+      if (slot === 1 && isList && flatLines(fixed) !== flatLines(original) && !shorterKept(fixed)) { queueShorterRetry(slot, label); return null; }
+      return acceptor.accept(fixed, slot, label);
+    },
+    fix(text: string, slot: number, label?: string) {
+      if (slot === 0) return null;
+      const fixed = fixedSentenceSplits(original, text, dictionary);
+      if (slot === 1 && isList && flatLines(fixed) !== flatLines(original) && !shorterKept(fixed)) return null;
+      return acceptor.fix(fixed, slot, label);
+    },
   };
 }
 
@@ -61,7 +83,7 @@ export type PolishRequest = {
 };
 export type PolishOutcome = { drafts: string[]; unchanged?: boolean; declined?: boolean };
 
-const ALTERNATIVE_WORDING = 'Give a genuinely different wording even when their text already reads well; do not copy it back. For a list, shorten or rephrase within the existing rows: keep the intro, every item and their order. If the main point is already first, rephrase in place instead of moving or merging rows. A row may stay as it is, but the complete version must use different words.';
+const ALTERNATIVE_WORDING = 'Give a genuinely different wording even when their text already reads well; do not copy it back. For a list, shorten or rephrase within the existing rows: keep the intro and every item. The Shorter version keeps their order; the Main point first version may reorder the items to put the main point first but keeps each item\'s own words. If the main point is already first, rephrase in place instead of moving or merging rows. A row may stay as it is, but the complete version must use different words.';
 const DIFFERENT_WORDS = 'Their text came back unchanged: write each version in different words, keeping the same point.';
 
 /** The phone's polish (the eval supplies the same endpoint and bundled dictionary): the point check is advisory, so an UNCLEAR answer still gets the versions. With no usable

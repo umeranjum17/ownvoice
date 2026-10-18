@@ -1,4 +1,4 @@
-import { canPolish, polishVersions } from '../polish';
+import { canPolish, polishAcceptor, polishVersions } from '../polish';
 import { lineRetryPrompt, versionsList } from '../judge';
 
 // The phone polish with the outputs a small model gives: an UNCLEAR point check still gets versions,
@@ -75,4 +75,59 @@ test('a list version that drops the intro line is not shown', async () => {
   const out = await polishVersions(async prompt => prompt.includes('Their text, by row:') ? 'no rows' : json([noIntro, kept]), request(phoneList, true), text => landed.push(text));
   expect(out.drafts).toEqual([kept]);
   expect(landed).not.toContain(noIntro);
+});
+
+// Phone proof 2026-10-18 (PR 246): for this list the SHORTER card came back with only
+// capital letters (not shorter), and MAIN POINT FIRST reworded item 1's verb ('send' became
+// 'provide'). Shorter must cut words; Main point first may reorder but keeps each item's own words.
+const wordingList = 'Here is what I need from you:\n1. send the deck by Friday\n2. confirm the budget\n3. book the room for Monday';
+
+test('the writer prompts ask Shorter for fewer words and Main point first to keep each item\'s own words', () => {
+  expect(versionsList[1].ask).toMatch(/strictly fewer words/);
+  expect(versionsList[2].ask).toMatch(/own words/);
+});
+
+test('Shorter rejects a casing-only version and a same-word-count reword', async () => {
+  for (const shorter of [
+    'Here Is What I Need From You:\n1. Send The Deck By Friday\n2. Confirm The Budget\n3. Book The Room For Monday',
+    'Here is what I want from you:\n1. send the deck by Friday\n2. confirm the budget\n3. book the room for Monday',
+  ]) {
+    const acceptor = await polishAcceptor(wordingList, 'remove', [], null);
+    expect(acceptor.accept(shorter, 1, 'Shorter')).toBeNull();
+    expect(acceptor.results).toEqual([]);
+  }
+});
+
+test('Shorter shows a version with fewer words', async () => {
+  const acceptor = await polishAcceptor(wordingList, 'remove', [], null);
+  const shorter = 'What I need:\n1. send deck by Friday\n2. confirm budget\n3. book room Monday';
+  expect(acceptor.accept(shorter, 1, 'Shorter')).toBe(shorter);
+  expect(acceptor.results).toEqual([{ text: shorter, slot: 1, label: 'Shorter' }]);
+});
+
+test('Main point first shows a reorder that keeps each item\'s own words', async () => {
+  const acceptor = await polishAcceptor(wordingList, 'remove', [], null);
+  const reordered = 'Here is what I need from you:\n1. book the room for Monday\n2. send the deck by Friday\n3. confirm the budget';
+  expect(acceptor.accept(reordered, 2, 'Main point first')).toBe(reordered);
+});
+
+test('Main point first drops a version that loses an item', async () => {
+  const acceptor = await polishAcceptor(wordingList, 'remove', [], null);
+  const dropped = 'Here is what I need from you:\n1. Send the deck by Friday.\n2. Confirm the budget.';
+  expect(acceptor.accept(dropped, 2, 'Main point first')).toBeNull();
+  expect(acceptor.results).toEqual([]);
+});
+
+test('a Shorter that stays the same length is retried once, then not shown', async () => {
+  const cased = 'Here Is What I Need From You:\n1. Send The Deck By Friday\n2. Confirm The Budget\n3. Book The Room For Monday';
+  const reordered = 'Here is what I need from you:\n1. book the room for Monday\n2. send the deck by Friday\n3. confirm the budget';
+  let retries = 0;
+  const landed: string[] = [];
+  const out = await polishVersions(async prompt => {
+    if (prompt.includes('Their text, by row:')) { retries++; return 'chatter with no rows'; }
+    return json([cased, reordered]);
+  }, request(wordingList, true), text => landed.push(text));
+  expect(retries).toBe(1);
+  expect(out.drafts).toEqual([reordered]);
+  expect(landed).not.toContain(cased);
 });
