@@ -38,10 +38,13 @@ import kotlinx.coroutines.withTimeoutOrNull
  * hands the recognizer through EXTRA_AUDIO_SOURCE (API 33+) instead of the mic, so a
  * proof run feeds speech without playing sound; release builds ignore it.
  */
+internal fun finalDictationText(result: String, partial: String): String = result.ifBlank { partial }
+
 object Dictate {
   var emit: ((Map<String, Any?>) -> Unit)? = null
 
   private var recognizer: SpeechRecognizer? = null
+  private var lastPartial = ""
   private var session: String? = null
   private var pending: String? = null
   private var proof: ParcelFileDescriptor? = null
@@ -74,6 +77,7 @@ object Dictate {
   // Fire-and-forget like the kit's consumer port: the support check and download run in the
   // module scope, and a stop/cancel that lands first retires the pending start before it speaks.
   fun start(context: Context, id: String, locale: String, partial: Boolean, punctuation: Boolean) {
+    lastPartial = ""
     pending = id
     scope.launch {
       val main = onMain()
@@ -324,13 +328,14 @@ object Dictate {
     override fun onPartialResults(bundle: Bundle?) {
       if (id != session) return
       val text = words(bundle)
+      if (text.isNotBlank()) lastPartial = text
       note("partial ${text.take(80)}")
       segment(false, text)
     }
 
     override fun onResults(bundle: Bundle?) {
       if (id != session) return
-      val text = words(bundle)
+      val text = finalDictationText(words(bundle), lastPartial)
       note("final ${text.take(100)}")
       segment(true, text)
       emit?.invoke(mapOf("id" to id, "type" to "stopped"))
@@ -348,7 +353,7 @@ object Dictate {
         else -> "unsupported"
       }
       if (mapped == null) {
-        segment(true, "")
+        segment(true, lastPartial)
         emit?.invoke(mapOf("id" to id, "type" to "stopped"))
       } else {
         emit?.invoke(mapOf("id" to id, "type" to "error", "code" to mapped))
