@@ -28,6 +28,43 @@ tasks.configureEach { task ->
     if (!config.modResults.contents.includes('task.inputs.property("expoPublic."')) {
       config.modResults.contents += flagInputs;
     }
+    // llama.rn's native code comes from its postinstall download, and its CMake step skips a
+    // missing set without failing: the APK then installs, but the phone writer can never start.
+    const nativeLibs = `
+// The phone writer needs llama.rn's downloaded native libraries; fail the build without them.
+tasks.register("ownvoiceNativeLibs") {
+    def lib = file("\${rootDir}/../node_modules/llama.rn/android/src/main/jniLibs/arm64-v8a/librnllama.so")
+    doLast {
+        if (!lib.exists()) throw new GradleException("Missing llama.rn native libraries (" + lib + "). Run: node node_modules/llama.rn/install/download-native-artifacts.js")
+    }
+}
+tasks.named("preBuild") { dependsOn("ownvoiceNativeLibs") }
+`;
+    if (!config.modResults.contents.includes('tasks.register("ownvoiceNativeLibs")')) {
+      config.modResults.contents += nativeLibs;
+    }
+    // CMake builds llama.rn's JNI wrappers only when a prebuilt set exists at configure time, so a stale
+    // build cache packages an APK without them and the phone writer never starts. Check the APK itself.
+    const apkNativeLibs = `
+def llamaRnLibs = [
+    "arm64-v8a": ["librnllama.so", "librnllama_jni.so", "librnllama_jni_v8.so", "librnllama_jni_v8_2.so", "librnllama_jni_v8_2_dotprod.so", "librnllama_jni_v8_2_dotprod_i8mm.so", "librnllama_jni_v8_2_i8mm.so", "librnllama_jni_v8_2_dotprod_i8mm_hexagon_opencl.so"],
+    "x86_64": ["librnllama.so", "librnllama_jni.so", "librnllama_jni_x86_64.so"],
+]
+tasks.matching { it.name == "assembleRelease" }.configureEach { task ->
+    task.doLast {
+        def apk = layout.buildDirectory.dir("outputs/apk/release").get().asFile.listFiles().find { it.name.endsWith(".apk") }
+        def entries = new java.util.zip.ZipFile(apk).withCloseable { zip -> zip.entries().collect { it.name } }
+        def missing = []
+        llamaRnLibs.each { abi, libs ->
+            if (entries.any { it.startsWith("lib/" + abi + "/") }) libs.each { lib -> if (!entries.contains("lib/" + abi + "/" + lib)) missing << abi + "/" + lib }
+        }
+        if (missing) throw new GradleException("The APK lacks llama.rn native libraries: " + missing.join(", ") + ". Delete android/app/.cxx and build again.")
+    }
+}
+`;
+    if (!config.modResults.contents.includes('def llamaRnLibs')) {
+      config.modResults.contents += apkNativeLibs;
+    }
     // Read credentials only in Gradle's build process, never bake them into config.
     const signing = `
 // Dedicated release signing; local builds keep Expo's development key.

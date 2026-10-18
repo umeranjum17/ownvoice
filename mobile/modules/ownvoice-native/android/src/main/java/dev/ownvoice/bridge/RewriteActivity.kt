@@ -6,6 +6,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
+import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate
@@ -17,9 +18,22 @@ class RewriteActivity : ReactActivity() {
   override fun getMainComponentName() = "rewrite"
   override fun createReactActivityDelegate(): ReactActivityDelegate = DefaultReactActivityDelegate(this, mainComponentName, true)
 
+  /** The editable field the selection came from, with its text and selection read before this sheet takes the
+   *  focus (Chrome drops the selection then); Replace writes there. */
+  private var sourceField: AccessibilityNodeInfo? = null
+  private var sourceText = ""
+  private var sourceStart = -1
+  private var sourceEnd = -1
+
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     current = this
+    sourceField = OwnvoiceService.instance?.editableBehindSheet()?.also {
+      sourceText = it.text?.toString().orEmpty()
+      sourceStart = it.textSelectionStart
+      sourceEnd = it.textSelectionEnd
+    }
+    Log.i(OwnvoiceService.TAG, "rewrite source field=${sourceField != null} service=${OwnvoiceService.instance != null}")
   }
 
   override fun onDestroy() {
@@ -60,10 +74,10 @@ class RewriteActivity : ReactActivity() {
     get() = intent.action == Intent.ACTION_PROCESS_TEXT && !intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)
 
   /**
-   * Copy-only everywhere: the sheet never hands text back to a field. Chrome drops the page's
-   * selection when another activity comes to the front, so a handback may be ignored or
-   * inserted at the caret next to the original - doubling the user's text while claiming success.
-   * The rewrite is copied and the notice says plainly where to put it.
+   * Replace hands the rewrite back to the editable field that sent it, and copies it too:
+   * Chrome drops the page's selection when another activity comes to the front, so it may
+   * ignore the result or insert it at the caret - the copy is the fallback and the notice
+   * says so. Anything else only copies.
    */
   fun finishRewrite(text: String?, replace: Boolean) {
     if (text == null) {
@@ -72,9 +86,17 @@ class RewriteActivity : ReactActivity() {
       return
     }
     getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("Ownvoice rewrite", text))
-    // `replace` is kept for the bridge signature; the policy below is always copy-only.
-    if (shouldHandBack(replace)) {
+    val field = sourceField
+    val service = OwnvoiceService.instance
+    val whole = withReplaced(sourceText, sourceStart, sourceEnd, selectedText, text)
+    if (shouldHandBack(replace, editable) && field != null && service != null && whole != null) {
+      // One write path: the field's whole text with the selection swapped, set once the sheet closes.
+      service.replaceField(field, whole)
+      Toast.makeText(this, "Replaced. Also copied, in case the app didn't take it.", Toast.LENGTH_SHORT).show()
+      Log.i(OwnvoiceService.TAG, "rewrite replaces the selection sha=${sha(text)}")
+    } else if (shouldHandBack(replace, editable)) {
       setResult(RESULT_OK, Intent().putExtra(Intent.EXTRA_PROCESS_TEXT, text))
+      Toast.makeText(this, "Replaced. Also copied, in case the app didn't take it.", Toast.LENGTH_SHORT).show()
       Log.i(OwnvoiceService.TAG, "rewrite returned sha=${sha(text)}")
     } else {
       Toast.makeText(this, "Copied, paste it in", Toast.LENGTH_LONG).show()
@@ -88,11 +110,19 @@ class RewriteActivity : ReactActivity() {
     @Volatile
     var current: RewriteActivity? = null
 
-    /** Whether the sheet may hand the rewrite back to the field instead of copying.
-     * Always false: no field - own or another app's - gets a handback, so the sheet can never
-     * double or lose the user's text. Pinned by CopyOnlyTest. */
+    /** Whether the sheet may hand the rewrite back to the field instead of only copying.
+     * Only Replace from the editable selection that sent it; a share is never editable, and
+     * Copy never hands back, so the sheet can never double or lose the user's text elsewhere.
+     * Pinned by CopyOnlyTest. */
     @JvmStatic
-    fun shouldHandBack(@Suppress("UNUSED_PARAMETER") replace: Boolean) = false
+    fun shouldHandBack(replace: Boolean, editable: Boolean) = replace && editable
+
+    /** [field] with [selected] swapped for [text]: at the read selection, else at its only occurrence; null if unsure. */
+    fun withReplaced(field: String, start: Int, end: Int, selected: String, text: String): String? {
+      if (start in 0 until end && end <= field.length && field.substring(start, end) == selected) return field.replaceRange(start, end, text)
+      val at = field.indexOf(selected)
+      return if (selected.isNotEmpty() && at >= 0 && field.indexOf(selected, at + 1) < 0) field.replaceRange(at, at + selected.length, text) else null
+    }
 
     /** A stable fingerprint for the on-device test; the text itself never goes to the log. */
     fun sha(text: String) = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }.take(12)
