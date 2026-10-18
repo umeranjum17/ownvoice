@@ -1,4 +1,4 @@
-import { avoidLine, rebuildLines, undash, versionAcceptor } from './drafts.ts';
+import { avoidLine, itemVerbsKept, rebuildLines, undash, versionAcceptor } from './drafts.ts';
 import { lineRetryPrompt, rewrite, versionsList } from './judge.ts';
 import { fixedSentenceSplits, fixedSlips, type Speller } from './typing.ts';
 import { speller } from './speller.ts';
@@ -38,14 +38,43 @@ export async function polishAcceptor(original: string, dashes: 'keep' | 'remove'
   const corrected = fixedSlips(original, dictionary);
   const localText = dashes === 'remove' ? undash(corrected) : corrected;
   const local = localText === original ? null : acceptor.accept(localText, 0, versionsList[0].label);
+  const countWords = (text: string) => text.match(/[\p{L}\p{N}]+/gu)?.length ?? 0;
+  const originalWords = countWords(original);
+  // Lists only (ordinary single-line text is out of scope): the Shorter card must cut words,
+  // so a casing-only or same-length version is not accepted. An exact echo still delegates,
+  // keeping the unchanged evidence the panel reports as their own text.
+  const isList = original.includes('\n');
+  const flatLines = (value: string) => value.replace(/\r\n/g, '\n').split('\n').map(line => line.replace(/[ \t]+/g, ' ').trim()).join('\n').trim();
+  const shorterKept = (text: string) => countWords(text) < originalWords;
+  /** A rejected card still gets the existing one-row retry: queue it when nothing usable landed. */
+  const queueRetry = (slot: number, label?: string) => {
+    if (!acceptor.results.some(r => r.slot === slot) && !acceptor.layoutFails.some(f => f.slot === slot)) acceptor.layoutFails.push({ slot, label });
+  };
+  /** Main point first may reorder list items but must keep each item's own verbs: a reorder
+   *  that changes verbs is not shown; the existing row retry falls back to the polished
+   *  same-order version instead of dropping the card. */
+  const verbsKept = (text: string) => itemVerbsKept(original, text);
   return {
     local,
     mash: isMash(original, dictionary),
     results: acceptor.results,
     layoutFails: acceptor.layoutFails,
     get unchanged() { return acceptor.unchanged; },
-    accept(text: string, slot: number, label?: string) { return slot === 0 ? null : acceptor.accept(fixedSentenceSplits(original, text, dictionary), slot, label); },
-    fix(text: string, slot: number, label?: string) { return slot === 0 ? null : acceptor.fix(fixedSentenceSplits(original, text, dictionary), slot, label); },
+    accept(text: string, slot: number, label?: string) {
+      if (slot === 0) return null;
+      const fixed = fixedSentenceSplits(original, text, dictionary);
+      if (slot === 1 && isList && flatLines(fixed) !== flatLines(original) && !shorterKept(fixed)) { queueRetry(slot, label); return null; }
+      if (slot === 2 && isList && flatLines(fixed) !== flatLines(original) && !verbsKept(fixed)) { queueRetry(slot, label); return null; }
+      return acceptor.accept(fixed, slot, label);
+    },
+    fix(text: string, slot: number, label?: string) {
+      if (slot === 0) return null;
+      const fixed = fixedSentenceSplits(original, text, dictionary);
+      if (slot === 1 && isList && flatLines(fixed) !== flatLines(original) && !shorterKept(fixed)) return null;
+      // No verb gate on the fallback: the row rescue is same-order by construction, and a card
+      // must never be traded for no card. The reorder attempt above already refused verb changes.
+      return acceptor.fix(fixed, slot, label);
+    },
   };
 }
 
@@ -61,8 +90,11 @@ export type PolishRequest = {
 };
 export type PolishOutcome = { drafts: string[]; unchanged?: boolean; declined?: boolean };
 
-const ALTERNATIVE_WORDING = 'Give a genuinely different wording even when their text already reads well; do not copy it back. For a list, shorten or rephrase within the existing rows: keep the intro, every item and their order. If the main point is already first, rephrase in place instead of moving or merging rows. A row may stay as it is, but the complete version must use different words.';
+const ALTERNATIVE_WORDING = 'Give a genuinely different wording even when their text already reads well; do not copy it back. For a list, shorten or rephrase within the existing rows: keep the intro and every item. The Shorter version keeps their order; the Main point first version may reorder the items to put the main point first but keeps each item\'s own words. If the main point is already first, rephrase in place instead of moving or merging rows. A row may stay as it is, but the complete version must use different words.';
 const DIFFERENT_WORDS = 'Their text came back unchanged: write each version in different words, keeping the same point.';
+/** The Main point first row retry is the polished same-order fallback: copy each row's words
+ *  instead of asking for different words, which drops days and rewords verbs on a weak model. */
+const KEEP_ROWS_WORDS = 'Copy each row word-for-word in its original order. Do not reword, add or drop any word, day or time; you may only change the first letter\'s casing.';
 
 /** The phone's polish (the eval supplies the same endpoint and bundled dictionary): the point check is advisory, so an UNCLEAR answer still gets the versions. With no usable
  *  version, only UNCLEAR keyboard mash is declined with the unclear message; real text is never declined, so it
@@ -88,12 +120,16 @@ export async function polishVersions(
   if (acceptor.unchanged) await writeAll(DIFFERENT_WORDS);
   // Retry each missing writer slot, including an echo when its sibling already landed.
   // Rebuilding row by row keeps the intro, items and original markers together.
+  const list = request.typed.includes('\n');
   for (const [slot, version] of versionsList.entries()) {
     if (slot === 0 || acceptor.results.some(r => r.slot === slot)) continue;
     const prompt = lineRetryPrompt(request.typed, '', version, request.guide, request.dashes, request.platform);
+    // The Main point first retry is the same-order fallback, so it keeps each row's words
+    // rather than asking for different words (which drops days and times on a weak model).
+    const extra = list && version.name === 'FIRST' ? KEEP_ROWS_WORDS : DIFFERENT_WORDS;
     let rebuilt: string | null;
     try {
-      rebuilt = rebuildLines(request.typed, await askWith(DIFFERENT_WORDS)(prompt, 256));
+      rebuilt = rebuildLines(request.typed, await askWith(extra)(prompt, 256));
     } catch { continue; }
     if (rebuilt == null) continue;
     const fixed = acceptor.fix(rebuilt, slot, version.label);
