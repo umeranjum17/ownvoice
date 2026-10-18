@@ -46,6 +46,10 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   dictateCancel(id: string): Promise<void>;
   /** Debug-only proof hook: stage a recorded WAV for the next session; release builds refuse. */
   dictateProofWav(path: string): Promise<boolean>;
+  /** Fresh on-device language verdict: ready, needs-download or unknown. */
+  dictateSupport(locale: string): Promise<'ready' | 'needs-download' | 'unknown'>;
+  /** Fire-and-forget pack download trigger; poll dictateSupport for arrival. */
+  dictateDownload(locale: string): Promise<string>;
   sharedMarkdown(): Promise<string | null>;
   rewriteInput(): { text: string; editable: boolean; markdown?: boolean } | null;
   finishRewrite(text: string | null, replace: boolean): Promise<void>;

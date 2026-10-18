@@ -20,7 +20,7 @@ import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
 import { isOtherWriterLine, retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
-import { armProofWav, ensureMic, dictateReady, listenForDictation, messageForDictationError, proofWavPath } from './dictate';
+import { armProofWav, ensureMic, ensurePack, dictateReady, listenForDictation, messageForDictationError, proofWavPath } from './dictate';
 import type { DictationHandle } from '@byokit/dictation';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
@@ -455,7 +455,14 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         // answers now, so the tap never leaves a silent gap.
         if (!(await ensureMic())) { setDictateMsg(words.dictateMic); return; }
         const blocked = await dictateReady();
-        if (blocked) { setDictateMsg(blocked); return; }
+        if (blocked) {
+          // A missing pack fetches itself instead of failing: keep plain progress
+          // until the recognizer is ready, then carry on to listening.
+          if (blocked !== words.dictateLanguage) { setDictateMsg(blocked); return; }
+          setDictateMsg(words.dictateSpeechReady);
+          if (!(await ensurePack())) { setDictateMsg(words.dictateLanguage); return; }
+          setDictateMsg(null);
+        }
         // The silent proof run stages its WAV here; an unstageable path says so now.
         const staged = proofWavPath();
         if (staged && !(await armProofWav(staged))) { setDictateMsg(words.dictateUnavailable); return; }

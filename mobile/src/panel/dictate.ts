@@ -3,7 +3,7 @@ import { DictateError, Dictation, systemEngine, type DictateErrorCode, type Dict
 import Native from '../../modules/ownvoice-native';
 
 /** Device-side breadcrumbs for the silent phone proof (logcat); the panel itself stays plain. */
-const trace = (line: string) => { try { Native.logDev?.(`dictate ${line}`); } catch {} };
+const trace = (line: string) => { try { Native.logDev?.(`dictate ${line}`); } catch (error) { console.warn('dictate trace dropped', error); } };
 import { words } from '../core/words';
 
 type Session = { on: (segment: DictateSegment) => void; done?: () => void; fail?: (error: Error) => void; error?: Error };
@@ -63,10 +63,31 @@ export async function ensureMic(): Promise<boolean> {
 export async function dictateReady(): Promise<string | null> {
   const ready = await new Dictation({ engine: systemEngine(port) }).available({ onDeviceOnly: true });
   trace(ready.ok ? 'available ok' : `available ${ready.code}`);
-  if (ready.ok) return null;
-  if (ready.code === 'mic-blocked') return words.dictateMic;
-  if (ready.code === 'needs-download') return words.dictateLanguage;
+  if (!ready.ok) {
+    if (ready.code === 'mic-blocked') return words.dictateMic;
+    if (ready.code === 'needs-download') return words.dictateLanguage;
+    return words.dictateUnavailable;
+  }
+  const support = await Native.dictateSupport('').catch((): 'unknown' => 'unknown');
+  trace(`support ${support}`);
+  if (support === 'ready') return null;
+  if (support === 'needs-download') return words.dictateLanguage;
   return words.dictateUnavailable;
+}
+
+/** Start the missing pack and wait until it arrives; false when it never does. */
+export async function ensurePack(pollMs = 5000, timeoutMs = 8 * 60 * 1000): Promise<boolean> {
+  try {
+    trace('pack download starting');
+    await Native.dictateDownload('');
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      await new Promise(resolve => setTimeout(resolve, pollMs));
+      const support = await Native.dictateSupport('').catch((): 'unknown' => 'unknown');
+      if (support === 'ready') { trace('pack arrived'); return true; }
+      if (Date.now() > deadline) { trace('pack wait timed out'); return false; }
+    }
+  } catch { return false; }
 }
 
 /** Proof-only path, set for the silent phone run: the next tap feeds this on-device WAV

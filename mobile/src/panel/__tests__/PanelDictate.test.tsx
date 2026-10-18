@@ -9,18 +9,19 @@ import Panel from '../Panel';
 import { stubWriter } from '../stubWriter';
 import { words } from '../../core/words';
 import Native from '../../../modules/ownvoice-native';
-import { ensureMic, dictateReady, listenForDictation } from '../dictate';
+import { ensureMic, ensurePack, dictateReady, listenForDictation } from '../dictate';
 
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(async () => ({ ok: true, newlinesLost: false })), copy: jest.fn(async () => {}),
   closePanel: jest.fn(), typingCheck: jest.fn(async () => false),
 } }));
-jest.mock('../dictate', () => { const actual = jest.requireActual('../dictate'); return { ...actual, ensureMic: jest.fn(), dictateReady: jest.fn(), listenForDictation: jest.fn() }; });
+jest.mock('../dictate', () => { const actual = jest.requireActual('../dictate'); return { ...actual, ensureMic: jest.fn(), ensurePack: jest.fn(), dictateReady: jest.fn(), listenForDictation: jest.fn() }; });
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
 
 const native = Native as jest.Mocked<typeof Native>;
 const mockMic = ensureMic as jest.Mock;
+const mockPack = ensurePack as jest.Mock;
 const mockReady = dictateReady as jest.Mock;
 const mockListen = listenForDictation as jest.Mock;
 
@@ -54,6 +55,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   partialCb = null;
   mockMic.mockResolvedValue(true);
+  mockPack.mockResolvedValue(true);
   mockReady.mockResolvedValue(null);
 });
 
@@ -92,6 +94,31 @@ test('a refused microphone names the fix and never listens', async () => {
   const screen = await renderPanel();
   fireEvent.press(await screen.findByRole('button', { name: words.dictateListen }));
   await waitFor(() => expect(screen.getByText(words.dictateMic)).toBeTruthy());
+  expect(mockListen).not.toHaveBeenCalled();
+  expect(native.insert).not.toHaveBeenCalled();
+});
+
+test('a missing pack fetches itself, then listens', async () => {
+  mockReady.mockResolvedValue(words.dictateLanguage);
+  let releasePack!: (ready: boolean) => void;
+  mockPack.mockImplementation(() => new Promise<boolean>(resolve => { releasePack = resolve; }));
+  const handle = fakeHandle('see you at six');
+  const screen = await renderPanel();
+  fireEvent.press(await screen.findByRole('button', { name: words.dictateListen }));
+  expect(await screen.findByText(words.dictateSpeechReady)).toBeTruthy();
+  await waitFor(() => expect(mockPack).toHaveBeenCalledTimes(1));
+  await act(async () => { releasePack(true); });
+  await waitFor(() => expect(mockListen).toHaveBeenCalledTimes(1));
+  await fireFinal(handle);
+  await waitFor(() => expect(native.insert).toHaveBeenCalledWith('see you at six'));
+});
+
+test('a pack that never lands names it plainly', async () => {
+  mockReady.mockResolvedValue(words.dictateLanguage);
+  mockPack.mockResolvedValue(false);
+  const screen = await renderPanel();
+  fireEvent.press(await screen.findByRole('button', { name: words.dictateListen }));
+  await waitFor(() => expect(screen.getByText(words.dictateLanguage)).toBeTruthy());
   expect(mockListen).not.toHaveBeenCalled();
   expect(native.insert).not.toHaveBeenCalled();
 });

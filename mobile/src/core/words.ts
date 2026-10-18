@@ -39,6 +39,7 @@ const editWords = {
 // words go into the focused field through the insert path.
 const dictateWords = {
   dictateListen: 'Listen',
+  dictateSpeechReady: 'Getting speech ready…',
   dictateStop: 'Stop listening',
   dictateListening: 'Listening… tap Stop when you are done.',
   dictateUnheard: 'Didn’t catch that. Try again.',

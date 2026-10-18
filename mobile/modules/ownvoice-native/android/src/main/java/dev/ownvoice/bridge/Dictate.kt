@@ -26,6 +26,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -118,6 +119,51 @@ object Dictate {
           end(id)
           emit?.invoke(mapOf("id" to id, "type" to "error", "code" to "unsupported"))
         }
+      }
+    }
+  }
+
+  /** Fresh support verdict for the panel's pre-check (background queue): ready, needs-download or unknown. */
+  fun supportOf(context: Context, locale: String): String = kotlinx.coroutines.runBlocking {
+    try {
+      val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { recognizer = it }
+      val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+      val checked = withTimeoutOrNull(15000) {
+        suspendCancellableCoroutine { cont ->
+          active.checkRecognitionSupport(intent, Executor(Runnable::run), object : RecognitionSupportCallback {
+            override fun onSupportResult(support: RecognitionSupport) {
+              if (cont.isActive) cont.resume(support)
+            }
+            override fun onError(code: Int) {
+              note("support error $code")
+              if (cont.isActive) cont.resume(null)
+            }
+          })
+        }
+      }
+      if (checked == null) { note("support check timed out"); return@runBlocking "unknown" }
+      note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages}")
+      if (hasLanguage(checked, locale)) "ready" else "needs-download"
+    } catch (e: Exception) {
+      Log.w("Ownvoice", "dictate support failed", e)
+      "unknown"
+    }
+  }
+
+  /** Fire-and-forget pack download trigger; the panel polls supportOf for arrival. */
+  fun downloadPack(context: Context, locale: String) {
+    scope.launch {
+      try {
+        val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { recognizer = it }
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+          .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+          .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+        note("pack download requested $locale")
+        note("pack download ${download(active, intent)}")
+      } catch (e: Exception) {
+        Log.w("Ownvoice", "dictate download failed", e)
       }
     }
   }
