@@ -425,8 +425,10 @@ class OwnvoiceService : AccessibilityService() {
     .filter { it.width() in 1 until resources.displayMetrics.widthPixels / 2 }
     .minByOrNull { it.width() * it.height() }
 
-  private fun focusedField(): AccessibilityNodeInfo? {
-    val focus = findFocus(AccessibilityNodeInfo.FOCUS_INPUT) ?: return null
+  private fun focusedField(): AccessibilityNodeInfo? = findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.let(::editableIn)
+
+  /** [focus] when it is the editable, else its focused editable child: Chrome's input focus is the page, not the textarea. */
+  private fun editableIn(focus: AccessibilityNodeInfo): AccessibilityNodeInfo? {
     if (focus.isPassword) return null
     if (focus.isEditable) return focus
     fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
@@ -469,6 +471,30 @@ class OwnvoiceService : AccessibilityService() {
     pendingInsert?.invoke()
   }
   fun clearTapFacts() = clearSavedFacts(this)
+
+  /** The focused editable in the other apps' windows: where a Replace sheet was opened from. Null when none has focus. */
+  fun editableBehindSheet(): AccessibilityNodeInfo? = windows.asSequence()
+    .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
+    .mapNotNull { it.root?.takeIf { root -> root.packageName != packageName } }
+    .mapNotNull { it.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.let(::editableIn) }
+    .firstOrNull()
+
+  /** Replace: sets [field] to [whole] off the main thread; the retries wait out the sheet closing. The caller composes
+   *  [whole] from the selection read when the sheet opened, since Chrome drops its selection once the sheet is in front. */
+  fun replaceField(field: AccessibilityNodeInfo, whole: String) {
+    thread {
+      // The kit finds the field through its focus once per call, and the field has none until the sheet has closed:
+      // "failed" then means not yet (or a password), so try again for about three seconds.
+      var result = "failed"
+      for (i in 0 until 20) {
+        if (i > 0) Thread.sleep(150)
+        result = FocusedFields.insert(field, whole, "all",
+          InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = false), Thread::sleep, ::copyDraft, service = this)
+        if (result != "failed") break
+      }
+      Log.i(TAG, "rewrite replace result=$result")
+    }
+  }
 
   fun insert(text: String, done: (Boolean, Boolean) -> Unit) {
     if (pendingInsert != null) {
