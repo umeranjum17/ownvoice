@@ -131,7 +131,9 @@ object Dictate {
   /** Fresh support verdict for the panel's pre-check: ready, needs-download or unknown. */
   suspend fun supportOf(context: Context, locale: String): String {
     try {
-      val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { recognizer = it }
+      val (caller, via) = caller(context)
+      note("support via $via")
+      val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(caller).also { recognizer = it }
       val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
@@ -149,7 +151,7 @@ object Dictate {
         }
       }
       if (checked == null) { note("support check timed out"); return "unknown" }
-      note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages}")
+      note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages} supported=${checked.supportedOnDeviceLanguages}")
       return if (hasLanguage(checked, locale)) "ready" else "needs-download"
     } catch (e: Exception) {
       Log.w("Ownvoice", "dictate support failed", e)
