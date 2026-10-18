@@ -169,7 +169,7 @@ samples through `src/core/voice.ts` — `guide()` and `selectedGuide` come from
 this engine, the app's own `parse` reads a picked file leniently and keeps the
 sample section out of the rules, and `merge` persists the samples — and through
 its drafts panel, which calls `selectedGuide` once per run, passes the selected
-samples to the writer, and shares the same samples with the fit call. The phone
+samples to the writer, and shares the same samples with the cloud fit call; the on-device fit asks no voice question. The phone
 reply, the slot retry and polish all carry that guide, and the phone prompts fit
 their own instructions plus the shortest samples into the 700-unit budget.
 
