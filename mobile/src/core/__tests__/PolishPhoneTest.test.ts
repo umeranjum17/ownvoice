@@ -37,6 +37,15 @@ test.each(['mañana hablamos', 'کل صبح ملاقات ہے', 'see you at 6'])
   expect(ask).toHaveBeenCalledWith(expect.stringContaining('Answer only MASH or WORDS'), 8);
 });
 
+test('a failed mash check fails open for real non-English text', async () => {
+  const ask = jest.fn(async (prompt: string) => {
+    if (prompt.includes('Answer only MASH or WORDS')) throw new Error('offline');
+    return json(['mañana hablamos', 'mañana hablamos']);
+  });
+  const out = await polishVersions(ask, request('mañana hablamos', false), () => {}, { correct: () => false } as any);
+  expect(out.declined).toBeFalsy();
+});
+
 test('dictionary misses still decline confirmed keyboard mash', async () => {
   const ask = jest.fn(async (prompt: string) => prompt.includes('Answer only MASH or WORDS') ? 'MASH' : json(['asdf jkl qwer', 'asdf jkl qwer']));
   const out = await polishVersions(ask, request('asdf jkl qwer', false), () => {}, { correct: () => false } as any);

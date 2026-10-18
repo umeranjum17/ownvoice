@@ -146,6 +146,6 @@ export async function polishVersions(
     if (fixed != null) landed(fixed, slot, version.label);
   }
   const drafts = acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
-  if (!drafts.length && !request.clear && await isKeyboardMash(request.typed, ask)) return { drafts: [], declined: true };
+  if (!drafts.length && !request.clear && await isKeyboardMash(request.typed, ask).catch(() => false)) return { drafts: [], declined: true };
   return { drafts, unchanged: acceptor.unchanged };
 }
