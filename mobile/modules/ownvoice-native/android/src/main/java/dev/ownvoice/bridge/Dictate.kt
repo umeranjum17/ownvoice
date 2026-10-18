@@ -7,13 +7,27 @@ import android.content.pm.PackageManager
 import android.media.AudioFormat
 import android.os.Build
 import android.os.Bundle
+import android.os.Looper
 import android.os.ParcelFileDescriptor
+import android.os.SystemClock
+import android.speech.ModelDownloadListener
 import android.speech.RecognitionListener
+import android.speech.RecognitionSupport
+import android.speech.RecognitionSupportCallback
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.core.content.ContextCompat
 import java.io.File
+import java.util.concurrent.Executor
+import kotlin.coroutines.resume
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * App-owned on-device dictation port for @byokit/dictation's systemEngine.
@@ -29,7 +43,12 @@ object Dictate {
 
   private var recognizer: SpeechRecognizer? = null
   private var session: String? = null
+  private var pending: String? = null
   private var proof: ParcelFileDescriptor? = null
+  private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
+  private fun note(msg: String) = Log.i("Ownvoice", "dictate ${SystemClock.elapsedRealtime()} $msg")
+  private fun onMain() = Looper.myLooper() === Looper.getMainLooper()
 
   fun available(context: Context): String {
     if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED)
@@ -39,6 +58,7 @@ object Dictate {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return "unsupported"
     return try {
       if (recognizer == null) recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
+      note("available ready main=${onMain()}")
       "ready"
     } catch (e: Exception) {
       Log.w("Ownvoice", "on-device recognizer unavailable", e)
@@ -46,39 +66,112 @@ object Dictate {
     }
   }
 
+  // Fire-and-forget like the kit's consumer port: the support check and download run in the
+  // module scope, and a stop/cancel that lands first retires the pending start before it speaks.
   fun start(context: Context, id: String, locale: String, partial: Boolean, punctuation: Boolean) {
-    try {
-      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) throw IllegalStateException("unsupported")
-      val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { recognizer = it }
-      session = id
-      active.setRecognitionListener(listener(id))
-      val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-        .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, partial)
-        .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-      proof?.let { pfd ->
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-          intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE, pfd)
-          intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
-          intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
-          intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, 16000)
+    pending = id
+    scope.launch {
+      val main = onMain()
+      try {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) throw IllegalStateException("unsupported")
+        val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(context).also { recognizer = it }
+        note("start id=$id locale=$locale main=$main recognizer=${active.hashCode()} proof=${proof != null}")
+        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+          .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+          .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
+          .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, partial)
+          .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
+        val checked = checkSupport(active, intent)
+        if (pending != id) return@launch
+        if (checked != null) {
+          note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages}")
+          if (!hasLanguage(checked, locale)) {
+            note("language missing, triggering download")
+            note("download ${download(active, intent)}")
+            pending = null
+            emit?.invoke(mapOf("id" to id, "type" to "error", "code" to "needs-download"))
+            end(id)
+            return@launch
+          }
+        } else {
+          note("support check timed out or failed")
         }
-        proof = null
+        if (pending != id) { closeProof(); return@launch }
+        session = id
+        pending = null
+        active.setRecognitionListener(listener(id))
+        proof?.let { pfd ->
+          if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE, pfd)
+            intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_CHANNEL_COUNT, 1)
+            intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_ENCODING, AudioFormat.ENCODING_PCM_16BIT)
+            intent.putExtra(RecognizerIntent.EXTRA_AUDIO_SOURCE_SAMPLING_RATE, 16000)
+          }
+          proof = null
+        }
+        @Suppress("MissingPermission")
+        active.startListening(intent)
+      } catch (e: Exception) {
+        Log.w("Ownvoice", "dictate start failed", e)
+        if (pending == id) {
+          pending = null
+          end(id)
+          emit?.invoke(mapOf("id" to id, "type" to "error", "code" to "unsupported"))
+        }
       }
-      @Suppress("MissingPermission")
-      active.startListening(intent)
-    } catch (e: Exception) {
-      Log.w("Ownvoice", "dictate start failed", e)
-      end(id)
-      emit?.invoke(mapOf("id" to id, "type" to "error", "code" to "unsupported"))
     }
   }
 
+  // Whether the installed on-device packs cover [locale]'s language (prefix match, logged).
+  private fun hasLanguage(support: RecognitionSupport, locale: String): Boolean {
+    val language = locale.substringBefore('-').substringBefore('_').lowercase()
+    return support.installedOnDeviceLanguages.any { it.substringBefore('-').substringBefore('_').lowercase() == language }
+  }
+
+  private suspend fun checkSupport(active: SpeechRecognizer, intent: Intent): RecognitionSupport? =
+    withTimeoutOrNull(15000) {
+      suspendCancellableCoroutine { cont ->
+        active.checkRecognitionSupport(intent, Executor(Runnable::run), object : RecognitionSupportCallback {
+          override fun onSupportResult(support: RecognitionSupport) {
+            if (cont.isActive) cont.resume(support)
+          }
+          override fun onError(code: Int) {
+            note("support error $code")
+            if (cont.isActive) cont.resume(null)
+          }
+        })
+      }
+    }
+
+  private suspend fun download(active: SpeechRecognizer, intent: Intent): String =
+    withTimeoutOrNull(120000) {
+      suspendCancellableCoroutine { cont ->
+        try {
+          active.triggerModelDownload(intent, Executor(Runnable::run), object : ModelDownloadListener {
+            override fun onProgress(percent: Int) {}
+            override fun onScheduled() {
+              if (cont.isActive) cont.resume("scheduled")
+            }
+            override fun onSuccess() {
+              if (cont.isActive) cont.resume("success")
+            }
+            override fun onError(code: Int) {
+              if (cont.isActive) cont.resume("error $code")
+            }
+          })
+        } catch (e: Exception) {
+          if (cont.isActive) cont.resume("threw ${e.javaClass.simpleName}")
+        }
+      }
+    } ?: "timeout"
+
   fun stop(id: String) {
     // The pending stop settles when onResults/onError emits the final segment or error;
-    // an already-ended session answers at once.
-    if (id != session) emit?.invoke(mapOf("id" to id, "type" to "stopped"))
+    // an already-ended session answers at once, as does a start that never began.
+    if (id != session) {
+      if (id == pending) pending = null
+      emit?.invoke(mapOf("id" to id, "type" to "stopped"))
+    }
     else runCatching { recognizer?.stopListening() }
   }
 
@@ -86,11 +179,15 @@ object Dictate {
     if (id == session) {
       runCatching { recognizer?.cancel() }
       end(id)
+    } else if (id == pending) {
+      pending = null
     }
   }
 
   fun teardown() {
     session = null
+    pending = null
+    scope.cancel()
     closeProof()
     runCatching { recognizer?.destroy() }
     recognizer = null
@@ -105,6 +202,7 @@ object Dictate {
       pcm.outputStream().use { out -> out.write(pcmBytes(File(path))) }
       closeProof()
       proof = ParcelFileDescriptor.open(pcm, ParcelFileDescriptor.MODE_READ_ONLY)
+      note("proof armed ${pcm.length()} bytes")
       true
     } catch (e: Exception) {
       Log.w("Ownvoice", "proof wav rejected", e)
@@ -132,6 +230,7 @@ object Dictate {
   }
 
   private fun listener(id: String) = object : RecognitionListener {
+    private var rmsLogged = false
     private fun words(bundle: Bundle?): String =
       bundle?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty()
 
@@ -140,26 +239,34 @@ object Dictate {
         "segment" to mapOf("id" to "0", "text" to text, "final" to last)))
     }
 
-    override fun onReadyForSpeech(bundle: Bundle?) {}
-    override fun onBeginningOfSpeech() {}
-    override fun onRmsChanged(rms: Float) {}
+    override fun onReadyForSpeech(bundle: Bundle?) { if (id == session) note("ready main=${onMain()}") }
+    override fun onBeginningOfSpeech() { if (id == session) note("speech") }
+    override fun onRmsChanged(rms: Float) {
+      if (id == session && !rmsLogged) { rmsLogged = true; note("rms $rms") }
+    }
     override fun onBufferReceived(buffer: ByteArray?) {}
-    override fun onEndOfSpeech() {}
+    override fun onEndOfSpeech() { if (id == session) note("end-of-speech") }
     override fun onEvent(type: Int, params: Bundle?) {}
 
     override fun onPartialResults(bundle: Bundle?) {
-      if (id == session) segment(false, words(bundle))
+      if (id != session) return
+      val text = words(bundle)
+      note("partial ${text.take(80)}")
+      segment(false, text)
     }
 
     override fun onResults(bundle: Bundle?) {
       if (id != session) return
-      segment(true, words(bundle))
+      val text = words(bundle)
+      note("final ${text.take(100)}")
+      segment(true, text)
       emit?.invoke(mapOf("id" to id, "type" to "stopped"))
       end(id)
     }
 
     override fun onError(code: Int) {
       if (id != session) return
+      note("error $code")
       // Silence is a retry, not a failure; a missing language pack says so plainly.
       val mapped = when (code) {
         SpeechRecognizer.ERROR_SPEECH_TIMEOUT, SpeechRecognizer.ERROR_NO_MATCH -> null
