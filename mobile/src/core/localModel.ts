@@ -40,12 +40,12 @@ function oneAtATime<T>(run: () => Promise<T>): Promise<T> {
 
 /** Current model state: unsupported, not-installed, installing, installed, loading, ready, busy, failed. */
 export function localModelState(): Promise<InferState> {
-  return oneAtATime(async () => {
+  return oneAtATime(async (): Promise<InferState> => {
     const local = getLocalModel();
     // A model file can sit on the phone while llama.rn's JNI library is missing from the APK; then nothing can start.
     try { await installJsi(); } catch (error) {
       console.warn(`Ownvoice native library did not load: ${error instanceof Error ? error.message : String(error)}`);
-      return { phase: 'unsupported' } as InferState;
+      return { phase: 'unsupported' };
     }
     return local.check();
   });

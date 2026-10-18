@@ -15,7 +15,7 @@ jest.mock('@byokit/infer', () => {
     LocalModel: jest.fn().mockImplementation(() => ({ complete: mockComplete, check: mockCheck, install: mockInstall })),
   };
 });
-jest.mock('llama.rn', () => ({ initLlama: jest.fn() }));
+jest.mock('llama.rn', () => ({ initLlama: jest.fn(), installJsi: jest.fn(async () => {}) }));
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {} }));
 jest.mock('../localStore', () => ({ createLocalStore: () => ({}) }));
 jest.mock('../store', () => ({ store: { get: jest.fn(), set: jest.fn() } }));

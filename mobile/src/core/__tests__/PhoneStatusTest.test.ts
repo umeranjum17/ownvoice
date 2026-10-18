@@ -8,7 +8,7 @@ jest.mock('../localModel', () => ({
   installLocalModel: jest.fn(),
   removeLocalModel: jest.fn(),
 }));
-jest.mock('llama.rn', () => ({ initLlama: jest.fn() }));
+jest.mock('llama.rn', () => ({ initLlama: jest.fn(), installJsi: jest.fn(async () => {}) }));
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {} }));
 jest.mock('../localStore', () => ({
   createLocalStore: () => ({

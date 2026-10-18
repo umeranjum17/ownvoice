@@ -3,7 +3,7 @@ import { initLlama } from 'llama.rn';
 import { askLocal, localModelState } from '../localModel';
 import { phoneCanWrite } from '../phoneStatus';
 
-jest.mock('llama.rn', () => ({ initLlama: jest.fn() }));
+jest.mock('llama.rn', () => ({ initLlama: jest.fn(), installJsi: jest.fn(async () => {}) }));
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {} }));
 jest.mock('../localStore', () => ({
   createLocalStore: () => ({
