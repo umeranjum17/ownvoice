@@ -1,4 +1,4 @@
-import {RewriteEngine,versionsList,versions,clean,rewrite,rewritePrompt,versionPrompt,Rewrite,rewriteAsk,selectionRewritePrompt,tonePrompt,parseTones,cleanTone,toneLine} from '../judge';
+import {RewriteEngine,versionsList,versions,clean,rewrite,rewritePrompt,versionPrompt,Rewrite,rewriteAsk,selectionRewritePrompt,tonePrompt,parseTones,cleanTone,toneLine,TONE_WORDS} from '../judge';
 test('readsTheVersions',()=>{expect(versions('{"versions":["hey, i\'m in","in","i\'m in, see you at 7"]}')).toEqual(["hey, i'm in",'in',"i'm in, see you at 7"]);const fenced='Sure:\n```json\n{ "versions" : [\n  "line one\\nline \\"two\\"",\n  "caf\\u00e9 at 9" ,"a\\\\b"\n] }\n```';expect(versions(fenced)).toEqual(['line one\nline "two"','café at 9','a\\b']);expect(versions('["one", "two"]')).toEqual([]);});
 test('keepsQuotedStructuredDraftText',async()=>{const json='{"versions":["\\\"OK\\\""," keep this ","third"]}';expect(versions(json)).toEqual(['"OK"',' keep this ','third']);const {got,landed}=await run(new Fake(json));expect(got.map(x=>x[1])).toEqual(['"OK"',' keep this ']);expect(landed).toContain('TIGHTER="OK"');});
 test('readsVersionsAsTheyLand',()=>{const full='{"versions":["first one","second\\none","third"]}';const seen=[...full].map((_,i)=>versions(full.slice(0,i+1)).length);expect(seen).toEqual([...seen].sort((a,b)=>a-b));expect([...new Set(seen)]).toEqual([0,1,2,3]);expect(versions('{"versions":["first one","sec')).toEqual(['first one']);expect(versions('{"versions":["first one","a\\u00')).toEqual(['first one']);});
@@ -81,6 +81,25 @@ test('tonePromptNamesOneWordPerTextAndParsesOnlyCleanOnes',()=>{
   expect(cleanTone('42')).toBe(null);
   expect(toneLine('friendly')).toBe('Sounds friendly');
   expect(toneLine('a bit sharp')).toBe('Sounds a bit sharp');
+});
+// Tone-line filler words (scorecard reply-8/reply-9: "Sounds add", "Sounds yes",
+// "Sounds what", "Sounds up"): echoed filler is dropped so the line hides;
+// only a real tone word shows.
+test('fillerToneWordsHideTheLine',()=>{
+  for(const filler of ['add','yes','what','up'])expect(cleanTone(filler)).toBeNull();
+  expect(parseTones('1: add\n2: yes\n3: what\n4: up')).toEqual([]);
+  const mixed=parseTones('1: add\n2: urgent');
+  expect(mixed[0]).toBeUndefined();
+  expect(mixed[1]).toBe('urgent');
+  for(const valid of ['urgent','formal','friendly','calm'])expect(cleanTone(valid)).toBe(valid);
+  expect(cleanTone('Sounds urgent')).toBe('urgent');
+  expect(toneLine('urgent')).toBe('Sounds urgent');
+  expect(cleanTone('warm and grateful')).toBeNull();
+  expect(cleanTone('yes and friendly')).toBeNull();
+  expect(cleanTone('add and up')).toBeNull();
+  for(const label of TONE_WORDS)expect(parseTones(`1: ${label}`)).toEqual([label]);
+  const prompt=tonePrompt(['hello']);
+  for(const label of TONE_WORDS)expect(prompt).toContain(label);
 });
 // S05 (offline-model study §5.1): selection Shorter/Simpler on a numbered list must
 // ask the model to keep the lines, or every model flattens it to one line.

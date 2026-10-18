@@ -70,12 +70,17 @@ export function rewriteCheckPrompt(original:string,rewrite:string){return `Compa
 /** One batched tone call for the panel: one plain tone word per text, on tap only, never per keystroke. */
 export function tonePrompt(texts:string[]):string{
 const numbered=texts.map((text,i)=>`${i+1}: ${text.replace(/\s+/g,' ').trim().slice(0,300)}`).join('\n');
-return `What tone does each text below sound like? Answer with one or two plain everyday words per text, like "friendly" or "a bit sharp". One line per text, like "1: friendly". No sentences, no punctuation.\n\n${numbered}`;}
+return `What tone does each text below sound like? Choose exactly one label from this list for each text: ${TONE_WORDS.join(', ')}. One line per text, like "1: friendly". No sentences, no punctuation.\n\n${numbered}`;}
 /** Short tone labels only; approval wording is dropped because a tone answer provides no writing-check evidence. */
+/** Real plain tone words the line may show. Anything else (a filler word like
+ *  "yes" or "add" echoed from the text, approval wording, a sentence) hides the line. */
+const TONE_BASE_WORDS=['friendly','warm','kind','polite','gentle','soft','calm','relaxed','casual','light','playful','cheerful','upbeat','happy','hopeful','grateful','sympathetic','supportive','encouraging','sincere','honest','direct','confident','firm','formal','professional','serious','neutral','matter-of-fact','blunt','sharp','stern','strict','cool','cold','distant','tense','annoyed','frustrated','angry','sad','worried','anxious','urgent','excited','apologetic','curious','thoughtful'];
+export const TONE_WORDS=[...TONE_BASE_WORDS,...TONE_BASE_WORDS.flatMap(word=>[`a bit ${word}`,`a little ${word}`])];
+const toneSet=new Set(TONE_WORDS);
 export function cleanTone(value:string):string|null{
-const tone=value.replace(/^["'“‘]+|["'”’.,;:!?]+$/g,'').trim().toLowerCase();
+const tone=value.replace(/^["'“‘]+|["'”’.,;:!?]+$/g,'').trim().toLowerCase().replace(/^sounds\s+/,'');
 if(!tone||tone.length>24||!/^[a-z][a-z' \-]*$/.test(tone)||tone.split(/\s+/).length>3||/\d/.test(tone)||technicalWords.test(tone)||/\b(natural|fluent|correct|perfect|flawless|polished|good|error-free|typo-free)\b/.test(tone))return null;
-return tone;}
+return toneSet.has(tone)?tone:null;}
 export function parseTones(answer:string|null):string[]{
 if(!answer)return[];
 const tones:string[]=[];
