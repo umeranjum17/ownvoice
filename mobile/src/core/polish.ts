@@ -1,4 +1,4 @@
-import { avoidLine, listMarkers, rebuildLines, undash, versionAcceptor } from './drafts.ts';
+import { avoidLine, rebuildLines, undash, versionAcceptor } from './drafts.ts';
 import { lineRetryPrompt, rewrite, versionsList } from './judge.ts';
 import { fixedSentenceSplits, fixedSlips, type Speller } from './typing.ts';
 import { speller } from './speller.ts';
@@ -66,8 +66,7 @@ const DIFFERENT_WORDS = 'Their text came back unchanged: write each version in d
 /** The phone's polish: the point check is advisory, so an UNCLEAR answer still gets the versions. With no usable
  *  version, only UNCLEAR keyboard mash is declined with the unclear message; real text is never declined, so it
  *  ends as their own text when the writer handed it back, else "Couldn't polish that this time. Try again."
- *  Versions that come back as their own text get one more pass asking for different words. List text is written
- *  row by row from the start: the small writer flattens or echoes a whole list. */
+ *  Versions that come back as their own text get one more pass asking for different words. */
 export async function polishVersions(
   ask: (prompt: string, maxTokens: number) => Promise<string>,
   request: PolishRequest,
@@ -83,32 +82,22 @@ export async function polishVersions(
     const clean = acceptor.accept(text, slot, version.label);
     if (clean != null) landed(clean, slot, version.label);
   }, request.dashes, request.platform);
-  // Row by row: the rebuild keeps the original markers, so the layout is kept by construction -
-  // only a missing row or a changed number/time drops it. True when the version landed.
-  const writeRows = async (slot: number, extra: string) => {
-    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[slot], request.guide, request.dashes, request.platform);
+  await writeAll('');
+  if (acceptor.unchanged) await writeAll(DIFFERENT_WORDS);
+  // A flattened list goes back row by row; the rebuild keeps the original markers, so the
+  // layout is kept by construction - only a missing row or a changed number/time drops it.
+  const retried = new Set<number>();
+  for (const fail of acceptor.layoutFails) {
+    if (retried.has(fail.slot) || acceptor.results.some(r => r.slot === fail.slot)) continue;
+    retried.add(fail.slot);
+    const prompt = lineRetryPrompt(request.typed, request.conversation, versionsList[fail.slot], request.guide, request.dashes, request.platform);
     let rebuilt: string | null;
     try {
-      rebuilt = rebuildLines(request.typed, await askWith(extra)(prompt, 256));
-    } catch { return false; }
-    const fixed = rebuilt == null ? null : acceptor.fix(rebuilt, slot, versionsList[slot].label);
-    if (fixed != null) landed(fixed, slot, versionsList[slot].label);
-    return fixed != null;
-  };
-  if (listMarkers(request.typed).length) {
-    for (let slot = 1; slot < versionsList.length; slot++) {
-      if (!await writeRows(slot, '')) await writeRows(slot, DIFFERENT_WORDS);
-    }
-  } else {
-    await writeAll('');
-    if (acceptor.unchanged) await writeAll(DIFFERENT_WORDS);
-    // A flattened layout goes back row by row once per slot.
-    const retried = new Set<number>();
-    for (const fail of acceptor.layoutFails) {
-      if (retried.has(fail.slot) || acceptor.results.some(r => r.slot === fail.slot)) continue;
-      retried.add(fail.slot);
-      await writeRows(fail.slot, '');
-    }
+      rebuilt = rebuildLines(request.typed, await askWith('')(prompt, 256));
+    } catch { continue; }
+    if (rebuilt == null) continue;
+    const fixed = acceptor.fix(rebuilt, fail.slot, fail.label);
+    if (fixed != null) landed(fixed, fail.slot, fail.label);
   }
   const drafts = acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
   if (!drafts.length && !request.clear && acceptor.mash) return { drafts: [], declined: true };

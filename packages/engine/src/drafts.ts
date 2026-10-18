@@ -111,7 +111,7 @@ export const fresh = (draft: string, shown: string[]): boolean => !shown.some(ot
 
 const nonEmptyLines = (text: string) => text.split(/\r?\n/).filter(line => line.trim()).length;
 const paragraphBreaks = (text: string) => text.trim().match(/\r?\n(?:[ \t]*\r?\n)+/g)?.length ?? 0;
-export const listMarkers = (text: string) => text.split(/\r?\n/).flatMap(line => {
+const listMarkers = (text: string) => text.split(/\r?\n/).flatMap(line => {
   const marker = line.match(/^\s*(\d+[.)]|[-*•])\s+/)?.[1];
   return marker ? [marker] : [];
 });

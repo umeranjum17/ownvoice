@@ -418,23 +418,24 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
   expect(landed.map(([, slot, label]) => [slot, label])).toEqual([[0, 'Cleaned up'], [1, 'Shorter'], [2, 'Main point first']]);
 });
 
-test('a polish of the numbered list keeps the list, written row by row', async () => {
+test('a polish of the numbered list keeps the list, after one layout fix', async () => {
   mockAsk.mockImplementation(async (prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I can bring the stove. 1. I will bring the stove. 2. You can bring the tent."]}';
-    if (prompt.includes('Tighter:')) return 'Row 1: Stove is on me.\nRow 2: I will bring the stove.\nRow 3: You can bring the tent.';
-    return 'Row 1: Stove and tent split:\nRow 2: The stove is mine to bring.\nRow 3: The tent is yours to bring.';
+    if (prompt.includes('Row 1:')) return 'Row 1: Stove is on me.\nRow 2: I will bring the stove.\nRow 3: You can bring the tent.';
+    if (prompt.includes('Tighter:')) return 'Stove split.\n1. I bring the stove.\n2. Tent is yours.';
+    return 'Stove and tent split:\n1. The stove is mine to bring.\n2. The tent is yours to bring.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
   expect(drafts).toHaveLength(2);
   expect(drafts[0]).toBe('Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.');
   for (const draft of drafts) { expect(draft).toMatch(/1\. /); expect(draft).toMatch(/2\. /); }
-  expect(mockAsk).toHaveBeenCalledTimes(2);
+  expect(mockAsk).toHaveBeenCalledTimes(3);
 });
 
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
   mockAsk.mockImplementation(async (prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Stove plan:\\n1. Stove: mine.\\n2. Tent: yours."]}';
-    return 'Row 1: Stove plan:\nRow 2: Stove: mine.\nRow 3: Tent: yours.';
+    return 'Stove plan:\n1. Stove: mine.\n2. Tent: yours.';
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
   expect(drafts).toHaveLength(1);
@@ -458,7 +459,7 @@ test('no accepted polish leaves the original out of cleaned-up cards', async () 
 
 test('only writer evidence of unchanged text marks an already-minimal list unchanged', async () => {
   const minimal = 'Quick update:\n\n1. Pack the stove\n2. Meet Saturday';
-  mockAsk.mockResolvedValue('Row 1: Quick update:\nRow 3: Pack the stove\nRow 4: Meet Saturday');
+  mockAsk.mockResolvedValue('{"versions":["Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n1. Pack the stove\\n2. Meet Saturday","Quick update:\\n\\n1. Pack the stove\\n2. Meet Saturday"]}');
   expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: true });
   mockAsk.mockResolvedValue('{"versions":["Pack the stove, meet Saturday."]}');
   expect(await phoneWriter.write(request({ typed: minimal }))).toEqual({ drafts: [], unchanged: false });

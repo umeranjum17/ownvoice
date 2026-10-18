@@ -45,8 +45,8 @@ test('the leading verdict decides, and an answer that echoes both verdicts is un
 });
 
 test('a slot whose layout fails in both passes gets one row retry', async () => {
-  const list = 'Hi team,\n\nthe deck is due by Friday and the budget needs a yes';
-  const flat = 'Hi team, the deck is due Friday and the budget needs your yes.';
+  const list = 'Here is the plan:\n1. send the deck by Friday\n2. confirm the budget';
+  const flat = 'Send the deck by Friday and confirm the budget.';
   const retry = lineRetryPrompt(list, '', versionsList[2], '', 'remove');
   let retries = 0;
   await polishVersions(async prompt => {
@@ -63,8 +63,7 @@ const phoneList = 'Here is what I need from you:\n1. send the deck by Friday\n2.
 
 test('a clear list the point check calls UNCLEAR and the writer hands back unchanged ends as their own text, not declined', async () => {
   const clear = await canPolish(phoneList, async () => 'UNCLEAR');
-  const echo = 'Row 1: Here is what I need from you:\nRow 2: send the deck by Friday\nRow 3: confirm the budget\nRow 4: book the room for Monday';
-  const out = await polishVersions(async prompt => prompt.includes('Their text, by row:') ? echo : json([phoneList, phoneList]), request(phoneList, clear), () => {});
+  const out = await polishVersions(async () => json([phoneList, phoneList]), request(phoneList, clear), () => {});
   expect(out.declined).toBeFalsy();
   expect(out.unchanged).toBe(true);
 });
@@ -73,24 +72,7 @@ test('a list version that drops the intro line is not shown', async () => {
   const noIntro = '1. Send the deck by Friday.\n2. Confirm the budget.\n3. Book the room for Monday.';
   const kept = 'Here is what I need from you:\n1. Send the deck by Friday.\n2. Confirm the budget.\n3. Book the room for Monday.';
   const landed: string[] = [];
-  const rows = 'Row 2: Send the deck by Friday.\nRow 3: Confirm the budget.\nRow 4: Book the room for Monday.';
-  const out = await polishVersions(async prompt => !prompt.includes('Their text, by row:') ? json([noIntro, kept])
-    : prompt.includes('Tighter:') ? rows : `Row 1: Here is what I need from you:\n${rows}`, request(phoneList, true), text => landed.push(text));
+  const out = await polishVersions(async prompt => prompt.includes('Their text, by row:') ? 'no rows' : json([noIntro, kept]), request(phoneList, true), text => landed.push(text));
   expect(out.drafts).toEqual([kept]);
   expect(landed).not.toContain(noIntro);
-});
-
-// Phone rerun 2026-10-18 on 12efdf0: the small writer handed this list back unchanged on every whole-text
-// pass, so all three runs ended on "No different version found". List text is written row by row from the start.
-test('a numbered list gets a version card that keeps the intro line and every item, written row by row', async () => {
-  const rows = 'Row 1: This is what I need from you:\nRow 2: Send the deck by Friday.\nRow 3: Confirm the budget.\nRow 4: Book the room for Monday.';
-  const asked: string[] = [];
-  const landed: string[] = [];
-  const out = await polishVersions(async prompt => {
-    asked.push(prompt);
-    return prompt.includes('Their text, by row:') ? rows : json([phoneList, phoneList]);
-  }, request(phoneList, true), text => landed.push(text));
-  expect(out.drafts).toEqual(['This is what I need from you:\n1. Send the deck by Friday.\n2. Confirm the budget.\n3. Book the room for Monday.']);
-  expect(landed).toEqual(out.drafts);
-  expect(asked.some(p => p.includes('{"versions"'))).toBe(false);
 });
