@@ -92,11 +92,11 @@ const rawDump = name => {
 };
 const editTexts = xml => [...xml.matchAll(/class="android.widget.EditText"[^>]*?text="([^"]*)"/g)].map(m => m[1]);
 // Device time at start: the logcat saved on every exit covers this run only, never clearing the phone's log.
-const logSince = shell('date', "+'%m-%d %H:%M:%S.000'").trim();
+const logSince = shell('date', "+'%m-%d %H:%M:%S.000'").trim().replace(/'/g, ''); // some adb builds keep the quotes
 const saveLogcat = () => {
   const pid = shell('pidof', pkg).trim().split(/\s+/)[0];
-  if (pid) writeFileSync(`${out}/logcat-app.txt`, adb('logcat', '-d', '-T', `'${logSince}'`, `--pid=${pid}`));
-  writeFileSync(`${out}/logcat-tags.txt`, adb('logcat', '-d', '-T', `'${logSince}'`, '-s', 'Ownvoice', 'RNLlama', 'ReactNativeJS', 'AndroidRuntime', 'DEBUG', 'libc'));
+  if (pid) writeFileSync(`${out}/logcat-app.txt`, adb('logcat', '-d', '-T', logSince, `--pid=${pid}`));
+  writeFileSync(`${out}/logcat-tags.txt`, adb('logcat', '-d', '-T', logSince, '-s', 'Ownvoice', 'OwnvoiceNative', 'RNLlama', 'ReactNativeJS', 'AndroidRuntime', 'DEBUG', 'libc'));
   console.log(`logcat saved (pid ${pid || 'gone'})`);
 };
 const fail = (step, message) => {
@@ -157,7 +157,15 @@ XML`], { stdio: 'ignore' });
   shell('am', 'start', '-n', `${pkg}/.MainActivity`, '--windowingMode', '1');
   await wait(4000);
   if (!(await waitForFocus(pkg))) fail('setup', 'the app did not come to the front');
-  shell('su', '0', 'sqlite3', '/data/data/dev.ownvoice.next/files/SQLite/ExpoSQLiteStorage', `"INSERT OR REPLACE INTO storage(key,value) VALUES('setup-done','true');"`);
+  // The app creates its storage on first launch; a slow boot can leave it missing for a while.
+  const db = '/data/data/dev.ownvoice.next/files/SQLite/ExpoSQLiteStorage';
+  // Never open a missing file: sqlite3 would create it as root and lock the app out.
+  const dbReady = () => { try { shell('su', '0', 'test', '-f', db); shell('su', '0', 'sqlite3', db, '"SELECT count(*) FROM storage;"'); return true; } catch { return false; } };
+  for (const end = Date.now() + 60_000; !dbReady();) {
+    if (Date.now() > end) fail('setup', 'the app never created its storage');
+    await wait(1000);
+  }
+  shell('su', '0', 'sqlite3', db, `"INSERT OR REPLACE INTO storage(key,value) VALUES('setup-done','true');"`);
   shell('am', 'force-stop', pkg);
   await wait(800);
   await rebindService();
@@ -167,8 +175,10 @@ XML`], { stdio: 'ignore' });
   if (!(await textPresent('Where the bubble shows', 3))) fail('setup', 'home never showed (setup not seeded?)');
 };
 
-const liveKey = phone ? '' : readFileSync(process.env.OPENCODE_KEY_FILE ?? '', 'utf8').trim();
-if (!phone && (liveKey.length < 20 || /\s/.test(liveKey))) throw new Error('The OpenCode Go key file did not look like a key.');
+// OWNVOICE_STUB=1: the APK was built with EXPO_PUBLIC_E2E_STUB, so the sheet writes a stand-in and no writer is connected.
+const stub = process.env.OWNVOICE_STUB === '1';
+const liveKey = phone || stub ? '' : readFileSync(process.env.OPENCODE_KEY_FILE ?? '', 'utf8').trim();
+if (!phone && !stub && (liveKey.length < 20 || /\s/.test(liveKey))) throw new Error('The OpenCode Go key file did not look like a key.');
 const liveWorkspace = process.env.OPENCODE_WORKSPACE ?? 'Working2';
 const TEXT = 'Hi Sam, please send teh report by Friday at 3pm, all 12 pages, its urgent and really very important.';
 const safeWords = (limit = 300) => nodes().filter(n => !n.password)
@@ -284,7 +294,6 @@ const summonToolbar = async (fx, fy, tag) => {
   }
   shot(`step-toolbar-${tag}`);
   dumpNodes(`nodes-toolbar-${tag}`);
-  if (!phone) rawDump(`uidump-toolbar-${tag}`); // a uiautomator dump would close Chrome's toolbar
   return toolbar;
 };
 
@@ -310,7 +319,7 @@ try {
     await rebindService();
   } else {
     await freshSetup();
-    await connectOpenCode();
+    if (!stub) await connectOpenCode();
   }
 
   // Handler roll-call + enabled-state, saved before any host opens.
@@ -331,13 +340,16 @@ try {
   writeFileSync(`${out}/packages.txt`, packages);
   const has = p => packages.split('\n').some(l => l.trim() === `package:${p}`);
   // The phone's Contacts saves to the owner's synced account: Messages only there.
-  const contactsPkg = phone ? undefined : ['com.google.android.contacts', 'com.android.contacts'].find(has);
+  // OWNVOICE_HOST=chrome puts the Chrome textarea on an emulator too (the mechanism proof).
+  const chromeHost = phone || process.env.OWNVOICE_HOST === 'chrome';
+  const contactsPkg = chromeHost ? undefined : ['com.google.android.contacts', 'com.android.contacts'].find(has);
   // The phone has no SIM (Messages shows no body), so it uses a Chrome textarea instead.
-  const smsPkg = phone ? undefined : ['com.google.android.apps.messaging', 'com.android.messaging'].find(has);
+  const smsPkg = chromeHost ? undefined : ['com.google.android.apps.messaging', 'com.android.messaging'].find(has);
 
   // Field 1: Contacts new-contact name (INSERT prefill, else type into the Name field).
   // Field 2: Messages compose body (recipient chipped first, then the body is a plain field).
   let hostPkg = '', field = null, hostTag = '';
+  const pageValues = [];
   if (contactsPkg) {
     hostPkg = contactsPkg; hostTag = 'contacts';
     shell('am', 'start', '-a', 'android.intent.action.INSERT', '-t', 'vnd.android.cursor.dir/contact', '--es', 'name', `'${TEXT}'`);
@@ -362,10 +374,15 @@ try {
       else console.log('contacts field never showed the message; moving to Messages');
     } else console.log('contacts did not come to the front; moving to Messages');
   }
-  if (phone && has('com.android.chrome')) {
+  if (chromeHost && has('com.android.chrome')) {
     hostPkg = 'com.android.chrome'; hostTag = 'chrome';
-    const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ownvoice textarea</title><style>body{font:18px sans-serif;padding:24px}textarea{display:block;width:100%;min-height:220px;padding:12px;font:18px sans-serif;border:2px solid #777}</style><textarea aria-label="Message">${TEXT}</textarea>`;
-    const server = createServer((_q, r) => r.end(html)).listen(8765);
+    const html = `<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ownvoice textarea</title><style>body{font:18px sans-serif;padding:24px}textarea{display:block;width:100%;min-height:220px;padding:12px;font:18px sans-serif;border:2px solid #777}</style><textarea aria-label="Message">${TEXT}</textarea><script>const t=document.querySelector('textarea');const post=()=>fetch('/value',{method:'POST',body:t.value});t.addEventListener('input',post);post();</script>`;
+    // The page posts its textarea's value on load and every input event: the readback reads the page itself.
+    const server = createServer((q, r) => {
+      if (q.method !== 'POST') return r.end(html);
+      let body = '';
+      q.on('data', c => { body += c; }).on('end', () => { pageValues.push(body); r.end(); });
+    }).listen(8765);
     process.on('exit', () => { server.close(); try { adb('reverse', '--remove', 'tcp:8765'); } catch {} });
     adb('reverse', 'tcp:8765', 'tcp:8765');
     shell('am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'http://localhost:8765/', '-p', hostPkg);
@@ -444,27 +461,38 @@ try {
   if (!(await waitForFocus('RewriteActivity', 15))) fail('sheet', 'the stock selection did not open Ownvoice');
   shot('step-sheet-open');
 
-  const before = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
-  await tapText('Shorter');
-  let answered = false;
-  // The phone writer loads its model first; any of the sheet's failure lines ends the run at once.
-  const deadline = Date.now() + (phone ? 5 : 2) * 60_000;
+  // The proof needs a result that differs from the input, or a readback can't tell whether Replace wrote.
+  // Fix spelling first (local cleanup on 'teh'/'its'), then Simpler; OWNVOICE_OPTION picks the first one.
   const failed = /try again|went wrong|didn't answer|get this phone ready|doesn't work on this phone|free space/i;
-  while (!answered && Date.now() < deadline) {
-    const all = nodes();
-    const seen = all.map(n => `${n.label} ${n.text}`.trim());
-    if (all.some(n => n.label.trim() === 'Copy' || n.text.trim() === 'Copy')) answered = true;
-    else if (seen.some(t => failed.test(t))) fail('writer', `Shorter failed on the sheet: ${seen.find(t => failed.test(t))}`);
-    else await wait(1000);
-  }
-  if (!answered) fail('writer', 'Shorter produced no result in time');
   const drop = /^(copy|replace|share this text|you selected|make it better|same meaning as yours|check this|writing|replace puts|copy it|sounds |a bit |check the wording|why\?)/i;
-  const cands = nodes()
-    .filter(n => !n.clickable && (n.text || '').trim().length >= 2 && !before.has(`${n.label} ${n.text}`.trim()) && !drop.test((n.text || '').trim()))
-    .sort((a, b) => b.text.trim().length - a.text.trim().length);
-  if (!cands.length) fail('writer', 'no rewrite result on screen');
-  const rewriteText = cands[0].text.trim();
-  console.log(`rewrite: "${rewriteText}"`);
+  let rewriteText = '', option = '';
+  for (const label of [...new Set([process.env.OWNVOICE_OPTION ?? 'Fix spelling', 'Simpler'])]) {
+    const before = new Set(nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean));
+    await tapText(label);
+    await wait(1500); // the earlier result's Copy goes while the new one is written
+    let answered = false;
+    // The phone writer loads its model first; any of the sheet's failure lines ends the run at once.
+    const deadline = Date.now() + (phone ? 5 : 2) * 60_000;
+    while (!answered && Date.now() < deadline) {
+      const all = nodes();
+      const seen = all.map(n => `${n.label} ${n.text}`.trim());
+      if (all.some(n => n.label.trim() === 'Copy' || n.text.trim() === 'Copy')) answered = true;
+      else if (seen.some(t => failed.test(t))) fail('writer', `${label} failed on the sheet: ${seen.find(t => failed.test(t))}`);
+      else await wait(1000);
+    }
+    if (!answered) fail('writer', `${label} produced no result in time`);
+    const cands = nodes()
+      .filter(n => !n.clickable && (n.text || '').trim().length >= 2 && !before.has(`${n.label} ${n.text}`.trim()) && !drop.test((n.text || '').trim()))
+      .sort((a, b) => b.text.trim().length - a.text.trim().length);
+    // The result card is the option's heading (e.g. FIX SPELLING) followed by the result: read the text after it.
+    const shown = nodes();
+    const heading = shown.findLastIndex(n => !n.clickable && (n.text || '').trim().toLowerCase() === label.toLowerCase());
+    const card = heading >= 0 ? shown.slice(heading + 1).find(n => !n.clickable && (n.text || '').trim().length >= 2 && !drop.test(n.text.trim())) : null;
+    rewriteText = (card ?? cands[0])?.text.trim() ?? TEXT; option = label;
+    console.log(`${label}: "${rewriteText}"`);
+    if (rewriteText !== TEXT) break;
+  }
+  if (rewriteText === TEXT) fail('writer', 'no option gave a result that differs from the input, so Replace cannot be proven');
   shot('step-result');
   if (!(await textPresent('Replace', 5))) fail('sheet', 'Replace not offered on the editable stock selection');
   await tapText('Replace');
@@ -473,16 +501,32 @@ try {
   await wait(1000);
   shot('step-replaced-field');
 
+  // Before any dump (a dump unbinds the service that writes). Chrome: the page's own last posted value is the field; the dump stays as extra evidence.
+  if (hostTag === 'chrome') for (let i = 0; i < 10 && pageValues.at(-1) !== rewriteText; i++) await wait(1000);
+  writeFileSync(`${out}/page-values.json`, JSON.stringify(pageValues, null, 2));
+  saveLogcat();
+  const tags = (() => { try { return readFileSync(`${out}/logcat-tags.txt`, 'utf8'); } catch { return ''; } })();
+  const path = /rewrite replaces the selection/.test(tags) ? 'inserted' : /rewrite returned/.test(tags) ? 'returned-result' : /rewrite copied/.test(tags) ? 'copied' : 'unknown';
+  const insertLine = tags.split('\n').filter(l => /rewrite (source field|replace result)/.test(l)).map(l => l.replace(/^.*?rewrite /, 'rewrite ')).join('; ');
+  console.log(`replace path: ${path} ${insertLine}`);
   // Ordered read-back: raw uiautomator dump, probe cross-check. Backs out afterwards;
   // nothing is ever sent, saved or posted.
-  const xml = rawDump('uidump-replaced');
+  // Dump only while the host app is in front: a dump taken on the home screen shows nothing to read back.
+  let xml = '';
+  for (let attempt = 0; attempt < 8; attempt++) {
+    if (await waitForFocus(hostPkg, 3)) {
+      xml = rawDump('uidump-replaced');
+      if (editTexts(xml).length) break;
+    }
+    await wait(1000);
+  }
   const texts = editTexts(xml);
   const probeText = (nodes().find(n => n.className === 'android.widget.EditText' && n.editable)?.text ?? '').trim();
-  const fieldValue = texts.find(t => t === rewriteText.trim()) ?? texts.sort((a, b) => b.length - a.length)[0] ?? '';
+  const fieldValue = hostTag === 'chrome' ? (pageValues.at(-1) ?? '') : texts.find(t => t === rewriteText.trim()) ?? texts.sort((a, b) => b.length - a.length)[0] ?? '';
   const match = fieldValue.trim() === rewriteText.trim();
   const lower = fieldValue.toLowerCase();
   const keepsFacts = lower.includes('sam') && lower.includes('friday') && /(3\s?pm|15:00)/.test(lower) && /\b12\b/.test(lower);
-  const result = { ok: match && keepsFacts, host: hostPkg, method: 'uiautomator-dump', probeText, rewrite: rewriteText, field: fieldValue, match, keepsFacts };
+  const result = { ok: match && keepsFacts, host: hostPkg, method: hostTag === 'chrome' ? 'page-posted-value' : 'uiautomator-dump', option, input: TEXT, probeText, dumpFields: texts, rewrite: rewriteText, field: fieldValue, match, keepsFacts, path, insertLine, pagePosts: pageValues.length };
   writeFileSync(`${out}/replace-result.json`, JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result, null, 2));
   if (phone && hostTag === 'messages') {
@@ -502,8 +546,8 @@ try {
   shot('step-backed-out');
   if (!match) fail('readback', `Replace did not put the rewrite in the stock field (dump field starts: "${fieldValue.slice(0, 120)}")`);
   if (!keepsFacts) fail('readback', 'the replaced field lost a fact (name, time or number)');
-  saveLogcat();
-  console.log(`Replace proof saved to ${out}: uiautomator read-back matches the Shorter rewrite, facts kept.`);
+  if (path !== 'inserted' || !/replace result=inserted/.test(insertLine)) fail('readback', `the field matched, but not through the insert path (${path}: ${insertLine})`);
+  console.log(`Replace proof saved to ${out}: ${result.method} read-back matches the ${option} rewrite (${path}), facts kept.`);
   process.exit(0);
 } catch (error) {
   try { dumpNodes('nodes-FAILED'); } catch {}
