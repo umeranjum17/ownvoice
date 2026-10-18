@@ -55,3 +55,24 @@ test('a slot whose layout fails in both passes gets one row retry', async () => 
   }, request(list, true), () => {});
   expect(retries).toBe(1);
 });
+
+// Phone rerun 2026-10-18 (OnePlus 13, run 1): the small model called this clear list UNCLEAR and handed
+// it back unchanged, and the panel ended on the unclear message with no card. Runs 2-3 showed a version
+// that dropped the intro line. Real text never dead-ends, and a list keeps every line.
+const phoneList = 'Here is what I need from you:\n1. send the deck by Friday\n2. confirm the budget\n3. book the room for Monday';
+
+test('a clear list the point check calls UNCLEAR and the writer hands back unchanged ends as their own text, not declined', async () => {
+  const clear = await canPolish(phoneList, async () => 'UNCLEAR');
+  const out = await polishVersions(async () => json([phoneList, phoneList]), request(phoneList, clear), () => {});
+  expect(out.declined).toBeFalsy();
+  expect(out.unchanged).toBe(true);
+});
+
+test('a list version that drops the intro line is not shown', async () => {
+  const noIntro = '1. Send the deck by Friday.\n2. Confirm the budget.\n3. Book the room for Monday.';
+  const kept = 'Here is what I need from you:\n1. Send the deck by Friday.\n2. Confirm the budget.\n3. Book the room for Monday.';
+  const landed: string[] = [];
+  const out = await polishVersions(async prompt => prompt.includes('Their text, by row:') ? 'no rows' : json([noIntro, kept]), request(phoneList, true), text => landed.push(text));
+  expect(out.drafts).toEqual([kept]);
+  expect(landed).not.toContain(noIntro);
+});

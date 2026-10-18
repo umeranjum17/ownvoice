@@ -368,9 +368,9 @@ test('a phone still getting ready is waited for without recording a yes', async 
 
 // ---- Polish and compose ----
 
-test('phone polish declines an UNCLEAR text only when the writer hands back nothing usable', async () => {
+test('phone polish declines UNCLEAR keyboard mash only when the writer hands back nothing usable', async () => {
   jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
-  const typed = 'purple toaster clouds ate the database backwards banana banana';
+  const typed = 'asdf qwer zxcv jkl';
   mockAsk.mockResolvedValueOnce('UNCLEAR').mockResolvedValue(JSON.stringify({ versions: [typed, typed] }));
   const landed = jest.fn();
   expect(await phoneWriter.write(request({ typed }), { landed })).toEqual({ drafts: [], declined: true });
@@ -379,14 +379,14 @@ test('phone polish declines an UNCLEAR text only when the writer hands back noth
   mockAsk.mockReset();
 });
 
-// The point check's leading word decides: a model that explains after its verdict is still read.
+// The point check's leading word decides for mash; real text with nothing usable never gets the unclear message.
 test.each([
-  ['CLEAR: it makes sense', false],
-  ['**UNCLEAR**.', true],
-  ['maybe', true],
-])('phone polish with nothing usable reads the point check answer %j (unclear message: %s)', async (verdict, declined) => {
+  ['CLEAR: it makes sense', 'asdf qwer zxcv jkl', false],
+  ['**UNCLEAR**.', 'asdf qwer zxcv jkl', true],
+  ['maybe', 'asdf qwer zxcv jkl', true],
+  ['**UNCLEAR**.', 'see you at 6', false],
+])('phone polish with nothing usable reads the point check answer %j on %j (unclear message: %s)', async (verdict, typed, declined) => {
   jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
-  const typed = 'see you at 6';
   mockAsk.mockResolvedValueOnce(verdict).mockResolvedValue(JSON.stringify({ versions: [typed, typed] }));
   expect(!!(await phoneWriter.write(request({ typed }))).declined).toBe(declined);
   mockAsk.mockReset();

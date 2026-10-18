@@ -24,15 +24,20 @@ async function ask(prompt: string, maxTokens: number): Promise<string> {
 
 /** Polish and compose: the C2 rewrite, streamed as versions land, with layout kept and near-duplicates dropped. */
 async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> {
-  const dashes = request.dashes ?? 'remove';
-  if (!await canPolish(request.typed, prompt => ask(prompt, 8))) return { drafts: [], declined: true };
+  // A new post's one-line topic is asked too: the point check counts a line about a post as clear.
+  // Its verdict is advisory: polishVersions still asks for versions; with none usable, only UNCLEAR keyboard mash is declined.
+  const clear = await canPolish(request.typed, prompt => ask(prompt, 8)).catch(error => {
+    if (error instanceof Error && error.message === words.noVersions) return false;
+    throw error;
+  });
   return polishVersions(ask, {
     typed: request.typed,
     conversation: request.conversation,
     guide: request.guide ?? '',
-    dashes,
-    avoid: request.avoid ?? [],
+    dashes: request.dashes ?? 'remove',
     platform: request.platform,
+    avoid: request.avoid ?? [],
+    clear,
   }, on.landed ?? (() => {}));
 }
 
