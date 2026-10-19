@@ -1,34 +1,37 @@
-import { LocalModel, model } from '@byokit/infer';
-import { FIT_TOKENS, phoneFit } from '../phoneFit';
+import type { Question } from '@byokit/decide';
 import { askLocal } from '../../core/localModel';
-import { answerer } from '@byokit/decide';
-import { judgeFit } from '../fit';
-import { platformForApp } from '../../core/platforms';
+import { FIT_TOKENS, phoneFit } from '../phoneFit';
+import { LEVELS } from '../fit';
 
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn() }));
 const askLocalMock = askLocal as jest.MockedFunction<typeof askLocal>;
 
-test('the phone fit budget is one the real on-device model accepts', async () => {
-  const local = new LocalModel({ model: model(), store: {} as any, initLlama: jest.fn() as any, device: { platform: 'android' } });
-  const failure = await local.complete({ prompt: 'rate', maxOutputTokens: FIT_TOKENS }).then(() => null, (error: unknown) => error);
-  expect(failure).not.toBeInstanceOf(RangeError);
+const score = (instructions: string) => ({ kind: 'score', levels: LEVELS, instructions } as Question);
+const questions = {
+  fit_0: score('rate the first'),
+  voice_0: { kind: 'yesno', question: 'does it sound like them?' } as Question,
+  fit_1: score('rate the second'),
+  fit_9: score('rate a card that is not in the state'),
+};
+
+beforeEach(() => { askLocalMock.mockReset(); askLocalMock.mockResolvedValue('B'); });
+
+test('the phone rates each card from its own call and skips questions it cannot rate', async () => {
+  const answers = await phoneFit().ask({ post: 'the post', candidates: { '0': 'first card', '1': 'second card' } }, questions, new AbortController().signal);
+
+  expect(askLocalMock).toHaveBeenCalledTimes(2);
+  const prompts = askLocalMock.mock.calls.map(([prompt]) => prompt);
+  expect(prompts[0]).toContain('first card');
+  expect(prompts[0]).not.toContain('second card');
+  expect(prompts[1]).toContain('second card');
+  expect(prompts[1]).not.toContain('first card');
+  askLocalMock.mock.calls.forEach(([, maxTokens]) => expect(maxTokens).toBe(FIT_TOKENS));
+  expect(Object.keys(answers).sort()).toEqual(['fit_0', 'fit_1']);
+  expect(answers.fit_1).toEqual({ probabilities: { 0: 0, 1: 1, 2: 0, 3: 0 }, confidenceSource: 'self-reported' });
 });
 
-test('the on-device fit prompt carries no voice samples when the voice question is not asked', async () => {
-  const sent: string[] = [];
-  const backend = answerer({ name: 'capture', leaves: false, ask: async (...args: unknown[]) => { sent.push(JSON.stringify(args)); return ''; } });
-  await judgeFit({ post: 'Umer built a timer.', candidates: ['Does it pause when you switch apps?'], platform: platformForApp('com.twitter.android'), samples: ['Sounds good, see you then.'], backends: [backend], voice: false });
-  expect(sent.length).toBeGreaterThan(0);
-  expect(sent.join('')).not.toContain('Sounds good, see you then.');
-});
-
-test('the phone fit hands its abort signal to the local model call', async () => {
-  askLocalMock.mockResolvedValue('{}');
+test('the phone hands its abort signal to every local model call', async () => {
   const controller = new AbortController();
-  try {
-    await phoneFit().ask({}, {}, controller.signal);
-    expect(askLocalMock.mock.calls[0][2]).toBe(controller.signal);
-  } finally {
-    askLocalMock.mockReset();
-  }
+  await phoneFit().ask({ post: 'the post', candidates: { '0': 'first card', '1': 'second card' } }, questions, controller.signal);
+  expect(askLocalMock.mock.calls.map(([, , signal]) => signal)).toEqual([controller.signal, controller.signal]);
 });

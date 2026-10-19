@@ -325,8 +325,6 @@ describe('grow fit bar', () => {
   });
 
   // The phone wrote every card and nothing leaves the phone, so the on-device model answers the rubric.
-  const levelReply = (count: number, level: number) => Object.fromEntries(Array.from({ length: count }, (_, i) =>
-    [`fit_${i}`, { probabilities: Object.fromEntries(LEVELS.map((_, k) => [String(k), k === level ? 0.7 : 0.1])) }]));
   const onPhone = async () => {
     native.capture.mockResolvedValue(capture());
     return render(
@@ -340,13 +338,10 @@ describe('grow fit bar', () => {
     return { drafts: [...CLEAN] };
   });
 
-  test('on the phone writer the fit shows its level from a fenced model reply', async () => {
+  test('on the phone writer the fit shows the level letter the model wrote', async () => {
     const phone = writesAll();
     phoneModel('ready');
-    // The model wraps its JSON in a fence, as small local models often do.
-    askLocalMock.mockImplementation(prompt => prompt.includes('An X reply.')
-      ? Promise.resolve('```json\n' + JSON.stringify(levelReply(CLEAN.length + 1, 2)) + '\n```')
-      : Promise.resolve(''));
+    askLocalMock.mockImplementation(prompt => Promise.resolve(prompt.includes('An X reply.') ? 'C' : ''));
     try {
       const screen = await onPhone();
       await waitFor(() => expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(CLEAN.length + 1));
@@ -397,7 +392,7 @@ describe('grow fit bar', () => {
     let release!: () => void;
     const toneGate = new Promise<void>(resolve => { release = resolve; });
     const llama = fakeLlama({ reply: async p => {
-      if (String(p.messages.at(-1)?.content ?? '').includes('An X reply.')) return JSON.stringify(levelReply(CLEAN.length + 1, 2));
+      if (String(p.messages.at(-1)?.content ?? '').includes('An X reply.')) return 'C';
       await toneGate;
       return '';
     } });

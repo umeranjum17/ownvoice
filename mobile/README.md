@@ -73,7 +73,7 @@ To produce a switch flag offline, keep a 32-byte private signing key as hex outs
 ### Reply fit
 
 `src/grow/fit.ts` asks one judge call, through the published `@byokit/decide`, for one
-score question per shown text on X, LinkedIn and Reddit replies: the platform rubric is the
+score question per shown text on X, LinkedIn and Reddit replies (the phone asks once per card, see below): the platform rubric is the
 question and the model's most probable level (`LEVELS`) becomes the card's engagement
 level. Below decide's 0.6 floor, or when nothing answered (no backend, no consent,
 offline, the 60 second deadline), the card abstains with the plain **Not sure about this
@@ -90,7 +90,11 @@ that key), which the emulator stand-in proofs set. `fitBackends(app)` in
 dispatch. Drafts the phone wrote are never sent. The fit uses the same account as the
 writer, so a rate limit on either pauses both until the plan recovers. When the phone wrote the drafts
 (**On this phone**, or as the fallback after the chosen account fails), the fit runs on the phone's own model through `phoneFit()` in
-`src/grow/phoneFit.ts`, so nothing leaves the phone; a card that model can't answer keeps the plain unsure read.
+`src/grow/phoneFit.ts`, so nothing leaves the phone. It makes one model call per card, one after another, with that card alone in the
+prompt, and the card's level is the level letter the model writes. Its token probabilities are not used: the kit decodes greedily, and
+llama.rn then reports a one-hot list that need not match the written letter. A card whose reply is not one level letter shows no
+rating, never a neighbour's level. Cards rated before the phone's 50 second budget ends keep their ratings; a card that model can't answer
+keeps the plain unsure read.
 
 A reply typed under an X, LinkedIn or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
 the writer gets their text as `point` (with `typed` empty) so the replies start from it,
