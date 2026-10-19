@@ -23,6 +23,7 @@ let weakMeasuredTop = false;
 let invalidMass = false;
 let failingCard = -1;
 let spacedVariant = false;
+let letterOutsideTop = false;
 let slowFromCard = -1;
 const llama = fakeLlama({ reply: async request => {
   const p = request as unknown as Params;
@@ -40,6 +41,7 @@ const llama = fakeLlama({ reply: async request => {
   if (lowMass) { probs[0].prob = 0.05; probs[1].prob = 0.25; probs[2].prob = 0.1; probs[3].prob = 0.05; probs.push({ tok_str: 'X', prob: 0.55 }); }
   if (weakMeasuredTop) { probs[0].prob = 0.1; probs[1].prob = 0.31; probs[2].prob = 0.05; probs[3].prob = 0.04; }
   if (spacedVariant && letter === 'B') { probs[1].prob = 0.3; probs.push({ tok_str: ' B', prob: 0.3 }); }
+  if (letterOutsideTop) probs.splice(0, probs.length, { tok_str: letter, prob: 0.97 }, { tok_str: 'X', prob: 0.03 });
   if (invalidMass) { probs[0].prob = 0.6; probs[1].prob = 0.6; probs[2].prob = 0.2; probs[3].prob = 0.1; }
   const output = `<|im_start|>assistant\n${letter}`;
   return { text: output, content: output, stopped_eos: true, stopped_limit: 0, tokens_predicted: 1,
@@ -51,7 +53,7 @@ const cards = ['some of them yes, the standups not so much', 'Yes, some meetings
 const rate = (backend = phoneFit()) => judgeFit({ post: 'Hot take: most meetings should be emails. Change my mind.', candidates: cards, samples: ['private voice sample'],
   platform: platformForApp('com.twitter.android'), backends: [backend], voice: false });
 
-beforeEach(() => { sent.length = 0; maxConcurrent = 0; active = 0; missingProbabilities = false; lowMass = false; weakMeasuredTop = false; invalidMass = false; failingCard = -1; spacedVariant = false; slowFromCard = -1; });
+beforeEach(() => { sent.length = 0; maxConcurrent = 0; active = 0; missingProbabilities = false; lowMass = false; weakMeasuredTop = false; invalidMass = false; failingCard = -1; spacedVariant = false; letterOutsideTop = false; slowFromCard = -1; });
 
 test('the phone reads each card separately and serially from measured next-token probabilities', async () => {
   const fits = await rate();
@@ -73,7 +75,7 @@ test('the phone reads each card separately and serially from measured next-token
 
 test('a phone run that runs out of time keeps the cards already measured', async () => {
   slowFromCard = 2;
-  const fits = await rate(phoneFit(20));
+  const fits = await rate(phoneFit(300));
   expect(fits.map(f => f.level)).toEqual([1, 2, null, null]);
 });
 
@@ -114,6 +116,12 @@ test('normalization cannot raise a weak measured top probability above the ratin
   weakMeasuredTop = true;
   const fits = await rate();
   expect(fits.map(f => [f.level, f.words, f.probability, f.validMass])).toEqual(cards.map(() => [null, 'Not sure about this one', null, 0.5]));
+});
+
+test('a confident card whose other level letters fall outside the top probabilities is still rated', async () => {
+  letterOutsideTop = true;
+  const fits = await rate();
+  expect(fits.map(f => [f.level, f.probability, f.validMass])).toEqual(cards.map((_, i) => [i % 2 ? 2 : 1, expect.closeTo(1), expect.closeTo(0.97)]));
 });
 
 test('a malformed token mass is not normalized into a rating', async () => {
