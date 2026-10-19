@@ -1,6 +1,7 @@
+import type { Question } from '@byokit/decide';
 import { fakeLlama } from '@byokit/infer/testing';
 import { initLlama } from 'llama.rn';
-import { judgeFit } from '../fit';
+import { judgeFit, LEVELS } from '../fit';
 import { phoneFit } from '../phoneFit';
 import { platformForApp } from '../../core/platforms';
 
@@ -19,6 +20,8 @@ let missingProbabilities = false;
 let lowMass = false;
 let weakMeasuredTop = false;
 let invalidMass = false;
+let failingCard = -1;
+let spacedVariant = false;
 const llama = fakeLlama({ reply: async request => {
   const p = request as unknown as Params;
   sent.push(p);
@@ -27,11 +30,13 @@ const llama = fakeLlama({ reply: async request => {
   await Promise.resolve();
   active--;
   const i = sent.length - 1;
+  if (i === failingCard) throw new Error('model stopped');
   const letter = i % 2 ? 'C' : 'B';
   const probs = [{ tok_str: 'A', prob: 0.1 }, { tok_str: 'B', prob: 0.8 }, { tok_str: 'C', prob: 0.1 }, { tok_str: 'D', prob: 0 }];
   if (letter === 'C') { probs[1].prob = 0.1; probs[2].prob = 0.7; probs[3].prob = 0.1; }
   if (lowMass) { probs[0].prob = 0.05; probs[1].prob = 0.25; probs[2].prob = 0.1; probs[3].prob = 0.05; probs.push({ tok_str: 'X', prob: 0.55 }); }
   if (weakMeasuredTop) { probs[0].prob = 0.1; probs[1].prob = 0.31; probs[2].prob = 0.05; probs[3].prob = 0.04; }
+  if (spacedVariant && letter === 'B') { probs[1].prob = 0.3; probs.push({ tok_str: ' B', prob: 0.3 }); }
   if (invalidMass) { probs[0].prob = 0.6; probs[1].prob = 0.6; probs[2].prob = 0.2; probs[3].prob = 0.1; }
   const output = `<|im_start|>assistant\n${letter}`;
   return { text: output, content: output, stopped_eos: true, stopped_limit: 0, tokens_predicted: 1,
@@ -43,7 +48,7 @@ const cards = ['some of them yes, the standups not so much', 'Yes, some meetings
 const rate = (backend = phoneFit()) => judgeFit({ post: 'Hot take: most meetings should be emails. Change my mind.', candidates: cards, samples: ['private voice sample'],
   platform: platformForApp('com.twitter.android'), backends: [backend], voice: false });
 
-beforeEach(() => { sent.length = 0; maxConcurrent = 0; active = 0; missingProbabilities = false; lowMass = false; weakMeasuredTop = false; invalidMass = false; });
+beforeEach(() => { sent.length = 0; maxConcurrent = 0; active = 0; missingProbabilities = false; lowMass = false; weakMeasuredTop = false; invalidMass = false; failingCard = -1; spacedVariant = false; });
 
 test('the phone reads each card separately and serially from measured next-token probabilities', async () => {
   const fits = await rate();
@@ -61,6 +66,27 @@ test('the phone reads each card separately and serially from measured next-token
     expect(fit.probability).toBeCloseTo(i % 2 ? 0.7 : 0.8);
     expect(fit.validMass).toBeCloseTo(1);
   });
+});
+
+test('a card whose model call fails keeps the other cards rated', async () => {
+  failingCard = 1;
+  const fits = await rate();
+  expect(fits.map(f => f.level)).toEqual([1, null, 1, 2]);
+});
+
+test('a spacing variant of a level token counts toward its probability and the mass', async () => {
+  spacedVariant = true;
+  const fits = await rate();
+  expect(fits.map(f => [f.level, f.probability])).toEqual([[1, expect.closeTo(0.75)], [2, expect.closeTo(0.7)], [1, expect.closeTo(0.75)], [2, expect.closeTo(0.7)]]);
+  expect(fits[0].validMass).toBeCloseTo(0.8);
+});
+
+test('an aborted ask rejects before any card reaches the model', async () => {
+  const controller = new AbortController();
+  controller.abort();
+  const questions = { fit_0: { kind: 'score', levels: LEVELS, instructions: 'rate' } as Question };
+  await expect(phoneFit().ask({ post: 'p', candidates: { '0': cards[0] } }, questions, controller.signal)).rejects.toBeDefined();
+  expect(sent).toHaveLength(0);
 });
 
 test('missing token probabilities keep every card plainly unsure', async () => {
