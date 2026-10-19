@@ -1,8 +1,9 @@
 import type { Question } from '@byokit/decide';
 import { fakeLlama } from '@byokit/infer/testing';
+import { LocalModel, model } from '@byokit/infer';
 import { initLlama } from 'llama.rn';
 import { judgeFit, LEVELS } from '../fit';
-import { phoneFit } from '../phoneFit';
+import { FIT_TOKENS, LEVEL_PROBS, phoneFit } from '../phoneFit';
 import { platformForApp } from '../../core/platforms';
 
 jest.mock('llama.rn', () => ({ initLlama: jest.fn() }));
@@ -111,4 +112,10 @@ test('a malformed token mass is not normalized into a rating', async () => {
   invalidMass = true;
   const fits = await rate();
   expect(fits.map(f => [f.level, f.words, f.validMass])).toEqual(cards.map(() => [null, 'Not sure about this one', 1.5]));
+});
+
+test('the phone fit budget is one the real on-device model accepts', async () => {
+  const local = new LocalModel({ model: model(), store: {} as any, initLlama: jest.fn() as any, device: { platform: 'android' } });
+  const failure = await Promise.resolve().then(() => local.complete({ prompt: 'rate', maxOutputTokens: FIT_TOKENS, n_probs: LEVEL_PROBS })).then(() => null, (error: unknown) => error);
+  expect(failure).not.toBeInstanceOf(RangeError);
 });

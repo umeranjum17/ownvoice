@@ -2,9 +2,9 @@ import type { Backend, Question, Raw } from '@byokit/decide';
 import { completeLocal } from '../core/localModel';
 
 // One generated label and its top token probabilities fit the phone's output budget.
-const FIT_TOKENS = 1;
+export const FIT_TOKENS = 1;
 const LEVEL_TOKENS = ['A', 'B', 'C', 'D'];
-const LEVEL_PROBS = 16;
+export const LEVEL_PROBS = 16;
 
 /** Rate one card from the model's next-token probabilities, without self-reported numbers. */
 const measuredAnswer = async (prompt: string, signal?: AbortSignal): Promise<Raw | undefined> => {
