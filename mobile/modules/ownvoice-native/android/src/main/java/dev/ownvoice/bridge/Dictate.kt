@@ -25,6 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -252,7 +253,7 @@ object Dictate {
   fun teardown() {
     session = null
     pending = null
-    scope.cancelChildren()
+    scope.coroutineContext.job.cancelChildren()
     closeProof()
     runCatching { recognizer?.destroy() }
     recognizer = null
