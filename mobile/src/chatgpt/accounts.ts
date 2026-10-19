@@ -108,10 +108,13 @@ export const CHATGPT_MODEL = 'gpt-6-sol';
 export const CLAUDE_MODEL = PROVIDERS.claude.models.strong;
 /** OpenRouter's default writer: DeepSeek V4.1 Flash. A phone has no model catalogue, so the key route's
  *  full typed model (its api, provider, endpoint and size) is carried here; the kit's pinned adapter
- *  reads it. This is never shown to the person. */
+ *  reads it. This is never shown to the person. `EXPO_PUBLIC_E2E_OPENROUTER_BASE` is an emulator-only
+ *  override (never set in a distributable build): it points this route at the host's
+ *  `e2e/pi-writer.mjs`, which answers through @byokit/decide's pi backend, so the live reply proof can
+ *  run on the real route without the app carrying a provider key or a subscription sign-in. */
 export const OPENROUTER_MODEL = {
   id: 'deepseek/deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', api: 'openai-completions',
-  provider: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1', reasoning: false,
+  provider: 'openrouter', baseUrl: process.env.EXPO_PUBLIC_E2E_OPENROUTER_BASE || 'https://openrouter.ai/api/v1', reasoning: false,
   input: ['text'], cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
   contextWindow: 1048576, maxTokens: 384000,
 } as Model<'openai-completions'>;
