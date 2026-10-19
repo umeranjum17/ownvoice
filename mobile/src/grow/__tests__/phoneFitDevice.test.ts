@@ -23,6 +23,7 @@ let weakMeasuredTop = false;
 let invalidMass = false;
 let failingCard = -1;
 let spacedVariant = false;
+let slowFromCard = -1;
 const llama = fakeLlama({ reply: async request => {
   const p = request as unknown as Params;
   sent.push(p);
@@ -31,6 +32,7 @@ const llama = fakeLlama({ reply: async request => {
   await Promise.resolve();
   active--;
   const i = sent.length - 1;
+  if (slowFromCard >= 0 && i >= slowFromCard) await new Promise(resolve => setTimeout(resolve, 1000));
   if (i === failingCard) throw new Error('model stopped');
   const letter = i % 2 ? 'C' : 'B';
   const probs = [{ tok_str: 'A', prob: 0.1 }, { tok_str: 'B', prob: 0.8 }, { tok_str: 'C', prob: 0.1 }, { tok_str: 'D', prob: 0 }];
@@ -49,7 +51,7 @@ const cards = ['some of them yes, the standups not so much', 'Yes, some meetings
 const rate = (backend = phoneFit()) => judgeFit({ post: 'Hot take: most meetings should be emails. Change my mind.', candidates: cards, samples: ['private voice sample'],
   platform: platformForApp('com.twitter.android'), backends: [backend], voice: false });
 
-beforeEach(() => { sent.length = 0; maxConcurrent = 0; active = 0; missingProbabilities = false; lowMass = false; weakMeasuredTop = false; invalidMass = false; failingCard = -1; spacedVariant = false; });
+beforeEach(() => { sent.length = 0; maxConcurrent = 0; active = 0; missingProbabilities = false; lowMass = false; weakMeasuredTop = false; invalidMass = false; failingCard = -1; spacedVariant = false; slowFromCard = -1; });
 
 test('the phone reads each card separately and serially from measured next-token probabilities', async () => {
   const fits = await rate();
@@ -67,6 +69,12 @@ test('the phone reads each card separately and serially from measured next-token
     expect(fit.probability).toBeCloseTo(i % 2 ? 0.7 : 0.8);
     expect(fit.validMass).toBeCloseTo(1);
   });
+});
+
+test('a phone run that runs out of time keeps the cards already measured', async () => {
+  slowFromCard = 2;
+  const fits = await rate(phoneFit(20));
+  expect(fits.map(f => f.level)).toEqual([1, 2, null, null]);
 });
 
 test('a card whose model call fails keeps the other cards rated', async () => {
