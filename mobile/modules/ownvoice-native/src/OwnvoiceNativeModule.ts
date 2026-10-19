@@ -50,7 +50,9 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   dictateSupport(locale: string): Promise<'ready' | 'needs-download' | 'unknown'>;
   /** Hide or restore the full-screen transparent panel around the system pack prompt. */
   dictatePanelVisible(visible: boolean): Promise<void>;
-  /** Fire-and-forget pack download trigger; poll dictateSupport for arrival. */
+  /** The device's language tag, shared by the pack check, the download and the dictation session. */
+  dictateLocale(): string;
+  /** Pack download trigger; resolves with the recognizer's outcome (scheduled, success, error N, timeout). */
   dictateDownload(locale: string): Promise<string>;
   sharedMarkdown(): Promise<string | null>;
   rewriteInput(): { text: string; editable: boolean; markdown?: boolean } | null;

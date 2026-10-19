@@ -28,6 +28,7 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -96,8 +97,11 @@ object Dictate {
         if (pending != id) return@launch
         if (checked != null) {
           note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages} supported=${checked.supportedOnDeviceLanguages}")
-          if (!hasLanguage(checked, locale)) {
-            note("language missing, triggering download")
+          // The session listens in the same pack tag the panel checks and downloads.
+          val tag = packFor(locale, checked)
+          intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, tag)
+          if (!isInstalled(checked, tag)) {
+            note("language missing, triggering download $tag")
             note("download ${download(active, intent)}")
             pending = null
             emit?.invoke(mapOf("id" to id, "type" to "error", "code" to "needs-download"))
@@ -145,7 +149,7 @@ object Dictate {
       val checked = checkSupport(active, intent)
       if (checked == null) { note("support check timed out"); return "unknown" }
       note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages} supported=${checked.supportedOnDeviceLanguages}")
-      return if (hasLanguage(checked, locale)) "ready" else "needs-download"
+      return if (isInstalled(checked, packFor(locale, checked))) "ready" else "needs-download"
     } catch (e: Exception) {
       Log.w("Ownvoice", "dictate support failed", e)
       return "unknown"
@@ -156,42 +160,45 @@ object Dictate {
    *  supported tag sharing its language (the device may run en-AE while packs ship en-US).
    *  A language with no pack at all passes through, and the caller falls back to the
    *  plain 'can't listen' state when support never arrives. */
-  internal fun pickPackTag(locale: String, supported: List<String>): String {
+  internal fun pickPackTag(locale: String, supported: List<String>, installed: List<String> = emptyList()): String {
     if (supported.any { it.equals(locale, ignoreCase = true) }) return locale
     val want = locale.substringBefore('-').substringBefore('_')
-    return supported.firstOrNull { it.substringBefore('-').substringBefore('_').equals(want, ignoreCase = true) } ?: locale
+    fun sameLanguage(tag: String) = tag.substringBefore('-').substringBefore('_').equals(want, ignoreCase = true)
+    // A same-language pack already here wins: the system may have fetched a different region than the first listed.
+    return installed.firstOrNull(::sameLanguage) ?: supported.firstOrNull(::sameLanguage) ?: locale
   }
 
   private suspend fun bestLanguage(active: SpeechRecognizer, locale: String): String {
     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
       .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
       .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-    return pickPackTag(locale, checkSupport(active, intent)?.supportedOnDeviceLanguages.orEmpty())
+    return checkSupport(active, intent)?.let { packFor(locale, it) } ?: locale
   }
 
-  /** Fire-and-forget pack download trigger; the panel polls supportOf for arrival. */
-  fun downloadPack(context: Context, locale: String) {
-    scope.launch {
-      try {
-        val (caller, via) = caller(context)
-        note("pack download via $via")
-        val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(caller).also { recognizer = it }
-        val target = bestLanguage(active, locale)
-        val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-          .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-          .putExtra(RecognizerIntent.EXTRA_LANGUAGE, target)
-        note("pack download requested $target")
-        note("pack download ${download(active, intent)}")
-      } catch (e: Exception) {
-        Log.w("Ownvoice", "dictate download failed", e)
-      }
+  /** The one pack tag for [locale] on this phone: the check, the download and the session all use it. */
+  private fun packFor(locale: String, support: RecognitionSupport): String =
+    pickPackTag(locale, support.supportedOnDeviceLanguages.orEmpty() + support.installedOnDeviceLanguages.orEmpty(), support.installedOnDeviceLanguages.orEmpty())
+
+  private fun isInstalled(support: RecognitionSupport, tag: String): Boolean =
+    support.installedOnDeviceLanguages.orEmpty().any { it.equals(tag, ignoreCase = true) }
+
+  /** Pack download for [locale]; returns the recognizer's outcome (scheduled, success, error N, timeout)
+   *  so the panel can tell an accepted prompt from a declined or failed one. */
+  suspend fun downloadPack(context: Context, locale: String): String = withContext(Dispatchers.Main) {
+    try {
+      val (caller, via) = caller(context)
+      note("pack download via $via")
+      val active = recognizer ?: SpeechRecognizer.createOnDeviceSpeechRecognizer(caller).also { recognizer = it }
+      val target = bestLanguage(active, locale)
+      val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        .putExtra(RecognizerIntent.EXTRA_LANGUAGE, target)
+      note("pack download requested $target")
+      download(active, intent).also { note("pack download $it") }
+    } catch (e: Exception) {
+      Log.w("Ownvoice", "dictate download failed", e)
+      "threw ${e.javaClass.simpleName}"
     }
-  }
-
-  // Whether the installed on-device packs cover [locale]'s language (prefix match, logged).
-  private fun hasLanguage(support: RecognitionSupport, locale: String): Boolean {
-    val language = locale.substringBefore('-').substringBefore('_').lowercase()
-    return support.installedOnDeviceLanguages.any { it.substringBefore('-').substringBefore('_').lowercase() == language }
   }
 
   private suspend fun checkSupport(active: SpeechRecognizer, intent: Intent): RecognitionSupport? =
