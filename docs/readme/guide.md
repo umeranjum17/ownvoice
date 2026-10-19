@@ -1,6 +1,6 @@
 # Ownvoice user guide
 
-The full detail behind the [README](../../README.md): every screen, every check and every known limit of the current build (1.0.3).
+The full detail behind the [README](../../README.md): every screen, every check and every known limit of the current build (1.0.4).
 
 ## Reply ideas
 
