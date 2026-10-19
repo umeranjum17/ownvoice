@@ -24,7 +24,7 @@ import kotlin.coroutines.resume
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -252,7 +252,7 @@ object Dictate {
   fun teardown() {
     session = null
     pending = null
-    scope.cancel()
+    scope.cancelChildren()
     closeProof()
     runCatching { recognizer?.destroy() }
     recognizer = null
@@ -317,14 +317,14 @@ object Dictate {
       if (id != session) return
       val text = words(bundle)
       if (text.isNotBlank()) lastPartial = text
-      note("partial ${text.take(80)}")
+      note("partial ${text.length}")
       segment(false, text)
     }
 
     override fun onResults(bundle: Bundle?) {
       if (id != session) return
       val text = finalDictationText(words(bundle), lastPartial)
-      note("final ${text.take(100)}")
+      note("final ${text.length}")
       segment(true, text)
       emit?.invoke(mapOf("id" to id, "type" to "stopped"))
       end(id)
