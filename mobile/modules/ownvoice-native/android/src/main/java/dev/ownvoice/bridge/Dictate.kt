@@ -160,10 +160,12 @@ object Dictate {
    *  supported tag sharing its language (the device may run en-AE while packs ship en-US).
    *  A language with no pack at all passes through, and the caller falls back to the
    *  plain 'can't listen' state when support never arrives. */
-  internal fun pickPackTag(locale: String, supported: List<String>): String {
+  internal fun pickPackTag(locale: String, supported: List<String>, installed: List<String> = emptyList()): String {
     if (supported.any { it.equals(locale, ignoreCase = true) }) return locale
     val want = locale.substringBefore('-').substringBefore('_')
-    return supported.firstOrNull { it.substringBefore('-').substringBefore('_').equals(want, ignoreCase = true) } ?: locale
+    fun sameLanguage(tag: String) = tag.substringBefore('-').substringBefore('_').equals(want, ignoreCase = true)
+    // A same-language pack already here wins: the system may have fetched a different region than the first listed.
+    return installed.firstOrNull(::sameLanguage) ?: supported.firstOrNull(::sameLanguage) ?: locale
   }
 
   private suspend fun bestLanguage(active: SpeechRecognizer, locale: String): String {
@@ -175,7 +177,7 @@ object Dictate {
 
   /** The one pack tag for [locale] on this phone: the check, the download and the session all use it. */
   private fun packFor(locale: String, support: RecognitionSupport): String =
-    pickPackTag(locale, support.supportedOnDeviceLanguages.orEmpty() + support.installedOnDeviceLanguages.orEmpty())
+    pickPackTag(locale, support.supportedOnDeviceLanguages.orEmpty() + support.installedOnDeviceLanguages.orEmpty(), support.installedOnDeviceLanguages.orEmpty())
 
   private fun isInstalled(support: RecognitionSupport, tag: String): Boolean =
     support.installedOnDeviceLanguages.orEmpty().any { it.equals(tag, ignoreCase = true) }

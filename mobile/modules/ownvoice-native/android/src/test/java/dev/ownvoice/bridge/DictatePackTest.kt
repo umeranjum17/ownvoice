@@ -16,6 +16,10 @@ class DictatePackTest {
     assertEquals("en-US", Dictate.pickPackTag("en-AE", supported))
   }
 
+  @Test fun installedSameLanguagePackWinsOverFirstListed() {
+    assertEquals("en-AU", Dictate.pickPackTag("en-AE", listOf("en-GB", "en-US", "en-AU"), listOf("en-AU")))
+  }
+
   @Test fun languageWithoutPackPassesThrough() {
     assertEquals("xx-YY", Dictate.pickPackTag("xx-YY", supported))
   }
