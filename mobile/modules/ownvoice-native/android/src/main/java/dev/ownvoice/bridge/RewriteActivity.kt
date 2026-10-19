@@ -44,13 +44,13 @@ class RewriteActivity : ReactActivity() {
   override fun onStart() {
     super.onStart()
     current = this
-    OwnvoiceService.instance?.panelOpen = true // R5: the bubble hides while this sheet shows.
+    OwnvoiceService.panelShown(true) // R5: the bubble hides while this sheet shows.
   }
 
   override fun onStop() {
     if (current === this) {
       current = null
-      OwnvoiceService.instance?.panelOpen = false
+      OwnvoiceService.panelShown(false)
     }
     super.onStop()
   }
