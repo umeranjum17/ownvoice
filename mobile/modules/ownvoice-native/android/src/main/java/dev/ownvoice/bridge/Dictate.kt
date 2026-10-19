@@ -123,8 +123,8 @@ object Dictate {
         active.startListening(intent)
       } catch (e: Exception) {
         Log.w("Ownvoice", "dictate start failed", e)
-        if (pending == id) {
-          pending = null
+        if (pending == id || session == id) {
+          if (pending == id) pending = null
           end(id)
           emit?.invoke(mapOf("id" to id, "type" to "error", "code" to "unsupported"))
         }
@@ -141,19 +141,7 @@ object Dictate {
       val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
         .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         .putExtra(RecognizerIntent.EXTRA_LANGUAGE, locale)
-      val checked = withTimeoutOrNull(15000) {
-        suspendCancellableCoroutine { cont ->
-          active.checkRecognitionSupport(intent, Executor(Runnable::run), object : RecognitionSupportCallback {
-            override fun onSupportResult(support: RecognitionSupport) {
-              if (cont.isActive) cont.resume(support)
-            }
-            override fun onError(code: Int) {
-              note("support error $code")
-              if (cont.isActive) cont.resume(null)
-            }
-          })
-        }
-      }
+      val checked = checkSupport(active, intent)
       if (checked == null) { note("support check timed out"); return "unknown" }
       note("support installed=${checked.installedOnDeviceLanguages} pending=${checked.pendingOnDeviceLanguages} supported=${checked.supportedOnDeviceLanguages}")
       return if (hasLanguage(checked, locale)) "ready" else "needs-download"
