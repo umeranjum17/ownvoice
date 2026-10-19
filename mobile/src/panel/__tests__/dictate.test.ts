@@ -9,6 +9,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
   dictateSupport: jest.fn(),
   dictateDownload: jest.fn(),
   dictatePanelVisible: jest.fn(),
+  dictateLocale: jest.fn(() => 'en-US'),
   logDev: jest.fn(),
 } }));
 
@@ -21,7 +22,7 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockAvailable.mockResolvedValue('ready');
   mockSupport.mockResolvedValue('ready');
-  mockDownload.mockResolvedValue('started');
+  mockDownload.mockResolvedValue('scheduled');
   (native.dictatePanelVisible as jest.Mock).mockResolvedValue(undefined);
 });
 
@@ -55,4 +56,11 @@ test('ensurePack waits until the pack lands', async () => {
 test('ensurePack gives up plainly when the pack never lands', async () => {
   mockSupport.mockResolvedValue('needs-download');
   await expect(ensurePack(5, 30)).resolves.toBe(false);
+});
+
+test('a declined or failed pack prompt gives up at once and gives the panel back', async () => {
+  mockDownload.mockResolvedValue('error 5');
+  await expect(ensurePack(5, 60_000)).resolves.toBe(false);
+  expect(mockSupport).not.toHaveBeenCalled();
+  expect(native.dictatePanelVisible).toHaveBeenLastCalledWith(true);
 });

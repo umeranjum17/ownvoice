@@ -40,9 +40,11 @@ const editWords = {
 const dictateWords = {
   dictateListen: 'Listen',
   dictateSpeechReady: 'Getting speech ready…',
+  dictateSettling: 'Finishing your last words…',
   dictateStop: 'Stop listening',
   dictateListening: 'Listening… tap Stop when you are done.',
   dictateUnheard: 'Didn’t catch that. Try again.',
+  dictateNotInserted: 'Those words didn’t reach the field. Say them again.',
   dictateUnavailable: 'This phone can’t listen yet.',
   dictateLanguage: 'This phone can’t listen in your language yet.',
   dictateMic: 'To listen, allow the microphone the next time it asks.',

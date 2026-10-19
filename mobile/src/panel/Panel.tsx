@@ -20,7 +20,7 @@ import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
 import { isOtherWriterLine, retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
-import { armProofWav, ensureMic, ensurePack, dictateReady, listenForDictation, messageForDictationError, proofWavPath } from './dictate';
+import { armProofWav, ensureMic, ensurePack, dictateReady, listenForDictation, messageForDictationError, proofWavPath, settledWithin } from './dictate';
 import type { DictationHandle } from '@byokit/dictation';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
@@ -198,6 +198,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [dictateMsg, setDictateMsg] = useState<string | null>(null);
   const dictateHandle = useRef<DictationHandle | null>(null);
   const dictateBusy = useRef(false);
+  // The last Stop's words settling into the field; a Listen tapped before they land waits for them.
+  const dictateSettling = useRef<Promise<void> | null>(null);
+  const insertRun = useRef<Promise<boolean> | null>(null);
   const kind = useRef<{ message: boolean } | null>(null);
   const platformOf = useRef<Platform>(DEFAULT_PLATFORM);
   const postOf = useRef<string | null>(null);
@@ -405,7 +408,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (inserting.current) return Promise.resolve(false);
     inserting.current = true;
     setInsertBusy(true);
-    return Native.serviceState().then(state => {
+    const run = Native.serviceState().then(state => {
       if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return false; }
       const reading = capture;
       const platform = platformOf.current.id;
@@ -424,32 +427,45 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       });
     }).catch(() => { setNote(words.serviceOff); setPhase('failed'); return false; })
       .finally(() => { inserting.current = false; setInsertBusy(false); });
+    insertRun.current = run;
+    return run;
   };
 
-  const finishDictation = useCallback(async (handle: DictationHandle) => {
+  const finishDictation = useCallback((handle: DictationHandle) => {
     if (dictateHandle.current !== handle) return;
     dictateHandle.current = null;
     setListening(false);
-    try {
-      const text = (await handle.finish()).text.trim();
-      if (!text) { setDictateMsg(words.dictateUnheard); return; }
-      setDictateMsg(null);
-      setHeard(null);
-      await put(text);
-    } catch (error) {
-      const message = messageForDictationError(error);
-      if (message) setDictateMsg(message);
-    }
+    dictateSettling.current = (async () => {
+      try {
+        const text = (await handle.finish()).text.trim();
+        setHeard(null);
+        if (!text) { setDictateMsg(words.dictateUnheard); return; }
+        setDictateMsg(null);
+        // A Stop that lands during an insert waits for it, so the words are not refused.
+        await insertRun.current;
+        if (!(await put(text))) setDictateMsg(words.dictateNotInserted);
+      } catch (error) {
+        const message = messageForDictationError(error);
+        if (message) setDictateMsg(message);
+      }
+    })();
   }, [put]);
 
   const toggleDictation = useCallback(() => {
     if (dictateBusy.current) return;
-    if (dictateHandle.current) { void finishDictation(dictateHandle.current); return; }
+    if (dictateHandle.current) { finishDictation(dictateHandle.current); return; }
     dictateBusy.current = true;
     setDictateMsg(null);
     setHeard(null);
     void (async () => {
       try {
+        // A Listen tapped right after Stop waits for those words to land, so the new
+        // recognizer never starts over the old one and drops its first utterance.
+        if (dictateSettling.current) {
+          setDictateMsg(words.dictateSettling);
+          await settledWithin(dictateSettling.current);
+          setDictateMsg(null);
+        }
         // The mic is asked at first tap only; a missing recognizer or language pack
         // answers now, so the tap never leaves a silent gap.
         if (!(await ensureMic())) { setDictateMsg(words.dictateMic); return; }
@@ -465,11 +481,19 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         // The silent proof run stages its WAV here; an unstageable path says so now.
         const staged = proofWavPath();
         if (staged && !(await armProofWav(staged))) { setDictateMsg(words.dictateUnavailable); return; }
-        const handle = listenForDictation(text => setHeard(text || null));
+        const handle: DictationHandle = listenForDictation(text => setHeard(text || null), error => {
+          if (dictateHandle.current !== handle) return;
+          // A native failure mid-listen ends the run now, with its message, not at Stop.
+          dictateHandle.current = null;
+          handle.cancel();
+          setListening(false);
+          setHeard(null);
+          setDictateMsg(messageForDictationError(error));
+        });
         dictateHandle.current = handle;
         setListening(true);
         // The on-device utterance ends itself on silence: its final text finishes the run.
-        handle.on('final', () => { void finishDictation(handle); });
+        handle.on('final', () => { finishDictation(handle); });
       } catch (error) {
         const message = messageForDictationError(error);
         if (message) setDictateMsg(message);

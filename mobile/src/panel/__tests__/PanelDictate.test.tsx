@@ -27,6 +27,7 @@ const mockListen = listenForDictation as jest.Mock;
 
 type FinalListener = () => void;
 let partialCb: ((text: string) => void) | null = null;
+let errorCb: ((error: DictateError) => void) | null = null;
 const fakeHandle = (text: string | Error) => {
   const finals = new Map<string, FinalListener>();
   const handle = {
@@ -35,10 +36,11 @@ const fakeHandle = (text: string | Error) => {
     finish: jest.fn(async () => { if (text instanceof Error) throw text; return { text }; }),
     cancel: jest.fn(),
   };
-  mockListen.mockImplementation((onPartial?: (text: string) => void) => { partialCb = onPartial ?? null; return handle; });
+  mockListen.mockImplementation((onPartial?: (text: string) => void, onError?: (error: DictateError) => void) => { partialCb = onPartial ?? null; errorCb = onError ?? null; return handle; });
   return handle;
 };
 const firePartial = async (text: string) => { await act(async () => { partialCb?.(text); }); };
+const fireListenError = async (error: DictateError) => { await act(async () => { errorCb?.(error); }); };
 const fireFinal = async (handle: { finals: Map<string, FinalListener> }) => { await act(async () => { handle.finals.get('final')?.(); }); };
 
 const renderPanel = async () => {
@@ -54,6 +56,7 @@ const renderPanel = async () => {
 beforeEach(() => {
   jest.clearAllMocks();
   partialCb = null;
+  errorCb = null;
   mockMic.mockResolvedValue(true);
   mockPack.mockResolvedValue(true);
   mockReady.mockResolvedValue(null);
@@ -139,4 +142,32 @@ test('a failed finish names it plainly', async () => {
   await fireFinal(handle);
   await waitFor(() => expect(screen.getByText(words.dictateUnavailable)).toBeTruthy());
   expect(native.insert).not.toHaveBeenCalled();
+});
+
+test('a native error mid-listen shows at once and frees the mic', async () => {
+  const handle = fakeHandle('unused');
+  const screen = await renderPanel();
+  fireEvent.press(await screen.findByRole('button', { name: words.dictateListen }));
+  await waitFor(() => expect(mockListen).toHaveBeenCalledTimes(1));
+  await fireListenError(new DictateError('unsupported'));
+  expect(await screen.findByText(words.dictateUnavailable)).toBeTruthy();
+  expect(handle.cancel).toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: words.dictateListen })).toBeTruthy();
+  expect(native.insert).not.toHaveBeenCalled();
+});
+
+test('a Listen tapped right after Stop waits for the last words to land', async () => {
+  const handle = fakeHandle('first words');
+  let land!: (transcript: { text: string }) => void;
+  handle.finish.mockImplementation(() => new Promise(resolve => { land = resolve; }));
+  const screen = await renderPanel();
+  fireEvent.press(await screen.findByRole('button', { name: words.dictateListen }));
+  await waitFor(() => expect(mockListen).toHaveBeenCalledTimes(1));
+  fireEvent.press(await screen.findByRole('button', { name: words.dictateStop }));
+  fireEvent.press(await screen.findByRole('button', { name: words.dictateListen }));
+  expect(await screen.findByText(words.dictateSettling)).toBeTruthy();
+  expect(mockListen).toHaveBeenCalledTimes(1);
+  await act(async () => { land({ text: 'first words' }); });
+  await waitFor(() => expect(mockListen).toHaveBeenCalledTimes(2));
+  await waitFor(() => expect(native.insert).toHaveBeenCalledWith('first words'));
 });
