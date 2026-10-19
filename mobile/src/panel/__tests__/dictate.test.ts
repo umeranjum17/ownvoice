@@ -8,6 +8,7 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
   dictateAvailable: jest.fn(),
   dictateSupport: jest.fn(),
   dictateDownload: jest.fn(),
+  dictatePanelVisible: jest.fn(),
   logDev: jest.fn(),
 } }));
 
@@ -21,6 +22,7 @@ beforeEach(() => {
   mockAvailable.mockResolvedValue('ready');
   mockSupport.mockResolvedValue('ready');
   mockDownload.mockResolvedValue('started');
+  (native.dictatePanelVisible as jest.Mock).mockResolvedValue(undefined);
 });
 
 test('a ready recognizer needs nothing', async () => {
