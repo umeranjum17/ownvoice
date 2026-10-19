@@ -1,6 +1,7 @@
-// Expo config. Proof builds that point sign-in at a host stand-in over plain HTTP
-// (EXPO_PUBLIC_E2E_AUTH_BASE, mobile/e2e/signin-wait.mjs) need cleartext there;
-// distributable builds never set that flag, so the shipped manifest keeps it off.
+// Expo config. Proof builds that point sign-in or the writer at a host stand-in over plain HTTP
+// (EXPO_PUBLIC_E2E_AUTH_BASE, mobile/e2e/signin-wait.mjs; EXPO_PUBLIC_E2E_OPENROUTER_BASE,
+// mobile/e2e/pi-writer.mjs) need cleartext there; distributable builds never set those flags, so the
+// shipped manifest keeps it off.
 module.exports = {
   expo: {
     name: 'Ownvoice',
@@ -26,7 +27,7 @@ module.exports = {
           android: {
             minSdkVersion: 26,
             // Proof builds only (see above): plain HTTP to the host stand-in.
-            ...(process.env.EXPO_PUBLIC_E2E_AUTH_BASE || process.env.EXPO_PUBLIC_E2E_JEV_BASE ? { usesCleartextTraffic: true } : {}),
+            ...(process.env.EXPO_PUBLIC_E2E_AUTH_BASE || process.env.EXPO_PUBLIC_E2E_JEV_BASE || process.env.EXPO_PUBLIC_E2E_OPENROUTER_BASE ? { usesCleartextTraffic: true } : {}),
           },
         },
       ],

@@ -1,9 +1,11 @@
 // X-style composer fixture proof for the grounded reply flow (done-done journey reply-drafts).
 // Serves mobile/e2e/x.html over a self-signed HTTPS server, host-mapped into Chrome for x.com,
 // so Ownvoice's Chrome platform detection reads a real X host from the URL bar — no login,
-// fixture posts, demo data named Umer. The writer is a real cloud writer, never a stand-in:
-// OpenRouter (a key pasted from OPENROUTER_KEY_FILE) or the OpenCode Go plan-key route
-// (X_REPLIES_WRITER=opencode, key from OC_KEY, pasted through the same connect field a person uses).
+// fixture posts, demo data named Umer. The writer is a real model, never a stand-in:
+// OpenRouter (a key pasted from OPENROUTER_KEY_FILE), the OpenCode Go plan-key route
+// (X_REPLIES_WRITER=opencode, key from OC_KEY, pasted through the same connect field a person uses), or
+// the host's `e2e/pi-writer.mjs` on @byokit/decide's pi backend (X_REPLIES_WRITER=pi: DeepSeek Flash
+// with Haiku as its fallback, no provider key and no sign-in) through the same connect field.
 // Proves: tap the bubble on the reply composer over a readable post, grounded reply cards appear,
 // every card's wording matches its own F6a label (Agree / Push back, kindly / Ask a question),
 // Edit changes the text, Insert puts exactly the edited text in the field with the
@@ -14,11 +16,13 @@
 // verify-artifacts/<task>/ through mobile/e2e/evidence.sh (theme/shot/motion helpers).
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned avd>, JAVA_HOME, SDK via
 // ANDROID_HOME, OPENROUTER_KEY_FILE optional, X_REPLIES_WRITER=openrouter|opencode (default
-// openrouter), OC_KEY (the OpenCode Go plan key, never printed or written), X_REPLIES_MOTION=1 to
+// openrouter), OC_KEY (the OpenCode Go plan key, never printed or written), X_REPLIES_WRITER=pi to run
+// against the host's e2e/pi-writer.mjs (PI_WRITER_PORT, PI_MODEL, PI_FALLBACK_MODEL passed through),
+// X_REPLIES_MOTION=1 to
 // record the tap-to-inserted motion, OPENCODE_WORKSPACE (default Working2) for a key with several workspaces, X_REPLIES_LEGS=refusal to run only the refusal legs, extreme one
 // included (a live writer is still connected, but no leg makes a writer request), X_REPLIES_LEGS=preflight to connect the writer and
 // prove one grounded, label-true generation answers, then stop. Args: <release-apk (no stub flags)> [task-slug].
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -33,8 +37,12 @@ if (avd && execFileSync('adb', ['-s', serial, 'shell', 'getprop', 'ro.boot.qemu.
 const apk = process.argv[2];
 if (!apk) throw new Error('Pass the release APK path (no stub flags).');
 const writer = process.env.X_REPLIES_WRITER ?? 'openrouter';
-if (!['openrouter', 'opencode'].includes(writer)) throw new Error(`Unknown X_REPLIES_WRITER "${writer}" (openrouter|opencode).`);
-const key = writer === 'opencode'
+if (!['openrouter', 'opencode', 'pi'].includes(writer)) throw new Error(`Unknown X_REPLIES_WRITER "${writer}" (openrouter|opencode|pi).`);
+// The pi route needs no provider key of its own: the app still pastes a key into its OpenRouter field
+// (the same field a person uses), and the build's EXPO_PUBLIC_E2E_OPENROUTER_BASE points that route at
+// the host, which answers through @byokit/decide's pi backend with the installed pi's own keys.
+const key = writer === 'pi' ? 'sk-or-standin-pi-writer'
+  : writer === 'opencode'
   ? (process.env.OC_KEY ?? '')
   : readFileSync(process.env.OPENROUTER_KEY_FILE ?? `${process.env.HOME}/.config/openrouter/api_key`, 'utf8').trim();
 if (writer === 'openrouter' && !key.startsWith('sk-')) throw new Error('OpenRouter key file did not look like a key.');
@@ -44,6 +52,34 @@ const goWorkspace = process.env.OPENCODE_WORKSPACE ?? 'Working2';
 const task = process.argv[3] ?? 'ov-x-replies-resume';
 const root = resolve(fileURLToPath(import.meta.url), '../../..');
 const evidence = (...args) => execFileSync('bash', [`${root}/mobile/e2e/evidence.sh`, ...args], { cwd: root, encoding: 'utf8' });
+// X_REPLIES_WRITER=pi: the host serves the real writer route (DeepSeek Flash through @byokit/decide's pi
+// backend, Haiku as its fallback) on the OpenAI wire the app's OpenRouter route already speaks. Its own
+// log is the proof that a card on screen came from a real model answer, so the run keeps it with the
+// captures and names every answer's model.
+const piPort = Number(process.env.PI_WRITER_PORT ?? 18761);
+let piWriter = null;
+const startPiWriter = async () => {
+  const logFile = `${root}/verify-artifacts/${task}/pi-writer.log`;
+  mkdirSync(`${root}/verify-artifacts/${task}`, { recursive: true });
+  piWriter = spawn('node', [`${root}/mobile/e2e/pi-writer.mjs`, 'serve', String(piPort), logFile], { cwd: root, stdio: 'inherit', env: process.env });
+  await until(`the host pi writer on :${piPort}`, async () => {
+    try { return (await fetch(`http://127.0.0.1:${piPort}/api/v1/models`, { signal: AbortSignal.timeout(1000) })).ok; } catch { return false; }
+  }, { seconds: 20, every: 500 });
+  log(`real writer route on the host: decide pi backend on :${piPort} (the app reaches it at 10.0.2.2:${piPort})`);
+  return logFile;
+};
+/** Every card leg needs its wording from a real model answer: read the host writer's own log. */
+const checkPiAnswers = logFile => {
+  const lines = readFileSync(logFile, 'utf8').split('\n').filter(Boolean);
+  const answered = lines.filter(line => line.includes('answered model='));
+  const primary = answered.filter(line => line.includes(`model=${process.env.PI_MODEL || 'deepseek/deepseek-flash'}`));
+  const asked = lines.filter(line => line.includes(' ask model='));
+  writeFileSync(`${root}/verify-artifacts/${task}/pi-writer-summary.txt`, [
+    `asks: ${asked.length}`, `answers: ${answered.length}`, `primary answers: ${primary.length}`, '', ...lines,
+  ].join('\n') + '\n');
+  if (!primary.length) throw new Error(`The host writer answered no ask with DeepSeek Flash (${answered.length} answers).`);
+  log(`real writer route: ${asked.length} asks, ${answered.length} answers, ${primary.length} on DeepSeek Flash`);
+};
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
 const nodes = accessibilityProbe(serial, resolve(root, 'mobile/e2e'));
@@ -249,7 +285,7 @@ await openUntil('sound like you');
 adb('shell', 'input', 'keyevent', '4'); // Back on the welcome finishes setup with no writer
 await wait(2500);
 await openUntil('where the bubble shows');
-log(`setup: finished with no writer; choosing ${writer === 'opencode' ? 'OpenCode Go' : 'OpenRouter'} on the writer list.`);
+log(`setup: finished with no writer; choosing ${writer === 'opencode' ? 'OpenCode Go' : writer === 'pi' ? 'OpenRouter (host pi writer)' : 'OpenRouter'} on the writer list.`);
 
 const onScreen = phrase => nodeText().includes(phrase.toLowerCase());
 const scrollWriterList = async phrase => {
@@ -284,12 +320,15 @@ const connectOpenRouter = async () => {
   await tapButton('with your openrouter');
   await waitForLine('paste your openrouter key', 30);
   await pasteKey('paste your openrouter key');
-  await tapButton('connect');
-  for (let i = 0; i < 60 && !onScreen('openrouter is connected'); i++) {
-    if (screenText().includes('not accepted')) throw new Error('OpenRouter rejected the key.');
-    await wait(1000);
-  }
-  if (!onScreen('openrouter is connected')) throw new Error('OpenRouter did not report connected.');
+  if (!(await tapButton('connect'))) log('the Connect control did not read as clickable; waiting for the result anyway');
+  // The kit saves the key and the app redraws the card: wait on that line as a condition, not a fixed count.
+  await until('the OpenRouter connect result', () => {
+    const text = nodeText();
+    if (/openrouter is connected/.test(text)) return true;
+    if (/not accepted/.test(text)) return 'refused';
+    return false;
+  }, { seconds: 120, every: 1000 });
+  if (/not accepted/.test(nodeText())) throw new Error('OpenRouter rejected the key.');
 };
 // OpenCode Go: the plan-key route from PR 209, connected with the desktop login's own key through
 // the app's connect field. The key is never printed, logged or written; the app masks it and keeps
@@ -341,7 +380,7 @@ const refusedOnly = process.env.X_REPLIES_LEGS === 'refused';
 const rewriteOnly = process.env.X_REPLIES_LEGS === 'rewrite-refused';
 if (writer === 'opencode') await connectOpenCode();
 else await connectOpenRouter();
-log(`setup finished (live ${writer === 'opencode' ? 'OpenCode Go' : 'OpenRouter'} writer connected${refusalOnly ? '; refusal legs only, no writer call' : ''}).`);
+log(`setup finished (live ${writer === 'opencode' ? 'OpenCode Go' : writer === 'pi' ? 'DeepSeek Flash through the host pi writer' : 'OpenRouter'} writer connected${refusalOnly ? '; refusal legs only, no writer call' : ''}).`);
 
 // ---- enable Chrome's bubble through the app's own UI ----
 const appRow = label => nodes().find(node => node.checkable && node.label === label);
@@ -813,6 +852,7 @@ const extreme = async on => {
 };
 
 try {
+  const piLogFile = writer === 'pi' ? await startPiWriter() : null;
   if (refusedOnly) {
     await leg('refused-light', () => refusedLeg('x-refused', 'light'));
     await leg('refused-rewrite-light', () => rewriteRefused('light'));
@@ -863,6 +903,8 @@ try {
     await leg('font-1.3', () => journey('x-extreme', 'dark', {}), { needsWriter: true });
   }
   await extreme(false);
+  // The cards above came from the host writer's real model answers, not from a stand-in: record them.
+  if (piLogFile) checkPiAnswers(piLogFile);
   }
 } finally {
   // ---- restore ----
@@ -870,6 +912,7 @@ try {
   try { setExtreme(false); } catch { /* the next run's setup resets the display too */ }
   adb('shell', 'rm', '-f', '/data/local/tmp/chrome-command-line');
   page.close();
+  piWriter?.kill();
   rmSync(certDir, { recursive: true, force: true });
 }
 
