@@ -426,11 +426,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       .finally(() => { inserting.current = false; setInsertBusy(false); });
   };
 
-  const finishDictation = useCallback(async () => {
-    const handle = dictateHandle.current;
+  const finishDictation = useCallback(async (handle: DictationHandle) => {
+    if (dictateHandle.current !== handle) return;
     dictateHandle.current = null;
     setListening(false);
-    if (!handle) return;
     try {
       const text = (await handle.finish()).text.trim();
       if (!text) { setDictateMsg(words.dictateUnheard); return; }
@@ -445,7 +444,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const toggleDictation = useCallback(() => {
     if (dictateBusy.current) return;
-    if (dictateHandle.current) { void finishDictation(); return; }
+    if (dictateHandle.current) { void finishDictation(dictateHandle.current); return; }
     dictateBusy.current = true;
     setDictateMsg(null);
     setHeard(null);
@@ -470,7 +469,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         dictateHandle.current = handle;
         setListening(true);
         // The on-device utterance ends itself on silence: its final text finishes the run.
-        handle.on('final', () => { void finishDictation(); });
+        handle.on('final', () => { void finishDictation(handle); });
       } catch (error) {
         const message = messageForDictationError(error);
         if (message) setDictateMsg(message);
