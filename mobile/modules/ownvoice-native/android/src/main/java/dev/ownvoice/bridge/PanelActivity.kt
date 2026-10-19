@@ -12,11 +12,11 @@ class PanelActivity : ReactActivity() {
   override fun onStart() {
     super.onStart()
     current = this
-    OwnvoiceService.instance?.panelOpen = true
+    OwnvoiceService.panelShown(true)
   }
 
   override fun onStop() {
-    OwnvoiceService.instance?.panelOpen = false
+    OwnvoiceService.panelShown(false)
     if (current === this) current = null
     super.onStop()
   }

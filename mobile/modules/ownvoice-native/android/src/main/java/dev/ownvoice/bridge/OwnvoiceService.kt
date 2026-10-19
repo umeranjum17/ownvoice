@@ -34,6 +34,7 @@ import io.github.umeranjum17.byokit.overlay.FieldIdentity
 import io.github.umeranjum17.byokit.overlay.FieldNode
 import io.github.umeranjum17.byokit.overlay.FieldSelection
 import io.github.umeranjum17.byokit.overlay.FocusedFields
+import io.github.umeranjum17.byokit.overlay.ForegroundApp
 import io.github.umeranjum17.byokit.overlay.InsertCancellation
 import io.github.umeranjum17.byokit.overlay.InsertOpts
 import io.github.umeranjum17.byokit.overlay.OverlayEvent
@@ -100,6 +101,11 @@ class OwnvoiceService : AccessibilityService() {
     /** Set while the setup's "Try it" step is in front, so the bubble works on Ownvoice's own practice chat. Never saved. */
     @Volatile var practice = false
     @Volatile var panelIsOpen = false
+    /** The panel or the rewrite sheet came or went. The flag clears even with no service attached, so a stop after an unbind can't keep the bubble hidden. */
+    fun panelShown(open: Boolean) {
+      panelIsOpen = open
+      instance?.panelOpen = open
+    }
     @Volatile var onInserted: ((Boolean, Boolean, Boolean) -> Unit)? = null
     @Volatile var onServiceChange: ((String) -> Unit)? = null
     /** "Check my spelling as I type": off unless the person switches it on in Home. */
@@ -167,6 +173,16 @@ class OwnvoiceService : AccessibilityService() {
   /** The kit's bubble, driven with no JavaScript running so it restores after a reboot or process death. */
   private var bubbles: ServiceBubble? = null
   private var unwatch: (() -> Unit)? = null
+  /** The app in front, from window-state events: the kit's poll missed Chrome coming forward. */
+  private var frontApp: String? = null
+  private val frontListeners = mutableListOf<(String?) -> Unit>()
+  private val front = object : ForegroundApp {
+    override val current: String? get() = frontApp
+    override fun onChange(fn: (String?) -> Unit): () -> Unit {
+      frontListeners += fn
+      return { frontListeners -= fn }
+    }
+  }
   private val typingPause = Runnable { typed() }
   private var typedApp: String? = null
   private var checkedText: String? = null
@@ -211,19 +227,21 @@ class OwnvoiceService : AccessibilityService() {
     typingCheck = prefs.getBoolean("typingCheck", false)
     synchronized(facts) { restoreFacts(this) }
     lastPrune = System.currentTimeMillis()
-    // The kit's window, foreground app, keyboard inset and focused field all ride this service.
+    // The kit's window, keyboard inset and focused field ride this service; the front app comes from its window events.
     ByokitAccessibility.attach(this)
+    // Bound while Chrome is already in front: no window event has come yet, so read the front app once.
+    frontApp = currentApp()
     if (bubbles == null) {
       val spots = PrefsSpotStore(this)
       migrateSpots(spots)
-      bubbles = ServiceBubble(::moodDrawable, spots, ::reducedMotion)
+      bubbles = ServiceBubble(::moodDrawable, spots, ::reducedMotion, foregroundNow = { front })
       bubbles?.events?.add { e -> when (e) {
         OverlayEvent.Tap -> onBubbleTap()
         else -> {}
       } }
     }
     unwatch?.invoke()
-    unwatch = ByokitAccessibility.foreground?.onChange { updateBubble() }
+    unwatch = front.onChange { updateBubble() }
     bubbles?.start(ServiceBubble.Config(mood = "idle", label = "Ownvoice", rules = effectiveRules(), perAppSpots = true))
     bubbles?.setLabel(if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice")
     instance = this
@@ -262,8 +280,24 @@ class OwnvoiceService : AccessibilityService() {
       synchronized(facts) { restoreFacts(this) }
       lastPrune = System.currentTimeMillis()
     }
-    // The bubble places itself from the kit's foreground/keyboard polling; typing is the only event Ownvoice acts on.
-    if (event.eventType == AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED) textChanged(event)
+    when (event.eventType) {
+      AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> windowFronted(event)
+      // Any window change re-reads the active app, so a service bound while Chrome was already in front is corrected by the next one.
+      AccessibilityEvent.TYPE_WINDOWS_CHANGED -> frontChanged(currentApp())
+      AccessibilityEvent.TYPE_VIEW_TEXT_CHANGED -> textChanged(event)
+    }
+  }
+
+  /** An app window came to the front. The keyboard, the shade and system dialogs don't count as the app in front. */
+  private fun windowFronted(event: AccessibilityEvent) {
+    if (windows.any { it.id == event.windowId && it.type == AccessibilityWindowInfo.TYPE_APPLICATION }) frontChanged(event.packageName?.toString())
+  }
+
+  private fun frontChanged(app: String?) {
+    if (app == null || app == frontApp) return
+    frontApp = app
+    Log.i(TAG, "front app=$app bubble=${effectiveRules().shows(app)}")
+    frontListeners.toList().forEach { it(app) }
   }
 
   /** The typing check, per keystroke: nothing but re-arming the pause. The box itself is read once, when the pause comes. */
@@ -347,7 +381,7 @@ class OwnvoiceService : AccessibilityService() {
 
   fun updateBubble() {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { updateBubble() }; return }
-    val app = ByokitAccessibility.foreground?.current ?: currentApp()
+    val app = frontApp
     // Another app in front drops the count; Ownvoice's own panel over it keeps it.
     if (limitedApp != null && app != limitedApp && !panelIsOpen) { limitedApp = null; bubbles?.setLabel("Ownvoice") }
     if (slipCount > 0 && app != slipApp && !panelIsOpen) showSlips(app.orEmpty(), 0, "")
