@@ -16,12 +16,13 @@ class OwnvoiceNativeModule : Module() {
   private val context get() = appContext.reactContext!!
   override fun definition() = ModuleDefinition {
     Name("OwnvoiceNative")
-    Events("onServiceChange", "onInserted", "onTyped")
+    Events("onServiceChange", "onInserted", "onTyped", "onDictate")
     OnCreate {
       OwnvoiceService.onInserted = { ok, newlinesLost, practice -> sendEvent("onInserted", mapOf("ok" to ok, "newlinesLost" to newlinesLost, "practice" to practice)) }
       OwnvoiceService.onServiceChange = { state -> sendEvent("onServiceChange", mapOf("state" to state)) }
+      Dictate.emit = { payload -> sendEvent("onDictate", payload) }
     }
-    OnDestroy { OwnvoiceService.onInserted = null; OwnvoiceService.onServiceChange = null; OwnvoiceService.onTyped = null }
+    OnDestroy { OwnvoiceService.onInserted = null; OwnvoiceService.onServiceChange = null; OwnvoiceService.onTyped = null; Dictate.emit = null; Dictate.teardown() }
     // A typing pause reaches JavaScript only while it listens; one that came first waits for the listener.
     OnStartObserving("onTyped") {
       OwnvoiceService.onTyped = { app, text -> sendEvent("onTyped", mapOf("app" to app, "text" to text)) }
@@ -139,6 +140,27 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("closePanel") { PanelActivity.current?.finish() }.runOnQueue(Queues.MAIN)
     // Developer diagnostics (logcat) that survive release minification, which strips console.*.
     Function("logDev") { line: String -> Log.d("Ownvoice", line.take(2000)) }
+    // On-device dictation for the panel mic: the kit's systemEngine port (Dictate.kt owns the recognizer).
+    AsyncFunction("dictateAvailable") { locale: String -> Dictate.available(context) }.runOnQueue(Queues.MAIN)
+    // Fresh on-device language verdict: ready, needs-download or unknown.
+    AsyncFunction("dictateSupport") Coroutine { locale: String -> Dictate.supportOf(context, locale.ifEmpty { java.util.Locale.getDefault().toLanguageTag() }) }
+    // Hide the full-screen transparent panel while Android's speech-pack confirmation is shown.
+    AsyncFunction("dictatePanelVisible") { visible: Boolean ->
+      PanelActivity.current?.window?.decorView?.visibility = if (visible) android.view.View.VISIBLE else android.view.View.INVISIBLE
+    }.runOnQueue(Queues.MAIN)
+    // Fire-and-forget pack download trigger; the panel polls dictateSupport for arrival.
+    AsyncFunction("dictateDownload") Coroutine { locale: String ->
+      Dictate.downloadPack(context, locale.ifEmpty { java.util.Locale.getDefault().toLanguageTag() })
+      "started"
+    }
+    AsyncFunction("dictateStart") { id: String, options: Map<String, Any?> ->
+      Dictate.start(context, id, options["locale"] as? String ?: "en-US",
+        options["partial"] as? Boolean ?: true, options["punctuation"] as? Boolean ?: true)
+    }.runOnQueue(Queues.MAIN)
+    AsyncFunction("dictateStop") { id: String -> Dictate.stop(id) }.runOnQueue(Queues.MAIN)
+    AsyncFunction("dictateCancel") { id: String -> Dictate.cancel(id) }.runOnQueue(Queues.MAIN)
+    // Debug-only proof hook: stage a recorded WAV for the next session (EXTRA_AUDIO_SOURCE).
+    AsyncFunction("dictateProofWav") { path: String -> Dictate.armProof(context, path) }.runOnQueue(Queues.MAIN)
     AsyncFunction("networkType") {
       val manager = context.getSystemService(android.net.ConnectivityManager::class.java)
       val caps = manager.getNetworkCapabilities(manager.activeNetwork)

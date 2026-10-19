@@ -20,12 +20,14 @@ import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
 import { isOtherWriterLine, retryLines, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
+import { armProofWav, ensureMic, ensurePack, dictateReady, listenForDictation, messageForDictationError, proofWavPath } from './dictate';
+import type { DictationHandle } from '@byokit/dictation';
 import { Card } from '../ui/Card';
 import { Empty } from '../ui/Empty';
 import { FitBar, fitBarVisible, fitFlag, fitHidesEngagement } from '../ui/FitBar';
 import { saveOutcome, type PanelMode } from '../core/store';
 import { LEVELS } from '../grow/fit';
-import { CheckIcon, ChevIcon, CopyIcon, OpenIcon, ShareIcon } from '../ui/icons';
+import { CheckIcon, ChevIcon, CopyIcon, MicIcon, OpenIcon, ShareIcon } from '../ui/icons';
 import { MeaningLine } from '../ui/MeaningLine';
 import { Marked } from '../ui/Marked';
 import { Placeholder } from '../ui/Placeholder';
@@ -190,6 +192,12 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   };
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
+  // Panel mic: tap to listen on this phone, tap again (or silence) to finish into the field.
+  const [listening, setListening] = useState(false);
+  const [heard, setHeard] = useState<string | null>(null);
+  const [dictateMsg, setDictateMsg] = useState<string | null>(null);
+  const dictateHandle = useRef<DictationHandle | null>(null);
+  const dictateBusy = useRef(false);
   const kind = useRef<{ message: boolean } | null>(null);
   const platformOf = useRef<Platform>(DEFAULT_PLATFORM);
   const postOf = useRef<string | null>(null);
@@ -342,7 +350,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       setWho(Judge.who(value.written));
       start(value);
     }).catch(() => { setPhase('failed'); setNote(words.noCapture); });
-    return () => { ++run.current; };
+    return () => { ++run.current; dictateHandle.current?.cancel(); dictateHandle.current = null; };
   }, [start]);
 
   // ---- Tone line (package 4): one batched writer call per tap names every shown text's tone; never per keystroke ----
@@ -417,6 +425,57 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     }).catch(() => { setNote(words.serviceOff); setPhase('failed'); return false; })
       .finally(() => { inserting.current = false; setInsertBusy(false); });
   };
+
+  const finishDictation = useCallback(async (handle: DictationHandle) => {
+    if (dictateHandle.current !== handle) return;
+    dictateHandle.current = null;
+    setListening(false);
+    try {
+      const text = (await handle.finish()).text.trim();
+      if (!text) { setDictateMsg(words.dictateUnheard); return; }
+      setDictateMsg(null);
+      setHeard(null);
+      await put(text);
+    } catch (error) {
+      const message = messageForDictationError(error);
+      if (message) setDictateMsg(message);
+    }
+  }, [put]);
+
+  const toggleDictation = useCallback(() => {
+    if (dictateBusy.current) return;
+    if (dictateHandle.current) { void finishDictation(dictateHandle.current); return; }
+    dictateBusy.current = true;
+    setDictateMsg(null);
+    setHeard(null);
+    void (async () => {
+      try {
+        // The mic is asked at first tap only; a missing recognizer or language pack
+        // answers now, so the tap never leaves a silent gap.
+        if (!(await ensureMic())) { setDictateMsg(words.dictateMic); return; }
+        const blocked = await dictateReady();
+        if (blocked) {
+          // A missing pack fetches itself instead of failing: keep plain progress
+          // until the recognizer is ready, then carry on to listening.
+          if (blocked !== words.dictateLanguage) { setDictateMsg(blocked); return; }
+          setDictateMsg(words.dictateSpeechReady);
+          if (!(await ensurePack())) { setDictateMsg(words.dictateLanguage); return; }
+          setDictateMsg(null);
+        }
+        // The silent proof run stages its WAV here; an unstageable path says so now.
+        const staged = proofWavPath();
+        if (staged && !(await armProofWav(staged))) { setDictateMsg(words.dictateUnavailable); return; }
+        const handle = listenForDictation(text => setHeard(text || null));
+        dictateHandle.current = handle;
+        setListening(true);
+        // The on-device utterance ends itself on silence: its final text finishes the run.
+        handle.on('final', () => { void finishDictation(handle); });
+      } catch (error) {
+        const message = messageForDictationError(error);
+        if (message) setDictateMsg(message);
+      } finally { dictateBusy.current = false; }
+    })();
+  }, [finishDictation]);
 
   // Only a verified insert advances the text and offsets used by the next Fix.
   const fixSlip = (slip: Typing.Slip) => {
@@ -533,6 +592,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       </Empty>
       : undefined}
     onCloseCover={() => setWhy(null)}>
+    {hasField ? <View style={styles.dictateRow}>
+      <IconButton icon={MicIcon} label={listening ? words.dictateStop : words.dictateListen} onPress={toggleDictation} />
+      <Text style={[type.body, { color: t.muted, flex: 1 }]}>{listening ? (heard || words.dictateListening) : dictateMsg ?? words.dictateListen}</Text>
+    </View> : null}
     {limited ? <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{words.typingLimited}</Text> : null}
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
     {yours && slips.length ? <View style={{ marginBottom: space.m }}>
@@ -614,6 +677,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
 const styles = StyleSheet.create({
   actions: { flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center', gap: space.s, marginTop: space.m, marginLeft: -space.xs },
+  dictateRow: { flexDirection: 'row', alignItems: 'center', gap: space.m, marginTop: space.m, marginBottom: space.m },
   quote: { flexDirection: 'row', gap: space.m, borderRadius: shape.card, padding: space.l },
   slip: { flexDirection: 'row', alignItems: 'center', gap: space.m, minHeight: 56, paddingVertical: space.s },
   slipText: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.s },

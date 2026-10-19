@@ -103,3 +103,8 @@ export function ShareIcon({ size, color }: Props) {
 export function SearchIcon({ size, color }: Props) {
   return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M4.5,10.5 a6,6 0 1 0 12,0 a6,6 0 1 0 -12,0 M15,15 l4.5,4.5" stroke={color} {...line} strokeWidth={2} /></Svg>;
 }
+
+// The panel mic: tap to listen, tap again to finish.
+export function MicIcon({ size, color }: Props) {
+  return <Svg width={size} height={size} viewBox="0 0 24 24"><Path d="M12,15.5 a3.5,3.5 0 0 0 3.5,-3.5 V6.5 a3.5,3.5 0 0 0 -7,0 V12 a3.5,3.5 0 0 0 3.5,3.5z M6.5,11.5 a5.5,5.5 0 0 0 11,0 M12,17 v3.5 M8.5,20.5 h7" stroke={color} {...line} /></Svg>;
+}

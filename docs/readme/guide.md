@@ -30,6 +30,10 @@ A draft shows no verdict until all the deeper checks have run. Even then, Ownvoi
 
 Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler**, **Fix spelling**, **Friendlier** or **Firmer**. **Copy** copies the version, then paste it where you like, or **Share this text** to choose where it goes. If a new version adds a time, a number or a fact you didn't write, it says **Check this**, and **Copy** and **Share this text** stay disabled while it shows. This works without the bubble's permission.
 
+## Speak instead of typing
+
+In the panel, tap the mic to listen, speak, then tap **Stop listening** (or go quiet, and Ownvoice finishes on its own). The words you said go into the field you were writing in, the same way **Insert** does. Recognition runs on this phone only. The first tap asks for the microphone; if this phone is missing its speech language pack, the phone's own download prompt appears first. When this phone can't listen in your language, or the microphone is refused, the panel says so.
+
 ## Your choice of writer
 
 Pick who writes your drafts, and change it any time. **On this phone** is private and free: nothing you read or write leaves the phone, and it works without internet. Phones that need it get a one-time download of about 2 to 3 GB, on Wi-Fi, and only after you say yes. **With your ChatGPT** and **With your Claude** use the plan you already pay for: sharper and usually quicker, but what's on screen goes to that service when you tap the bubble. **With your OpenRouter** uses a key you paste in, billed by OpenRouter as you use it; it appears only when the phone can use it. **With your OpenCode Go** uses the key your OpenCode Go plan gave you, billed as that plan rather than per use; it appears only when the phone can use it. If Claude's plan limit is reached, Ownvoice says when it resets and writes on the phone where it can.
@@ -57,6 +61,7 @@ Ownvoice reads the screen only when you tap its bubble, never in the background,
 
 - **On this phone**, nothing you read or write leaves the phone. Ownvoice has no server of its own.
 - **With your ChatGPT**, **With your Claude**, **With your OpenRouter** or **With your OpenCode Go**, the chat on screen, what you typed and your writing rules go to that service, only when you tap the bubble. Text you select and send to **Make it better** goes there too. Ownvoice keeps no copy.
+- **The microphone**, only after you tap the panel's mic and allow it: your speech is recognized on this phone and never sent anywhere. Ownvoice keeps no recording and no spoken words in **What Ownvoice read**.
 - **Check my spelling as I type** is off unless you switch it on in Home. When it's on, Ownvoice also reads the message box you're typing in each time you stop typing for a moment, in apps you switched on, and a number on the bubble shows how many things look worth checking: spelling, common slips like "its" for "it's", and stock phrases. The check runs on the phone, even when you chose ChatGPT: nothing you type goes anywhere, nothing is kept, and these checks don't show up in What Ownvoice read. Tap the bubble to see them; each has its own **Fix**, and nothing changes until you tap it.
 - **What Ownvoice read** lists every tap: the app, the time and what it helped with, never your text. It stays on the phone, each entry is deleted after 30 days, and **Wipe everything** clears it at once, along with Your voice, saved reply records (including check-in answers), the reply-text saving choice, and your growth counts.
 
