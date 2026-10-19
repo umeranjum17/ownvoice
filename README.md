@@ -74,7 +74,7 @@ You know what you want to say. Sometimes it just needs a little tidying. Ownvoic
 2. **Allow the bubble.** Open Ownvoice, choose how it writes, then tap **Turn on** and switch on **Use Ownvoice**.
 3. **Try it in a chat.** Start with the practice chat, then choose where the bubble shows. Write a reply, tap the bubble, and pick the version you like.
 
-Switch greyed out? Open Ownvoice's **App info**, tap **⋮**, choose **Allow restricted settings**, and try again. Step-by-step help is in the [user guide](docs/readme/guide.md#get-started).
+Switch greyed out? Open Ownvoice's **App info**, tap **⋮**, choose **Allow restricted settings**, and try again. On OPPO, OnePlus or Realme phones, also add Ownvoice to the security app's allowlist ([how](docs/readme/guide.md#download-and-install)). Step-by-step help is in the [user guide](docs/readme/guide.md#get-started).
 
 Want to build it yourself? See [Build and run](mobile/README.md#android-build-and-device-checks).
 
