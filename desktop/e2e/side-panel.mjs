@@ -73,6 +73,7 @@ const sidePanelState = async (ctx, url) => {
 };
 const windows = async scheme => {
   const ctx = await chromium.launchPersistentContext(join(tmp, `w-${scheme}`), { headless: false, colorScheme: scheme, viewport: null, args: ['--window-position=0,0', '--window-size=1600,900', '--force-device-scale-factor=1', '--ozone-platform=x11', `--blink-settings=preferredColorScheme=${scheme === 'dark' ? 0 : 1}`, `--disable-extensions-except=${dist}`, `--load-extension=${dist}`, `--host-resolver-rules=MAP x.com 127.0.0.1:${PORT}`, '--ignore-certificate-errors', '--no-first-run'] });
+  ctx.on('request', r => { if (!r.url().startsWith('chrome-extension://') && !r.url().startsWith('data:')) remote.push(r.url()); });
   try {
     const sw = ctx.serviceWorkers()[0] ?? await ctx.waitForEvent('serviceworker');
     const extension = `chrome-extension://${new URL(sw.url()).host}`;
