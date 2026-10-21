@@ -27,6 +27,7 @@ async function askPolish(prompt: string, maxTokens: number, run: number, callNo:
     : prompt.includes('Their text came back unchanged') ? 'rewrite-again'
     : prompt.includes('Rewrite each row of THEIR text') ? 'layout-retry' : 'rewrite';
   const started = Date.now();
+  devlog(`Ownvoice polish-call-start run=${run} n=${callNo} kind=${kind}`);
   try {
     const answer = await ask(prompt, maxTokens);
     devlog(`Ownvoice polish-call run=${run} n=${callNo} kind=${kind} ms=${Date.now() - started} chars=${answer.length}`);
