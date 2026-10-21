@@ -57,6 +57,19 @@ describe('askComputer read-log send mark', () => {
     expect(sent).not.toHaveBeenCalled();
   });
 
+  it('a grant that cannot be read is named as not asked and nothing is queued', async () => {
+    await forgetComputer();
+    mockLink.request.mockClear();
+    const sent = jest.fn(async () => {});
+    mockLoad.next = async () => { throw new Error('keychain unavailable'); };
+    const refused = await askComputer('i', 'p', undefined, passGate, sent).catch((error: unknown) => error);
+    mockLoad.next = async () => ({ hostName: 'Desk' });
+    expect(refused).toBeInstanceOf(SendVeto);
+    expect((refused as Error).message).toBe(words.computerUnasked);
+    expect(mockLink.request).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
+  });
+
   it('re-checks consent at dispatch when the link is still loading', async () => {
     await forgetComputer();
     mockLink.status = 'online';

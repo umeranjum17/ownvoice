@@ -117,7 +117,7 @@ async function computerRoute(app: string, practice: boolean): Promise<WriterRout
     beforeSend: async () => {
       if ((await getSource()) !== 'computer' || !allowed(await Native.bubbleRules().catch(() => null))) throw new SendVeto(words.computerUnasked);
       await switchAllows('computer');
-      if (!(await require('../computer/link').computerName())) throw new SendVeto(words.computerUnasked);
+      if (!(await require('../computer/link').computerName().catch(() => null))) throw new SendVeto(words.computerUnasked);
       return true;
     },
     beforeFetch: () => {
