@@ -319,6 +319,7 @@ test('a point-check transport failure shows its real message after no usable rew
   jest.requireMock('../../core/polish').canPolish.mockRejectedValueOnce(new Error('9'));
   await expect(phoneWriter.write(request({ typed }))).rejects.toThrow(words.busy);
   expect(mockAsk).toHaveBeenCalled();
+  expect(mockAsk.mock.calls[0][0]).toContain(typed);
 });
 
 test('download does not spend the reply-fill window', async () => {
@@ -420,6 +421,7 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
   expect(drafts).toHaveLength(3);
   const [prompt, maxTokens] = mockAsk.mock.calls[0];
   expect(prompt).toContain('Tighter:');
+  expect(mockAsk.mock.calls.some(([asked]) => asked.includes('{"versions":["...","..."]}'))).toBe(false);
   expect(prompt).not.toContain('Light touch:');
   expect(prompt).toContain('Their text:\ni shoud bring the stove, super excited');
   expect(prompt).toContain("Don't add long dashes (—).");
@@ -438,7 +440,28 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
   expect(drafts).toHaveLength(2);
   expect(drafts[0]).toBe('Stove split.\n1. I bring the stove.\n2. Tent is yours.');
+  expect(mockAsk.mock.calls[0][0]).toContain('Tighter:');
   for (const draft of drafts) { expect(draft).toMatch(/1\. /); expect(draft).toMatch(/2\. /); }
+});
+
+test('the phone asks its version slots first, one call at a time, and the first card lands before the second call starts', async () => {
+  let inFlight = 0; let overlap = false; const order: string[] = [];
+  mockAsk.mockImplementation(async (prompt: string) => {
+    overlap = overlap || inFlight > 0; inFlight++;
+    order.push(prompt.includes('Tighter:') ? 'tighter' : 'first');
+    await new Promise(resolve => setTimeout(resolve, 5));
+    inFlight--;
+    return prompt.includes('Tighter:') ? 'Bring the stove, excited.' : 'I will bring the stove; I am excited.';
+  });
+  const landed: number[] = []; const askedAtLanding: number[] = [];
+  const { drafts } = await phoneWriter.write(request({ typed: 'i shoud bring the stove, super excited' }), { landed: (_text, slot) => { landed.push(slot); askedAtLanding.push(mockAsk.mock.calls.length); } });
+  expect(order.slice(0, 2)).toEqual(['tighter', 'first']);
+  expect(overlap).toBe(false);
+  expect(mockAsk.mock.calls[0][0]).not.toContain('{"versions"');
+  expect(landed).toContain(1);
+  expect(askedAtLanding[landed.indexOf(1)]).toBe(1);
+  expect(drafts.length).toBeGreaterThanOrEqual(2);
+  mockAsk.mockReset();
 });
 
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
