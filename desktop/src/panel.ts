@@ -1,10 +1,10 @@
 import { platformFor } from './platform.ts';
-import { readPost } from './read.ts';
+import { readPost, type Post } from './read.ts';
 import { SELECTORS } from './selectors.ts';
 
 const $ = (id: string) => document.getElementById(id)!;
 
-function show(note: string, detail: string, post?: { author: string; text: string; composer: boolean }) {
+function show(note: string, detail: string, post?: Post) {
   $('note').hidden = !!post;
   $('note-title').textContent = note;
   $('note-detail').textContent = detail;
