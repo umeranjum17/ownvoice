@@ -12,9 +12,10 @@ jest.mock('@byokit/pair', () => ({
 }));
 
 import { askComputer } from '../link';
+import { words } from '../../core/words';
 
 describe('askComputer read-log send mark', () => {
-  it('marks sent before the reply when the computer is online', async () => {
+  it('marks sent after dispatch and before the reply when the computer is online', async () => {
     mockLink.status = 'online';
     const order: string[] = [];
     mockLink.request.mockImplementationOnce(() => { order.push('request'); return Promise.resolve({ text: 'hi' }); });
@@ -23,19 +24,20 @@ describe('askComputer read-log send mark', () => {
     expect(order).toEqual(['request', 'sent']);
   });
 
-  it('keeps the log unmarked when the computer is unreachable and the request fails', async () => {
-    mockLink.status = 'offline';
+  it('marks sent when an online computer times out after the frame went out', async () => {
+    mockLink.status = 'online';
     mockLink.request.mockImplementationOnce(() => Promise.reject(new Error('timeout')));
     const sent = jest.fn(async () => {});
     await expect(askComputer('i', 'p', undefined, sent)).rejects.toThrow('timeout');
-    expect(sent).not.toHaveBeenCalled();
+    expect(sent).toHaveBeenCalledTimes(1);
   });
 
-  it('marks sent when an unreachable computer answers', async () => {
+  it('refuses an offline computer before queueing the request and leaves the log unmarked', async () => {
     mockLink.status = 'offline';
-    mockLink.request.mockImplementationOnce(() => Promise.resolve({ text: 'hi' }));
+    mockLink.request.mockClear();
     const sent = jest.fn(async () => {});
-    expect(await askComputer('i', 'p', undefined, sent)).toBe('hi');
-    expect(sent).toHaveBeenCalledTimes(1);
+    await expect(askComputer('i', 'p', undefined, sent)).rejects.toThrow(words.computerProblem);
+    expect(mockLink.request).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
   });
 });

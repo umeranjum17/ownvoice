@@ -30,11 +30,10 @@ export async function askComputer(instructions: string, input: string, signal: A
     if (!grant) throw new Error(words.computerNone);
     live = new DeviceLink(grant, { store: kept });
   }
-  const online = live.status === 'online';
+  if (live.status !== 'online') throw new Error(words.computerProblem);
   const asked = live.request('write', { instructions, input }, { timeoutMs: 30_000 }) as Promise<{ text?: string }>;
-  if (online) await onSent();
+  await onSent();
   const reply = await asked;
-  if (!online) await onSent();
   if (signal?.aborted) throw signal.reason ?? new Error('aborted');
   if (!reply?.text) throw new Error(words.computerFailed);
   return reply.text;
