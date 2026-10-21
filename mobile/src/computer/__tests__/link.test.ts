@@ -30,6 +30,13 @@ describe('askComputer read-log send mark', () => {
     expect(order).toEqual(['request', 'sent']);
   });
 
+  it('waits for a link that is still connecting, then sends', async () => {
+    mockLink.status = 'connecting';
+    setTimeout(() => { mockLink.status = 'online'; }, 250);
+    mockLink.request.mockImplementationOnce(() => Promise.resolve({ text: 'hi' }));
+    expect(await askComputer('i', 'p', undefined, passGate, async () => {})).toBe('hi');
+  });
+
   it('marks sent when an online computer times out after the frame went out', async () => {
     mockLink.status = 'online';
     mockLink.request.mockImplementationOnce(() => Promise.reject(new Error('timeout')));

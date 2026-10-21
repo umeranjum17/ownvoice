@@ -41,6 +41,8 @@ function connect(): Promise<DeviceLink | null> {
 export async function askComputer(instructions: string, input: string, signal: AbortSignal | undefined, gate: () => Promise<void>, onSent: () => Promise<void>): Promise<string> {
   const live = await connect();
   if (!live) throw new Error(words.computerNone);
+  // A link just made (the first tap after the app starts) is still dialling: give it a few seconds to come online. One that is offline is refused, never queued.
+  for (let waited = 0; live.status === 'connecting' && waited < 5000; waited += 100) await new Promise((done) => setTimeout(done, 100));
   await gate();
   if (live.status !== 'online') throw new Error(words.computerProblem);
   const asked = live.request('write', { instructions, input }, { timeoutMs: 95_000 }) as Promise<{ text?: string }>;
