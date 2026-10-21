@@ -158,16 +158,13 @@ try {
   // Setup to the ChatGPT choice (same walk as e2e/first-run.mjs steps 1-2: on an
   // emulator no phone writer exists, so the choice offers ChatGPT sign-in inline).
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
-  try { await waitForLine('replies that sound', 30); } catch (error) {
+  try { await waitForLine('replies that sound', 150); } catch (error) {
     if (!/respond/.test(screenText())) throw error; // Cold-boot ANR: let it finish loading.
     await tapText('wait');
     await waitForLine('replies that sound');
   }
-  // A cold-boot frame can swallow the first press, so tap again until the step shows.
-  for (let attempt = 0; attempt < 3; attempt++) {
-    await tapText('Continue');
-    try { await waitForLine('how should ownvoice write', 10); break; } catch (error) { if (attempt === 2) throw error; }
-  }
+  await tapText('Continue');
+  await waitForLine('how should ownvoice write', 150); // A loaded host takes minutes; no second tap, it could land on the launcher.
   await waitForLine('with your chatgpt');
   snap('signin-01-choose');
 
@@ -178,14 +175,14 @@ try {
   await tapText('Continue').catch(() => tapText('Sign in'));
   if (pageMode) {
     // One button in the app (the tap above), then one approval on ChatGPT's page: no code anywhere.
-    await waitForLine('asks to use');
+    await waitForLine('asks to use', 150);
     if (screenText().includes('your code')) throw new Error('A code is on screen.');
     snap('signin-02-page');
     await tapText('Close');
     await waitForLine('nothing to type');
     snap('signin-03-card');
     await tapText('Open the ChatGPT');
-    await waitForLine('asks to use');
+    await waitForLine('asks to use', 150);
     await tapText('Approve'); // the one tap on the page
     await waitForLine('chatgpt is connected');
     snap('signin-06-connected');
