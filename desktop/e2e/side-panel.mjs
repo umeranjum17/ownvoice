@@ -18,6 +18,7 @@ try {
 } catch (e) { rmSync(tmp, { recursive: true, force: true }); throw e; }
 const fails = []; const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${what}`); if (!ok) fails.push(what); };
 const remote = [];
+const SHIPPED = 'Shipped the reply flow end to end today';
 const run = async scheme => {
   const ctx = await chromium.launchPersistentContext(join(tmp, `p-${scheme}`), { headless: false, colorScheme: scheme, args: ['--headless=new', `--disable-extensions-except=${dist}`, `--load-extension=${dist}`, `--host-resolver-rules=MAP x.com 127.0.0.1:${PORT}`, '--ignore-certificate-errors'] });
   ctx.on('request', r => { if (!r.url().startsWith('chrome-extension://') && !r.url().startsWith('data:')) remote.push(r.url()); });
@@ -34,7 +35,6 @@ const run = async scheme => {
       const text = await panel.evaluate(() => document.body.innerText);
       return text;
     };
-    const SHIPPED = 'Shipped the reply flow end to end today';
     const post = await read('/umer/status/42');
     check(post.includes(SHIPPED) && post.includes('Umer'), `${scheme}: panel shows the post it read and its author`);
     check(!post.includes('Earlier post in the thread') && !post.includes('The plan we set on Monday'), `${scheme}: thread parent and quoted post are not read as the post`);
@@ -56,17 +56,38 @@ const run = async scheme => {
   } finally { await ctx.close(); }
 };
 // Evidence: the whole Chrome window (post page on the left, the real side panel on the right), grabbed from the X display (run under xvfb-run, 1600x900).
+const sidePanelState = async (ctx, url) => {
+  const cdp = await ctx.browser().newBrowserCDPSession();
+  try {
+    const target = (await cdp.send('Target.getTargets')).targetInfos.find(t => t.url === url);
+    if (!target) throw new Error('side panel page not found in the window');
+    const { sessionId } = await cdp.send('Target.attachToTarget', { targetId: target.targetId, flatten: false });
+    const pending = new Map(); let id = 0;
+    cdp.on('Target.receivedMessageFromTarget', e => { if (e.sessionId === sessionId) pending.get(JSON.parse(e.message).id)?.(JSON.parse(e.message)); });
+    const call = (method, params) => new Promise(resolve => { const i = ++id; pending.set(i, resolve); cdp.send('Target.sendMessageToTarget', { sessionId, message: JSON.stringify({ id: i, method, params }) }); });
+    const reply = await call('Runtime.evaluate', { expression: "({ text: document.body.innerText, dark: matchMedia('(prefers-color-scheme: dark)').matches })", returnByValue: true });
+    await cdp.send('Target.detachFromTarget', { sessionId });
+    if (reply.result.exceptionDetails) throw new Error(`side panel read failed: ${reply.result.exceptionDetails.text}`);
+    return reply.result.result.value;
+  } finally { await cdp.detach(); }
+};
 const windows = async scheme => {
   const ctx = await chromium.launchPersistentContext(join(tmp, `w-${scheme}`), { headless: false, colorScheme: scheme, viewport: null, args: ['--window-position=0,0', '--window-size=1600,900', '--force-device-scale-factor=1', '--ozone-platform=x11', `--blink-settings=preferredColorScheme=${scheme === 'dark' ? 0 : 1}`, `--disable-extensions-except=${dist}`, `--load-extension=${dist}`, `--host-resolver-rules=MAP x.com 127.0.0.1:${PORT}`, '--ignore-certificate-errors', '--no-first-run'] });
   try {
     const sw = ctx.serviceWorkers()[0] ?? await ctx.waitForEvent('serviceworker');
+    const extension = `chrome-extension://${new URL(sw.url()).host}`;
     const tab = await ctx.newPage(); await tab.goto('https://x.com/umer/status/42');
-    const opener = await ctx.newPage(); await opener.goto(`chrome-extension://${new URL(sw.url()).host}/panel.html`); // a page of the extension, so the panel can be opened with a user gesture
-    await (await ctx.newCDPSession(opener)).send('Runtime.evaluate', { expression: 'chrome.windows.getCurrent().then(w => chrome.sidePanel.open({ windowId: w.id }))', awaitPromise: true, userGesture: true });
+    const opener = await ctx.newPage(); await opener.goto(`${extension}/panel.html`); // a page of the extension, so the panel can be opened with a user gesture
+    const opened = await (await ctx.newCDPSession(opener)).send('Runtime.evaluate', { expression: "chrome.tabs.query({ url: 'https://x.com/*' }).then(([t]) => chrome.sidePanel.open({ windowId: t.windowId }))", awaitPromise: true, userGesture: true });
+    if (opened.exceptionDetails) throw new Error(`side panel did not open: ${opened.exceptionDetails.text}`);
     await opener.close();
     for (const [name, path] of [['post', '/umer/status/42'], ['notext', '/umer/status/42?case=notext']]) {
       await tab.goto(`https://x.com${path}`); await tab.bringToFront(); await tab.waitForTimeout(2500);
-      execFileSync('import', ['-window', 'root', join(out, `window-${name}-${scheme}.png`)]);
+      const { text, dark } = await sidePanelState(ctx, `${extension}/panel.html`);
+      const content = name === 'post' ? text.includes(SHIPPED) && text.includes('The post I read') : text.includes('Nothing to reply to yet') && !text.includes('The post I read');
+      const shown = content && dark === (scheme === 'dark');
+      check(shown, `${scheme}: side panel shows the ${name} state in the ${scheme} colour scheme before its window shot`);
+      if (shown) execFileSync('import', ['-window', 'root', join(out, `window-${name}-${scheme}.png`)]);
     }
   } finally { await ctx.close(); }
 };
