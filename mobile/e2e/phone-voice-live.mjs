@@ -578,7 +578,8 @@ if (mode === 'recon') {
   const cases = JSON.parse(readFileSync(resolve(dirname(fileURLToPath(import.meta.url)), 'phone-writer-cases.json'), 'utf8'));
   const CARD_TAG = /^(agree|push back, kindly|ask a question|answer|disagree|ask for a detail)$/i;
   const STRAY = /Skip\.|good practice|Couldn't polish|undefined|null|\[|\]|```|[{}]/i;
-  const PANEL = /Suggested replies|Polish your/i;
+  // OCR often garbles the header ("Folishyourpost") or the crop cuts it off; the panel's own "Writing..." and "Listen" lines also mean it is open.
+  const PANEL = /Suggested replies|Polish your|^Writing\.\.\./im;
   const READY = /Pick one to/i;
   const FAILED = /Couldn't polish|went wrong|no-answer|offline|limit reached/i;
   // The panel header sits at about 24% of the height on this phone; a crop that starts at 30% cuts it off.
@@ -709,7 +710,7 @@ if (mode === 'recon') {
         try { await replyRun(cases.replies[i], i); } catch (e) { record({ kind: 'reply', i, error: String(e.message).slice(0, 200) }); }
       }
     }
-    for (let i = 0; i < cases.polishes.length; i++) {
+    for (let i = 0; i < Math.min(cases.polishes.length, Number(process.env.OV_POLISH_COUNT ?? cases.polishes.length)); i++) {
       try { await polishRun(cases.polishes[i], i); } catch (e) { record({ kind: 'polish', i, error: String(e.message).slice(0, 200) }); }
     }
   } finally {

@@ -21,7 +21,15 @@ jest.mock('../../core/localModel', () => ({
   getLocalModel: jest.fn(() => ({ state: { phase: 'installing' } })),
   localModelState: jest.fn(),
   agreedToDownload: jest.fn(),
-  askLocal: jest.fn(),
+  // The phone asks each polish version on its own; these tests script one combined {"versions":[...]} answer,
+  // so a per-version prompt gets its own entry of that list.
+  askLocal: new Proxy(jest.fn(), {
+    apply: async (target, _this, args: [string, ...unknown[]]) => {
+      const answer = await (target as (...a: unknown[]) => unknown)(...args);
+      if (typeof answer !== 'string' || !args[0].includes('Return one version of THEIR text.') || !/^\s*\{\s*"versions"/.test(answer)) return answer;
+      return (JSON.parse(answer).versions as string[])[args[0].includes('Tighter:') ? 0 : 1] ?? '';
+    },
+  }),
   installLocalModel: jest.fn(),
   removeLocalModel: jest.fn(),
 }));
@@ -305,10 +313,13 @@ test('a hard failure surfaces as plain words', async () => {
   await expect(phoneWriter.write(request())).rejects.toThrow(words.busy);
 });
 
-test('a point-check transport failure shows its real message, not the no-clear panel', async () => {
+test('a point-check transport failure shows its real message after no usable rewrite', async () => {
+  const typed = 'asdf qwer zxcv jkl';
+  mockAsk.mockResolvedValue(typed);
   jest.requireMock('../../core/polish').canPolish.mockRejectedValueOnce(new Error('9'));
-  await expect(phoneWriter.write(request({ typed: 'send me the file' }))).rejects.toThrow(words.busy);
-  expect(mockAsk).not.toHaveBeenCalled();
+  await expect(phoneWriter.write(request({ typed }))).rejects.toThrow(words.busy);
+  expect(mockAsk).toHaveBeenCalled();
+  expect(mockAsk.mock.calls[0][0]).toContain(typed);
 });
 
 test('download does not spend the reply-fill window', async () => {
@@ -371,10 +382,10 @@ test('a phone still getting ready is waited for without recording a yes', async 
 test('phone polish declines UNCLEAR keyboard mash only when the writer hands back nothing usable', async () => {
   jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
   const typed = 'asdf qwer zxcv jkl';
-  mockAsk.mockResolvedValueOnce('UNCLEAR').mockImplementation(async prompt => prompt.includes('Answer only MASH or WORDS') ? 'MASH' : JSON.stringify({ versions: [typed, typed] }));
+  mockAsk.mockImplementation(async prompt => prompt.startsWith('Does the text below say') ? 'UNCLEAR' : prompt.includes('Answer only MASH or WORDS') ? 'MASH' : JSON.stringify({ versions: [typed, typed] }));
   const landed = jest.fn();
   expect(await phoneWriter.write(request({ typed }), { landed })).toEqual({ drafts: [], declined: true });
-  expect(mockAsk.mock.calls[0][0]).toContain(typed);
+  expect(mockAsk.mock.calls.some(([prompt]) => prompt.startsWith('Does the text below say'))).toBe(true);
   expect(landed).not.toHaveBeenCalled();
   mockAsk.mockReset();
 });
@@ -387,7 +398,7 @@ test.each([
   ['**UNCLEAR**.', 'see you at 6', false],
 ])('phone polish with nothing usable reads the point check answer %j on %j (unclear message: %s)', async (verdict, typed, declined) => {
   jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
-  mockAsk.mockResolvedValueOnce(verdict).mockImplementation(async prompt => prompt.includes('Answer only MASH or WORDS') ? (typed.includes('asdf') ? 'MASH' : 'WORDS') : JSON.stringify({ versions: [typed, typed] }));
+  mockAsk.mockImplementation(async prompt => prompt.startsWith('Does the text below say') ? verdict : prompt.includes('Answer only MASH or WORDS') ? (typed.includes('asdf') ? 'MASH' : 'WORDS') : JSON.stringify({ versions: [typed, typed] }));
   expect(!!(await phoneWriter.write(request({ typed }))).declined).toBe(declined);
   mockAsk.mockReset();
 });
@@ -395,7 +406,7 @@ test.each([
 test('phone polish shows usable versions even when the point check says UNCLEAR', async () => {
   jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
   const typed = 'hey can u send me the file when u get a sec thx';
-  mockAsk.mockResolvedValueOnce('UNCLEAR').mockResolvedValue(JSON.stringify({ versions: ['Could you send me the file when you get a second? Thanks.', typed] }));
+  mockAsk.mockResolvedValue(JSON.stringify({ versions: ['Could you send me the file when you get a second? Thanks.', typed] }));
   const landed = jest.fn();
   const result = await phoneWriter.write(request({ typed }), { landed });
   expect(result.declined).toBeFalsy();
@@ -409,7 +420,8 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
   const { drafts } = await phoneWriter.write(request({ typed: 'i shoud bring the stove, super excited' }), { landed: (text, slot, label) => landed.push([text, slot, label]) });
   expect(drafts).toHaveLength(3);
   const [prompt, maxTokens] = mockAsk.mock.calls[0];
-  expect(prompt).toContain('{"versions":["...","..."]}');
+  expect(prompt).toContain('Tighter:');
+  expect(mockAsk.mock.calls.some(([asked]) => asked.includes('{"versions":["...","..."]}'))).toBe(false);
   expect(prompt).not.toContain('Light touch:');
   expect(prompt).toContain('Their text:\ni shoud bring the stove, super excited');
   expect(prompt).toContain("Don't add long dashes (—).");
@@ -427,9 +439,29 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
   expect(drafts).toHaveLength(2);
-  expect(drafts[0]).toBe('Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.');
+  expect(drafts[0]).toBe('Stove split.\n1. I bring the stove.\n2. Tent is yours.');
+  expect(mockAsk.mock.calls[0][0]).toContain('Tighter:');
   for (const draft of drafts) { expect(draft).toMatch(/1\. /); expect(draft).toMatch(/2\. /); }
-  expect(mockAsk).toHaveBeenCalledTimes(3);
+});
+
+test('the phone asks its version slots first, one call at a time, and the first card lands before the second call starts', async () => {
+  let inFlight = 0; let overlap = false; const order: string[] = [];
+  mockAsk.mockImplementation(async (prompt: string) => {
+    overlap = overlap || inFlight > 0; inFlight++;
+    order.push(prompt.includes('Tighter:') ? 'tighter' : 'first');
+    await new Promise(resolve => setTimeout(resolve, 5));
+    inFlight--;
+    return prompt.includes('Tighter:') ? 'Bring the stove, excited.' : 'I will bring the stove; I am excited.';
+  });
+  const landed: number[] = []; const askedAtLanding: number[] = [];
+  const { drafts } = await phoneWriter.write(request({ typed: 'i shoud bring the stove, super excited' }), { landed: (_text, slot) => { landed.push(slot); askedAtLanding.push(mockAsk.mock.calls.length); } });
+  expect(order.slice(0, 2)).toEqual(['tighter', 'first']);
+  expect(overlap).toBe(false);
+  expect(mockAsk.mock.calls[0][0]).not.toContain('{"versions"');
+  expect(landed).toContain(1);
+  expect(askedAtLanding[landed.indexOf(1)]).toBe(1);
+  expect(drafts.length).toBeGreaterThanOrEqual(2);
+  mockAsk.mockReset();
 });
 
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
@@ -466,7 +498,7 @@ test('only writer evidence of unchanged text marks an already-minimal list uncha
 });
 
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
-  mockAsk.mockResolvedValueOnce('{"versions":["Yours — dashed","Yours — dashed, kept."]}')
+  mockAsk.mockResolvedValueOnce('Yours — dashed').mockResolvedValueOnce('Yours — dashed, kept.')
     .mockResolvedValue('Yours — dashed');
   const { drafts } = await phoneWriter.write(request({ typed: 'Yours — dashed', dashes: 'keep' }));
   expect(drafts).toEqual(['Yours — dashed, kept.']);

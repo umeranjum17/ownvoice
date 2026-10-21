@@ -6,7 +6,7 @@ import { words } from '../core/words';
 import { canPolish, polishAcceptor, polishVersions } from '../core/polish';
 import { acceptReplies, latestMessage, phoneReplyPrompt, phoneSlotPrompt, slotsFor } from '../core/drafts';
 import { versionsList } from '../core/judge';
-import type { Choice, DraftRequest, Writer, WriterEvents } from '../core/writers';
+import { devlog, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 // Demo fixture drafts live in their own module so normal bundles carry none of them: the
 // constant-false branch drops the require (as app/agent.tsx drops the lab screen).
 const demoStubs = process.env.EXPO_PUBLIC_DEMO_PLATFORM === '1' ? require('./demoStubs') as typeof import('./demoStubs') : null;
@@ -22,23 +22,47 @@ async function ask(prompt: string, maxTokens: number): Promise<string> {
   return askLocal(prompt, maxTokens);
 }
 
+async function askPolish(prompt: string, maxTokens: number, run: number, callNo: number): Promise<string> {
+  const kind = prompt.startsWith('Does the text below say') ? 'point-check'
+    : prompt.includes('Their text came back unchanged') ? 'rewrite-again'
+    : prompt.includes('Rewrite each row of THEIR text') ? 'layout-retry' : 'rewrite';
+  const started = Date.now();
+  devlog(`Ownvoice polish-call-start run=${run} n=${callNo} kind=${kind}`);
+  try {
+    const answer = await ask(prompt, maxTokens);
+    devlog(`Ownvoice polish-call run=${run} n=${callNo} kind=${kind} ms=${Date.now() - started} chars=${answer.length}`);
+    return answer;
+  } catch (error) {
+    devlog(`Ownvoice polish-call run=${run} n=${callNo} kind=${kind} ms=${Date.now() - started} error=${errorCode(error)}`);
+    throw error;
+  }
+}
+
 /** Polish and compose: the C2 rewrite, streamed as versions land, with layout kept and near-duplicates dropped. */
 async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> {
   // A new post's one-line topic is asked too: the point check counts a line about a post as clear.
   // Its verdict is advisory: polishVersions still asks for versions; with none usable, only UNCLEAR keyboard mash is declined.
-  const clear = await canPolish(request.typed, prompt => ask(prompt, 8)).catch(error => {
-    if (error instanceof Error && error.message === words.noVersions) return false;
-    throw error;
-  });
-  return polishVersions(ask, {
+  const run = Date.now();
+  let callNo = 0;
+  devlog(`Ownvoice polish-run start=${run} chars=${request.typed.length}`);
+  const outcome = await polishVersions((prompt, maxTokens) => askPolish(prompt, maxTokens, run, ++callNo), {
     typed: request.typed,
     conversation: request.conversation,
     guide: request.guide ?? '',
     dashes: request.dashes ?? 'remove',
     platform: request.platform,
     avoid: request.avoid ?? [],
-    clear,
-  }, on.landed ?? (() => {}));
+    slotsFirst: true,
+    clear: () => canPolish(request.typed, prompt => ask(prompt, 8)).catch(error => {
+      if (error instanceof Error && error.message === words.noVersions) return false;
+      throw error;
+    }),
+  }, (text, slot, label) => {
+    devlog(`Ownvoice polish-card run=${run} slot=${slot} accepted=1`);
+    on.landed?.(text, slot, label);
+  });
+  devlog(`Ownvoice polish-result run=${run} calls=${callNo} cards=${outcome.drafts.length} declined=${!!outcome.declined}`);
+  return outcome;
 }
 
 /** Replies: one numbered call, then one retry per empty slot within 8 s of its answer. */

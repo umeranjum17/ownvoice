@@ -96,7 +96,9 @@ export type PolishRequest = {
   platform?: Parameters<typeof rewrite>[6];
   avoid: string[];
   /** The point check's verdict (canPolish). Advisory on the phone: only UNCLEAR keyboard mash with no usable version is declined. */
-  clear: boolean;
+  clear: boolean | Promise<boolean> | (() => Promise<boolean>);
+  /** Ask each version in its own short call, skipping the one combined call: the phone's model answers the combined call without a usable list. */
+  slotsFirst?: boolean;
 };
 export type PolishOutcome = { drafts: string[]; unchanged?: boolean; declined?: boolean };
 
@@ -125,7 +127,7 @@ export async function polishVersions(
     const slot = versionsList.findIndex(v => v.name === version.name);
     const clean = acceptor.accept(text, slot, version.label);
     if (clean != null) landed(clean, slot, version.label);
-  }, request.dashes, request.platform);
+  }, request.dashes, request.platform, request.slotsFirst);
   await writeAll('');
   if (acceptor.unchanged) await writeAll(DIFFERENT_WORDS);
   // Retry each missing writer slot, including an echo when its sibling already landed.
@@ -146,6 +148,6 @@ export async function polishVersions(
     if (fixed != null) landed(fixed, slot, version.label);
   }
   const drafts = acceptor.results.sort((a, b) => a.slot - b.slot).map(r => r.text);
-  if (!drafts.length && !request.clear && await isKeyboardMash(request.typed, ask).catch(() => false)) return { drafts: [], declined: true };
+  if (!drafts.length && !(await (typeof request.clear === 'function' ? request.clear() : request.clear)) && await isKeyboardMash(request.typed, ask).catch(() => false)) return { drafts: [], declined: true };
   return { drafts, unchanged: acceptor.unchanged };
 }
