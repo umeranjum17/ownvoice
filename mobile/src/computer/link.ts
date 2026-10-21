@@ -1,10 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
-import { getRandomValues } from 'expo-crypto';
+import './random';
 import { DeviceLink, pairWithOffer, secureDeviceStore } from '@byokit/pair';
 import { words } from '../core/words';
-
-// @byokit/pair needs crypto.getRandomValues, which Hermes lacks.
-if (!globalThis.crypto?.getRandomValues) (globalThis as { crypto?: unknown }).crypto = { getRandomValues };
 
 const kept = secureDeviceStore(SecureStore, 'ownvoice-computer');
 let live: DeviceLink | null = null;
