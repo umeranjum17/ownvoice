@@ -4,7 +4,7 @@
 import { createRequire } from 'node:module';
 import { createServer } from 'node:https';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT_DIR || 'playwright');
@@ -57,5 +57,4 @@ const run = async scheme => {
 };
 try { await run('light'); await run('dark'); } finally { server.close(); }
 check(remote.every(u => u.startsWith('https://x.com/')), `no request left the browser except the fixture page (${remote.length} requests: ${[...new Set(remote.map(u => new URL(u).origin))].join(', ')})`);
-writeFileSync(join(out, 'driver.log'), `fails=${fails.length}\n`);
 process.exit(fails.length ? 1 : 0);
