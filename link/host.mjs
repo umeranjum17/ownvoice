@@ -29,6 +29,7 @@ function write({ instructions, input: text }) {
     const run = spawn(flags.claude, ['-p', '--model', 'sonnet', '--safe-mode', '--tools', '', '--no-session-persistence', '--strict-mcp-config', '--system-prompt', instructions], { cwd, env: { ...process.env, MAX_THINKING_TOKENS: '0' }, stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
     const timer = setTimeout(() => run.kill(), 90_000);
+    run.stdin.on('error', () => {});
     run.stdout.setEncoding('utf8');
     run.stdout.on('data', (chunk) => { out += chunk; });
     const finish = () => { clearTimeout(timer); rmSync(cwd, { recursive: true, force: true }); };

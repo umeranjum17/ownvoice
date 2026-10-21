@@ -43,9 +43,16 @@ export async function askComputer(instructions: string, input: string, signal: A
   if (!live) throw new Error(words.computerNone);
   await gate();
   if (live.status !== 'online') throw new Error(words.computerProblem);
-  const asked = live.request('write', { instructions, input }, { timeoutMs: 30_000 }) as Promise<{ text?: string }>;
+  const asked = live.request('write', { instructions, input }, { timeoutMs: 95_000 }) as Promise<{ text?: string }>;
+  asked.catch(() => {});
+  const cancelled = new Promise<never>((_, reject) => {
+    const stop = () => reject(signal?.reason ?? new Error('aborted'));
+    if (signal?.aborted) stop();
+    else signal?.addEventListener('abort', stop, { once: true });
+  });
+  cancelled.catch(() => {});
   await onSent();
-  const reply = await asked;
+  const reply = await Promise.race([asked, cancelled]);
   if (signal?.aborted) throw signal.reason ?? new Error('aborted');
   if (!reply?.text) throw new Error(words.computerFailed);
   return reply.text;
