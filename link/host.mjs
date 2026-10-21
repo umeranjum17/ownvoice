@@ -29,6 +29,7 @@ function write({ instructions, input: text }) {
     const run = spawn(flags.claude, ['-p', '--model', 'sonnet', '--safe-mode', '--tools', '', '--no-session-persistence', '--strict-mcp-config', '--system-prompt', instructions], { cwd, env: { ...process.env, MAX_THINKING_TOKENS: '0' }, stdio: ['pipe', 'pipe', 'pipe'] });
     let out = '';
     const timer = setTimeout(() => run.kill(), 90_000);
+    run.stdout.setEncoding('utf8');
     run.stdout.on('data', (chunk) => { out += chunk; });
     run.on('error', fail);
     run.on('close', (code) => { clearTimeout(timer); rmSync(cwd, { recursive: true, force: true }); code === 0 && out.trim() ? done({ text: out.trim().replace(/^```(?:json)?\s*|\s*```$/g, '') }) : fail(new Error('Claude did not answer.')); });

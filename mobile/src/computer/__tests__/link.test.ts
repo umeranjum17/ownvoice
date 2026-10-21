@@ -1,5 +1,6 @@
 const mockLink = { status: 'online', request: jest.fn() };
 const mockLoad = { next: async (): Promise<unknown> => ({ hostName: 'Desk' }) };
+const mockMade: Array<{ stop: jest.Mock }> = [];
 
 jest.mock('expo-secure-store', () => ({}));
 jest.mock('../random', () => ({}));
@@ -7,9 +8,10 @@ jest.mock('@byokit/pair', () => ({
   secureDeviceStore: () => ({ load: () => mockLoad.next(), save: async () => {}, clear: async () => {} }),
   pairWithOffer: async () => ({ hostName: 'Desk' }),
   DeviceLink: class {
+    stop = jest.fn();
+    constructor() { mockMade.push(this); }
     get status() { return mockLink.status; }
     request(...args: unknown[]) { return mockLink.request(...args); }
-    stop() {}
   },
 }));
 
@@ -61,6 +63,58 @@ describe('askComputer read-log send mark', () => {
     await expect(asked).rejects.toThrow('withdrawn');
     expect(mockLink.request).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
+    mockLoad.next = async () => ({ hostName: 'Desk' });
+  });
+
+  it('reads the stored grant again after an ask found none', async () => {
+    await forgetComputer();
+    mockLink.status = 'online';
+    mockLoad.next = async () => null;
+    await expect(askComputer('i', 'p', undefined, passGate, async () => {})).rejects.toThrow(words.computerNone);
+    mockLoad.next = async () => ({ hostName: 'Desk' });
+    mockLink.request.mockImplementationOnce(() => Promise.resolve({ text: 'ok' }));
+    expect(await askComputer('i', 'p', undefined, passGate, async () => {})).toBe('ok');
+  });
+
+  it('refuses a computer that drops offline during the consent gate', async () => {
+    await forgetComputer();
+    mockLink.status = 'online';
+    mockLink.request.mockClear();
+    const sent = jest.fn(async () => {});
+    const dropping = async () => { mockLink.status = 'offline'; };
+    await expect(askComputer('i', 'p', undefined, dropping, sent)).rejects.toThrow(words.computerProblem);
+    expect(mockLink.request).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
+    mockLink.status = 'online';
+  });
+
+  it('opens one connection for concurrent asks on a cold link', async () => {
+    await forgetComputer();
+    mockLink.status = 'online';
+    mockMade.length = 0;
+    mockLink.request.mockImplementationOnce(() => Promise.resolve({ text: 'a' }));
+    mockLink.request.mockImplementationOnce(() => Promise.resolve({ text: 'b' }));
+    await Promise.all([
+      askComputer('i', 'p', undefined, passGate, async () => {}),
+      askComputer('i', 'p', undefined, passGate, async () => {}),
+    ]);
+    expect(mockMade).toHaveLength(1);
+  });
+
+  it('stops a link whose load was still running when the computer was forgotten', async () => {
+    await forgetComputer();
+    mockMade.length = 0;
+    mockLink.status = 'online';
+    let finishLoad: (grant: unknown) => void = () => {};
+    mockLoad.next = () => new Promise(resolve => { finishLoad = resolve; });
+    const asked = askComputer('i', 'p', undefined, passGate, async () => {}).catch((error: Error) => error);
+    await Promise.resolve();
+    const forgotten = forgetComputer();
+    finishLoad({ hostName: 'Desk' });
+    await forgotten;
+    await asked;
+    expect(mockMade).toHaveLength(1);
+    expect(mockMade[0].stop).toHaveBeenCalledTimes(1);
     mockLoad.next = async () => ({ hostName: 'Desk' });
   });
 });

@@ -4,7 +4,7 @@ import { DeviceLink, pairWithOffer, secureDeviceStore } from '@byokit/pair';
 import { words } from '../core/words';
 
 const kept = secureDeviceStore(SecureStore, 'ownvoice-computer');
-let live: DeviceLink | null = null;
+let link: Promise<DeviceLink | null> | null = null;
 
 /** The paired computer's name, or null when none is paired. */
 export const computerName = async (): Promise<string | null> => (await kept.load())?.hostName ?? null;
@@ -18,20 +18,31 @@ export async function pairComputer(code: string, onWords: (words: string) => voi
 }
 
 export async function forgetComputer(): Promise<void> {
-  live?.stop();
-  live = null;
+  const old = link;
+  link = null;
+  void old?.then((live) => live?.stop(), () => {});
   await kept.clear();
+}
+
+function dropAttempt(attempt: Promise<DeviceLink | null>): void {
+  if (link === attempt) link = null;
+}
+
+function connect(): Promise<DeviceLink | null> {
+  if (!link) {
+    const attempt: Promise<DeviceLink | null> = kept.load().then((grant) => (grant ? new DeviceLink(grant, { store: kept }) : null));
+    link = attempt;
+    attempt.then((live) => { if (!live) dropAttempt(attempt); }, () => dropAttempt(attempt));
+  }
+  return link;
 }
 
 /** One question to the paired computer's own Claude: its text back, or a plain error. */
 export async function askComputer(instructions: string, input: string, signal: AbortSignal | undefined, gate: () => Promise<void>, onSent: () => Promise<void>): Promise<string> {
-  if (!live) {
-    const grant = await kept.load();
-    if (!grant) throw new Error(words.computerNone);
-    live = new DeviceLink(grant, { store: kept });
-  }
-  if (live.status !== 'online') throw new Error(words.computerProblem);
+  const live = await connect();
+  if (!live) throw new Error(words.computerNone);
   await gate();
+  if (live.status !== 'online') throw new Error(words.computerProblem);
   const asked = live.request('write', { instructions, input }, { timeoutMs: 30_000 }) as Promise<{ text?: string }>;
   await onSent();
   const reply = await asked;
