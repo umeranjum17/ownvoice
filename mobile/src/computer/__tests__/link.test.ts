@@ -17,6 +17,7 @@ jest.mock('@byokit/pair', () => ({
 
 import { askComputer, forgetComputer } from '../link';
 import { words } from '../../core/words';
+import { SendVeto } from '../../core/writers';
 
 const passGate = async () => {};
 
@@ -49,7 +50,9 @@ describe('askComputer read-log send mark', () => {
     mockLink.status = 'offline';
     mockLink.request.mockClear();
     const sent = jest.fn(async () => {});
-    await expect(askComputer('i', 'p', undefined, passGate, sent)).rejects.toThrow(words.computerProblem);
+    const refused = await askComputer('i', 'p', undefined, passGate, sent).catch((error: unknown) => error);
+    expect(refused).toBeInstanceOf(SendVeto);
+    expect((refused as Error).message).toBe(words.computerUnasked);
     expect(mockLink.request).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
   });
@@ -77,7 +80,7 @@ describe('askComputer read-log send mark', () => {
     await forgetComputer();
     mockLink.status = 'online';
     mockLoad.next = async () => null;
-    await expect(askComputer('i', 'p', undefined, passGate, async () => {})).rejects.toThrow(words.computerNone);
+    await expect(askComputer('i', 'p', undefined, passGate, async () => {})).rejects.toThrow(words.computerUnasked);
     mockLoad.next = async () => ({ hostName: 'Desk' });
     mockLink.request.mockImplementationOnce(() => Promise.resolve({ text: 'ok' }));
     expect(await askComputer('i', 'p', undefined, passGate, async () => {})).toBe('ok');
@@ -96,13 +99,29 @@ describe('askComputer read-log send mark', () => {
     expect(sent).not.toHaveBeenCalled();
   });
 
+  it('stops waiting for a connecting link as soon as the ask is aborted', async () => {
+    await forgetComputer();
+    mockLink.status = 'connecting';
+    mockLink.request.mockClear();
+    const sent = jest.fn(async () => {});
+    const controller = new AbortController();
+    const asked = askComputer('i', 'p', controller.signal, passGate, sent);
+    setTimeout(() => controller.abort(), 100);
+    const started = Date.now();
+    await expect(asked).rejects.toThrow('aborted');
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(mockLink.request).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
+    mockLink.status = 'online';
+  });
+
   it('refuses a computer that drops offline during the consent gate', async () => {
     await forgetComputer();
     mockLink.status = 'online';
     mockLink.request.mockClear();
     const sent = jest.fn(async () => {});
     const dropping = async () => { mockLink.status = 'offline'; };
-    await expect(askComputer('i', 'p', undefined, dropping, sent)).rejects.toThrow(words.computerProblem);
+    await expect(askComputer('i', 'p', undefined, dropping, sent)).rejects.toThrow(words.computerUnasked);
     expect(mockLink.request).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
     mockLink.status = 'online';

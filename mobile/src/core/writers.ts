@@ -25,7 +25,7 @@ export class AccountRefused extends Error {}
 export const needWriter: Writer = { write: async () => { throw new Error(words.needWriterPanel); } };
 
 /** Failed lines worth a Try again button: sending again can work once the network, the account or its switch recovers. */
-export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.offlineNoPhone, words.gptOffNoPhone, words.claudeFailed, words.claudeOffNoPhone, words.openrouterFailed, words.openrouterOffNoPhone, words.openCodeFailed, words.openCodeOffNoPhone]);
+export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.offlineNoPhone, words.gptOffNoPhone, words.claudeFailed, words.claudeOffNoPhone, words.openrouterFailed, words.openrouterOffNoPhone, words.openCodeFailed, words.openCodeOffNoPhone, words.computerFailed, words.computerOffNoPhone, words.computerUnaskedNoPhone]);
 
 /** A writer that never drafts: the panel shows its line instead. */
 export const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });

@@ -2,6 +2,7 @@ import * as SecureStore from 'expo-secure-store';
 import './random';
 import { DeviceLink, pairWithOffer, secureDeviceStore } from '@byokit/pair';
 import { words } from '../core/words';
+import { SendVeto } from '../core/writers';
 
 const kept = secureDeviceStore(SecureStore, 'ownvoice-computer');
 let link: Promise<DeviceLink | null> | null = null;
@@ -40,12 +41,12 @@ function connect(): Promise<DeviceLink | null> {
 /** One question to the paired computer's own Claude: its text back, or a plain error. */
 export async function askComputer(instructions: string, input: string, signal: AbortSignal | undefined, gate: () => Promise<void>, onSent: () => Promise<void>): Promise<string> {
   const live = await connect();
-  if (!live) throw new Error(words.computerNone);
+  if (!live) throw new SendVeto(words.computerUnasked);
   // A link just made (the first tap after the app starts) is still dialling: give it a few seconds to come online. One that is offline is refused, never queued.
   for (let waited = 0; live.status === 'connecting' && waited < 5000 && !signal?.aborted; waited += 100) await new Promise((done) => setTimeout(done, 100));
   await gate();
   if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-  if (live.status !== 'online') throw new Error(words.computerProblem);
+  if (live.status !== 'online') throw new SendVeto(words.computerUnasked);
   const asked = live.request('write', { instructions, input }, { timeoutMs: 95_000 }) as Promise<{ text?: string }>;
   asked.catch(() => {});
   const cancelled = new Promise<never>((_, reject) => {
