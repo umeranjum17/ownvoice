@@ -3,7 +3,8 @@
 // helper and tap again: the panel must say the computer didn't answer (an emulator's phone can't write).
 // Release APK, no stub flags. Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME, JAVA_HOME, ANDROID_HOME. Args: <apk> <out-dir>.
 import { execFileSync, spawn } from 'node:child_process';
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createServer } from 'node:http';
 import { resolve } from 'node:path';
 import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
@@ -19,7 +20,7 @@ mkdirSync(out, { recursive: true });
 const REPLY = 'i think we should meet tomorrow at 10 to go over the plan and the budget';
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
-const PORT = 7441;
+const PORT = 7442;
 
 const nodes = accessibilityProbe(serial, out);
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
@@ -34,7 +35,14 @@ const findText = label => find(n => `${n.label} ${n.text}`.toLowerCase().include
 const screenWords = () => nodes().map(n => n.text || n.label).filter(Boolean).join(' | ').slice(0, 260);
 const waitText = async (label, tries = 40) => {
   const wanted = Array.isArray(label) ? label : [label];
-  for (let i = 0; i < tries; i++) { const n = wanted.map(findText).find(Boolean); if (n) return n; await wait(1000); }
+  for (let i = 0; i < tries; i++) {
+    const all = nodes();
+    const find1 = l => all.find(n => `${n.label} ${n.text}`.toLowerCase().includes(l.toLowerCase()));
+    const n = wanted.map(find1).find(Boolean); if (n) return n;
+    // A slow emulator shows "isn't responding" boxes: wait them out.
+    if (find1("isn't responding") && find1('wait')) tap(...center(find1('wait')));
+    await wait(1000);
+  }
   throw new Error(`Could not see "${wanted.join('" or "')}": ${screenWords()}`);
 };
 const tapText = async label => { const n = await waitText(label, 20); tap(...center(n)); return n; };
@@ -56,7 +64,7 @@ const deepLink = to => adb('shell', 'am', 'start', '-a', 'android.intent.action.
 
 // The helper: the real one, stdin piped so this script answers "yes" at the pairing question.
 const helper = () => {
-  const child = spawn('node', [resolve('../link/host.mjs'), '--port', String(PORT), '--url', `ws://10.0.2.2:${PORT}`], { stdio: ['pipe', 'pipe', 'inherit'] });
+  const child = spawn('node', [resolve('../link/host.mjs'), '--port', String(PORT), '--url', `ws://10.0.2.2:${PORT}`], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, XDG_CONFIG_HOME: mkdtempSync(resolve(tmpdir(), 'ov-link-')) } });
   let text = '';
   child.stdout.on('data', d => { text += d; process.stdout.write(d); });
   return { child, seen: () => text };
@@ -65,6 +73,9 @@ const helper = () => {
 execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
 adb('shell', 'pm', 'clear', pkg);
 await setService();
+// A cold emulator can show a launcher "isn't responding" box: wait it out, then open the app.
+const stuck = findText("isn't responding"); if (stuck) { const w = findText('wait'); if (w) tap(...center(w)); }
+adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 // Finish setup with no writer (hardware Back on the welcome), then switch Chrome on in the app's own list.
 await waitText('sound like you', 30); adb('shell', 'input', 'keyevent', '4'); await wait(2500);
 await waitText('where the bubble shows', 30);
@@ -81,7 +92,8 @@ deepLink('ownvoice://computer'); await waitText('paste the code');
 snap('1-computer-start');
 tap(...center(await waitText('paste the code')));
 await wait(600);
-adb('shell', 'input', 'text', `'${offer}'`); await wait(800);
+for (let i = 0; i < offer.length; i += 6) { adb('shell', 'input', 'text', `'${offer.slice(i, i + 6)}'`); await wait(500); } // a long string loses characters on a slow emulator
+await wait(800);
 adb('shell', 'input', 'keyevent', '4'); await wait(600);
 await tapText('pair');
 await waitText('check your computer shows these two words');

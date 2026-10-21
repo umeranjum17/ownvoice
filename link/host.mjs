@@ -14,7 +14,7 @@ import { hostKeyFile } from '@byokit/pair/node';
 import { WebSocketServer } from 'ws';
 
 const { values: flags } = parseArgs({ options: { via: { type: 'string', default: 'lan' }, port: { type: 'string', default: '7441' }, url: { type: 'string' }, claude: { type: 'string', default: 'claude' } } });
-const state = join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'ownvoice-link');
+const state = join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'ownvoice-computer');
 mkdirSync(state, { recursive: true, mode: 0o700 });
 
 const input = createInterface({ input: process.stdin });
