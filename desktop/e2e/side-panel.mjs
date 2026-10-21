@@ -40,6 +40,8 @@ const run = async scheme => {
     check(!post.includes('Earlier post in the thread') && !post.includes('The plan we set on Monday'), `${scheme}: thread parent and quoted post are not read as the post`);
     const photo = await read('/umer/status/42/photo/1');
     check(photo.includes(SHIPPED) && !photo.includes('Earlier post in the thread'), `${scheme}: photo suffix reads the post whose status id matches`);
+    const quoted = await read('/umer/status/42?case=quoted');
+    check(quoted.includes(SHIPPED) && !quoted.includes('Earlier post in the thread'), `${scheme}: thread parent that quotes this post is not read as the post`);
     const wrapped = await read('/umer/status/42?case=wrapped');
     check(wrapped.includes(SHIPPED), `${scheme}: post inside a link block is still read`);
     const inner = await read('/umer/status/42?case=inner');

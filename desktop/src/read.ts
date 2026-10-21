@@ -8,7 +8,7 @@ export function readPost(s: Selectors): Post | null {
   if (!id) return null;
   // The post being replied to links to its own status; a thread may show other posts above it.
   const post = [...document.querySelectorAll(s.post)].find(p =>
-    [...p.querySelectorAll<HTMLAnchorElement>('a[href]')].some(a => a.pathname.match(/\/status\/(\d+)$/)?.[1] === id));
+    p.querySelector('time')?.closest<HTMLAnchorElement>('a')?.pathname.match(/\/status\/(\d+)$/)?.[1] === id);
   if (!post) return null;
   // A quoted post is a link card inside this post that carries its own author line.
   const text = [...post.querySelectorAll(s.text)].find(n => {
