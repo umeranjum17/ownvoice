@@ -1,21 +1,23 @@
 import type { Selectors } from './selectors.ts';
 
-export type Post = { author: string; text: string; composer: boolean };
+export type Post = { author: string; text: string };
 
 /** Runs inside the page (chrome.scripting serialises it), so it uses nothing from this module. */
 export function readPost(s: Selectors): Post | null {
-  const posts = [...document.querySelectorAll(s.post)];
-  // On a post page the one being replied to links to its own address; a thread may show others above it.
-  const post = posts.find(p => p.querySelector(`a[href^="${location.pathname}"]`)) ?? posts[0];
-  // A quoted post's words sit inside a link block; they are not the post being replied to.
-  const text = [...(post?.querySelectorAll(s.text) ?? [])].find(n => {
+  const id = location.pathname.match(/\/status\/(\d+)/)?.[1];
+  if (!id) return null;
+  // The post being replied to links to its own status; a thread may show other posts above it.
+  const post = [...document.querySelectorAll(s.post)].find(p =>
+    [...p.querySelectorAll<HTMLAnchorElement>('a[href]')].some(a => a.pathname.match(/\/status\/(\d+)$/)?.[1] === id));
+  if (!post) return null;
+  // A quoted post is a link card inside this post that carries its own author line.
+  const text = [...post.querySelectorAll(s.text)].find(n => {
     const quoted = n.closest(s.quoted);
-    return !(quoted && post?.contains(quoted));
+    return !(quoted && post.contains(quoted) && quoted.querySelector(s.author));
   })?.textContent?.trim();
-  if (!post || !text) return null;
+  if (!text) return null;
   return {
     author: (post.querySelector<HTMLElement>(s.author)?.innerText ?? '').replace(/\s+/g, ' ').trim(),
     text,
-    composer: !!document.querySelector(s.composer),
   };
 }

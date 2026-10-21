@@ -33,17 +33,23 @@ const run = async scheme => {
       if (shot) await panel.screenshot({ path: join(out, `${shot}-${scheme}.png`) });
       return text;
     };
+    const SHIPPED = 'Shipped the reply flow end to end today';
     const post = await read('/umer/status/42', 'post');
-    check(post.includes('Shipped the reply flow end to end today') && post.includes('Umer') && post.includes('The reply box is open.'), `${scheme}: panel shows the post it read, author and open reply box`);
+    check(post.includes(SHIPPED) && post.includes('Umer'), `${scheme}: panel shows the post it read and its author`);
     check(!post.includes('Earlier post in the thread') && !post.includes('The plan we set on Monday'), `${scheme}: thread parent and quoted post are not read as the post`);
+    const photo = await read('/umer/status/42/photo/1', 'photo');
+    check(photo.includes(SHIPPED) && !photo.includes('Earlier post in the thread'), `${scheme}: photo suffix reads the post whose status id matches`);
     const wrapped = await read('/umer/status/42?case=wrapped', 'wrapped');
-    check(wrapped.includes('Shipped the reply flow end to end today'), `${scheme}: post inside a link block is still read`);
+    check(wrapped.includes(SHIPPED), `${scheme}: post inside a link block is still read`);
+    const inner = await read('/umer/status/42?case=inner', 'inner');
+    check(inner.includes(SHIPPED), `${scheme}: post text inside a link inside the post is still read`);
     const empty = await read('/umer/status/42?case=notext', 'notext');
-    check(/Nothing to reply to yet/.test(empty) && !empty.includes('The post I read'), `${scheme}: image-only post shows the plain note and no post`);
+    check(empty.includes('Nothing to reply to yet') && !empty.includes('The post I read'), `${scheme}: image-only post shows the plain note and no post`);
     const home = await read('/home?case=home', 'home');
-    check(/Nothing to reply to yet/.test(home) || home.includes('Home timeline'), `${scheme}: timeline page reads first post only (${JSON.stringify(home.slice(0, 60))})`);
+    check(home.includes('Nothing to reply to yet') && !home.includes('The post I read') && !home.includes('Home timeline'), `${scheme}: timeline page shows the plain note and no post`);
     await tab.goto('about:blank'); await tab.bringToFront(); await panel.evaluate(() => document.getElementById('again').click()); await panel.waitForTimeout(400);
-    check(/Open a post on x\.com/.test(await panel.evaluate(() => document.body.innerText)), `${scheme}: a non-X page says to open a post on x.com`);
+    const other = await panel.evaluate(() => document.body.innerText);
+    check(other.includes('Nothing to reply to yet') && !other.includes('The post I read'), `${scheme}: a non-X page shows the plain note and no post`);
   } finally { await ctx.close(); }
 };
 try { await run('light'); await run('dark'); } finally { server.close(); }

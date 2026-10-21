@@ -12,15 +12,14 @@ Then `chrome://extensions` › Developer mode › Load unpacked › `desktop/dis
 
 ## What it reads
 
-Only when the active tab is on x.com, and only when you open or refresh the panel: the post you are replying to (its author and words) and whether the reply box is open. A quoted post, other posts in the thread and the rest of the page are not read. Nothing is stored or sent; the extension asks for no permission beyond the side panel, reading x.com pages and the reading itself.
+Only the post whose address matches the page you are on (its author and words), and only when the active tab is on x.com. The panel reads when you open it, when you switch to another tab, when the active tab finishes loading or changes address, and when you press Read again. A quoted post, other posts in the thread and the rest of the page are not read. Nothing is stored or sent; the extension asks for no permission beyond the side panel, reading x.com pages and the reading itself.
 
-With nothing to read (another site, or a post with no words) the panel says "Nothing to reply to yet" and shows no post.
+With nothing to read (another site, a timeline or profile page, or a post with no words) the panel says "Nothing to reply to yet" and shows no post.
 
 ## Where things are
 
 - `src/selectors.ts`: every handle on x.com's markup, in one file. If X changes its page, fix it there.
 - `src/read.ts`: runs inside the page and returns the post.
-- `src/platform.ts`: which site this is, from the engine's own Chrome rule (`packages/engine`, unchanged).
 
 ## Not verified on the real site
 
