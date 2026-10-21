@@ -37,7 +37,8 @@ export const isOtherWriterLine = (line: string | null | undefined): boolean => i
 
 /** The plain lines one cloud provider's route says; ChatGPT's stay the exact shipped strings. */
 export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string; refused?: string };
-export const cloudWords = (key: CloudKey): CloudWords => key === 'claude'
+export const computerWords: CloudWords = { off: words.computerFailed, offNoPhone: words.computerFailed, failedNoPhone: words.computerFailed, fallback: words.computerFallback, needNote: words.computerNone, switchUnavailable: words.computerFallback };
+export const cloudWords = (key: CloudKey | 'computer'): CloudWords => key === 'computer' ? computerWords : key === 'claude'
   ? { off: words.claudeOff, offNoPhone: words.claudeOffNoPhone, failedNoPhone: words.claudeFailed, fallback: words.claudeFallback, needNote: words.claudeNeedNote, switchUnavailable: words.claudeSwitchUnavailable, planLimit: words.claudePlanLimit }
   : key === 'openrouter'
   ? { off: words.openrouterOff, offNoPhone: words.openrouterOffNoPhone, failedNoPhone: words.openrouterFailed, fallback: words.openrouterFallback, needNote: words.openrouterNeedNote, switchUnavailable: words.openrouterSwitchUnavailable, refused: words.openrouterRefused }

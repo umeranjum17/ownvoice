@@ -1,0 +1,13 @@
+{
+  "name": "ownvoice-link",
+  "private": true,
+  "type": "module",
+  "description": "Runs on your own computer: Ownvoice on your phone sends it screen text and it answers with your signed-in Claude.",
+  "bin": { "ownvoice-link": "host.mjs" },
+  "engines": { "node": ">=22.18" },
+  "dependencies": {
+    "@byokit/discover": "0.8.4",
+    "@byokit/pair": "0.10.4",
+    "ws": "8.18.3"
+  }
+}

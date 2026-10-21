@@ -256,6 +256,7 @@ export default function Home() {
 
     <View style={group}>
       <Row lead={icon(LockIcon)} title={words.rowSource} subtitle={viaPhone ? words.rowSourcePhone : viaGpt ? words.rowSourceGpt : viaClaude ? words.rowSourceClaude : viaOpenRouter ? words.rowSourceOpenRouter : viaOpenCode ? words.rowSourceOpenCode : words.rowSourceNone} onPress={() => router.push('/source')} />
+      <Row lead={icon(ChatIcon)} title={words.rowComputer} subtitle={source === 'computer' ? words.rowSourceComputer : words.rowComputerNone} onPress={() => router.push('/computer')} />
       <Row lead={icon(GridIcon)} title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
       <Row lead={icon(PenIcon)} title={words.rowVoice} subtitle={phrases === 0 ? words.noPhrases : phrases === 1 ? `1 ${words.phraseOne}` : `${phrases} ${words.phraseMany}`} onPress={() => router.push('/voice')} />
       <Row lead={icon(EyeIcon)} title={words.rowReads} subtitle={week === 0 ? words.nothingWeek : week === 1 ? words.onceWeek : `${week} ${words.timesWeek}`} onPress={() => router.push('/reads')} />
