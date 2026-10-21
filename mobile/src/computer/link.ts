@@ -42,7 +42,7 @@ export async function askComputer(instructions: string, input: string, signal: A
   const live = await connect();
   if (!live) throw new Error(words.computerNone);
   // A link just made (the first tap after the app starts) is still dialling: give it a few seconds to come online. One that is offline is refused, never queued.
-  for (let waited = 0; live.status === 'connecting' && waited < 5000; waited += 100) await new Promise((done) => setTimeout(done, 100));
+  for (let waited = 0; live.status === 'connecting' && waited < 5000 && !signal?.aborted; waited += 100) await new Promise((done) => setTimeout(done, 100));
   await gate();
   if (signal?.aborted) throw signal.reason ?? new Error('aborted');
   if (live.status !== 'online') throw new Error(words.computerProblem);
