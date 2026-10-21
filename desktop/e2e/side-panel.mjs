@@ -13,8 +13,7 @@ const PORT = 18711, tmp = mkdtempSync(join(tmpdir(), 'ovdesk-'));
 let server;
 try {
   execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=x.com', '-addext', 'subjectAltName=DNS:x.com', '-keyout', join(tmp, 'k'), '-out', join(tmp, 'c')], { stdio: 'pipe' });
-  const served = [];
-  server = createServer({ key: readFileSync(join(tmp, 'k')), cert: readFileSync(join(tmp, 'c')) }, (req, res) => { served.push(req.url); res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(readFileSync(new URL('./post.html', import.meta.url))); });
+  server = createServer({ key: readFileSync(join(tmp, 'k')), cert: readFileSync(join(tmp, 'c')) }, (req, res) => { res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(readFileSync(new URL('./post.html', import.meta.url))); });
   await new Promise(r => server.listen(PORT, '127.0.0.1', r));
 } catch (e) { rmSync(tmp, { recursive: true, force: true }); throw e; }
 const fails = []; const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${what}`); if (!ok) fails.push(what); };
