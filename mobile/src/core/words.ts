@@ -120,6 +120,8 @@ const claudeWords = {
   computerOffNoPhone: 'Your computer is turned off for now. Try again later.',
   computerProblem: "Couldn't reach your computer. Check that it's on and the code is right, then try again.",
   computerFallback: "Your computer didn't answer. This phone wrote these.",
+  computerUnasked: "Your computer wasn't asked. This phone wrote these.",
+  computerUnaskedNoPhone: "Your computer wasn't asked. Check it's paired and on, then try again.",
   computerNone: 'No computer is paired yet.',
   rowComputer: 'Use my computer',
   rowComputerNone: 'Write with Claude on your computer',

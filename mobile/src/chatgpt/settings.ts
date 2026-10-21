@@ -115,11 +115,16 @@ async function computerRoute(app: string, practice: boolean): Promise<WriterRout
   if (!allowed(await Native.bubbleRules().catch(() => null))) return { writer: phone === 'cant' ? thrower(words.phoneOnlyCant) : phoneWriter, note: null };
   const on: WriterEvents = {
     beforeSend: async () => {
-      if ((await getSource()) !== 'computer' || !allowed(await Native.bubbleRules().catch(() => null))) return false;
+      if ((await getSource()) !== 'computer' || !allowed(await Native.bubbleRules().catch(() => null))) throw new SendVeto(words.computerUnasked);
       await switchAllows('computer');
-      return !!(await require('../computer/link').computerName());
+      if (!(await require('../computer/link').computerName())) throw new SendVeto(words.computerUnasked);
+      return true;
     },
-    beforeFetch: () => store.peek<Source>(SOURCE_KEY) === 'computer' && switchNow?.chatgpt !== 'off',
+    beforeFetch: () => {
+      if (switchNow?.chatgpt === 'off') throw new SendVeto(computerWords.off);
+      if (store.peek<Source>(SOURCE_KEY) !== 'computer') throw new SendVeto(words.computerUnasked);
+      return true;
+    },
   };
   const cloud = require('./responses').cloudWriter('computer') as Writer;
   const computer: Writer = { write: (request, events = {}) => cloud.write(request, { ...events, ...on }) };

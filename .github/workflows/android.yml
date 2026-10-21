@@ -130,3 +130,9 @@ jobs:
           java-version: 17
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew assembleDebug :app:testDebugUnitTest
+      - if: ${{ hashFiles('link/**') != '' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - if: ${{ hashFiles('link/**') != '' }}
+        run: cd link && node --test

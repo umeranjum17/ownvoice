@@ -39,7 +39,7 @@ jest.mock('../accounts', () => {
 }; });
 
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['phone one', 'phone two', 'phone three'] })) } }));
-jest.mock('../../computer/link', () => ({ computerName: async () => 'My computer', askComputer: jest.fn(async () => { throw new Error('sent'); }) }));
+jest.mock('../../computer/link', () => ({ computerName: jest.fn(async () => 'My computer'), askComputer: jest.fn(async () => { throw new Error('sent'); }) }));
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 
 const native = Native as jest.Mocked<typeof Native>;
@@ -263,6 +263,32 @@ test('the off switch stops the paired computer too: nothing is asked and the pho
   const route = await gptRoute('com.twitter.android', offline);
   expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.computerOff });
   expect(jest.requireMock('../../computer/link').askComputer).not.toHaveBeenCalled();
+});
+
+test('a computer that is not paired is named as not asked, and a phone that cannot write says so too', async () => {
+  store.set(SOURCE_KEY, 'computer');
+  store.set('chatgpt-switch', { seq: 1, chatgpt: 'on', fetchedAt: Date.now() });
+  mockState.mockResolvedValue({ phase: 'unsupported' });
+  jest.requireMock('../../computer/link').computerName.mockResolvedValueOnce(null);
+  const route = await gptRoute('com.twitter.android', offline);
+  await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.computerUnaskedNoPhone);
+  expect(jest.requireMock('../../computer/link').askComputer).not.toHaveBeenCalled();
+});
+
+test('an unreadable switch names the computer as not asked, and the phone writes', async () => {
+  store.set(SOURCE_KEY, 'computer');
+  const storage = jest.requireMock('expo-sqlite/kv-store').default;
+  const get = jest.spyOn(storage, 'getItemSync').mockImplementation((key: unknown) => {
+    if (key === 'chatgpt-switch') throw new Error('unavailable');
+    return kv.get(key as string) ?? null;
+  });
+  try {
+    const route = await gptRoute('com.twitter.android', offline);
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.computerUnasked });
+    expect(jest.requireMock('../../computer/link').askComputer).not.toHaveBeenCalled();
+  } finally {
+    get.mockRestore();
+  }
 });
 
 test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the Responses send', async mode => {
