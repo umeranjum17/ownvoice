@@ -10,10 +10,13 @@ import { join, resolve } from 'node:path';
 const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT_DIR || 'playwright');
 const [dist, out] = [resolve(process.argv[2]), resolve(process.argv[3])]; mkdirSync(out, { recursive: true });
 const PORT = 18711, tmp = mkdtempSync(join(tmpdir(), 'ovdesk-'));
-execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=x.com', '-addext', 'subjectAltName=DNS:x.com', '-keyout', join(tmp, 'k'), '-out', join(tmp, 'c')], { stdio: 'pipe' });
-const served = [];
-const server = createServer({ key: readFileSync(join(tmp, 'k')), cert: readFileSync(join(tmp, 'c')) }, (req, res) => { served.push(req.url); res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(readFileSync(new URL('./post.html', import.meta.url))); });
-await new Promise(r => server.listen(PORT, '127.0.0.1', r));
+let server;
+try {
+  execFileSync('openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '2', '-subj', '/CN=x.com', '-addext', 'subjectAltName=DNS:x.com', '-keyout', join(tmp, 'k'), '-out', join(tmp, 'c')], { stdio: 'pipe' });
+  const served = [];
+  server = createServer({ key: readFileSync(join(tmp, 'k')), cert: readFileSync(join(tmp, 'c')) }, (req, res) => { served.push(req.url); res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.end(readFileSync(new URL('./post.html', import.meta.url))); });
+  await new Promise(r => server.listen(PORT, '127.0.0.1', r));
+} catch (e) { rmSync(tmp, { recursive: true, force: true }); throw e; }
 const fails = []; const check = (ok, what) => { console.log(`${ok ? 'PASS' : 'FAIL'} ${what}`); if (!ok) fails.push(what); };
 const remote = [];
 const run = async scheme => {
