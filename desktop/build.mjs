@@ -6,6 +6,6 @@ rmSync('dist', { recursive: true, force: true });
 mkdirSync('dist');
 await build({
   entryPoints: { panel: 'src/panel.ts', background: 'src/background.ts' },
-  outdir: 'dist', bundle: true, format: 'iife', target: 'chrome114',
+  outdir: 'dist', bundle: true, format: 'iife', target: 'chrome116',
 });
 for (const file of ['manifest.json', 'panel.html', 'panel.css']) cpSync(file, `dist/${file}`);

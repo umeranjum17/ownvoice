@@ -8,7 +8,7 @@ Slice 1: open the side panel on an x.com post and see the post Ownvoice read. No
 cd desktop && npm install && npm run build
 ```
 
-Then `chrome://extensions` › Developer mode › Load unpacked › `desktop/dist`. Click the Ownvoice button to open the panel. Chrome 114 or newer.
+Then `chrome://extensions` › Developer mode › Load unpacked › `desktop/dist`. Click the Ownvoice button to open the panel. Chrome 116 or newer.
 
 ## What it reads
 
