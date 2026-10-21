@@ -39,6 +39,7 @@ jest.mock('../accounts', () => {
 }; });
 
 jest.mock('../../panel/phoneWriter', () => ({ phoneWriter: { write: jest.fn(async () => ({ drafts: ['phone one', 'phone two', 'phone three'] })) } }));
+jest.mock('../../computer/link', () => ({ computerName: async () => 'My computer', askComputer: jest.fn(async () => { throw new Error('sent'); }) }));
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => global.fetch(...args) }));
 
 const native = Native as jest.Mocked<typeof Native>;
@@ -254,6 +255,14 @@ test('a switch read failure during verification cannot reuse an earlier on choic
   } finally {
     get.mockRestore();
   }
+});
+
+test('the off switch stops the paired computer too: nothing is asked and the phone writes with the computer line', async () => {
+  store.set(SOURCE_KEY, 'computer');
+  store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
+  const route = await gptRoute('com.twitter.android', offline);
+  expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.computerOff });
+  expect(jest.requireMock('../../computer/link').askComputer).not.toHaveBeenCalled();
 });
 
 test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the Responses send', async mode => {
