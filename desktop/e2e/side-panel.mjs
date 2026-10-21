@@ -36,6 +36,8 @@ const run = async scheme => {
     const post = await read('/umer/status/42', 'post');
     check(post.includes('Shipped the reply flow end to end today') && post.includes('Umer') && post.includes('The reply box is open.'), `${scheme}: panel shows the post it read, author and open reply box`);
     check(!post.includes('Earlier post in the thread') && !post.includes('The plan we set on Monday'), `${scheme}: thread parent and quoted post are not read as the post`);
+    const wrapped = await read('/umer/status/42?case=wrapped', 'wrapped');
+    check(wrapped.includes('Shipped the reply flow end to end today'), `${scheme}: post inside a link block is still read`);
     const empty = await read('/umer/status/42?case=notext', 'notext');
     check(/Nothing to reply to yet/.test(empty) && !empty.includes('The post I read'), `${scheme}: image-only post shows the plain note and no post`);
     const home = await read('/home?case=home', 'home');
