@@ -180,11 +180,11 @@ journeys:
     timeout: 5m
 
   desktop-side-panel:
-    description: "Desktop Chrome: the unpacked side panel reads the post on a fixture served as x.com (modeled on x.com markup, not a captured copy; the real site returns 403 to automated browsers), shows the plain note when there is nothing to reply to, sends no request beyond the fixture page; light and dark. Builds desktop/dist from the commit under test first. Needs PLAYWRIGHT_DIR (a playwright install)."
+    description: "Desktop Chrome: the unpacked side panel reads the post on a fixture served as x.com (modeled on x.com markup, not a captured copy; the real site returns 403 to automated browsers), shows the plain note when there is nothing to reply to, sends no request beyond the fixture page; whole Chrome window shots (post page plus the open side panel), light and dark. Builds desktop/dist from the commit under test first. Needs PLAYWRIGHT_DIR (a playwright install)."
     command: |
       set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)/desktop"
       # Logs stay out of the evidence folder (only the panel captures belong there) and print on failure.
       L="$(mktemp)"; trap 'rm -f "$L"' EXIT
-      { npm ci && npm run build && node e2e/side-panel.mjs dist "$E"; } >"$L" 2>&1; code=$?
+      { npm ci && npm run build && env -u WAYLAND_DISPLAY xvfb-run -a -s "-screen 0 1600x900x24" node e2e/side-panel.mjs dist "$E"; } >"$L" 2>&1; code=$?
       [ $code -eq 0 ] || cat "$L"; exit $code
     timeout: 10m
