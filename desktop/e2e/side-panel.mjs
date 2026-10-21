@@ -56,8 +56,8 @@ const run = async scheme => {
   } finally { await ctx.close(); }
 };
 // Evidence: the whole Chrome window (post page on the left, the real side panel on the right), grabbed from the X display (run under xvfb-run, 1600x900).
-const sidePanelState = async (ctx, url) => {
-  const cdp = await ctx.browser().newBrowserCDPSession();
+const sidePanelState = async (ctx, page, url) => {
+  const cdp = await ctx.newCDPSession(page);
   try {
     const target = (await cdp.send('Target.getTargets')).targetInfos.find(t => t.url === url);
     if (!target) throw new Error('side panel page not found in the window');
@@ -84,7 +84,7 @@ const windows = async scheme => {
     await opener.close();
     for (const [name, path] of [['post', '/umer/status/42'], ['notext', '/umer/status/42?case=notext']]) {
       await tab.goto(`https://x.com${path}`); await tab.bringToFront(); await tab.waitForTimeout(2500);
-      const { text, dark } = await sidePanelState(ctx, `${extension}/panel.html`);
+      const { text, dark } = await sidePanelState(ctx, tab, `${extension}/panel.html`);
       const content = name === 'post' ? text.includes(SHIPPED) && text.includes('The post I read') : text.includes('Nothing to reply to yet') && !text.includes('The post I read');
       const shown = content && dark === (scheme === 'dark');
       check(shown, `${scheme}: side panel shows the ${name} state in the ${scheme} colour scheme before its window shot`);
