@@ -62,7 +62,7 @@ test('a throwing kit keeps the fallback working and retries later', () => {
   expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt']);
   // The wrappers still delegate somewhere callable instead of crashing.
   accounts.signIn('chatgpt');
-  expect(mocked.__calls.at(-1)).toEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'code' }] });
+  expect(mocked.__calls.at(-1)).toEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'redirect' }] });
   // Once the kit is ready, the same module upgrades to the kit-driven list.
   mocked.offered.mockReturnValue([{ key: 'chatgpt' }, { key: 'claude' }]);
   expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt', 'openrouter']);
@@ -82,7 +82,7 @@ test('ChatGPT sign-in, status and cancel address the chatgpt plan', () => {
   accounts.signIn('chatgpt');
   accounts.status('chatgpt');
   accounts.cancelSignIn('chatgpt');
-  expect(mocked.__calls).toContainEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'code' }] });
+  expect(mocked.__calls).toContainEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'redirect' }] });
   expect(mocked.__calls).toContainEqual({ method: 'status', args: ['owner', 'chatgpt'] });
   expect(mocked.__calls).toContainEqual({ method: 'cancel', args: ['owner', 'chatgpt'] });
 });

@@ -70,7 +70,17 @@ Object.defineProperty(accounts, 'providers', {
 });
 // Generic plan operations: the UI passes the provider key ('claude', 'chatgpt', etc.)
 // These call getInstance() to get the kit-driven instance (if available) instead of fallback.
-export const signIn = (provider: string) => getInstance().login(member, provider, { via: 'code' });
+/** ChatGPT's own page in the app's in-app browser (the kit's `redirect`: one approval, no code); the code
+ *  is the fallback when the kit can't do that here, or when asked for. */
+export const signIn = async (provider: string, via: 'code' | 'redirect' = provider === 'chatgpt' ? 'redirect' : 'code') => {
+  if (via === 'redirect') {
+    const shown = await getInstance().login(member, provider, { via }).catch(() => null);
+    if (shown?.state === 'waiting') return shown;
+  }
+  return getInstance().login(member, provider, { via: 'code' });
+};
+/** Finish the redirect sign-in with the address the in-app browser was sent back to. */
+export const completeSignIn = (provider: string, address: string) => getInstance().complete(member, provider, address);
 export const signOut = (provider: string) => getInstance().logout(member, provider);
 export const refresh = () => getInstance().keepFresh([member]);
 export const signInState = (provider: string) => getInstance().view(member, provider);

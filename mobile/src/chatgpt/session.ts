@@ -2,9 +2,11 @@ import { say } from '@byokit/accounts';
 import type { SignIn, Status } from '@byokit/accounts';
 import type { CloudKey } from '../core/source';
 import { store } from '../core/store';
-import { words } from '../core/words';
+import { CHATGPT_TERMS, words } from '../core/words';
 
 export const NAME = 'ChatGPT';
+/** The grey line under a sign-in: the kit's, except ChatGPT's, which says only what it uses. */
+export const termsOf = (key: string, name: string, company: string) => key === 'chatgpt' ? CHATGPT_TERMS : say('terms.grey', { name, company });
 export const CLAUDE_NAME = 'Claude';
 export const OPENROUTER_NAME = 'OpenRouter';
 export const OPENCODE_NAME = 'OpenCode Go';
