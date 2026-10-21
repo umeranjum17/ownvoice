@@ -25,6 +25,7 @@ Harness: A shell. Each probe is a one-shot pipe: printf a JSON request into the 
 - [Parse a writing-voice note into rules](features/parse-a-writing-voice-note-into-rules.md): A user saves Your voice (the never-say list and the How-I-write note) in the app. The app sends the same markdown to the engine's voice.parse verb (`packages/engine/src/voice.ts`)
 - [Get the platform list and per-platform limits](features/get-the-platform-list-and-per-platform-l.md): A caller asks which platforms the engine knows before it drafts for one of them (`packages/engine/src/platforms.ts`)
 - [Read the published protocol schema](features/read-the-published-protocol-schema.md): A caller wants the request and response shapes before it sends anything (`packages/engine/protocol/schema.json`)
+- [Use my computer (React Native app)](features/use-my-computer-on-the-react-native-app.md): Pair the app with the computer helper and write drafts through it (`mobile/src/computer/`, Android surface)
 - [Reject bad requests with a readable error](features/reject-bad-requests-with-a-readable-erro.md): A caller sends a malformed or unknown request by mistake (`packages/engine/src/cli.mjs`)
 
 ## Evidence
