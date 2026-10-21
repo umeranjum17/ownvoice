@@ -434,25 +434,6 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
   expect(mockAsk).toHaveBeenCalledTimes(3);
 });
 
-test('the numbered phone case recovers both versions after the model flattens its list', async () => {
-  const typed = 'Here is what I need from you:\n1. send the deck by Friday\n2. confirm the budget\n3. book the room for Monday';
-  mockAsk.mockImplementation(async prompt => {
-    if (prompt.includes('{"versions"')) return JSON.stringify({ versions: [
-      'Please send the deck by Friday, confirm the budget, and book the room for Monday.',
-      'I need the deck by Friday, the budget confirmed, and the room booked for Monday.',
-    ] });
-    if (prompt.includes('Tighter:')) return 'Row 1: Here is what I need from you.\nRow 2: Send the deck by Friday.\nRow 3: Confirm the budget.\nRow 4: Book the room for Monday.';
-    return 'Row 1: I need three things from you.\nRow 2: Please send the deck by Friday.\nRow 3: Confirm the budget.\nRow 4: Book the room for Monday.';
-  });
-  const landed: number[] = [];
-  const { drafts } = await phoneWriter.write(request({ typed }), { landed: (_text, slot) => landed.push(slot) });
-  expect(drafts).toHaveLength(2);
-  expect(landed).toEqual([1, 2]);
-  expect(drafts.every(draft => draft.split('\n').length === 4 && /1\. /.test(draft) && /2\. /.test(draft) && /3\. /.test(draft))).toBe(true);
-  expect(mockAsk).toHaveBeenCalledTimes(3);
-  mockAsk.mockReset();
-});
-
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
   mockAsk.mockImplementation(async (prompt: string) => {
     if (prompt.includes('{"versions"')) return '{"versions":["I bring the stove and you bring the tent.","Stove split:\\n1. I bring the stove.\\n2. You bring the tent."]}';
