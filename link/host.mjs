@@ -31,8 +31,9 @@ function write({ instructions, input: text }) {
     const timer = setTimeout(() => run.kill(), 90_000);
     run.stdout.setEncoding('utf8');
     run.stdout.on('data', (chunk) => { out += chunk; });
-    run.on('error', fail);
-    run.on('close', (code) => { clearTimeout(timer); rmSync(cwd, { recursive: true, force: true }); code === 0 && out.trim() ? done({ text: out.trim().replace(/^```(?:json)?\s*|\s*```$/g, '') }) : fail(new Error('Claude did not answer.')); });
+    const finish = () => { clearTimeout(timer); rmSync(cwd, { recursive: true, force: true }); };
+    run.on('error', (error) => { finish(); fail(error); });
+    run.on('close', (code) => { finish(); code === 0 && out.trim() ? done({ text: out.trim().replace(/^```(?:json)?\s*|\s*```$/g, '') }) : fail(new Error('Claude did not answer.')); });
     run.stdin.end(`Screen:\n${text}`);
   });
 }
