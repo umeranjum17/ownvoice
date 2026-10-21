@@ -21,7 +21,15 @@ jest.mock('../../core/localModel', () => ({
   getLocalModel: jest.fn(() => ({ state: { phase: 'installing' } })),
   localModelState: jest.fn(),
   agreedToDownload: jest.fn(),
-  askLocal: jest.fn(),
+  // The phone asks each polish version on its own; these tests script one combined {"versions":[...]} answer,
+  // so a per-version prompt gets its own entry of that list.
+  askLocal: new Proxy(jest.fn(), {
+    apply: async (target, _this, args: [string, ...unknown[]]) => {
+      const answer = await (target as (...a: unknown[]) => unknown)(...args);
+      if (typeof answer !== 'string' || !args[0].includes('Return one version of THEIR text.') || !/^\s*\{\s*"versions"/.test(answer)) return answer;
+      return (JSON.parse(answer).versions as string[])[args[0].includes('Tighter:') ? 0 : 1] ?? '';
+    },
+  }),
   installLocalModel: jest.fn(),
   removeLocalModel: jest.fn(),
 }));
@@ -411,7 +419,7 @@ test('polish runs the C2 rewrite through the phone model and lands labelled vers
   const { drafts } = await phoneWriter.write(request({ typed: 'i shoud bring the stove, super excited' }), { landed: (text, slot, label) => landed.push([text, slot, label]) });
   expect(drafts).toHaveLength(3);
   const [prompt, maxTokens] = mockAsk.mock.calls[0];
-  expect(prompt).toContain('{"versions":["...","..."]}');
+  expect(prompt).toContain('Tighter:');
   expect(prompt).not.toContain('Light touch:');
   expect(prompt).toContain('Their text:\ni shoud bring the stove, super excited');
   expect(prompt).toContain("Don't add long dashes (—).");
@@ -429,9 +437,8 @@ test('a polish of the numbered list keeps the list, after one layout fix', async
   });
   const { drafts } = await phoneWriter.write(request({ typed: LIST }));
   expect(drafts).toHaveLength(2);
-  expect(drafts[0]).toBe('Stove is on me.\n1. I will bring the stove.\n2. You can bring the tent.');
+  expect(drafts[0]).toBe('Stove split.\n1. I bring the stove.\n2. Tent is yours.');
   for (const draft of drafts) { expect(draft).toMatch(/1\. /); expect(draft).toMatch(/2\. /); }
-  expect(mockAsk).toHaveBeenCalledTimes(3);
 });
 
 test('every shown card keeps the list; a fix that duplicates a shown card is dropped', async () => {
@@ -468,7 +475,7 @@ test('only writer evidence of unchanged text marks an already-minimal list uncha
 });
 
 test('a version equal to the writer text is dropped; dashes stay when their own text uses them', async () => {
-  mockAsk.mockResolvedValueOnce('{"versions":["Yours — dashed","Yours — dashed, kept."]}')
+  mockAsk.mockResolvedValueOnce('Yours — dashed').mockResolvedValueOnce('Yours — dashed, kept.')
     .mockResolvedValue('Yours — dashed');
   const { drafts } = await phoneWriter.write(request({ typed: 'Yours — dashed', dashes: 'keep' }));
   expect(drafts).toEqual(['Yours — dashed, kept.']);

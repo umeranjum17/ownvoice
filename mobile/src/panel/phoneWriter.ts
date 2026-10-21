@@ -52,6 +52,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
     dashes: request.dashes ?? 'remove',
     platform: request.platform,
     avoid: request.avoid ?? [],
+    slotsFirst: true,
     clear: () => canPolish(request.typed, prompt => ask(prompt, 8)).catch(error => {
       if (error instanceof Error && error.message === words.noVersions) return false;
       throw error;
