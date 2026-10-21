@@ -9,10 +9,11 @@ import { Dot } from '../src/ui/Dot';
 import { Badge } from '../src/ui/Badge';
 import { ChatIcon, CheckIcon, HandIcon, LockIcon, PhoneIcon, WarnIcon } from '../src/ui/icons';
 import { SourceOption } from '../src/ui/SourceOption';
+import { ChatGptPage } from '../src/ui/ChatGptPage';
 import { ClaudeSignIn } from '../src/ui/ClaudeSignIn';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
 import { say, type Provider, type SignIn, type Status, type WordKey } from '@byokit/accounts';
-import { words } from '../src/core/words';
+import { CHATGPT_TERMS, words } from '../src/core/words';
 import * as Onboarding from '../src/core/onboarding';
 import type { Step } from '../src/core/onboarding';
 import { store } from '../src/core/store';
@@ -366,7 +367,7 @@ export default function Setup() {
       </>
       : <Button kind="filled" large disabled={!phone} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : startPlanSignIn(pick)} />)}
     {step === 'CHOOSE' && planState?.waiting && planState.provider === 'chatgpt' && <>
-      <Button kind="filled" large disabled={!planState.code} label={words.copyAndOpen} onPress={copyAndOpen} />
+      {(planState.code || !planState.url) && <Button kind="filled" large disabled={!planState.code} label={words.copyAndOpen} onPress={copyAndOpen} />}
       <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>
     </>}
     {step === 'CHOOSE' && planState?.waiting && planState.provider === 'claude' &&
@@ -406,8 +407,8 @@ export default function Setup() {
       </View>}
     </>}
     {step === 'CHOOSE' && planState?.waiting && planState.provider === 'chatgpt' && <>
-      <Head title={words.signInTitle} note={words.signInNote} />
-      <View style={[styles.code, { backgroundColor: t.raised }]}>
+      <Head title={words.signInTitle} note={planState.url && !planState.code ? words.pageNote : words.signInNote} />
+      {planState.url && !planState.code ? <ChatGptPage url={planState.url} /> : <View style={[styles.code, { backgroundColor: t.raised }]}>
         {planState.code && <>
           <Text style={[type.label, { color: t.muted, textAlign: 'center' }]}>{words.yourCode}</Text>
           <Text testID="sign-in-code" accessibilityLabel={`${words.yourCode} ${planState.code.split('').join(' ')}`} style={[type.headline, styles.codeText, { color: t.text }]}>{planState.code}</Text>
@@ -416,9 +417,9 @@ export default function Setup() {
           <ActivityIndicator size="small" color={t.primary} />
           <Text style={[type.note, { color: t.muted }]}>{planState.code ? words.waiting : planState.note ?? words.waiting}</Text>
         </View>
-      </View>
+      </View>}
       <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
-        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: planName('chatgpt'), company: plans.find(p => p.key === 'chatgpt')?.company ?? '' })}</Text>
+        <Text style={[type.note, { color: t.muted }]}>{CHATGPT_TERMS}</Text>
       </View>
     </>}
     {step === 'CHOOSE' && planState?.waiting && planState.provider === 'claude' && <>

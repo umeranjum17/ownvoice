@@ -61,3 +61,4 @@ jest.mock('expo-sqlite/kv-store', () => {
   }
   return { __esModule: true, default: new Storage(), Storage, __map: map };
 });
+jest.mock('react-native-webview', () => ({ WebView: (props) => { globalThis.__web = props; return null; } }));

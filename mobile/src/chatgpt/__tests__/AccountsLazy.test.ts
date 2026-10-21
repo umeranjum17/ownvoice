@@ -31,7 +31,7 @@ jest.mock('@byokit/accounts', () => {
   };
 });
 
-type KitMock = { offered: jest.Mock; __calls: Array<{ method: string; args: unknown[] }> };
+type KitMock = { offered: jest.Mock; Accounts: { prototype: { login: (...args: unknown[]) => Promise<unknown> } }; __calls: Array<{ method: string; args: unknown[] }> };
 
 // Fresh module registry per load, with handles to THAT load's mock instance:
 // jest.resetModules() re-runs the factory, so top-level handles would go stale.
@@ -62,10 +62,17 @@ test('a throwing kit keeps the fallback working and retries later', () => {
   expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt']);
   // The wrappers still delegate somewhere callable instead of crashing.
   accounts.signIn('chatgpt');
-  expect(mocked.__calls.at(-1)).toEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'code' }] });
+  expect(mocked.__calls.at(-1)).toEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'redirect' }] });
   // Once the kit is ready, the same module upgrades to the kit-driven list.
   mocked.offered.mockReturnValue([{ key: 'chatgpt' }, { key: 'claude' }]);
   expect(keys(accounts.accounts.providers)).toEqual(['claude', 'chatgpt', 'openrouter']);
+});
+
+test('a refused redirect sign-in surfaces as a failure and never starts a typed code', async () => {
+  const { accounts, mocked } = load();
+  jest.spyOn(mocked.Accounts.prototype, 'login').mockImplementationOnce(() => Promise.reject(new Error('redirect refused')));
+  await expect(accounts.signIn('chatgpt')).rejects.toThrow('redirect refused');
+  expect(mocked.__calls.filter(call => (call.args[2] as { via?: string } | undefined)?.via === 'code')).toEqual([]);
 });
 
 test('an empty kit list keeps the fallback until plans appear', () => {
@@ -82,7 +89,7 @@ test('ChatGPT sign-in, status and cancel address the chatgpt plan', () => {
   accounts.signIn('chatgpt');
   accounts.status('chatgpt');
   accounts.cancelSignIn('chatgpt');
-  expect(mocked.__calls).toContainEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'code' }] });
+  expect(mocked.__calls).toContainEqual({ method: 'login', args: ['owner', 'chatgpt', { via: 'redirect' }] });
   expect(mocked.__calls).toContainEqual({ method: 'status', args: ['owner', 'chatgpt'] });
   expect(mocked.__calls).toContainEqual({ method: 'cancel', args: ['owner', 'chatgpt'] });
 });

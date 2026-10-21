@@ -5,10 +5,8 @@ import { withKeys } from '@byokit/accounts/keys';
 import { nativeStore } from '@byokit/secrets/native';
 import { CryptoDigestAlgorithm, digest as sha256, getRandomValues } from 'expo-crypto';
 
-import { CHATGPT_TERMS } from '../core/words';
 import type { CloudKey } from '../core/source';
 import type { Model, OpenCodeGoWorkspace } from '@byokit/accounts';
-export { CHATGPT_TERMS };
 const member = 'owner';
 const store = secureStore(SecureStore, 'ownvoice.chatgpt.1');
 // API keys (billed per use) live only in the phone's own secure store, never in the account store.
@@ -17,12 +15,12 @@ const keyStore = nativeStore({ secureStore: SecureStore, prefix: 'ownvoice.keys'
 // (mockOpenAI) with EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<port>; never set
 // in a distributable build, where sign-in always goes to OpenAI itself.
 const authBase = process.env.EXPO_PUBLIC_E2E_AUTH_BASE || undefined;
-// Claude's PKCE sign-in needs secure random bytes and SHA-256, which React Native lacks; expo-crypto supplies both.
+// Claude's and ChatGPT's page sign-ins (PKCE) need secure random bytes and SHA-256, which React Native lacks; expo-crypto supplies both.
 const claudePlan = { crypto: { getRandomValues, subtle: { digest: (_algorithm: string, data: BufferSource) => sha256(CryptoDigestAlgorithm.SHA256, data) } } as unknown as Crypto };
 
 // Start with hardcoded list to avoid calling offered() at module scope (RN crash).
 // Wrapper functions will delegate to a lazily-initialized instance with kit-driven list.
-const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, ...(authBase ? { authBase } : {}) }, withKeys(portable));
+const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase } : {}) }, withKeys(portable));
 let realInstance: Accounts | undefined;
 
 /** Whether the kit reports this phone's OpenRouter key route ready. Offered only then; the kit decides, not Ownvoice.
@@ -51,7 +49,7 @@ function kitInstance(): Accounts | undefined {
     if (!plans.length) return undefined;
     const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
     const offer = openRouterReady() ? [...planOrder, 'openrouter'] : planOrder;
-    realInstance = new Accounts({ offer, app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, ...(authBase ? { authBase} : {}) }, withKeys(portable));
+    realInstance = new Accounts({ offer, app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase} : {}) }, withKeys(portable));
     return realInstance;
   } catch {
     return undefined;
@@ -70,7 +68,11 @@ Object.defineProperty(accounts, 'providers', {
 });
 // Generic plan operations: the UI passes the provider key ('claude', 'chatgpt', etc.)
 // These call getInstance() to get the kit-driven instance (if available) instead of fallback.
-export const signIn = (provider: string) => getInstance().login(member, provider, { via: 'code' });
+/** ChatGPT's own page in the app's in-app browser (the kit's `redirect`: one approval, no code). A code is
+ *  asked for only through `via: 'code'`, from the page's "Use a code instead" button. */
+export const signIn = (provider: string, via: 'code' | 'redirect' = provider === 'chatgpt' ? 'redirect' : 'code') => getInstance().login(member, provider, { via });
+/** Finish the redirect sign-in with the address the in-app browser was sent back to. */
+export const completeSignIn = (provider: string, address: string) => getInstance().complete(member, provider, address);
 export const signOut = (provider: string) => getInstance().logout(member, provider);
 export const refresh = () => getInstance().keepFresh([member]);
 export const signInState = (provider: string) => getInstance().view(member, provider);
@@ -105,7 +107,7 @@ export async function codexAuth(): Promise<{ access: string; accountId: string }
 
 /** The model each provider writes with; the catalogue owns Claude's, as it does the plan's own naming. */
 export const CHATGPT_MODEL = 'gpt-6-sol';
-export const CLAUDE_MODEL = PROVIDERS.claude.models.strong;
+export const CLAUDE_MODEL = 'claude-opus-5-5'; // the kit's catalogue no longer names a model per provider (0.30.0), so the app names the one it always used
 /** OpenRouter's default writer: DeepSeek V4.1 Flash. A phone has no model catalogue, so the key route's
  *  full typed model (its api, provider, endpoint and size) is carried here; the kit's pinned adapter
  *  reads it. This is never shown to the person. `EXPO_PUBLIC_E2E_OPENROUTER_BASE` is an emulator-only

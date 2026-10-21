@@ -6,7 +6,7 @@ import Source from '../source';
 import { accountSessions, nothing, type GptState } from '../../src/chatgpt/session';
 const session = accountSessions.chatgpt.session;
 import { setSource, storedSource } from '../../src/core/source';
-import { words, technicalWords } from '../../src/core/words';
+import { CHATGPT_TERMS, words, technicalWords } from '../../src/core/words';
 import Native from '../../modules/ownvoice-native';
 
 // How Ownvoice writes, the ChatGPT side: signing in right on the page, the switch asking first,
@@ -19,6 +19,7 @@ jest.mock('../../src/chatgpt/session', () => ({
   GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
   nothing: { signedIn: false, waiting: false, code: null, url: null, note: null, resting: null },
+  termsOf: (key: string) => key === 'chatgpt' ? 'Uses your ChatGPT plan.' : 'Uses your plan. It may change this at any time.',
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
   accountSessions: {
     chatgpt: { session: { current: jest.fn(), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
@@ -27,6 +28,14 @@ jest.mock('../../src/chatgpt/session', () => ({
     opencode: { session: { current: jest.fn(async () => ({ signedIn: false, waiting: false, code: null, url: null, note: null, resting: null })), start: jest.fn(), cancel: jest.fn(), signOut: jest.fn() }, now: jest.fn(() => ({ signedIn: false })) },
   },
 }));
+const returnTo = 'http://localhost:1455/auth/callback';
+jest.mock('../../src/chatgpt/accounts', () => ({
+  ...jest.requireActual('../../src/chatgpt/accounts'),
+  signInState: jest.fn(() => ({ state: 'waiting', via: 'browser', returnTo: 'http://localhost:1455/auth/callback' })),
+  completeSignIn: jest.fn(async () => ({ state: 'done' })),
+  signIn: jest.fn(async () => ({ state: 'waiting', code: 'KQPT-MXVD' })),
+}));
+import { completeSignIn, signIn as gptSignIn } from '../../src/chatgpt/accounts';
 jest.mock('../../modules/ownvoice-native', () => ({
   __esModule: true,
   default: {
@@ -85,7 +94,7 @@ test('switching to ChatGPT signs in right on the page, and ChatGPT writes once c
   await fireEvent.press(screen.getByText(words.srcGpt));
   expect(await screen.findByText('KQPT-MXVD')).toBeTruthy();
   expect(screen.getByText(words.signInNote)).toBeTruthy();
-  expect(screen.getByText('Uses your ChatGPT plan. OpenAI may change this at any time.')).toBeTruthy();
+  expect(screen.getByText(CHATGPT_TERMS)).toBeTruthy();
   expect(chosen()).toBe('phone');
   expect(screen.getByText(words.privacyGpt)).toBeTruthy();
   expect(screen.queryByText(words.privacyPhone)).toBeNull();
@@ -104,6 +113,42 @@ test('switching to ChatGPT signs in right on the page, and ChatGPT writes once c
   expect(visible(screen.toJSON()).filter(text => technicalWords.test(text))).toEqual([]);
   await fireEvent.press(screen.getByText(words.headReads));
   expect(router.push).toHaveBeenCalledWith('/reads');
+});
+
+test('one button opens ChatGPT\u2019s page here, the approval there finishes it, and nothing is typed or copied', async () => {
+  const screen = await open('phone');
+  fake.start.mockImplementation(async () => (reports = { ...nothing, waiting: true, url: 'https://auth.openai.com/oauth/authorize?x=1', note: 'Opening ChatGPT\u2026' }));
+  await fireEvent.press(screen.getByText(words.srcGpt));
+  expect(await screen.findByText(words.pageNote)).toBeTruthy();
+  expect(screen.queryByTestId('sign-in-code')).toBeNull();
+  expect(screen.queryByText(words.copyAndOpen)).toBeNull();
+  expect(screen.getByText(CHATGPT_TERMS)).toBeTruthy();
+  const web = (globalThis as { __web?: { source: { uri: string }; onShouldStartLoadWithRequest: (r: { url: string }) => boolean } }).__web!;
+  expect(web.source.uri).toBe('https://auth.openai.com/oauth/authorize?x=1');
+  expect(web.onShouldStartLoadWithRequest({ url: 'https://auth.openai.com/log-in' })).toBe(true);
+  expect(web.onShouldStartLoadWithRequest({ url: `${returnTo}?code=abc&state=s` })).toBe(false);
+  expect(completeSignIn).toHaveBeenCalledWith('chatgpt', `${returnTo}?code=abc&state=s`);
+  await fireEvent.press(screen.getByText(words.useCode));
+  expect(gptSignIn).toHaveBeenCalledWith('chatgpt', 'code');
+  expect(Linking.openURL).not.toHaveBeenCalled();
+  reports = signedIn;
+  expect(await screen.findByText('ChatGPT is connected.', {}, { timeout: 3000 })).toBeTruthy();
+});
+
+test('a page sign-in that fails shows the plain line and Try again starts the redirect again', async () => {
+  const screen = await open('phone');
+  fake.start.mockImplementation(async () => (reports = { ...nothing, waiting: true, url: 'https://auth.openai.com/oauth/authorize?x=1', note: 'Opening ChatGPT\u2026' }));
+  await fireEvent.press(screen.getByText(words.srcGpt));
+  await screen.findByText(words.pageNote);
+  (completeSignIn as jest.Mock).mockRejectedValueOnce(new Error('kit detail'));
+  const web = (globalThis as { __web?: { onShouldStartLoadWithRequest: (r: { url: string }) => boolean } }).__web!;
+  await act(async () => { web.onShouldStartLoadWithRequest({ url: `${returnTo}?error=access_denied` }); await Promise.resolve(); });
+  expect(await screen.findByText(words.signInFailedNote.replace('{name}', 'ChatGPT'))).toBeTruthy();
+  expect(screen.queryByText(words.waiting)).toBeNull();
+  expect(screen.queryByText('kit detail')).toBeNull();
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  expect(gptSignIn).toHaveBeenCalledWith('chatgpt');
+  expect(screen.queryByText(words.signInFailedNote.replace('{name}', 'ChatGPT'))).toBeNull();
 });
 
 test('Cancel drops the waiting code and keeps this phone writing', async () => {

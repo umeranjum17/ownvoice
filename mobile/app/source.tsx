@@ -4,6 +4,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { say, type OpenCodeGoWorkspace } from '@byokit/accounts';
 import { Badge } from '../src/ui/Badge';
 import { Button } from '../src/ui/Button';
+import { ChatGptPage } from '../src/ui/ChatGptPage';
 import { ClaudeSignIn } from '../src/ui/ClaudeSignIn';
 import { KeyConnect } from '../src/ui/KeyConnect';
 import { Page } from '../src/ui/Page';
@@ -17,7 +18,7 @@ import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
 import { cloudSession, getSource, phoneOnly, setSource, type CloudKey, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
-import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, nothing, type GptState } from '../src/chatgpt/session';
+import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, nothing, termsOf, type GptState } from '../src/chatgpt/session';
 import { appsLine } from './index';
 import Native from '../modules/ownvoice-native';
 
@@ -222,7 +223,7 @@ export default function SourceScreen() {
     const resting = !!cloud?.resting;
     const signing = signIn?.key === key ? signIn.state : null;
     if (signing?.waiting) return <>
-      {indent(key === 'claude' ? signing.note ?? words.claudeSignInNote : key === 'opencode' ? signing.note ?? words.openCodeKeyNote : key === 'openrouter' ? signing.note ?? words.openrouterKeyNote : words.signInNote, t.muted)}
+      {indent(key === 'claude' ? signing.note ?? words.claudeSignInNote : key === 'opencode' ? signing.note ?? words.openCodeKeyNote : key === 'openrouter' ? signing.note ?? words.openrouterKeyNote : signing.url && !signing.code ? words.pageNote : words.signInNote, t.muted)}
       {key === 'claude'
         ? <ClaudeSignIn url={signing.url ?? null} onOpen={openClaude} onConnect={connectClaude} />
         : key === 'openrouter'
@@ -239,6 +240,8 @@ export default function SourceScreen() {
         </>
         : key === 'opencode'
         ? <KeyConnect onConnect={connectOpenCode} paste={words.openCodePasteField} connect={words.openCodeConnect} />
+        : signing.url && !signing.code
+        ? <ChatGptPage url={signing.url} />
         : <>
           <View style={[styles.code, { backgroundColor: t.group }]}>
             {signing.code && <>
@@ -253,7 +256,7 @@ export default function SourceScreen() {
           <Button kind="filled" disabled={!signing.code} label={words.copyAndOpen} onPress={copyAndOpen} />
         </>}
       <Button kind="text" label={words.gptCancel} onPress={leaveSignIn} />
-      <Text style={[type.note, styles.indent, { color: t.muted }]}>{say('terms.grey', { name: copy.name, company: copy.company })}</Text>
+      <Text style={[type.note, styles.indent, { color: t.muted }]}>{termsOf(key, copy.name, copy.company)}</Text>
     </>;
     if (signing) return <>
       {indent(signing.note ?? words.failed)}

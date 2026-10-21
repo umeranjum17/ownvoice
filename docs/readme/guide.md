@@ -90,7 +90,7 @@ Then setup takes about a minute:
 1. **Open Ownvoice** and tap **Continue**.
 2. **Choose how Ownvoice writes.**
    - **On this phone**: pick it and tap **Continue**. If the phone first needs its one-time download, the button reads **Get it ready** (about 2 to 3 GB, once, on Wi-Fi).
-   - **With your ChatGPT**: pick it and tap **Continue**, then **Copy code and open ChatGPT**, and type the code on the ChatGPT page. Come back to Ownvoice and tap **Continue**.
+   - **With your ChatGPT**: pick it and tap **Continue**. ChatGPT's page opens inside Ownvoice; tap **Approve** there and you're back, with nothing to copy or type. **Use a code instead** on that page is the fallback that shows a code to type on the ChatGPT page.
    - **With your Claude**: pick it and tap **Continue**, then **Open the Claude page**, sign in there with the account you already have, and paste back the code that page shows.
    If your phone can't write on its own, Ownvoice says so, ChatGPT is picked for you, and the button reads **Sign in**; the two accounts are still both offered.
 3. **Let Ownvoice see your chats, only when you tap.** Tap **Turn on**. In the phone's settings, in **Downloaded apps** tap **Ownvoice**, switch on **Use Ownvoice**, and tap **Allow**. Ownvoice comes back by itself. If the switch is greyed out, tap **Switch greyed out?** in Ownvoice: on Android 13 and later, apps installed from a file need **Allow restricted settings** in App info first. On OPPO, OnePlus or Realme phones, add Ownvoice to the security app's allowlist before this step; [Download and install](#download-and-install) shows how.

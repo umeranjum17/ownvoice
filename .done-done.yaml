@@ -89,6 +89,14 @@ journeys:
       node mobile/e2e/first-run.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
+  chatgpt-sign-in-page:
+    description: "Android: ChatGPT sign-in without a code. One button in setup opens the provider page inside the app, one Approve tap there finishes it (kit redirect against the mockOpenAI stand-in held behind an Approve page); light and dark, recording and card shots. Needs an explicit emulator allocation and a release APK built with EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455 (APK env). The real approval is for the captain to test; nobody signs in to ChatGPT for a proof."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"/mobile
+      for t in light dark; do mkdir -p "$E/$t"; SIGNIN_PAGE=1 SIGNIN_RECORD="dd-${RUN_ID}" THEME=$t node e2e/signin-wait.mjs "$APK" "$E/$t" >"$E/driver-$t.log" 2>&1 || { echo "driver $t failed" >>"$E/driver.log"; exit 1; }; done
+      echo "driver exit=0" >"$E/driver.log"
+    timeout: 45m
+
   reply-drafts:
     description: "Android: bubble reply cards over a feed post, every card's wording checked against its own F6a label (Agree / Push back, kindly / Ask a question), edit/insert/copy, the insert's outcome record read back from the app's store and its 'Replies you inserted' screen, refusal legs on image-only and label-only composers. Full legs need a live writer: X_REPLIES_WRITER=pi starts the host's mobile/e2e/pi-writer.mjs and the build points the OpenRouter route at it with EXPO_PUBLIC_E2E_OPENROUTER_BASE (real DeepSeek Flash through @byokit/decide's pi backend, Haiku fallback, no provider key or sign-in, no spend), or a cloud writer (spends): OpenRouter by default (OPENROUTER_KEY_FILE), or the OpenCode Go writer with X_REPLIES_WRITER=opencode and OC_KEY (the desktop login's plan key), connected through the app's own connect field, picking OPENCODE_WORKSPACE (default Working2) when the key works with several; X_REPLIES_LEGS=refusal runs only the refusal legs, the extreme one included (a live writer is still connected, but no leg makes a writer request, so nothing is spent), X_REPLIES_LEGS=preflight connects the writer and proves one grounded, label-true generation answers, then stops. Needs APK env (path to the release APK, built per mobile/README.md)."
     spends: "one live generation per writer leg on a cloud writer; the pi writer route and the refusal legs spend nothing"
