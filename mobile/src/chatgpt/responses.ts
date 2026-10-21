@@ -72,9 +72,9 @@ async function ask(cloud: CloudKey | 'computer', prompt: string, instructions: s
     let text: string;
     if (cloud === 'computer') {
       await gate();
-      text = await (require('../computer/link') as typeof import('../computer/link')).askComputer(instructions, prompt, signal);
       await on?.sent?.();
       marked = true;
+      text = await (require('../computer/link') as typeof import('../computer/link')).askComputer(instructions, prompt, signal);
     } else text = await withResponseFetch(send, signal => askCloud(cloud, { instructions, input: prompt, json: key !== 'text', onText, signal, fetch: send }), signal);
     if (key === 'text' || key === 'fit') {
       const line = text.trim();

@@ -16,10 +16,10 @@ export default function Computer() {
   const [code, setCode] = useState('');
   const [check, setCheck] = useState<string | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
-  const load = () => Promise.all([computerName(), getSource()]).then(([n, s]) => { setName(n); setUsing(s === 'computer'); }).catch(e => setProblem(e.message));
+  const load = () => Promise.all([computerName(), getSource()]).then(([n, s]) => { setName(n); setUsing(s === 'computer'); }).catch(() => setProblem(words.computerProblem));
   useEffect(() => { void load(); }, []);
 
-  const run = (job: () => Promise<void>) => { setProblem(null); job().catch(e => setProblem(e.message)).finally(() => setCheck(null)); };
+  const run = (job: () => Promise<void>) => { setProblem(null); job().catch(() => setProblem(words.computerProblem)).finally(() => setCheck(null)); };
   const pair = () => run(async () => {
     await pairComputer(code, setCheck);
     setSource('computer');

@@ -42,15 +42,19 @@ function guardOk(key: CloudKey, before: Guard, signedIn: boolean): boolean {
   return signedIn && !after.active && after.epoch === before.epoch;
 }
 
-/** The remote-switch plus sign-in tail every cloud send ends with: an unknown switch
- *  stops nothing here (the panel resolved it at route time); off refuses with the provider's own line. */
+/** The remote switch every send checks: an unknown switch stops nothing here (the panel resolved it at route time);
+ *  off refuses with the route's own line. */
+async function switchAllows(key: CloudKey | 'computer'): Promise<void> {
+  if (mocked) return;
+  const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(cloudWords(key).switchUnavailable); });
+  switchNow = choice;
+  if (choice?.chatgpt === 'off') throw new SendVeto(cloudWords(key).off);
+}
+
+/** The remote-switch plus sign-in tail every cloud send ends with. */
 async function switchAndSession(before: Guard, key: CloudKey = 'chatgpt'): Promise<boolean> {
   if (before.active) return false;
-  if (!mocked) {
-    const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(cloudWords(key).switchUnavailable); });
-    switchNow = choice;
-    if (choice?.chatgpt === 'off') throw new SendVeto(cloudWords(key).off);
-  }
+  await switchAllows(key);
   return guardOk(key, before, (await cloudSession(key).current()).signedIn);
 }
 
@@ -107,10 +111,15 @@ export function cloudConsent(key: CloudKey, app: string | null): Required<Pick<W
 async function computerRoute(app: string, practice: boolean): Promise<WriterRoute> {
   const allowed = (rules: BubbleRules | null) => practice || (!!rules && !rules.paused && showsBubble(app, rules) && !phoneListed(app));
   const phone = await phoneCanWrite();
+  if (!mocked) await chatgptEnabled(switchStore).catch(() => false);
   if (!allowed(await Native.bubbleRules().catch(() => null))) return { writer: phone === 'cant' ? thrower(words.phoneOnlyCant) : phoneWriter, note: null };
   const on: WriterEvents = {
-    beforeSend: async () => (await getSource()) === 'computer' && allowed(await Native.bubbleRules().catch(() => null)),
-    beforeFetch: () => store.peek<Source>(SOURCE_KEY) === 'computer',
+    beforeSend: async () => {
+      if ((await getSource()) !== 'computer' || !allowed(await Native.bubbleRules().catch(() => null))) return false;
+      await switchAllows('computer');
+      return !!(await require('../computer/link').computerName());
+    },
+    beforeFetch: () => store.peek<Source>(SOURCE_KEY) === 'computer' && switchNow?.chatgpt !== 'off',
   };
   const cloud = require('./responses').cloudWriter('computer') as Writer;
   const computer: Writer = { write: (request, events = {}) => cloud.write(request, { ...events, ...on }) };

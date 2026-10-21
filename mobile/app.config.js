@@ -25,7 +25,7 @@ module.exports = {
         {
           android: {
             minSdkVersion: 26,
-            // Use my computer dials ws:// on the home network; the link is encrypted end to end by @byokit/pair. Every other address in the app is https.
+            // Use my computer dials ws://; @byokit/pair's Noise handshake pins the host key (or the pairing code) and seals every frame with ChaCha20-Poly1305, so the link is encrypted and authenticated. Every other address in the app is https.
             usesCleartextTraffic: true,
           },
         },
