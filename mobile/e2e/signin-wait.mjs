@@ -6,9 +6,13 @@
 // the connected sentence. Shell input and screencap only, never UiAutomator.
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME=<owned-avd-name>, MOCK_PORT (default
 // 21455), DROP_POLLS (default 0; >0 destroys that many polls like a backgrounded app's cut
-// network). Args: <release-apk> [screenshots-dir].
+// network). THEME=light|dark sets the emulator theme first. SIGNIN_PAGE=1 (APK built against MOCK_PORT) walks the
+// one-button flow instead: the stand-in holds ChatGPT's page for one tap (MOCK_PORT+1 is the stand-in itself),
+// the card is shot with the page closed, then Open the page and Approve connect it; with
+// SIGNIN_RECORD=<task> it records the walk to verify-artifacts/<task>/. Args: <release-apk> [screenshots-dir].
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync } from 'node:fs';
+import http from 'node:http';
 import { resolve } from 'node:path';
 import { mockOpenAI } from '@byokit/accounts/testing';
 
@@ -45,6 +49,7 @@ if (adb('shell', 'getprop', 'ro.boot.qemu.avd_name').trim() !== avd)
   throw new Error(`Serial ${serial} is not the owned AVD ${avd}; refusing to touch it.`);
 const tap = (x, y) => adb('shell', 'input', 'tap', String(x), String(y));
 const pkg = 'dev.ownvoice.next';
+const done = new Error('page walk done');
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
 
 const screenText = () => {
@@ -55,9 +60,12 @@ const screenText = () => {
 const waitForLine = async (labels, tries = 30) => {
   const wanted = (Array.isArray(labels) ? labels : [labels]).map(label => label.toLowerCase());
   for (let attempt = 0; attempt < tries; attempt++) {
-    if (wanted.some(want => screenText().includes(want))) return;
+    const text = screenText();
+    if (wanted.some(want => text.includes(want))) return;
+    if (text.includes('responding')) await tapText('wait').catch(() => {}); // A loaded host's ANR dialog: let the app finish.
     if (attempt < tries - 1) await wait(1000);
   }
+  snap('failed-wait');
   throw new Error(`Could not see "${wanted.join('" or "')}" on screen.`);
 };
 const tapText = async (label, tries = 10) => {
@@ -118,7 +126,20 @@ const disableService = () => {
 
 // The stand-in OpenAI on the host; the emulator reaches it at 10.0.2.2, both from the
 // app's sign-in stack and from Chrome on the code page. Every request is timestamped.
-const mock = await mockOpenAI({ port, host: '0.0.0.0', log: line => appendFileSync(resolve(out, 'signin-mock.log'), `${stamp()} ${line}\n`) });
+const pageMode = process.env.SIGNIN_PAGE === '1';
+const mock = await mockOpenAI({ port: pageMode ? port + 1 : port, host: '0.0.0.0', log: line => appendFileSync(resolve(out, 'signin-mock.log'), `${stamp()} ${line}\n`) });
+// Page mode: ChatGPT's authorize page waits for a tap (the stand-in would redirect at once); every other request goes to the stand-in.
+const front = pageMode ? http.createServer(async (req, res) => {
+  if (req.url.startsWith('/oauth/authorize')) {
+    res.setHeader('content-type', 'text/html');
+    return void res.end(`<meta name=viewport content="width=device-width"><body style="font:30px sans-serif;padding:48px"><h2>Sign in to ChatGPT</h2><p>Ownvoice asks to use your plan.</p><p><a href="${deviceBase(port + 1)}${req.url}" style="display:inline-block;padding:24px 64px;border-radius:99px;background:#10a37f;color:#fff;text-decoration:none">Approve</a></p>`);
+  }
+  const chunks = [];
+  for await (const chunk of req) chunks.push(chunk);
+  const got = await fetch(`http://127.0.0.1:${port + 1}${req.url}`, { method: req.method, headers: { 'content-type': req.headers['content-type'] ?? 'text/plain' }, ...(chunks.length ? { body: Buffer.concat(chunks) } : {}) }).catch(() => null);
+  res.writeHead(got?.status ?? 502, { 'content-type': got?.headers.get('content-type') ?? 'text/plain' });
+  res.end(got ? Buffer.from(await got.arrayBuffer()) : '');
+}).listen(port, '0.0.0.0') : null;
 if (dropPolls > 0) mock.state.dropPolls = dropPolls;
 log(`stand-in OpenAI on ${mock.base} (device at ${deviceBase(port)}), dropPolls=${dropPolls}`);
 
@@ -131,20 +152,47 @@ try {
   execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
   adb('shell', 'pm', 'clear', pkg);
   disableService();
+  if (process.env.THEME) execFileSync('bash', ['e2e/evidence.sh', 'theme', process.env.THEME], { stdio: 'inherit' });
   await wait(1500);
 
   // Setup to the ChatGPT choice (same walk as e2e/first-run.mjs steps 1-2: on an
   // emulator no phone writer exists, so the choice offers ChatGPT sign-in inline).
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
-  await waitForLine('replies that sound');
-  await tapText('Continue');
-  await waitForLine('needs your chatgpt');
-  await waitForLine('only some newer phones');
+  try { await waitForLine('replies that sound', 30); } catch (error) {
+    if (!/respond/.test(screenText())) throw error; // Cold-boot ANR: let it finish loading.
+    await tapText('wait');
+    await waitForLine('replies that sound');
+  }
+  // A cold-boot frame can swallow the first press, so tap again until the step shows.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await tapText('Continue');
+    try { await waitForLine('how should ownvoice write', 10); break; } catch (error) { if (attempt === 2) throw error; }
+  }
+  await waitForLine('with your chatgpt');
   snap('signin-01-choose');
 
-  // The choice starts the sign-in inside the step and shows the code with its
-  // waiting note; the issued code (ground truth from the stand-in) proves the wait started.
-  await tapText('Continue with');
+  // The choice starts the sign-in inside the step: pick the card, then the footer button.
+  const record = pageMode && process.env.SIGNIN_RECORD;
+  if (record) execFileSync('bash', ['e2e/evidence.sh', 'motion-start', record, `signin-page-${process.env.THEME ?? 'light'}`], { stdio: 'inherit' });
+  await tapText('with your chatgpt');
+  await tapText('Continue').catch(() => tapText('Sign in'));
+  if (pageMode) {
+    // One button in the app (the tap above), then one approval on ChatGPT's page: no code anywhere.
+    await waitForLine('asks to use');
+    if (screenText().includes('your code')) throw new Error('A code is on screen.');
+    snap('signin-02-page');
+    await tapText('Close');
+    await waitForLine('nothing to type');
+    snap('signin-03-card');
+    await tapText('Open the ChatGPT');
+    await waitForLine('asks to use');
+    await tapText('Approve'); // the one tap on the page
+    await waitForLine('chatgpt is connected');
+    snap('signin-06-connected');
+    if (record) execFileSync('bash', ['e2e/evidence.sh', 'motion-stop'], { stdio: 'inherit' });
+    log('connected from the page with one approval, no code');
+    throw done;
+  }
   let code;
   for (let attempt = 0; attempt < 30 && !(code = mock.lastCode()); attempt++) await wait(1000);
   if (!code) throw new Error('The app never asked the stand-in for a code.');
@@ -196,7 +244,10 @@ try {
   snap('signin-06-connected');
   log('connected: the sign-in survived 60 s in the browser');
   console.log(`P7 proof saved to ${out}.`);
+} catch (error) {
+  if (error !== done) throw error;
 } finally {
+  front?.close();
   for (const args of [
     ['shell', 'settings', priorServices === 'null' ? 'delete' : 'put', 'secure', 'enabled_accessibility_services', ...(priorServices === 'null' ? [] : [priorServices])],
     ['shell', 'settings', priorAccessibility === 'null' ? 'delete' : 'put', 'secure', 'accessibility_enabled', ...(priorAccessibility === 'null' ? [] : [priorAccessibility])],

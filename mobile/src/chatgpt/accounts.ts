@@ -17,12 +17,12 @@ const keyStore = nativeStore({ secureStore: SecureStore, prefix: 'ownvoice.keys'
 // (mockOpenAI) with EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<port>; never set
 // in a distributable build, where sign-in always goes to OpenAI itself.
 const authBase = process.env.EXPO_PUBLIC_E2E_AUTH_BASE || undefined;
-// Claude's PKCE sign-in needs secure random bytes and SHA-256, which React Native lacks; expo-crypto supplies both.
+// Claude's and ChatGPT's page sign-ins (PKCE) need secure random bytes and SHA-256, which React Native lacks; expo-crypto supplies both.
 const claudePlan = { crypto: { getRandomValues, subtle: { digest: (_algorithm: string, data: BufferSource) => sha256(CryptoDigestAlgorithm.SHA256, data) } } as unknown as Crypto };
 
 // Start with hardcoded list to avoid calling offered() at module scope (RN crash).
 // Wrapper functions will delegate to a lazily-initialized instance with kit-driven list.
-const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, ...(authBase ? { authBase } : {}) }, withKeys(portable));
+const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase } : {}) }, withKeys(portable));
 let realInstance: Accounts | undefined;
 
 /** Whether the kit reports this phone's OpenRouter key route ready. Offered only then; the kit decides, not Ownvoice.
@@ -51,7 +51,7 @@ function kitInstance(): Accounts | undefined {
     if (!plans.length) return undefined;
     const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
     const offer = openRouterReady() ? [...planOrder, 'openrouter'] : planOrder;
-    realInstance = new Accounts({ offer, app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, ...(authBase ? { authBase} : {}) }, withKeys(portable));
+    realInstance = new Accounts({ offer, app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase} : {}) }, withKeys(portable));
     return realInstance;
   } catch {
     return undefined;
