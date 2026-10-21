@@ -4,7 +4,7 @@
 import { createRequire } from 'node:module';
 import { createServer } from 'node:https';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT_DIR || 'playwright');
@@ -57,4 +57,11 @@ const run = async scheme => {
 };
 try { await run('light'); await run('dark'); } finally { server.close(); }
 check(remote.every(u => u.startsWith('https://x.com/')), `no request left the browser except the fixture page (${remote.length} requests: ${[...new Set(remote.map(u => new URL(u).origin))].join(', ')})`);
+// done-done step record: what a person did and saw, written only from a run that passed.
+if (!fails.length) writeFileSync(join(out, 'steps.json'), JSON.stringify({
+  target: { version: JSON.parse(readFileSync(join(dist, 'manifest.json'), 'utf8')).version },
+  start: 'desktop Chrome with the unpacked Ownvoice extension and a fixture post page served as x.com',
+  steps: ['open an x.com post in desktop Chrome', 'open the Ownvoice side panel and read the post', 'open a post with no words and a page that is not x.com'],
+  result: 'the Ownvoice side panel shows the post Ownvoice read, and shows "Nothing to reply to yet" when there is nothing to reply to',
+}, null, 2));
 process.exit(fails.length ? 1 : 0);
