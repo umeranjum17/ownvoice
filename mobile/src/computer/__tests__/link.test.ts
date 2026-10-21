@@ -83,6 +83,19 @@ describe('askComputer read-log send mark', () => {
     expect(await askComputer('i', 'p', undefined, passGate, async () => {})).toBe('ok');
   });
 
+  it('sends nothing when the ask is aborted while the link is still connecting', async () => {
+    await forgetComputer();
+    mockLink.status = 'connecting';
+    mockLink.request.mockClear();
+    const sent = jest.fn(async () => {});
+    const controller = new AbortController();
+    const asked = askComputer('i', 'p', controller.signal, passGate, sent);
+    setTimeout(() => { controller.abort(); mockLink.status = 'online'; }, 150);
+    await expect(asked).rejects.toThrow('aborted');
+    expect(mockLink.request).not.toHaveBeenCalled();
+    expect(sent).not.toHaveBeenCalled();
+  });
+
   it('refuses a computer that drops offline during the consent gate', async () => {
     await forgetComputer();
     mockLink.status = 'online';
