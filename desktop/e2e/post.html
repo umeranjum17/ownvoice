@@ -1,0 +1,21 @@
+<!doctype html>
+<!-- Fixture modeled on x.com's post page markup (data-testid handles), synthetic text, demo name Umer.
+     NOT a captured copy of the real page: x.com answers HTTP 403 to automated browsers.
+     ?case=notext renders an image-only post; ?case=home renders a timeline with no post page. -->
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Umer on X</title>
+<style>:root{color-scheme:light dark}body{font:15px system-ui;margin:12px}article{border-bottom:1px solid #8884;padding:8px 0}[role=link]{border:1px solid #8886;border-radius:12px;padding:8px;margin:6px 0;display:block}</style>
+<main id="root"></main>
+<script>
+const c = new URLSearchParams(location.search).get('case');
+const art = (who, handle, href, body, extra = '') => `<article data-testid="tweet" tabindex="0" role="article">
+  <div data-testid="User-Name"><div><span>${who}</span></div><div><span>@${handle}</span></div></div>
+  ${body ? `<div data-testid="tweetText" lang="en"><span>${body}</span></div>` : ''}${extra}
+  <a href="${href}" role="link"><time datetime="2026-10-21T09:00:00.000Z">2h</time></a></article>`;
+const quote = `<div role="link" tabindex="0"><div data-testid="User-Name"><div><span>Spec</span></div><div><span>@spec</span></div></div><div data-testid="tweetText" lang="en"><span>The plan we set on Monday: read the post, draft three replies, never post for you.</span></div></div>`;
+const composer = `<div data-testid="tweetTextarea_0" role="textbox" contenteditable="true" aria-label="Post text"></div>`;
+const root = document.getElementById('root');
+if (c === 'home') root.innerHTML = art('Spec', 'spec', '/spec/status/1', 'Home timeline, not a post page.') + art('Umer', 'umer', '/umer/status/2', 'Another timeline post.');
+else if (c === 'notext') root.innerHTML = art('Umer', 'umer', location.pathname, '', '<div data-testid="tweetPhoto"><img alt="" width="300" height="120" src="data:image/gif;base64,R0lGODlhAQABAAAAACw="></div>') + composer;
+else root.innerHTML = art('Spec', 'spec', '/spec/status/1', 'Earlier post in the thread, above the one being replied to.') +
+  art('Umer', 'umer', location.pathname, 'Shipped the reply flow end to end today. Read the post, get three replies, edit one until it sounds like me, press Post myself.', quote) + composer;
+</script>

@@ -178,3 +178,10 @@ journeys:
       set -u; : "${CAPTURES:?folder of live <mode>-<task>/events.json captures}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)/mobile"
       node --experimental-strip-types reports/phone-agent-live/evaluate.mjs "$CAPTURES" --gate >"$E/grade.jsonl" 2>"$E/grade.err"; code=$?; echo "gate exit=$code" | tee "$E/driver.log"; exit $code
     timeout: 5m
+
+  desktop-side-panel:
+    description: "Desktop Chrome: the unpacked side panel reads the post on a fixture served as x.com (modeled on x.com markup, not a captured copy; the real site returns 403 to automated browsers), shows the plain note when there is nothing to reply to, sends no request beyond the fixture page; light and dark. Needs PLAYWRIGHT_DIR (a playwright install) and a built desktop/dist."
+    command: |
+      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)/desktop"
+      node e2e/side-panel.mjs dist "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 10m

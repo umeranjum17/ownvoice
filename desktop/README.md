@@ -25,3 +25,7 @@ With nothing to read (another site, or a post with no words) the panel says "Not
 ## Not verified on the real site
 
 x.com answers HTTP 403 to automated browsers, so the selectors are written from X's known `data-testid` markup and checked against a local copy of that markup served as x.com, not against the live site. Open a real post once and look at the panel before trusting it.
+
+## Check it
+
+`npm run build`, then `PLAYWRIGHT_DIR=<playwright install> node e2e/side-panel.mjs dist <evidence dir>` loads the unpacked extension in Chromium against `e2e/post.html` served as x.com and checks the panel, light and dark.
