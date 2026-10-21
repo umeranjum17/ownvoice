@@ -10,7 +10,7 @@ import { mockOpenAI } from '@byokit/accounts/testing';
 // provider's own page is stood in for (mockOpenAI from @byokit/accounts/testing), never the app's sign-in
 // code. Needs a release APK built with EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_GPT=1 (fixed drafts, so an
 // emulator's downloadable phone row still writes the practice drafts) and
-// EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<MOCK_PORT> (the stand-in, also enabling cleartext). Every
+// EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<MOCK_PORT> (the stand-in, over plain HTTP). Every
 // setup screen's visible text is scanned for technical words, and the phone's settings are restored
 // after. Shell input and screencap only, never UiAutomator (which would unbind the service).
 const serial = process.env.ANDROID_SERIAL;
