@@ -27,7 +27,7 @@ const run = async scheme => {
     await panel.goto(`chrome-extension://${id}/panel.html`);
     await panel.setViewportSize({ width: 400, height: 260 }); // side-panel width, so the shots show the panel and not an empty window
     const read = async (path, shot) => {
-      await tab.goto(`https://x.com:${PORT}${path}`); await tab.bringToFront();
+      await tab.goto(`https://x.com${path}`); await tab.bringToFront();
       await panel.evaluate(() => document.getElementById('again').click());
       await panel.waitForTimeout(600);
       const text = await panel.evaluate(() => document.body.innerText);
@@ -56,6 +56,6 @@ const run = async scheme => {
   } finally { await ctx.close(); }
 };
 try { await run('light'); await run('dark'); } finally { server.close(); }
-check(remote.every(u => u.startsWith(`https://x.com:${PORT}/`)), `no request left the browser except the fixture page (${remote.length} requests: ${[...new Set(remote.map(u => new URL(u).origin))].join(', ')})`);
+check(remote.every(u => u.startsWith('https://x.com/')), `no request left the browser except the fixture page (${remote.length} requests: ${[...new Set(remote.map(u => new URL(u).origin))].join(', ')})`);
 writeFileSync(join(out, 'driver.log'), `fails=${fails.length}\n`);
 process.exit(fails.length ? 1 : 0);
