@@ -71,8 +71,7 @@ async function ask(cloud: CloudKey | 'computer', prompt: string, instructions: s
     };
     let text: string;
     if (cloud === 'computer') {
-      await gate();
-      text = await (require('../computer/link') as typeof import('../computer/link')).askComputer(instructions, prompt, signal, async () => {
+      text = await (require('../computer/link') as typeof import('../computer/link')).askComputer(instructions, prompt, signal, gate, async () => {
         await on?.sent?.();
         marked = true;
       });
@@ -101,7 +100,7 @@ async function ask(cloud: CloudKey | 'computer', prompt: string, instructions: s
     const planLimit = cloudWords(cloud).planLimit;
     if (error instanceof ResponseError && error.kind === 'rate_limit' && planLimit) throw new PlanLimit(limitLine(planLimit));
     const message = error instanceof Error ? error.message : String(error);
-    if (!started && classify(message)?.kind !== 'network') {
+    if (cloud !== 'computer' && !started && classify(message)?.kind !== 'network') {
       if (__DEV__) console.log(`Ownvoice ${cloud} pre-dispatch failure: ${message}`);
       throw new SendVeto(words.phoneWrote, { cause: error });
     }

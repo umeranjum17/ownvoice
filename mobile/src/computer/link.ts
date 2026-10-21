@@ -24,13 +24,14 @@ export async function forgetComputer(): Promise<void> {
 }
 
 /** One question to the paired computer's own Claude: its text back, or a plain error. */
-export async function askComputer(instructions: string, input: string, signal: AbortSignal | undefined, onSent: () => Promise<void>): Promise<string> {
+export async function askComputer(instructions: string, input: string, signal: AbortSignal | undefined, gate: () => Promise<void>, onSent: () => Promise<void>): Promise<string> {
   if (!live) {
     const grant = await kept.load();
     if (!grant) throw new Error(words.computerNone);
     live = new DeviceLink(grant, { store: kept });
   }
   if (live.status !== 'online') throw new Error(words.computerProblem);
+  await gate();
   const asked = live.request('write', { instructions, input }, { timeoutMs: 30_000 }) as Promise<{ text?: string }>;
   await onSent();
   const reply = await asked;
