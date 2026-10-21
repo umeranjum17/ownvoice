@@ -21,7 +21,7 @@ export function ChatGptPage({ url }: { url: string }) {
     const back = live().signInState('chatgpt')?.returnTo;
     if (!back || !next.startsWith(back)) return true;
     setOpen(false);
-    live().completeSignIn('chatgpt', next).catch((e: Error) => setNote(e.message || words.failed));
+    live().completeSignIn('chatgpt', next).catch(() => setNote(words.signInFailedNote.replace('{name}', 'ChatGPT')));
     return false; // nothing on the phone answers that address
   };
   return <View style={[styles.box, { backgroundColor: t.group }]}>
