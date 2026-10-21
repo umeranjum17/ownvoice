@@ -21,7 +21,7 @@ async function read() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     // Without access to the page Chrome hides its address, so a tab with no address is not x.com.
-    if (!tab?.id || new URL(tab.url ?? 'about:blank').hostname !== 'x.com') return render(NOTHING, 'Open a post on x.com and I will read it here.');
+    if (!tab?.id || new URL(tab.url ?? 'about:blank').origin !== 'https://x.com') return render(NOTHING, 'Open a post on x.com and I will read it here.');
     const [{ result }] = await chrome.scripting.executeScript({ target: { tabId: tab.id }, func: readPost, args: [SELECTORS] });
     if (!result) return render(NOTHING, 'I can’t find a post with words on this page.');
     render('', '', result);
