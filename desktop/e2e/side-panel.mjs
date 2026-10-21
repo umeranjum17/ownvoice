@@ -4,7 +4,7 @@
 import { createRequire } from 'node:module';
 import { createServer } from 'node:https';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 const { chromium } = createRequire(import.meta.url)(process.env.PLAYWRIGHT_DIR || 'playwright');
@@ -55,7 +55,7 @@ const run = async scheme => {
     check(other.includes('Nothing to reply to yet') && !other.includes('The post I read'), `${scheme}: a non-X page shows the plain note and no post`);
   } finally { await ctx.close(); }
 };
-try { await run('light'); await run('dark'); } finally { server.close(); }
+try { await run('light'); await run('dark'); } finally { server.close(); rmSync(tmp, { recursive: true, force: true }); }
 check(remote.every(u => u.startsWith('https://x.com/')), `no request left the browser except the fixture page (${remote.length} requests: ${[...new Set(remote.map(u => new URL(u).origin))].join(', ')})`);
 // done-done step record: what a person did and saw, written only from a run that passed.
 if (!fails.length) writeFileSync(join(out, 'steps.json'), JSON.stringify({
