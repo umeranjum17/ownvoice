@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { mockOpenAI } from '@byokit/accounts/testing';
 
 // FirstRunTest for the setup slice: welcome -> how Ownvoice writes (an emulator has no phone writer, so
-// ChatGPT leads) -> the kit's real device-code sign-in through a host stand-in -> connected -> permission
+// ChatGPT leads) -> ChatGPT's page opened inside the app, one approval through a host stand-in -> connected -> permission
 // (the test flips the switch) -> setup comes back by itself -> practice insert -> only installed apps
 // offered -> home. The ChatGPT leg drives the same @byokit/accounts flow the shipped app uses; only the
 // provider's own page is stood in for (mockOpenAI from @byokit/accounts/testing), never the app's sign-in
@@ -190,15 +190,6 @@ const readiness = async (deadline = 120000) => {
   throw new Error('Timed out waiting for boot, installed package and Ownvoice intent readiness.');
 };
 
-const code = async tries => {
-  for (let i = 0; i < tries; i++) {
-    const c = mock.lastCode();
-    if (c) return c;
-    await wait(1000);
-  }
-  throw new Error('The app never asked the stand-in for a sign-in code.');
-};
-
 const OFFERED = ['x', 'linkedin', 'reddit', 'slack', 'whatsapp', 'gmail'];
 const run = async mode => {
   const tag = suffix => `${mode}-${suffix}`;
@@ -229,13 +220,9 @@ const run = async mode => {
   snap(tag('02-choose'));
   await tapText('with your chatgpt');
   await tapText(['continue', 'sign in']);
-  await waitForLine('your code');
 
-  // 3. The kit's real device-code sign-in: the app asked the stand-in for a code, and the driver
-  //    approves it on the provider's own page (the stand-in), exactly as the person would.
-  const userCode = await code(30);
-  logLine(`chatgpt code issued: ${userCode}`);
-  if (!mock.approve(userCode)) throw new Error('The stand-in refused the approval.');
+  // 3. ChatGPT's page opens in the app; the stand-in's authorize endpoint redirects straight back, so
+  //    the sign-in finishes with no code issued, shown, copied or typed.
   await waitForLine('signed in to', 40);
   await wait(600);
   expectPlain('connected');
