@@ -25,6 +25,7 @@ const run = async scheme => {
     const tab = await ctx.newPage();
     const panel = await ctx.newPage(); // panel as a tab; the page it reads is the other tab, brought to front
     await panel.goto(`chrome-extension://${id}/panel.html`);
+    await panel.setViewportSize({ width: 400, height: 260 }); // side-panel width, so the shots show the panel and not an empty window
     const read = async (path, shot) => {
       await tab.goto(`https://x.com:${PORT}${path}`); await tab.bringToFront();
       await panel.evaluate(() => document.getElementById('again').click());
