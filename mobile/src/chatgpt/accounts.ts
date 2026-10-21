@@ -115,7 +115,7 @@ export async function codexAuth(): Promise<{ access: string; accountId: string }
 
 /** The model each provider writes with; the catalogue owns Claude's, as it does the plan's own naming. */
 export const CHATGPT_MODEL = 'gpt-6-sol';
-export const CLAUDE_MODEL = PROVIDERS.claude.models.strong;
+export const CLAUDE_MODEL = 'claude-opus-5-5'; // the kit's catalogue no longer names a model per provider (0.30.0), so the app names the one it always used
 /** OpenRouter's default writer: DeepSeek V4.1 Flash. A phone has no model catalogue, so the key route's
  *  full typed model (its api, provider, endpoint and size) is carried here; the kit's pinned adapter
  *  reads it. This is never shown to the person. `EXPO_PUBLIC_E2E_OPENROUTER_BASE` is an emulator-only
