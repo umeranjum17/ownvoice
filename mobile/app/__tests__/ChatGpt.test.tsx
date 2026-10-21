@@ -135,6 +135,22 @@ test('one button opens ChatGPT\u2019s page here, the approval there finishes it,
   expect(await screen.findByText('ChatGPT is connected.', {}, { timeout: 3000 })).toBeTruthy();
 });
 
+test('a page sign-in that fails shows the plain line and Try again starts the redirect again', async () => {
+  const screen = await open('phone');
+  fake.start.mockImplementation(async () => (reports = { ...nothing, waiting: true, url: 'https://auth.openai.com/oauth/authorize?x=1', note: 'Opening ChatGPT\u2026' }));
+  await fireEvent.press(screen.getByText(words.srcGpt));
+  await screen.findByText(words.pageNote);
+  (completeSignIn as jest.Mock).mockRejectedValueOnce(new Error('kit detail'));
+  const web = (globalThis as { __web?: { onShouldStartLoadWithRequest: (r: { url: string }) => boolean } }).__web!;
+  await act(async () => { web.onShouldStartLoadWithRequest({ url: `${returnTo}?error=access_denied` }); await Promise.resolve(); });
+  expect(await screen.findByText(words.signInFailedNote.replace('{name}', 'ChatGPT'))).toBeTruthy();
+  expect(screen.queryByText(words.waiting)).toBeNull();
+  expect(screen.queryByText('kit detail')).toBeNull();
+  await fireEvent.press(screen.getByText(words.tryAgain));
+  expect(gptSignIn).toHaveBeenCalledWith('chatgpt');
+  expect(screen.queryByText(words.signInFailedNote.replace('{name}', 'ChatGPT'))).toBeNull();
+});
+
 test('Cancel drops the waiting code and keeps this phone writing', async () => {
   const screen = await open('phone');
   fake.start.mockImplementation(async () => (reports = waiting));

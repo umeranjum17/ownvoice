@@ -16,13 +16,19 @@ export function ChatGptPage({ url }: { url: string }) {
   const t = useTheme();
   const { top, bottom } = useSafeAreaInsets();
   const [open, setOpen] = useState(true);
-  const [note, setNote] = useState<string | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  const fail = () => setFailure(words.signInFailedNote.replace('{name}', 'ChatGPT'));
   const watch = ({ url: next }: { url: string }) => {
     const back = live().signInState('chatgpt')?.returnTo;
     if (!back || !next.startsWith(back)) return true;
     setOpen(false);
-    live().completeSignIn('chatgpt', next).catch(() => setNote(words.signInFailedNote.replace('{name}', 'ChatGPT')));
+    live().completeSignIn('chatgpt', next).catch(fail);
     return false; // nothing on the phone answers that address
+  };
+  const tryAgain = () => {
+    setFailure(null);
+    setOpen(true);
+    live().signIn('chatgpt').catch(fail);
   };
   return <View style={[styles.box, { backgroundColor: t.group }]}>
     <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
@@ -32,11 +38,14 @@ export function ChatGptPage({ url }: { url: string }) {
       </View>
     </Modal>
     <Button kind="filled" label={words.openChatGpt} onPress={() => setOpen(true)} />
-    <Button kind="text" label={words.useCode} onPress={() => { setOpen(false); void live().signIn('chatgpt', 'code').catch(() => setNote(words.failed)); }} />
-    <View style={styles.waiting}>
+    <Button kind="text" label={words.useCode} onPress={() => { setOpen(false); void live().signIn('chatgpt', 'code').catch(fail); }} />
+    {failure ? <>
+      <Text style={[type.note, { color: t.muted }]}>{failure}</Text>
+      <Button kind="filled" label={words.tryAgain} onPress={tryAgain} />
+    </> : <View style={styles.waiting}>
       <ActivityIndicator size="small" color={t.primary} />
-      <Text style={[type.note, { color: t.muted }]}>{note ?? words.waiting}</Text>
-    </View>
+      <Text style={[type.note, { color: t.muted }]}>{words.waiting}</Text>
+    </View>}
   </View>;
 }
 

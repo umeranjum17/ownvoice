@@ -348,7 +348,7 @@ export default function SourceScreen() {
       <Sheet title={ACCOUNT_COPY[confirm].title} mood="listening" onClose={() => setConfirm(null)}>
         <View style={styles.sheet}>
           <Text style={[type.body, { color: t.text }]}>{ACCOUNT_COPY[confirm].body}</Text>
-          <Text style={[type.note, { color: t.muted }]}>{termsOf(confirm, ACCOUNT_COPY[confirm].name, ACCOUNT_COPY[confirm].company)}</Text>
+          <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: ACCOUNT_COPY[confirm].name, company: ACCOUNT_COPY[confirm].company })}</Text>
           <View style={styles.sheetActions}>
             <Button kind="filled" large label={ACCOUNT_COPY[confirm].yes} onPress={() => { choose(confirm); setConfirm(null); }} />
             <Button kind="text" label={chosen === 'phone' ? words.switchNo : words.cancel} onPress={() => setConfirm(null)} />
