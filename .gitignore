@@ -40,3 +40,4 @@ mobile/dist/
 
 # Built by mobile/e2e/accessibility.mjs for the on-device probe.
 .accessibility-probe/
+desktop/dist/

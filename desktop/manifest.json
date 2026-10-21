@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Ownvoice",
+  "version": "0.1.0",
+  "description": "Reads the post you are replying to on x.com. Nothing leaves your computer.",
+  "minimum_chrome_version": "114",
+  "permissions": ["sidePanel", "scripting"],
+  "host_permissions": ["https://x.com/*"],
+  "background": { "service_worker": "background.js" },
+  "action": { "default_title": "Ownvoice" },
+  "side_panel": { "default_path": "panel.html" }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "ownvoice-desktop",
+  "private": true,
+  "type": "module",
+  "description": "Ownvoice Chrome side panel for desktop. Loaded unpacked from dist/.",
+  "scripts": {
+    "build": "node build.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.0",
+    "esbuild": "0.28.2",
+    "typescript": "~5.9.2"
+  }
+}
