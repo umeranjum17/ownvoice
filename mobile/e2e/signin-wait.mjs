@@ -184,7 +184,7 @@ try {
     await tapText('Open the ChatGPT');
     await waitForLine('asks to use', 150);
     await tapText('Approve'); // the one tap on the page
-    await waitForLine('chatgpt is connected');
+    await waitForLine('signed in to chatgpt', 60);
     snap('signin-06-connected');
     if (record) execFileSync('bash', ['e2e/evidence.sh', 'motion-stop'], { stdio: 'inherit' });
     log('connected from the page with one approval, no code');

@@ -14,7 +14,7 @@ const live = () => require('../chatgpt/accounts') as typeof import('../chatgpt/a
  *  that was closed opens again from the button, and a code stays one tap away. */
 export function ChatGptPage({ url }: { url: string }) {
   const t = useTheme();
-  const top = useSafeAreaInsets().top;
+  const { top, bottom } = useSafeAreaInsets();
   const [open, setOpen] = useState(true);
   const [note, setNote] = useState<string | null>(null);
   const watch = ({ url: next }: { url: string }) => {
@@ -26,7 +26,7 @@ export function ChatGptPage({ url }: { url: string }) {
   };
   return <View style={[styles.box, { backgroundColor: t.group }]}>
     <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
-      <View style={[styles.page, { backgroundColor: t.card, paddingTop: top }]}>
+      <View style={[styles.page, { backgroundColor: t.card, paddingTop: top, paddingBottom: bottom }]}>
         <WebView testID="chatgpt-page" source={{ uri: url }} onShouldStartLoadWithRequest={watch} style={styles.web} />
         <Button kind="text" label={words.closePage} onPress={() => setOpen(false)} />
       </View>
