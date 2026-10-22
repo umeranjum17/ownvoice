@@ -1,6 +1,7 @@
 // "Use my computer" journey on an owned emulator: pair with the real helper (link/host.mjs, your own signed-in
 // Claude), compare the two words, then type a reply in Chrome and read the drafts the computer wrote. Then stop the
-// helper and tap again: the panel must say the computer didn't answer (an emulator's phone can't write).
+// helper and tap again: the panel must say the computer didn't answer (an emulator's phone can't write). Then Forget this
+// computer twice: with the helper off (phone forgets, says the computer was not told) and on (helper drops the phone too).
 // Release APK, no stub flags. Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME, JAVA_HOME, ANDROID_HOME. Args: <apk> <out-dir>.
 import { execFileSync, spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs';
@@ -63,8 +64,10 @@ const setService = async () => {
 const deepLink = to => adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', to, pkg);
 
 // The helper: the real one, stdin piped so this script answers "yes" at the pairing question.
+const helperHome = mkdtempSync(resolve(tmpdir(), 'ov-link-'));
+const trusted = () => { try { return JSON.parse(readFileSync(resolve(helperHome, 'ownvoice-computer', 'phones.json'), 'utf8')).length; } catch { return 0; } };
 const helper = () => {
-  const child = spawn('node', [resolve('../link/host.mjs'), '--port', String(PORT), '--url', `ws://10.0.2.2:${PORT}`], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, XDG_CONFIG_HOME: mkdtempSync(resolve(tmpdir(), 'ov-link-')) } });
+  const child = spawn('node', [resolve('../link/host.mjs'), '--port', String(PORT), '--url', `ws://10.0.2.2:${PORT}`], { stdio: ['pipe', 'pipe', 'inherit'], env: { ...process.env, XDG_CONFIG_HOME: helperHome } });
   let text = '';
   child.stdout.on('data', d => { text += d; process.stdout.write(d); });
   return { child, seen: () => text };
@@ -84,27 +87,31 @@ const row = await waitText('chrome', 20);
 if (!find(n => n.checkable && n.label === 'Chrome' && n.checked)) tap(...center(row));
 await wait(1500);
 
-const host = helper();
-for (let i = 0; i < 30 && !/BYOKIT-LINK:/.test(host.seen()); i++) await wait(500);
-const offer = host.seen().match(/BYOKIT-LINK:\S+/)?.[0];
-if (!offer) throw new Error('The helper printed no pairing code.');
-deepLink('ownvoice://computer'); await waitText('paste the code');
-snap('1-computer-start');
-tap(...center(await waitText('paste the code')));
-await wait(600);
-for (let i = 0; i < offer.length; i += 6) { adb('shell', 'input', 'text', `'${offer.slice(i, i + 6)}'`); await wait(500); } // a long string loses characters on a slow emulator
-await wait(800);
-adb('shell', 'input', 'keyevent', '4'); await wait(600);
-await tapText('pair');
-await waitText('check your computer shows these two words');
-snap('2-computer-words');
-const words = nodes().map(n => n.text).find(t => /^[a-z]+ [a-z]+$/.test(t ?? '') );
-for (let i = 0; i < 20 && !/wants to pair/.test(host.seen()); i++) await wait(500);
-if (!host.seen().includes(`"${words}"`)) throw new Error(`The computer asks about different words than the phone shows (${words}).`);
-log(`words match on both sides: ${words}`);
-host.child.stdin.write('y\n');
-await waitText('paired with', 30);
-snap('3-computer-paired');
+const pairWithHelper = async tag => {
+  const host = helper();
+  for (let i = 0; i < 30 && !/BYOKIT-LINK:/.test(host.seen()); i++) await wait(500);
+  const offer = host.seen().match(/BYOKIT-LINK:\S+/)?.[0];
+  if (!offer) throw new Error('The helper printed no pairing code.');
+  deepLink('ownvoice://computer'); await waitText('paste the code');
+  snap(`${tag}-computer-start`);
+  tap(...center(await waitText('paste the code')));
+  await wait(600);
+  for (let i = 0; i < offer.length; i += 6) { adb('shell', 'input', 'text', `'${offer.slice(i, i + 6)}'`); await wait(500); } // a long string loses characters on a slow emulator
+  await wait(800);
+  adb('shell', 'input', 'keyevent', '4'); await wait(600);
+  await tapText('pair');
+  await waitText('check your computer shows these two words');
+  snap(`${tag}-computer-words`);
+  const words = nodes().map(n => n.text).find(t => /^[a-z]+ [a-z]+$/.test(t ?? '') );
+  for (let i = 0; i < 20 && !/wants to pair/.test(host.seen()); i++) await wait(500);
+  if (!host.seen().includes(`"${words}"`)) throw new Error(`The computer asks about different words than the phone shows (${words}).`);
+  log(`words match on both sides: ${words}`);
+  host.child.stdin.write('y\n');
+  await waitText('paired with', 30);
+  snap(`${tag}-computer-paired`);
+  return host;
+};
+const host = await pairWithHelper('1');
 
 const page = await new Promise(ok => { const s = createServer((_q, r) => r.end(readFileSync(new URL('./page.html', import.meta.url)))); s.listen(0, '127.0.0.1', () => ok(s)); });
 execFileSync('adb', ['-s', serial, 'reverse', `tcp:${page.address().port}`, `tcp:${page.address().port}`]);
@@ -133,3 +140,22 @@ adb('shell', 'input', 'keyevent', '4'); await wait(1500);
 await panel('5-computer-off', "didn't answer");
 log('helper stopped: the panel says the computer did not answer');
 page.close();
+
+// Forget with the computer off: the phone forgets, says the computer was not told, and the helper still trusts the phone.
+if (trusted() !== 1) throw new Error(`Expected the helper to trust one phone, it trusts ${trusted()}.`);
+deepLink('ownvoice://computer'); await tapText('forget this computer');
+await waitText("wasn't told"); await waitText('paste the code');
+snap('6-forget-computer-off');
+if (trusted() !== 1) throw new Error('The helper dropped the phone although it was off.');
+log('forget with the computer off: phone forgot, user told the computer was not told, helper still trusts the phone');
+
+// Forget with the computer on: the helper drops the phone too and the user sees no warning.
+const again = await pairWithHelper('7');
+await tapText('forget this computer');
+await waitText('paste the code');
+if (findText("wasn't told")) throw new Error('The phone said the computer was not told although it was on.');
+snap('8-forget-computer-on');
+for (let i = 0; i < 20 && trusted() !== 0; i++) await wait(500);
+if (trusted() !== 0) throw new Error('The helper still trusts the phone after it was forgotten.');
+log('forget with the computer on: helper no longer trusts the phone, no warning shown');
+again.child.kill();
