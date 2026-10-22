@@ -28,9 +28,10 @@ export default function Computer() {
   });
   const choose = (source: 'computer' | 'phone') => { setSource(source); setUsing(source === 'computer'); };
   const forget = () => run(async () => {
-    await forgetComputer();
+    const { told } = await forgetComputer();
     if (using) setSource(null);
     await load();
+    if (!told) setProblem(words.computerForgotNotTold);
   });
 
   return <Page title={words.rowComputer} note={words.computerBody} stickyTop onBack={() => router.back()}>

@@ -1,4 +1,4 @@
-const mockLink = { status: 'online', request: jest.fn() };
+const mockLink = { status: 'online', request: jest.fn(), unpair: jest.fn() };
 const mockLoad = { next: async (): Promise<unknown> => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] }) };
 const mockMade: Array<{ stop: jest.Mock }> = [];
 
@@ -9,6 +9,7 @@ jest.mock('@byokit/pair', () => ({
   pairWithOffer: async () => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] }),
   DeviceLink: class {
     stop = jest.fn();
+    unpair() { return mockLink.unpair(); }
     constructor() { mockMade.push(this); }
     get status() { return mockLink.status; }
     request(...args: unknown[]) { return mockLink.request(...args); }
@@ -178,5 +179,29 @@ describe('askComputer read-log send mark', () => {
     expect(mockMade).toHaveLength(1);
     expect(mockMade[0].stop).toHaveBeenCalledTimes(1);
     mockLoad.next = async () => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] });
+  });
+});
+
+describe('forgetComputer', () => {
+  it('tells a reachable computer to drop this phone, then forgets it here', async () => {
+    mockLink.status = 'online';
+    mockLink.unpair.mockReset().mockResolvedValueOnce(undefined);
+    expect(await forgetComputer()).toEqual({ told: true });
+    expect(mockLink.unpair).toHaveBeenCalledTimes(1);
+  });
+
+  it('still forgets here and says the computer was not told when it is offline', async () => {
+    await forgetComputer();
+    mockLink.status = 'offline';
+    mockLink.unpair.mockReset();
+    expect(await forgetComputer()).toEqual({ told: false });
+    expect(mockLink.unpair).not.toHaveBeenCalled();
+  });
+
+  it('says not told when the computer does not confirm', async () => {
+    await forgetComputer();
+    mockLink.status = 'online';
+    mockLink.unpair.mockReset().mockRejectedValueOnce(new Error('timeout'));
+    expect(await forgetComputer()).toEqual({ told: false });
   });
 });

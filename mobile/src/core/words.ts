@@ -134,6 +134,7 @@ const claudeWords = {
   computerUse: 'Write with this computer',
   computerUsePhone: 'Write on this phone instead',
   computerForget: 'Forget this computer',
+  computerForgotNotTold: "Forgotten on this phone. Your computer couldn't be reached, so it wasn't told. Remove this phone there too.",
   computerBackup: "If it doesn't answer, this phone writes instead.",
   claudeFallback: "Claude didn't answer. This phone wrote these instead.",
   claudeOff: 'Claude is turned off for now. This phone wrote these.',
