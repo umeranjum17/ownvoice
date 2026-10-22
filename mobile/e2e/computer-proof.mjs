@@ -130,15 +130,17 @@ const panel = async (tag, want) => {
   snap(tag);
   return nodes();
 };
-const ready = await panel('4-computer-drafts', 'pick one to use instead of what you wrote');
+const withDrafts = process.env.COMPUTER_PROOF_FORGET_ONLY !== '1'; // the forget legs need no live Claude or Chrome
+let ready = [];
+if (withDrafts) ready = await panel('4-computer-drafts', 'pick one to use instead of what you wrote');
 const drafts = ready.map(n => (n.text || '').trim()).filter(t => t.length > 12 && t.toLowerCase() !== REPLY && !/^[A-Z0-9 .,'’:-]+$/.test(t) && !/^pick one|^polish your/i.test(t));
-if (!drafts.length) throw new Error('The panel showed no drafts from the computer.');
-log(`drafts from the computer: ${JSON.stringify(drafts).slice(0, 300)}`);
+if (withDrafts && !drafts.length) throw new Error('The panel showed no drafts from the computer.');
+if (withDrafts) log(`drafts from the computer: ${JSON.stringify(drafts).slice(0, 300)}`);
 
 host.child.kill();
 adb('shell', 'input', 'keyevent', '4'); await wait(1500);
-await panel('5-computer-off', "didn't answer");
-log('helper stopped: the panel says the computer did not answer');
+if (withDrafts) await panel('5-computer-off', "didn't answer");
+if (withDrafts) log('helper stopped: the panel says the computer did not answer');
 page.close();
 
 // Forget with the computer off: the phone forgets, says the computer was not told, and the helper still trusts the phone.
