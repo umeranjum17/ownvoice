@@ -1,6 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import './random';
 import { DeviceLink, pairWithOffer, secureDeviceStore } from '@byokit/pair';
+import { checkAddress } from '../core/plainAddress';
 import { words } from '../core/words';
 import { SendVeto } from '../core/writers';
 
@@ -31,7 +32,7 @@ function dropAttempt(attempt: Promise<DeviceLink | null>): void {
 
 function connect(): Promise<DeviceLink | null> {
   if (!link) {
-    const attempt: Promise<DeviceLink | null> = kept.load().then((grant) => (grant ? new DeviceLink(grant, { store: kept }) : null));
+    const attempt: Promise<DeviceLink | null> = kept.load().then((grant) => { if (!grant) return null; grant.urls.forEach((url) => checkAddress(url, { computer: true })); return new DeviceLink(grant, { store: kept }); });
     link = attempt;
     attempt.then((live) => { if (!live) dropAttempt(attempt); }, () => dropAttempt(attempt));
   }

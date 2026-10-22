@@ -1,3 +1,4 @@
+import { checkAddress } from '../core/plainAddress';
 import { jev, type Backend } from '@byokit/decide';
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
@@ -217,7 +218,9 @@ export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch
     return [jev({ key, fetch: async (url, init) => {
       if (!(await beforeSend()) || !beforeFetch()) throw new SendVeto(words.phoneWrote);
       await o.on?.started?.();
-      const response = await send(JEV_BASE ? String(url).replace('https://api.typesafe.ai', JEV_BASE) : url, init);
+      const target = JEV_BASE ? String(url).replace('https://api.typesafe.ai', JEV_BASE) : url;
+      checkAddress(String(target));
+      const response = await send(target, init);
       await o.on?.sent?.();
       return response;
     } })];

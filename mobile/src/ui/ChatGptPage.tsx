@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Button } from './Button';
 import { space, type, useTheme } from './theme';
+import { checkAddress } from '../core/plainAddress';
 import { words } from '../core/words';
 
 // Required lazily: the real accounts pull in the phone's secure storage, which no jest run has.
@@ -12,6 +13,8 @@ const live = () => require('../chatgpt/accounts') as typeof import('../chatgpt/a
 /** ChatGPT's own page, opened right here: the one approval is on that page. The kit watches where it
  *  sends the browser and finishes the sign-in with that address, so nothing is copied or typed. A page
  *  that was closed opens again from the button, and a code stays one tap away. */
+const plain = (address: string) => { try { checkAddress(address); return false; } catch { return true; } };
+
 export function ChatGptPage({ url }: { url: string }) {
   const t = useTheme();
   const { top, bottom } = useSafeAreaInsets();
@@ -19,6 +22,7 @@ export function ChatGptPage({ url }: { url: string }) {
   const [failure, setFailure] = useState<string | null>(null);
   const fail = () => setFailure(words.signInFailedNote.replace('{name}', 'ChatGPT'));
   const watch = ({ url: next }: { url: string }) => {
+    try { checkAddress(next); } catch { return false; }
     const back = live().signInState('chatgpt')?.returnTo;
     if (!back || !next.startsWith(back)) return true;
     setOpen(false);
@@ -33,7 +37,7 @@ export function ChatGptPage({ url }: { url: string }) {
   return <View style={[styles.box, { backgroundColor: t.group }]}>
     <Modal visible={open} animationType="slide" onRequestClose={() => setOpen(false)}>
       <View style={[styles.page, { backgroundColor: t.card, paddingTop: top, paddingBottom: bottom }]}>
-        <WebView testID="chatgpt-page" source={{ uri: url }} onShouldStartLoadWithRequest={watch} style={styles.web} />
+        <WebView testID="chatgpt-page" source={{ uri: plain(url) ? 'about:blank' : url }} onShouldStartLoadWithRequest={watch} style={styles.web} />
         <Button kind="text" label={words.closePage} onPress={() => setOpen(false)} />
       </View>
     </Modal>

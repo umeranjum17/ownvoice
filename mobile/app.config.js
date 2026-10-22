@@ -1,6 +1,7 @@
-// Expo config. Cleartext is on for "Use my computer" (see usesCleartextTraffic below); proof builds that point
+// Expo config. Cleartext is on for "Use my computer" (see usesCleartextTraffic below); Android can't scope it to a
+// LAN address, so src/core/plainAddress.ts refuses every other http:// or ws:// address. Proof builds that point
 // sign-in or the writer at a host stand-in over plain HTTP (EXPO_PUBLIC_E2E_AUTH_BASE, EXPO_PUBLIC_E2E_OPENROUTER_BASE)
-// rely on it too.
+// are let through there only for the origins their own flags name.
 module.exports = {
   expo: {
     name: 'Ownvoice',
