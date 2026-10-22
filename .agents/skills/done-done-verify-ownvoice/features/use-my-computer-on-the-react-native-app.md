@@ -11,7 +11,7 @@ Home › Use my computer: paste the helper's code, compare the two words on both
 Harness: an owned Android emulator (or the test phone under its lock), plus the helper on the host. Android surface, not covered by the Host CLI launch above.
 
 1. Build the release APK, start the helper (`node link/host.mjs`) with its own throwaway state folder.
-2. Run `node mobile/e2e/computer-proof.mjs <apk> <out-dir>` with `ANDROID_SERIAL` and `OWNVOICE_AVD_NAME` set. It pairs, checks the words, asks for drafts, stops the helper and expects "Your computer didn't answer this time."
+2. Run `node mobile/e2e/computer-proof.mjs <apk> <out-dir>` with `ANDROID_SERIAL` and `OWNVOICE_AVD_NAME` set. It pairs, checks the words, asks for drafts, stops the helper and expects "Your computer didn't answer this time." Then it taps Forget this computer with the helper off (screen says the computer wasn't told; the helper's `phones.json` still holds the phone) and again after pairing with the helper on (no warning; that phone leaves `phones.json`). `COMPUTER_PROOF_FORGET_ONLY=1` skips the Chrome drafts legs.
 3. Capture: screenshots land in `<out-dir>`; keep them with the run's evidence.
 
 ## Plain-address guard

@@ -14,16 +14,37 @@ export const computerName = async (): Promise<string | null> => (await kept.load
 /** Pairs with the computer a pasted code names; `onWords` shows the two words to check there. */
 export async function pairComputer(code: string, onWords: (words: string) => void): Promise<string> {
   const grant = await pairWithOffer(code.trim(), { name: 'Ownvoice phone', onWords });
-  await forgetComputer();
+  await dropComputer();
   await kept.save(grant);
   return grant.hostName;
 }
 
-export async function forgetComputer(): Promise<void> {
+async function dropComputer(): Promise<void> {
   const old = link;
   link = null;
   void old?.then((live) => live?.stop(), () => {});
   await kept.clear();
+}
+
+/** Asks the paired computer to drop this phone's trust; false when it could not be reached or did not confirm. */
+async function tellComputer(): Promise<boolean> {
+  try {
+    const live = await connect();
+    if (!live) return false;
+    for (let waited = 0; live.status === 'connecting' && waited < 5000; waited += 100) await new Promise((done) => setTimeout(done, 100));
+    if (live.status !== 'online') return false;
+    await live.unpair();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Forgets the computer on this phone, and tells it to forget this phone when it is reachable: `told` is false when it was not. */
+export async function forgetComputer(): Promise<{ told: boolean }> {
+  const told = await tellComputer();
+  await dropComputer();
+  return { told };
 }
 
 function dropAttempt(attempt: Promise<DeviceLink | null>): void {
