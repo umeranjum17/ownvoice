@@ -25,7 +25,7 @@ export class AccountRefused extends Error {}
 export const needWriter: Writer = { write: async () => { throw new Error(words.needWriterPanel); } };
 
 /** Failed lines worth a Try again button: sending again can work once the network, the account or its switch recovers. */
-export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.offlineNoPhone, words.gptOffNoPhone, words.claudeFailed, words.claudeOffNoPhone, words.openrouterFailed, words.openrouterOffNoPhone, words.openCodeFailed, words.openCodeOffNoPhone]);
+export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.offlineNoPhone, words.gptOffNoPhone, words.claudeFailed, words.claudeOffNoPhone, words.openrouterFailed, words.openrouterOffNoPhone, words.openCodeFailed, words.openCodeOffNoPhone, words.computerFailed, words.computerOffNoPhone, words.computerUnaskedNoPhone]);
 
 /** A writer that never drafts: the panel shows its line instead. */
 export const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });
@@ -36,8 +36,9 @@ export const isPlanLimitLine = (line: string | null | undefined): boolean => !!l
 export const isOtherWriterLine = (line: string | null | undefined): boolean => isPlanLimitLine(line) || line === words.openCodeRefused || line === words.openrouterRefused;
 
 /** The plain lines one cloud provider's route says; ChatGPT's stay the exact shipped strings. */
-export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string; refused?: string };
-export const cloudWords = (key: CloudKey): CloudWords => key === 'claude'
+export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string; refused?: string; unasked?: string; unaskedNoPhone?: string };
+export const computerWords: CloudWords = { off: words.computerOff, offNoPhone: words.computerOffNoPhone, failedNoPhone: words.computerFailed, fallback: words.computerFallback, needNote: words.computerNone, switchUnavailable: words.computerUnasked, unasked: words.computerUnasked, unaskedNoPhone: words.computerUnaskedNoPhone };
+export const cloudWords = (key: CloudKey | 'computer'): CloudWords => key === 'computer' ? computerWords : key === 'claude'
   ? { off: words.claudeOff, offNoPhone: words.claudeOffNoPhone, failedNoPhone: words.claudeFailed, fallback: words.claudeFallback, needNote: words.claudeNeedNote, switchUnavailable: words.claudeSwitchUnavailable, planLimit: words.claudePlanLimit }
   : key === 'openrouter'
   ? { off: words.openrouterOff, offNoPhone: words.openrouterOffNoPhone, failedNoPhone: words.openrouterFailed, fallback: words.openrouterFallback, needNote: words.openrouterNeedNote, switchUnavailable: words.openrouterSwitchUnavailable, refused: words.openrouterRefused }
@@ -50,6 +51,7 @@ export function noPhoneLine(error: unknown, lines: CloudWords): string {
   const message = error instanceof Error ? error.message : String(error);
   if (error instanceof PlanLimit || error instanceof AccountRefused) return message;
   if (error instanceof SendVeto && message === lines.off) return lines.offNoPhone;
+  if (error instanceof SendVeto && message === lines.unasked) return lines.unaskedNoPhone ?? lines.failedNoPhone;
   if (classify(message)?.kind === 'network') return words.offlineNoPhone;
   return lines.failedNoPhone;
 }

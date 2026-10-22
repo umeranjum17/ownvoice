@@ -1,4 +1,4 @@
-import { cloudWords, routeWriters, SendVeto, withPhoneFallback, type Writer } from '../writers';
+import { cloudWords, computerWords, routeWriters, SendVeto, withPhoneFallback, type Writer } from '../writers';
 import { CHATGPT_OFF } from '../switch';
 import { summary } from '../privacy';
 import { words } from '../words';
@@ -156,6 +156,12 @@ test.each([1, 2, 3])('polish retains %i usable primary cards without phone fallb
   }
   expect(phone.write).not.toHaveBeenCalled();
   expect(reset).not.toHaveBeenCalled();
+});
+
+test('a computer that was never asked says so on both phone states, never that it did not answer', async () => {
+  const unasked: Writer = { write: async () => { throw new SendVeto(words.computerUnasked); } };
+  expect(await withPhoneFallback(unasked, phone, request, computerWords, undefined, undefined, 'ready')).toEqual({ drafts: phoneDrafts, reason: words.computerUnasked });
+  await expect(withPhoneFallback(unasked, phone, request, computerWords, undefined, undefined, 'cant')).rejects.toThrow(words.computerUnaskedNoPhone);
 });
 
 test('empty or blank polish still falls back and partial replies stay incomplete', async () => {

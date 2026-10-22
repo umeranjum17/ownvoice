@@ -131,4 +131,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew assembleDebug :app:testDebugUnitTest
       - if: ${{ hashFiles('link/**') != '' }}
-        run: cd link && go test ./...
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - if: ${{ hashFiles('link/**') != '' }}
+        run: cd link && node --test

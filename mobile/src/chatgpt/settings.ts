@@ -6,7 +6,7 @@ import { phoneCanWrite } from '../core/phoneStatus';
 import { modelStatus } from '../core/phoneDownload';
 import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
 import { store } from '../core/store';
-import { cloudWords, needWriter, routeWriters, SendVeto, thrower, type WriterEvents, type WriterRoute } from '../core/writers';
+import { cloudWords, computerWords, needWriter, routeWriters, SendVeto, thrower, withPhoneFallback, type Writer, type WriterEvents, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
 import { mocked, signOutGuard } from './session';
@@ -42,15 +42,19 @@ function guardOk(key: CloudKey, before: Guard, signedIn: boolean): boolean {
   return signedIn && !after.active && after.epoch === before.epoch;
 }
 
-/** The remote-switch plus sign-in tail every cloud send ends with: an unknown switch
- *  stops nothing here (the panel resolved it at route time); off refuses with the provider's own line. */
+/** The remote switch every send checks: an unknown switch stops nothing here (the panel resolved it at route time);
+ *  off refuses with the route's own line. */
+async function switchAllows(key: CloudKey | 'computer'): Promise<void> {
+  if (mocked) return;
+  const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(cloudWords(key).switchUnavailable); });
+  switchNow = choice;
+  if (choice?.chatgpt === 'off') throw new SendVeto(cloudWords(key).off);
+}
+
+/** The remote-switch plus sign-in tail every cloud send ends with. */
 async function switchAndSession(before: Guard, key: CloudKey = 'chatgpt'): Promise<boolean> {
   if (before.active) return false;
-  if (!mocked) {
-    const choice = await currentSwitch(switchStore).catch(() => { throw new SendVeto(cloudWords(key).switchUnavailable); });
-    switchNow = choice;
-    if (choice?.chatgpt === 'off') throw new SendVeto(cloudWords(key).off);
-  }
+  await switchAllows(key);
   return guardOk(key, before, (await cloudSession(key).current()).signedIn);
 }
 
@@ -102,6 +106,31 @@ export function cloudConsent(key: CloudKey, app: string | null): Required<Pick<W
   return { beforeSend, beforeFetch };
 }
 
+/** The paired computer writes for apps the bubble shows in, under the same pause and keep-on-phone rules as a cloud account;
+ *  this phone writes when the computer doesn't answer. */
+async function computerRoute(app: string, practice: boolean): Promise<WriterRoute> {
+  const allowed = (rules: BubbleRules | null) => practice || (!!rules && !rules.paused && showsBubble(app, rules) && !phoneListed(app));
+  const phone = await phoneCanWrite();
+  if (!mocked) await chatgptEnabled(switchStore).catch(() => false);
+  if (!allowed(await Native.bubbleRules().catch(() => null))) return { writer: phone === 'cant' ? thrower(words.phoneOnlyCant) : phoneWriter, note: null };
+  const on: WriterEvents = {
+    beforeSend: async () => {
+      if ((await getSource()) !== 'computer' || !allowed(await Native.bubbleRules().catch(() => null))) throw new SendVeto(words.computerUnasked);
+      await switchAllows('computer');
+      if (!(await require('../computer/link').computerName().catch(() => null))) throw new SendVeto(words.computerUnasked);
+      return true;
+    },
+    beforeFetch: () => {
+      if (switchNow?.chatgpt === 'off') throw new SendVeto(computerWords.off);
+      if (store.peek<Source>(SOURCE_KEY) !== 'computer') throw new SendVeto(words.computerUnasked);
+      return true;
+    },
+  };
+  const cloud = require('./responses').cloudWriter('computer') as Writer;
+  const computer: Writer = { write: (request, events = {}) => cloud.write(request, { ...events, ...on }) };
+  return { writer: { write: (request, events = {}) => withPhoneFallback(computer, phoneWriter, request, computerWords, events, undefined, phone) }, note: null };
+}
+
 /** Who writes this app's drafts, and the one plain line the panel says above them. The route comes
  *  from the chosen source: phone chosen means never the cloud, even when signed in; a cloud source
  *  (ChatGPT, Claude, OpenRouter, OpenCode Go) means that account unless this app stays on the phone, nobody is signed in to it,
@@ -113,6 +142,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   if (source === 'phone') return !stubbed && (await modelStatus().catch(() => null))?.phase === 'unsupported' ? { writer: needWriter, note: null } : { writer: phoneWriter, note: null };
   const practice = isOwnApp(app);
   if (source == null) return practice ? { writer: phoneWriter, note: null } : { writer: needWriter, note: null };
+  if (source === 'computer') return computerRoute(app, practice);
   const key: CloudKey = cloudOf(source) ?? 'chatgpt';
   const state = await cloudSession(key).current();
   const version = rulesVersion;

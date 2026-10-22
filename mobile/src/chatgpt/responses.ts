@@ -29,7 +29,7 @@ const VERSION_INSTRUCTIONS = 'Return the requested rewrite versions as JSON.';
 
 /** Draft/version arrays must have exactly `count` nonblank strings. `text` returns trimmed plain text;
  *  `fit` returns trimmed JSON for decide to parse and resolve. */
-async function ask(cloud: CloudKey, prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text' | 'fit', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch, signal?: AbortSignal): Promise<string[]> {
+async function ask(cloud: CloudKey | 'computer', prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text' | 'fit', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch, signal?: AbortSignal): Promise<string[]> {
   let started = false;
   let marked = false;
   let refused = false;
@@ -43,11 +43,14 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
     // The kit resolves credentials before calling its configured fetch. Associate this
     // request's signal with the app's consent and read-log hooks so the last checks
     // still happen at dispatch, including after any credential wait.
-    const send: typeof fetch = async (url, init) => {
+    const gate = async () => {
       if (on?.beforeSend && !(await on.beforeSend())) throw new SendVeto(words.phoneWrote);
       if (on?.beforeFetch && !on.beforeFetch()) throw new SendVeto(words.phoneWrote);
       started = true;
       on?.started?.();
+    };
+    const send: typeof fetch = async (url, init) => {
+      await gate();
       // Emulator-only stand-in (EXPO_PUBLIC_E2E_CLAUDE_429), like the ChatGPT stand-in: never a release build.
       if (process.env.EXPO_PUBLIC_E2E_CLAUDE_429 === '1' && cloud === 'claude') { limitResetAt = Date.now() + 3600_000; throw new ResponseError('Claude limit reached.', 'rate_limit'); }
       // Emulator-only stand-in (EXPO_PUBLIC_E2E_OPENCODE_403): the gateway's refusal as its own answer, with no request sent.
@@ -66,7 +69,13 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
       marked = true;
       return response;
     };
-    const text = await withResponseFetch(send, signal => askCloud(cloud, { instructions, input: prompt, json: key !== 'text', onText, signal, fetch: send }), signal);
+    let text: string;
+    if (cloud === 'computer') {
+      text = await (require('../computer/link') as typeof import('../computer/link')).askComputer(instructions, prompt, signal, gate, async () => {
+        await on?.sent?.();
+        marked = true;
+      });
+    } else text = await withResponseFetch(send, signal => askCloud(cloud, { instructions, input: prompt, json: key !== 'text', onText, signal, fetch: send }), signal);
     if (key === 'text' || key === 'fit') {
       const line = text.trim();
       if (!line) throw new Error(cloudWords(cloud).failedNoPhone);
@@ -91,11 +100,11 @@ async function ask(cloud: CloudKey, prompt: string, instructions: string, key: '
     const planLimit = cloudWords(cloud).planLimit;
     if (error instanceof ResponseError && error.kind === 'rate_limit' && planLimit) throw new PlanLimit(limitLine(planLimit));
     const message = error instanceof Error ? error.message : String(error);
-    if (!started && classify(message)?.kind !== 'network') {
+    if (cloud !== 'computer' && !started && classify(message)?.kind !== 'network') {
       if (__DEV__) console.log(`Ownvoice ${cloud} pre-dispatch failure: ${message}`);
       throw new SendVeto(words.phoneWrote, { cause: error });
     }
-    if (!(error instanceof ResponseError && error.kind != null)) await reportFailure(accountRoute(cloud), message).catch(() => {});
+    if (cloud !== 'computer' && !(error instanceof ResponseError && error.kind != null)) await reportFailure(accountRoute(cloud), message).catch(() => {});
     throw error;
   }
 }
@@ -156,7 +165,7 @@ function finishedReplies(text: string): string[] {
 }
 
 /** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt). */
-async function replies(cloud: CloudKey, request: DraftRequest, on: WriterEvents): Promise<string[]> {
+async function replies(cloud: CloudKey | 'computer', request: DraftRequest, on: WriterEvents): Promise<string[]> {
   const dashes = request.dashes ?? 'remove' as const;
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, dashes, platform: request.platform };
   const slots = slotsFor(request.platform);
@@ -195,7 +204,7 @@ async function replies(cloud: CloudKey, request: DraftRequest, on: WriterEvents)
 }
 
 /** Polish and compose through the C2 rewrite prompt, then the same acceptance rules as the phone. */
-async function polish(cloud: CloudKey, request: DraftRequest, on: WriterEvents): Promise<Choice> {
+async function polish(cloud: CloudKey | 'computer', request: DraftRequest, on: WriterEvents): Promise<Choice> {
   const dashes = request.dashes ?? 'remove' as const;
   const avoid = request.avoid ?? [];
   const note = avoidLine(avoid);
@@ -240,7 +249,7 @@ async function polish(cloud: CloudKey, request: DraftRequest, on: WriterEvents):
 }
 
 /** The panel writer for one cloud account: the same prompts, acceptance and fallback rules. */
-export function cloudWriter(cloud: CloudKey): Writer {
+export function cloudWriter(cloud: CloudKey | 'computer'): Writer {
   return {
     async write(request: DraftRequest, on: WriterEvents = {}): Promise<Choice> {
       try {
