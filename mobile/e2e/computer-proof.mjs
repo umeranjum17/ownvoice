@@ -102,7 +102,7 @@ const pairWithHelper = async tag => {
   await tapText('pair');
   await waitText('check your computer shows these two words');
   snap(`${tag}-computer-words`);
-  const words = nodes().map(n => n.text).find(t => /^[a-z]+ [a-z]+$/.test(t ?? '') );
+  const words = nodes().flatMap(n => (n.text ?? '').split('\n')).map(t => t.trim()).find(t => /^[a-z]+ [a-z]+$/.test(t));
   for (let i = 0; i < 20 && !/wants to pair/.test(host.seen()); i++) await wait(500);
   if (!host.seen().includes(`"${words}"`)) throw new Error(`The computer asks about different words than the phone shows (${words}).`);
   log(`words match on both sides: ${words}`);
