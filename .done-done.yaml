@@ -83,7 +83,7 @@ journeys:
     timeout: 45m
 
   first-run-setup:
-    description: "Android: welcome through writer choice, kit ChatGPT sign-in on the mockOpenAI stand-in, permission, practice insert; light and dark with plain-text scan. Needs an explicit emulator allocation and a stub+GPT release APK (APK env: path to the release APK, built per mobile/README.md)."
+    description: "Android: welcome through writer choice, kit ChatGPT sign-in on the mockOpenAI stand-in, permission, practice insert; light and dark with plain-text scan. Needs an explicit emulator allocation and a stub+GPT release APK built with EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455 too, or ChatGPT opens its real login page (APK env: path to the release APK, built per mobile/README.md)."
     command: |
       set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/first-run.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
