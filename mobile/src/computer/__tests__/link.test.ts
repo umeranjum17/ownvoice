@@ -1,12 +1,12 @@
 const mockLink = { status: 'online', request: jest.fn() };
-const mockLoad = { next: async (): Promise<unknown> => ({ hostName: 'Desk' }) };
+const mockLoad = { next: async (): Promise<unknown> => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] }) };
 const mockMade: Array<{ stop: jest.Mock }> = [];
 
 jest.mock('expo-secure-store', () => ({}));
 jest.mock('../random', () => ({}));
 jest.mock('@byokit/pair', () => ({
   secureDeviceStore: () => ({ load: () => mockLoad.next(), save: async () => {}, clear: async () => {} }),
-  pairWithOffer: async () => ({ hostName: 'Desk' }),
+  pairWithOffer: async () => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] }),
   DeviceLink: class {
     stop = jest.fn();
     constructor() { mockMade.push(this); }
@@ -63,11 +63,21 @@ describe('askComputer read-log send mark', () => {
     const sent = jest.fn(async () => {});
     mockLoad.next = async () => { throw new Error('keychain unavailable'); };
     const refused = await askComputer('i', 'p', undefined, passGate, sent).catch((error: unknown) => error);
-    mockLoad.next = async () => ({ hostName: 'Desk' });
+    mockLoad.next = async () => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] });
     expect(refused).toBeInstanceOf(SendVeto);
     expect((refused as Error).message).toBe(words.computerUnasked);
     expect(mockLink.request).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
+  });
+
+  it('a grant that names a plain http address is not dialled', async () => {
+    await forgetComputer();
+    mockLink.request.mockClear();
+    mockLoad.next = async () => ({ hostName: 'Desk', urls: ['http://192.168.1.20:7441'] });
+    const refused = await askComputer('i', 'p', undefined, passGate, async () => {}).catch((error: unknown) => error);
+    mockLoad.next = async () => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] });
+    expect((refused as Error).message).toBe(words.computerUnasked);
+    expect(mockLink.request).not.toHaveBeenCalled();
   });
 
   it('re-checks consent at dispatch when the link is still loading', async () => {
@@ -82,11 +92,11 @@ describe('askComputer read-log send mark', () => {
     const asked = askComputer('i', 'p', undefined, gate, sent);
     await Promise.resolve();
     consent = false;
-    finishLoad({ hostName: 'Desk' });
+    finishLoad({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] });
     await expect(asked).rejects.toThrow('withdrawn');
     expect(mockLink.request).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
-    mockLoad.next = async () => ({ hostName: 'Desk' });
+    mockLoad.next = async () => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] });
   });
 
   it('reads the stored grant again after an ask found none', async () => {
@@ -94,7 +104,7 @@ describe('askComputer read-log send mark', () => {
     mockLink.status = 'online';
     mockLoad.next = async () => null;
     await expect(askComputer('i', 'p', undefined, passGate, async () => {})).rejects.toThrow(words.computerUnasked);
-    mockLoad.next = async () => ({ hostName: 'Desk' });
+    mockLoad.next = async () => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] });
     mockLink.request.mockImplementationOnce(() => Promise.resolve({ text: 'ok' }));
     expect(await askComputer('i', 'p', undefined, passGate, async () => {})).toBe('ok');
   });
@@ -162,11 +172,11 @@ describe('askComputer read-log send mark', () => {
     const asked = askComputer('i', 'p', undefined, passGate, async () => {}).catch((error: Error) => error);
     await Promise.resolve();
     const forgotten = forgetComputer();
-    finishLoad({ hostName: 'Desk' });
+    finishLoad({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] });
     await forgotten;
     await asked;
     expect(mockMade).toHaveLength(1);
     expect(mockMade[0].stop).toHaveBeenCalledTimes(1);
-    mockLoad.next = async () => ({ hostName: 'Desk' });
+    mockLoad.next = async () => ({ hostName: 'Desk', urls: ['ws://192.168.1.20:7441'] });
   });
 });
