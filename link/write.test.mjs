@@ -25,6 +25,13 @@ test('rejects a non-text field or input over the limit before starting Claude', 
   assert.equal(existsSync(ran), false);
 });
 
+test('rejects instructions over the limit before starting Claude', async () => {
+  const ran = join(dir, 'ran-instructions.txt');
+  const claude = fakeClaude('never-instructions', `echo ran > "${ran}"`);
+  await assert.rejects(async () => write({ instructions: 'a'.repeat(64_001), input: 'x' }, { claude }), { message: 'Bad request.' });
+  assert.equal(existsSync(ran), false);
+});
+
 test('returns the answer without its code fence from a fresh folder that is removed afterwards', async () => {
   const seen = join(dir, 'ok-cwd.txt');
   const claude = fakeClaude('ok', `pwd > "${seen}"\ncat > /dev/null\nprintf '%s\\n' '\`\`\`json' '{"drafts":["a"]}' '\`\`\`'`);
