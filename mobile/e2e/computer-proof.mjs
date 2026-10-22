@@ -153,11 +153,12 @@ log('forget with the computer off: phone forgot, user told the computer was not 
 
 // Forget with the computer on: the helper drops the phone too and the user sees no warning.
 const again = await pairWithHelper('7');
+if (trusted() !== 2) throw new Error(`Expected the helper to trust the forgotten-while-off phone and the new one, it trusts ${trusted()}.`);
 await tapText('forget this computer');
 await waitText('paste the code');
 if (findText("wasn't told")) throw new Error('The phone said the computer was not told although it was on.');
 snap('8-forget-computer-on');
-for (let i = 0; i < 20 && trusted() !== 0; i++) await wait(500);
-if (trusted() !== 0) throw new Error('The helper still trusts the phone after it was forgotten.');
-log('forget with the computer on: helper no longer trusts the phone, no warning shown');
+for (let i = 0; i < 20 && trusted() !== 1; i++) await wait(500);
+if (trusted() !== 1) throw new Error(`The helper still trusts the phone after it was forgotten (${trusted()} phones).`);
+log('forget with the computer on: helper dropped this phone (the earlier one forgotten while it was off stays trusted), no warning shown');
 again.child.kill();
