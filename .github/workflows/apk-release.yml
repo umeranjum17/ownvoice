@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: read
 
 concurrency:
   group: ownvoice-apk-release
@@ -82,14 +83,18 @@ jobs:
           cp android/app/build/outputs/apk/release/app-release.apk release/Ownvoice.apk
           cd release
           sha256sum Ownvoice.apk > Ownvoice.apk.sha256
+      - name: Make release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: node ../scripts/release-notes.mjs "$RELEASE_TAG" > release-notes.md
       - name: Publish download
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           gh release create "$RELEASE_TAG" release/Ownvoice.apk release/Ownvoice.apk.sha256 \
-            --verify-tag --title "Ownvoice $RELEASE_TAG" \
-            --notes 'Download Ownvoice.apk on your Android phone, tap Open, then Install. If asked, allow your browser to install it, then come back and tap Install. Open Ownvoice to get started.'
+            --verify-tag --title "Ownvoice $RELEASE_TAG" --notes-file release-notes.md
       - name: Remove signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/ownvoice-release.jks"
