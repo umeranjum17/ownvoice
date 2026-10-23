@@ -19,7 +19,9 @@ assert.ok(scratchArg && evidenceArg, 'Pass task-owned scratch and evidence direc
 const scratch = resolve(scratchArg), evidence = resolve(evidenceArg);
 mkdirSync(scratch, { recursive: true }); mkdirSync(evidence, { recursive: true });
 const repo = fileURLToPath(new URL('../../', import.meta.url));
-const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 24 * 1024 * 1024 });
+const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+// adb shell joins its arguments again remotely: preserve spaces and an empty replyText.
+const adb = (...args) => execFileSync('adb', ['-s', serial, ...(args[0] === 'shell' ? ['shell', args.slice(1).map(quote).join(' ')] : args)], { encoding: 'utf8', maxBuffer: 24 * 1024 * 1024 });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nodes = accessibilityProbe(serial, scratch);
 const tap = node => adb('shell', 'input', 'tap', ...center(node).map(n => String(Math.round(n))));
@@ -50,7 +52,11 @@ run(join(tools, 'apksigner'), ['sign', '--ks', join(repo, 'mobile/android/app/de
 adb('install', '-r', apk);
 const post = 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?';
 adb('shell', 'am', 'start', '-n', 'com.twitter.android/.Composer', '--es', 'post', post, '--es', 'replyText', '');
-await until('the fixture field', () => nodes().some(n => n.editable && n.app === 'com.twitter.android'));
+const initial = await until('the complete post and empty fixture field', () => {
+  const list = nodes(), field = list.find(n => n.editable && n.app === 'com.twitter.android');
+  return list.some(n => n.text === post) && field && ['', "What's happening?"].includes(field.text) ? list : null;
+});
+writeFileSync(join(evidence, 'fixture-input.json'), JSON.stringify(initial, null, 1));
 // One tap, one generation; never retry a failing writer silently.
 tap(await until('the bubble', () => nodes().find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label))));
 await until('the completed reply cards', () => nodes().some(n => /Pick one to put in your message box/.test(n.text ?? '')), 600);
