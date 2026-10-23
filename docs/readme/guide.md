@@ -6,7 +6,11 @@ The full detail behind the [README](../../README.md): every screen, every check 
 
 <a id="reply-ideas-are-unavailable-for-now"></a>
 
-An empty message box over a readable post on a recognized feed app (X, LinkedIn, Reddit, Threads, Bluesky, including in Chrome when its address bar identifies the site) offers reply cards. The panel grounds them on the post block the screen shows above the box; the cards, their ratings and the length checks follow that platform. A blank composer with nothing to answer asks for the one line instead (see [Start a post from a blank composer](#start-a-post-from-a-blank-composer)). When nothing readable sits above the box — an image-only post, a compose screen with only labels — the panel shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** instead: no reply is generated, streamed, retried or offered to copy or insert. Chats and mail keep this same withhold. Your voice notes describe style, not facts. Names in polished drafts keep their own check, which this release did not rerun.
+An empty message box over a readable post on a recognized feed app (X, LinkedIn, Reddit, Threads, Bluesky, including in Chrome when its address bar identifies the site) offers reply cards. The panel grounds them on the post block the screen shows above the box; the cards, their ratings and the length checks follow that platform. A blank composer with nothing to answer asks for the one line instead (see [Start a post from a blank composer](#start-a-post-from-a-blank-composer)). When nothing readable sits above the box — an image-only post, a compose screen with only labels — the panel shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** instead: no reply is generated, streamed, retried or offered to copy or insert. Chats keep this same withhold.
+
+In Gmail, open the email you want to answer and tap the bubble there. The panel reads the open thread and offers three replies: **Accept**, **Say no, kindly** and **Ask first**. **Reply with this** opens Gmail's own reply to the newest mail with that reply in the box; you read it over and press Send yourself. If Gmail's reply doesn't open, the reply is copied for you to paste. Tapped anywhere else in Gmail, such as the inbox, the panel says **Open the email you want to answer, then tap the bubble for reply ideas.** and writes nothing. In Gmail's own reply screen the original mail isn't shown, so tap the bubble on the thread, not there; text you already typed there is polished as usual.
+
+Your voice notes describe style, not facts. Names in polished drafts keep their own check, which this release did not rerun.
 
 ## Polish what you wrote
 
@@ -18,7 +22,7 @@ Already typed something? The same tap shows your text with the stock phrases mar
 
 On X, LinkedIn, Reddit and the other feed apps, tapping the bubble in an **empty** composer shows **Start your post** and asks for one line: write what the post is about, then tap the bubble again.
 
-Nothing in an empty composer says what you want to write, so Ownvoice does not guess a topic and does not hand you a question to post in your place. Write one line — a note, a result, a thing you changed — and it drafts the post from that line in your own voice and your writing rules. From there it is the same panel as anywhere else: **Edit** changes the text, the checks follow your edit, and **Use this** puts exactly your text in the composer. You write the post and press Post yourself. Chat and mail composers are unaffected: they keep the empty state and the withheld reply above.
+Nothing in an empty composer says what you want to write, so Ownvoice does not guess a topic and does not hand you a question to post in your place. Write one line — a note, a result, a thing you changed — and it drafts the post from that line in your own voice and your writing rules. From there it is the same panel as anywhere else: **Edit** changes the text, the checks follow your edit, and **Use this** puts exactly your text in the composer. You write the post and press Post yourself. Chat and mail composers are unaffected: they keep the empty state and the reply rules above.
 
 ## Honest about every draft
 

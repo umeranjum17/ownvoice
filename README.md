@@ -103,7 +103,7 @@ Full details: [Your words stay yours](docs/readme/guide.md#your-words-stay-yours
 
 <a id="reply-ideas-are-unavailable-for-now"></a>
 
-Reply ideas work when the post can be read: an empty box over a readable post on X, LinkedIn, Reddit, Threads or Bluesky offers reply cards, each rated for that platform. A post with no text to ground on — an image-only post, a screen with nothing readable above the box — shows the plain note **Reply ideas are unavailable for now.** and nothing is invented. Chats and mail keep the withhold for now ([details](docs/readme/guide.md#reply-ideas)).
+Reply ideas work when the post can be read: an empty box over a readable post on X, LinkedIn, Reddit, Threads or Bluesky offers reply cards, each rated for that platform. A post with no text to ground on — an image-only post, a screen with nothing readable above the box — shows the plain note **Reply ideas are unavailable for now.** and nothing is invented. In Gmail, tap the bubble on an open email to get reply ideas; **Reply with this** opens Gmail's reply with it in the box, and you press Send. Other chats keep the withhold for now ([details](docs/readme/guide.md#reply-ideas)).
 
 ## Learn more
 

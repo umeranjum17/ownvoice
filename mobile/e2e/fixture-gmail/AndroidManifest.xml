@@ -1,0 +1,12 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.google.android.gm">
+  <uses-sdk android:minSdkVersion="29" android:targetSdkVersion="36" />
+  <application android:label="Gmail lab" android:theme="@android:style/Theme.DeviceDefault.DayNight">
+    <activity android:name="com.google.android.gm.Mail" android:exported="true" android:label="Gmail lab">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+    <activity android:name="com.google.android.gm.Compose" android:exported="false" android:label="Gmail lab" android:windowSoftInputMode="stateHidden|adjustResize" />
+  </application>
+</manifest>
