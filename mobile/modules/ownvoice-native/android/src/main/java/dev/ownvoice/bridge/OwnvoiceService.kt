@@ -92,6 +92,7 @@ internal fun insertCaretIgnored(selectionSet: Boolean, before: FieldSelection?, 
 class OwnvoiceService : AccessibilityService() {
   companion object {
     const val TAG = "OwnvoiceNative"
+    private const val GMAIL = "com.google.android.gm"
     @Volatile var instance: OwnvoiceService? = null
     @Volatile var onApps: Set<String> = emptySet()
     @Volatile var offApps: Set<String> = emptySet()
@@ -167,7 +168,7 @@ class OwnvoiceService : AccessibilityService() {
 
   data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false, val inserted: Boolean = false)
   data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean, val viewId: String? = null, val description: String? = null)
-  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String, val typingLimited: Boolean = false)
+  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String, val typingLimited: Boolean = false, val opensReply: Boolean = false)
   private val main = Handler(Looper.getMainLooper())
   private var capture: Capture? = null
   private var tapSeq = 0
@@ -428,7 +429,10 @@ class OwnvoiceService : AccessibilityService() {
     val boxes = mutableListOf<Rect>()
     val practiceField = app == packageName && field?.contentDescription?.toString() == "Practice message"
     // Only the chat containing the practice field is conversation; setup instructions live outside it.
-    (field?.window?.root ?: appRoot())?.let { visibleText(it, field, lines, written, nodes, boxes, practiceField) }
+    val root = field?.window?.root ?: appRoot()
+    root?.let { visibleText(it, field, lines, written, nodes, boxes, practiceField) }
+    // An open Gmail thread has no message box, only Gmail's own Reply: a draft picked there opens that reply.
+    val opensReply = app == GMAIL && field == null && replyControl(root) != null
     Log.d(TAG, "capture practice=$practiceField conversationLines=${lines.size} clickableNodes=${nodes.count { it.clickable }}")
     // Show the reading right away; the rest of the read below can block this thread for a few hundred ms.
     val drawable = drawableBoxes(boxes, resources.displayMetrics.heightPixels)
@@ -440,7 +444,7 @@ class OwnvoiceService : AccessibilityService() {
     val typed = focused?.text.orEmpty()
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val id = java.util.UUID.randomUUID().toString()
-    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id, typingTextLimited(app, typed, focused?.selection))
+    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id, typingTextLimited(app, typed, focused?.selection), opensReply)
     val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), id)
     // commit() fsyncs, which on a slow disk can hold the main thread past the 5 s ANR line, so the save runs
     // on its own thread and the read carries on here once it answers; a forget() or newer tap in between drops it.
@@ -554,13 +558,52 @@ class OwnvoiceService : AccessibilityService() {
     val cancellation = InsertCancellation()
     insertCancellation = cancellation
     pendingInsert = { finishInsert(cancellation, reading, text, "cancelled", done) }
+    if (reading != null && reading.insertField == null && reading.opensReply) return openReply(cancellation, reading, text, done)
     val node = reading?.insertField ?: return finishInsert(cancellation, reading, text, "failed", done)
+    insertInto(node, cancellation, reading, text, done)
+  }
+  private fun insertInto(node: FieldNode, cancellation: InsertCancellation, reading: Capture?, text: String, done: (Boolean, Boolean) -> Unit) {
     thread {
       val result = FocusedFields.insert(node, text, "all",
         InsertOpts(attempts = 13, retryMs = 150, acceptNewlineLoss = false), Thread::sleep, ::copyDraft,
         cancellation = cancellation, service = this)
       main.post { confirmInsert(cancellation, reading, text, result, done) }
     }
+  }
+
+  /** A draft picked over an open Gmail thread: once the panel is gone, tap Gmail's own Reply, wait for its reply box
+   *  to take focus, then insert there like any other box. It only opens the reply; the person still presses Send.
+   *  No Reply or no box within about six seconds copies the draft instead, as any failed insert does. */
+  private fun openReply(cancellation: InsertCancellation, reading: Capture, text: String, done: (Boolean, Boolean) -> Unit, tapped: Boolean = false, remaining: Int = 40) {
+    if (insertCancellation !== cancellation) return
+    if (capture !== reading) return finishInsert(cancellation, reading, text, "cancelled", done)
+    if (remaining <= 0) return finishInsert(cancellation, reading, text, "failed", done)
+    val again = { now: Boolean -> main.postDelayed({ openReply(cancellation, reading, text, done, now, remaining - 1) }, 150); Unit }
+    if (currentApp() != reading.app) return again(tapped)
+    if (!tapped) return again(replyControl(appRoot())?.performAction(AccessibilityNodeInfo.ACTION_CLICK) == true)
+    val field = focusedField() ?: return again(true)
+    val replying = reading.copy(input = field, insertField = FieldNode.of(field, this), opensReply = false)
+    capture = replying
+    pendingInsert = { finishInsert(cancellation, replying, text, "cancelled", done) }
+    Log.i(TAG, "reply opened app=${reading.app}")
+    insertInto(replying.insertField!!, cancellation, replying, text, done)
+  }
+
+  /** Gmail's Reply on an open thread, for the newest message: the lowest one on screen. */
+  private fun replyControl(root: AccessibilityNodeInfo?): AccessibilityNodeInfo? {
+    var found: AccessibilityNodeInfo? = null
+    var top = -1
+    fun walk(node: AccessibilityNodeInfo) {
+      if (!node.isVisibleToUser) return
+      val label = (node.contentDescription ?: node.text)?.toString()?.trim()
+      if (node.isClickable && node.isEnabled && label.equals("Reply", ignoreCase = true)) {
+        val bounds = Rect().also(node::getBoundsInScreen)
+        if (bounds.top >= top) { top = bounds.top; found = node }
+      }
+      for (i in 0 until node.childCount) node.getChild(i)?.let(::walk)
+    }
+    root?.let(::walk)
+    return found
   }
   /** Closing the panel restores focus asynchronously. Retry the read, never the write,
    * so a confirmation cannot race the activity transition or write to a new field. */
