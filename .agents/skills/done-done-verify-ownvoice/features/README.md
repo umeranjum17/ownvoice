@@ -6,4 +6,5 @@ The repo's maintained verification map; a proof that drives one entry point is i
 - [Parse a writing-voice note into rules](parse-a-writing-voice-note-into-rules.md): A user saves Your voice (the never-say list and the How-I-write note) in the app. The app sends the same markdown to the engine's voice.parse verb
 - [Get the platform list and per-platform limits](get-the-platform-list-and-per-platform-l.md): A caller asks which platforms the engine knows before it drafts for one of them
 - [Read the published protocol schema](read-the-published-protocol-schema.md): A caller wants the request and response shapes before it sends anything
+- [First-run welcome promise](first-run-welcome-promise.md): A new user opens Ownvoice and reads what it will do in which apps
 - [Reject bad requests with a readable error](reject-bad-requests-with-a-readable-erro.md): A caller sends a malformed or unknown request by mistake
