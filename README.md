@@ -59,9 +59,15 @@ You know what you want to say. Sometimes it just needs a little tidying. Ownvoic
       <br /><strong>Choose who writes</strong><br />On your phone, or your own plan.
     </td>
     <td align="center" width="50%">
+      <img src="docs/readme/chatgpt-light.webp" width="100%" alt="Sign in to ChatGPT: ChatGPT's page opens here. Approve there and you're back. Nothing to type. With an Open the ChatGPT page button" />
+      <br /><strong>ChatGPT in one tap</strong><br />Approve on its page. Nothing to type.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" colspan="2">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/readme/voice-dark.webp" />
-        <img src="docs/readme/voice-light.webp" width="100%" alt="Your voice: phrases you never say, and a note on how you like to write" />
+        <img src="docs/readme/voice-light.webp" width="50%" alt="Your voice: phrases you never say, and a note on how you like to write" />
       </picture>
       <br /><strong>Teach it your voice</strong><br />Words and habits that feel like you.
     </td>
@@ -71,7 +77,7 @@ You know what you want to say. Sometimes it just needs a little tidying. Ownvoic
 ## Quick start
 
 1. **Get the app.** On your Android phone, [download Ownvoice](https://github.com/umeranjum17/ownvoice/releases/latest/download/Ownvoice.apk), then tap **Open** and **Install**.
-2. **Allow the bubble.** Open Ownvoice, choose how it writes, then tap **Turn on** and switch on **Use Ownvoice**.
+2. **Allow the bubble.** Open Ownvoice and choose how it writes. For ChatGPT, approve on ChatGPT's page and you're back, with nothing to type. Then tap **Turn on** and switch on **Use Ownvoice**.
 3. **Try it in a chat.** Start with the practice chat, then choose where the bubble shows. Write a reply, tap the bubble, and pick the version you like.
 
 Switch greyed out? Open Ownvoice's **App info**, tap **⋮**, choose **Allow restricted settings**, and try again. On OPPO, OnePlus or Realme phones, also add Ownvoice to the security app's allowlist ([how](docs/readme/guide.md#download-and-install)). Step-by-step help is in the [user guide](docs/readme/guide.md#get-started).
@@ -82,9 +88,12 @@ Want to build it yourself? See [Build and run](mobile/README.md#android-build-an
 
 <a id="polish-what-you-wrote"></a><a id="start-a-post-from-a-blank-composer"></a><a id="honest-about-every-draft"></a>
 
+- 💬 **Suggests replies.** Tap the bubble in an empty reply box under a post on X, LinkedIn, Reddit, Threads or Bluesky for a few reply ideas, each rated for that platform.
 - ✨ **Polishes in place.** Marks stock phrases and fixes clear slips like "shoud" or "dont".
 - ✂️ **Rewrites any selection.** Shorter, simpler, friendlier or firmer, from any app.
-- 🔒 **Your choice of writer.** Private, free and offline on supported phones, or with your own AI plan or OpenRouter key.
+- 🎙️ **Listens when you'd rather talk.** Tap the mic in the panel and speak; your words go into the box. It listens on your phone only.
+- 🔒 **Your choice of writer.** Private, free and offline on supported phones, or with your own ChatGPT, Claude, OpenRouter or OpenCode Go. ChatGPT signs in with one tap on its own page.
+- 💻 **Use my computer.** Pair your phone with your computer and the Claude you already use there writes your drafts ([how](docs/readme/guide.md#use-my-computer)).
 - 🗣️ **Learns your voice.** Your never-say list and writing rules shape every draft.
 - 👀 **Honest about every draft.** Plain notes on what it checked, never a score to chase.
 - 📱 **Only where you want it.** Pick the apps that show the bubble, or pause it any time.
@@ -94,7 +103,8 @@ Want to build it yourself? See [Build and run](mobile/README.md#android-build-an
 
 - Ownvoice reads the screen **when you tap the bubble**, only in apps you switched on. Optional spelling help also checks your message as you type, on your phone.
 - It **never sends, posts or taps anything** for you.
-- With the phone writer, your words stay on your phone. With your own plan or OpenRouter key, text goes there when you ask for help.
+- With the phone writer, your words stay on your phone. With your own plan or key, text goes there when you ask for help. With **Use my computer**, it goes to your paired computer, then to its Claude.
+- The mic listens only after you tap it, on your phone. Your voice is never sent anywhere or recorded.
 - **What Ownvoice read** lists every tap (never your text), and **Wipe everything** clears it all.
 
 Full details: [Your words stay yours](docs/readme/guide.md#your-words-stay-yours).
