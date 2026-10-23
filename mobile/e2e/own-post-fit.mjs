@@ -118,12 +118,19 @@ function buildFixture(name, targetPkg) {
   return built;
 }
 
+/** The documented off/on rebind (AGENTS.md); a fresh process can miss the first one, so the cycle
+ *  repeats until the service is bound, and the run stops if it never binds. */
 const rebind = async () => {
-  adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', 'com.example.disabled/NoService');
-  await wait(1000);
-  adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', component);
-  adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
-  for (let i = 0; i < 15 && !/Bound services:\s*\{[^}]*Ownvoice/.test(adb('shell', 'dumpsys', 'accessibility')); i++) await wait(2000);
+  const bound = () => /Bound services:\s*\{[^}]*Ownvoice/.test(adb('shell', 'dumpsys', 'accessibility'));
+  for (let cycle = 0; cycle < 3; cycle++) {
+    adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', 'com.example.disabled/NoService');
+    await wait(1000);
+    adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', component);
+    adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
+    for (let i = 0; i < 10 && !bound(); i++) await wait(2000);
+    if (bound()) return;
+  }
+  throw new Error('The Ownvoice service never bound after three off/on cycles.');
 };
 const bubble = () => until(() => nodes().find(node => node.windowType === 4 && /^Ownvoice(?:,|$)/.test(node.label)), 'the bubble');
 const panelNodes = () => nodes().filter(n => n.app === pkg && ((n.text ?? '') || (n.label ?? '')).trim());
@@ -162,7 +169,14 @@ async function one(id, theme) {
     tap(...center(await bubble()));
     await wait(2500);
   };
-  await open();
+  // A bubble that never shows after a fresh install gets one more rebind before the round fails.
+  try { await open(); } catch (error) {
+    if (!/the bubble/.test(error.message)) throw error;
+    console.log(`${id}/${theme}: no bubble, rebinding once`);
+    await rebind();
+    adb('shell', 'am', 'force-stop', fix.pkg);
+    await open();
+  }
   const title = `Polish your post · ${fix.name}`;
   await until(() => panelNodes().some(n => (n.text ?? '').startsWith(title)), `"${title}"`, 60);
   await until(() => panelNodes().filter(n => /^Use this$/.test(n.text ?? '')).length >= 2, 'the versions', 60);
