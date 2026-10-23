@@ -49,7 +49,7 @@ export const words = {
   failed:'Something went wrong. Try again.',
   switchNote:'Ownvoice checks now and then whether ChatGPT is allowed to write. That check carries no name and no message.',
   welcomeTitle:'Write replies that sound like you.',
-  welcomeNote:'Tap the bubble in any chat. Ownvoice writes a reply in your words, and you press Send.',
+  welcomeNote:'On X, Reddit and LinkedIn, tap the bubble under a post for replies in your words. In other apps, write your message first, then tap to polish it. You press Send.',
   welcomeReply:'Yes! I’ll bring the stove. See you Saturday.',
   permissionNext:'On the next screen',
   continueLabel:'Continue',
