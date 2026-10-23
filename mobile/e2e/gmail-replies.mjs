@@ -192,7 +192,7 @@ try {
     await openThread('thread');
     shot(screen, 'mail', theme);
     adb('logcat', '-c');
-    if (motion) evidence('motion-start', task, `${screen}-reply-with-this`);
+    if (motion) evidence('motion-start', task, `${screen}-reply-hand-off`);
     try {
       tap(...center(await bubble()));
       if (before) {
