@@ -57,6 +57,7 @@ const until = async (what, read, { seconds = 30, every = 600 } = {}) => {
   try {
     mkdirSync(`${out}/failures`, { recursive: true });
     writeFileSync(`${name}.png`, png());
+    writeFileSync(`${name}-logcat.txt`, adb('logcat', '-d', '-s', 'OwnvoiceNative:V', 'ReactNativeJS:V', 'ActivityTaskManager:I', 'AndroidRuntime:E'));
     writeFileSync(`${name}.txt`, `${focus()}\n${nodes().map(n => `${n.editable ? 'E' : '-'}${n.clickable ? 'C' : '-'} ${n.app} lbl="${n.label}" txt="${n.text}" ${JSON.stringify(n.bounds)}`).join('\n')}\n`);
   } catch { /* the timeout below still names what never showed */ }
   throw new Error(`Timed out after ${seconds}s waiting for ${what}${last ? ` (last read error: ${last})` : ''}. Screen: ${name}.png`);
