@@ -38,7 +38,7 @@ const snap = (name, dark) => {
 const promise = text => {
   if (before) return;
   if (text.includes('any chat')) throw new Error(`The welcome still promises replies in any chat.\n${text}`);
-  for (const want of ['reddit and linkedin', 'polish']) if (!text.includes(want)) throw new Error(`Missing "${want}" on screen.\n${text}`);
+  for (const want of ['on x, reddit and', 'under a post', 'polish']) if (!text.includes(want)) throw new Error(`Missing "${want}" on screen.\n${text}`);
 };
 
 const priorMode = adb('shell', 'cmd', 'uimode', 'night').trim().match(/^Night mode: (\w+)$/)?.[1];
