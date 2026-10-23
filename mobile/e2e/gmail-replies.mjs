@@ -90,7 +90,9 @@ const tapButton = async text => {
 };
 // The panel's Reply on the first card; Gmail's own Reply buttons sit behind the panel in another app.
 const panelReply = all => all.filter(n => n.app === pkg && n.clickable && (n.text === 'Reply' || n.label === 'Reply')).sort((a, b) => a.bounds[1] - b.bounds[1])[0];
-const bubble = () => until('the Ownvoice bubble', () => nodes().find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label)), { seconds: 30, every: 500 });
+// The dot alone: right after an insert its window also holds the "Inserted" pill for a few seconds, and a tap
+// on the window's centre then lands on the pill, not the dot.
+const bubble = () => until('the Ownvoice bubble, without its pill', () => nodes().find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label) && n.bounds[2] - n.bounds[0] < 300), { seconds: 30, every: 500 });
 
 const fixtureDir = mkdtempSync(join(tmpdir(), 'ov-gmail-fixture-'));
 /** The fixture, built host-side the way e2e/own-post.mjs builds its composer. */
