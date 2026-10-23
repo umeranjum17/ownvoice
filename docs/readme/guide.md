@@ -72,9 +72,9 @@ The exact data flows, including the one-time download and the remote on/off swit
 
 [**Download Ownvoice for Android**](https://github.com/umeranjum17/ownvoice/releases/latest/download/Ownvoice.apk)
 
-Open this link on your phone, tap **Download**, then **Open** and **Install**; if asked, allow your browser to install it, come back, and tap **Install**. Tap **Open** to see Welcome. The app appears as **Ownvoice** on your home screen. Requires Android 8 or later.
+Open this link on your phone, tap **Download**, then **Open** and **Install**; if asked, allow your browser to install it, come back, and tap **Install**. On OnePlus phones a **Continue installation** screen may follow: tap **Continue**. When it says installed, tap **Open** to see Welcome. The app appears as **Ownvoice** on your home screen. Requires Android 8 or later.
 
-If **Use Ownvoice** is greyed out during setup, open Ownvoice's **App info**, tap **⋮** at the top, choose **Allow restricted settings**, then return to Ownvoice and tap **Turn on**.
+If **Use Ownvoice** is greyed out during setup, tap it once (Android shows a restricted-setting notice; tap **OK**), then open Ownvoice's **App info**, tap **⋮** at the top, choose **Allow restricted settings**, then return to Ownvoice and tap **Turn on**.
 
 <p align="center">
   <img src="restricted-settings.svg" alt="Illustration: open the three-dot menu in Ownvoice App info and choose Allow restricted settings" width="400" />

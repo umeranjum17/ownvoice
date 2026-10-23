@@ -378,6 +378,9 @@ type(EDITED);
 await wait(1200);
 shot('edited');
 if (nodes().find(node => node.editable && node.windowType !== 4)?.text !== EDITED) throw new Error('The edit did not take.');
+// A tall keyboard (Gboard on a recent emulator image) covers the edited card's Use this; Back drops it,
+// and only while the keyboard shows, since Back on the bare panel would close it.
+if (nodes().some(node => node.windowType === 2)) { key(4); await wait(1500); }
 nodes('Use this'); // The edited card's own Use this: it is the first one in the tree.
 await wait(3500);
 } finally { evidence('motion-stop'); }
