@@ -108,6 +108,7 @@ Reply ideas work when the post can be read: an empty box over a readable post on
 ## Learn more
 
 - 📖 [User guide](docs/readme/guide.md): every screen and check in detail
+- 🧭 [Vision](VISION.md): who Ownvoice is for and where it is going
 - 🌱 <a id="your-growth"></a>[Your growth](docs/readme/guide.md#your-growth): keep track on your phone
 - 🛠️ [Android app](mobile/README.md): build, checks and how Ownvoice writes
 - 🧩 [Writing core](packages/engine/README.md) and its [quality gate](mobile/eval/README.md)
