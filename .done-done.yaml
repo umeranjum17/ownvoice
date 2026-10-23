@@ -114,6 +114,15 @@ journeys:
       echo "device=$ANDROID_SERIAL avd=${OWNVOICE_AVD_NAME:-unset}" | tee "$E/driver.log"; exit 2
     timeout: 45m
 
+  gmail-thread-replies:
+    description: "Android: on a Gmail-style lab fixture under Gmail's package id (mobile/e2e/fixture-gmail; needs an emulator without the real Gmail: Google APIs images preinstall it, so start the throwaway AVD with -writable-system and remove /product/app/PrebuiltGmail after adb root and adb remount, then reboot, the bubble tapped on an open thread reads the mail and offers Accept / Say no, kindly / Ask first cards grounded on it; the card's Reply opens the thread's own Reply and the draft is read back in the reply's body box with the app's verified-insert log, Send never pressed; the inbox shows the plain open-an-email note with no card. Light, dark and dark at 720x1280 with font 1.3, plus one recording of the reply hand-off. BEFORE_APK (a base build) runs first and expects the old withhold note. Writer: the host's e2e/pi-writer.mjs (real DeepSeek Flash, no key, no spend) through the OpenRouter key route, so the APK must be built with EXPO_PUBLIC_E2E_OPENROUTER_BASE=http://10.0.2.2:${PI_WRITER_PORT:-18793}/api/v1. Needs an explicit emulator allocation and APK env (path to that release APK)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      b=0; if [ -n "${BEFORE_APK:-}" ]; then GMAIL_BEFORE=1 node mobile/e2e/gmail-replies.mjs "$BEFORE_APK" "dd-${RUN_ID}" >"$E/driver-before.log" 2>&1; b=$?; echo "driver exit=$b" >>"$E/driver-before.log"; fi
+      node mobile/e2e/gmail-replies.mjs "$APK" "dd-${RUN_ID}" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; [ $b -eq 0 ] || code=$b
+      cp verify-artifacts/"dd-${RUN_ID}"/*.png verify-artifacts/"dd-${RUN_ID}"/*.txt verify-artifacts/"dd-${RUN_ID}"/*.json verify-artifacts/"dd-${RUN_ID}"/*.mp4 "$E"/ 2>/dev/null; exit $code
+    timeout: 45m
+
   account-choices:
     description: "Android: writer list (phone/ChatGPT/Claude/OpenRouter/OpenCode Go), sign-in and writer/rating routing, live Claude draft+rewrite via claude-draft-proof.mjs, OpenRouter legs via openrouter-proof.mjs (OPENROUTER_SCENARIOS=negative is credit-free). OpenCode Go connects through the kit's add() (the workspace pick shows when the key works with several), proven fixture-backed in mobile/src/chatgpt/__tests__/OpenCodeRoute.test.ts and live via opencode-proof.mjs (connect, pick OPENCODE_WORKSPACE, one real draft) when OPENCODE_KEY_FILE is set; that leg needs an APK built with no E2E flags. OPENCODE_CARDS=1 swaps the draft for the \"What happens to your writing\" card (no writer, during connect, connected; light, dark, 1.3 font at 360dp) and spends nothing. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     spends: "one live Claude generation and one live OpenRouter generation for the full legs, plus one live OpenCode Go generation when OPENCODE_KEY_FILE is set"
@@ -155,6 +164,13 @@ journeys:
       set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/grow-reply-live.mjs mobile/e2e/grow-reply-cases.json "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
+
+  welcome-promise:
+    description: "Android: the first-run welcome promises replies only on X, Reddit and LinkedIn and polish in other apps, never replies in any chat. Light and dark, default and largest font. Any release APK (no stub flags); OWNVOICE_BEFORE=1 captures the base build. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/welcome.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 15m
 
   own-posts:
     description: "Android: blank composer asks for the one line, then drafts from it; edit one and insert with field read-back (OWNVOICE_THEME=dark for the dark pass). Needs an explicit emulator allocation after first-run.mjs setup and APK env (path to the release APK, built per mobile/README.md)."
