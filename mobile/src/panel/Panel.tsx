@@ -12,7 +12,7 @@ import { prefillFor, prefillUrl } from '../core/prefill';
 import { feedRead } from '../core/feed';
 import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
-import { abstain, judgeFit, rated, type Fit } from '../grow/fit';
+import { abstain, judgeFit, rated, type Fit, type FitKind } from '../grow/fit';
 import { phoneFit } from '../grow/phoneFit';
 import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
@@ -77,6 +77,9 @@ const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id
  *  and the replies, started from their point, are ranked for that place. With nothing typed the reply stays withheld.
  *  A blank composer in a feed app is his own post with nothing to write from, so it asks for the one line it
  *  needs; an empty box anywhere else stays the empty state, and a chat or mail reply is withheld. */
+/** What the fit rates in this mode: a reply they grow, or their own new post and its versions; nothing elsewhere. */
+const fitKindOf = (mode: Mode | null): FitKind | null => mode === 'grow' ? 'reply' : mode === 'compose' ? 'post' : null;
+
 const modeOf = (typed: string, written: string, hasField: boolean, feed: boolean, platform: Platform): Mode => {
   if (typed.trim()) return Judge.replying(written) ? (namesPlatform(platform) ? 'grow' : 'polish') : 'compose';
   if (Judge.replying(written)) return 'reply';
@@ -375,11 +378,13 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     })();
   });
 
-  // ---- Fit: one judge call per tap rates every shown reply on X, LinkedIn and Reddit; never per keystroke.
+  // ---- Fit: one judge call per tap rates every shown reply on X, LinkedIn and Reddit, and every shown own post
+  // and its versions on X and Reddit; never per keystroke.
   // It runs once the writer settles either way: when the writer failed, the typed reply still gets its honest
   // fit read instead of the panel showing only the writer's fallback line (the 2026-10-01 failure). ----
   useEffect(() => {
-    if ((phase !== 'ready' && phase !== 'failed') || mode !== 'grow' || !capture || !rated(platformOf.current)) return;
+    const fitKind = fitKindOf(mode);
+    if ((phase !== 'ready' && phase !== 'failed') || !fitKind || !capture || !rated(platformOf.current, fitKind)) return;
     const id = run.current;
     if (fitFor.current === id) return;
     const texts = [...(yours?.text ? [yours.text] : []), ...shown.map(draft => draft.text)];
@@ -391,7 +396,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       const onPhone = !leaves.current || shownOnPhone.current;
       const backends = !onPhone ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : await phoneCanWrite() === 'cant' ? [] : [phoneFit()];
       if (run.current !== id) return;
-      void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, samples: samplesOf.current, backends, voice: !onPhone })
+      void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, samples: samplesOf.current, backends, voice: !onPhone, kind: fitKind })
         .catch(() => texts.map(abstain))
         .then(found => {
           if (run.current !== id) return;
@@ -413,7 +418,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       const reading = capture;
       const platform = platformOf.current.id;
       const platformLabel = platformOf.current.label || reading?.label || '';
-      const level = mode === 'grow' && fitBarVisible(fit, ratings)
+      const level = fitKindOf(mode) && fitBarVisible(fit, ratings)
         ? (fitFlag(ratings) ? LEVELS[0] : fit?.level != null ? LEVELS[fit.level] : fit?.words ?? null) : null;
       return Native.insert(text).then(async result => {
         if (!result?.ok || !reading) return result?.ok === true;
@@ -589,6 +594,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
   const replies = mode === 'reply' || mode === 'grow';
   const grow = mode === 'grow';
+  // Where the fit rates the cards, its bar carries the level and the reach line moves to Why?.
+  const fitted = fitKindOf(mode) != null;
   const yoursFit = yours ? fits.get(yours.text) : undefined;
   // With their own text in the box (polish, grow) a card replaces it: Use this. An empty box takes a reply: Insert.
   const insertLabel = mode === 'reply' ? words.insert : words.useThis;
@@ -606,7 +613,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     onClose={() => { void Native.closePanel().catch(() => {}); }}
     cover={coverDraft ? {
       title: replies ? words.whyReply : words.whyVersion,
-      children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} footnote={grow ? REACH_UNKNOWN : undefined} />,
+      children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} footnote={fitted ? REACH_UNKNOWN : undefined} />,
     } : undefined}
     footer={empty && mainNote
       ? <Empty text={mainNote}>
@@ -643,8 +650,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         <Marked text={yours.text} hits={[...yours.scores.hits, ...slips]} />
         <ToneLine text={yours.text} tones={tones} />
         <VerdictLine verdict={Judge.verdict(yours.scores, slips.length)} />
-        <Ratings ratings={yours.ratings} fit={yoursFit} hideEngagement={grow && fitHidesEngagement(yoursFit, yours.ratings)} />
-        {grow ? <FitBar fit={yoursFit} ratings={yours.ratings} /> : null}
+        <Ratings ratings={yours.ratings} fit={yoursFit} hideEngagement={fitted && fitHidesEngagement(yoursFit, yours.ratings)} />
+        {fitted ? <FitBar fit={yoursFit} ratings={yours.ratings} /> : null}
         <View style={styles.actions}>
           {grow ? <Button kind="filled" label={words.useThis} disabled={!hasField || limited || insertBusy} onPress={() => { void put(yours.text, -1, yoursFit, yours.ratings); }} /> : null}
           {done ? <Button kind="text" label={copied === yours.text ? words.copied : words.copy} onPress={() => copy(yours)} /> : null}
@@ -668,8 +675,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           {editing ? null : <ToneLine text={card.text} tones={tones} />}
           {editing ? null : card.label ? <MeaningLine check={card.meaning} /> : verdict ? <View style={{ marginTop: space.s }}><VerdictLine verdict={verdict} /></View> : null}
           {/* While editing, the ratings follow the edited text, never the original. */}
-          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitHidesEngagement(cardFit, card.ratings)} />
-          {grow && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
+          <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={fitted && !editing && fitHidesEngagement(cardFit, card.ratings)} />
+          {fitted && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
             <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy || !editing.text.trim()} onPress={() => { void put(editing.text, card.slot); }} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />

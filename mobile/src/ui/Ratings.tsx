@@ -30,7 +30,7 @@ const sentence = (title: string, label: string, lines: string[]) => [`${title}: 
 
 /** A card's engagement rating and, apart from it, its stock-wording rating; read out as one label.
  *  With the fit level the engagement rating is that level; without one it stays the text checks.
- *  In grow mode the fit bar below carries the level and the findings, so the panel hides this row
+ *  Where the fit rates (grown replies, own posts) the bar below carries the level and the findings, so the panel hides this row
  *  there instead of showing two verdicts. A row appears only when it found something, and nothing
  *  appears when it found nothing. */
 export function Ratings({ ratings, fit, hideEngagement }: { ratings: Value | null; fit?: Fit; hideEngagement?: boolean }) {
