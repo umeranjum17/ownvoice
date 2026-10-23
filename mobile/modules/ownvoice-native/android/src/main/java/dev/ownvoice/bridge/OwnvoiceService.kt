@@ -170,6 +170,8 @@ class OwnvoiceService : AccessibilityService() {
   data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String, val typingLimited: Boolean = false)
   private val main = Handler(Looper.getMainLooper())
   private var capture: Capture? = null
+  private var tapSeq = 0
+  private val saver by lazy { java.util.concurrent.Executors.newSingleThreadExecutor() }
   /** The kit's bubble, driven with no JavaScript running so it restores after a reboot or process death. */
   private var bubbles: ServiceBubble? = null
   private var unwatch: (() -> Unit)? = null
@@ -366,6 +368,7 @@ class OwnvoiceService : AccessibilityService() {
     instance = null
     onServiceChange?.invoke("off")
     main.removeCallbacksAndMessages(null)
+    saver.shutdown()
     stopBubble()
     readCue.close()
     super.onDestroy()
@@ -439,14 +442,23 @@ class OwnvoiceService : AccessibilityService() {
     val id = java.util.UUID.randomUUID().toString()
     val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id, typingTextLimited(app, typed, focused?.selection))
     val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), id)
-    val saved = synchronized(facts) {
-      restoreFacts(this@OwnvoiceService)
-      val ok = prefs.edit().putString(FACTS, (facts + fact).joinToString("\n", transform = ::factLine)).commit()
-      if (ok) facts += fact
-      ok
+    // commit() fsyncs, which on a slow disk can hold the main thread past the 5 s ANR line, so the save runs
+    // on its own thread and the read carries on here once it answers; a forget() or newer tap in between drops it.
+    val tap = ++tapSeq
+    saver.execute {
+      val saved = synchronized(facts) {
+        restoreFacts(this@OwnvoiceService)
+        val ok = prefs.edit().putString(FACTS, (facts + fact).joinToString("\n", transform = ::factLine)).commit()
+        if (ok) facts += fact
+        ok
+      }
+      main.post { if (tap == tapSeq) afterTapSaved(saved, reading, cue, lines.isEmpty() && field == null) }
     }
+  }
+
+  private fun afterTapSaved(saved: Boolean, reading: Capture, cue: Boolean, nothingRead: Boolean) {
     if (!saved) { readCue.stop(); Toast.makeText(this, "This tap wasn't saved.", Toast.LENGTH_LONG).show(); restIdle(); return }
-    if (lines.isEmpty() && field == null) return say("No text on this screen.")
+    if (nothingRead) return say("No text on this screen.")
     capture = reading
     if (!cue) return openPanel.run()
     // The panel waits out the rest of the cue's opening beat, counted from when the cue started.
@@ -500,6 +512,7 @@ class OwnvoiceService : AccessibilityService() {
 
   fun captured() = capture?.takeIf { allowed(it.app) }
   fun forget() {
+    tapSeq++
     insertCancellation?.cancel()
     capture = null
     pendingInsert?.invoke()
