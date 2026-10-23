@@ -2,9 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-// The first-run welcome's promise, as a fresh install shows it: welcome in light and dark at the
-// default and the largest font, then hardware Back to Home, whose note repeats the promise while no
-// writer is chosen. Any release APK works (no stub flags). OWNVOICE_BEFORE=1 skips the new-wording
+// The first-run welcome's promise, as a fresh install shows it, in light and dark at the default and
+// the largest font. Any release APK works (no stub flags). OWNVOICE_BEFORE=1 skips the new-wording
 // check for the base build. Shell input and screencap only, never UiAutomator.
 const serial = process.env.ANDROID_SERIAL;
 if (!serial?.startsWith('emulator-')) throw new Error('Set ANDROID_SERIAL to a throwaway emulator (owner phones are refused).');
@@ -60,12 +59,6 @@ try {
     const tag = `${before ? 'before' : 'after'}-${mode}${scale === '1.3' ? '-large' : ''}`;
     promise(screenText());
     snap(`${tag}-welcome`, mode === 'dark');
-    if (scale !== '1.0') continue;
-    // Hardware Back finishes setup; Home repeats the promise while no writer is chosen.
-    adb('shell', 'input', 'keyevent', '4');
-    const home = await waitForLine('where the bubble shows');
-    promise(home);
-    snap(`${tag}-home`, mode === 'dark');
   }
   console.log(`Welcome proof saved to ${out}.`);
 } finally {

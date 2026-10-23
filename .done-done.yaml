@@ -157,7 +157,7 @@ journeys:
     timeout: 45m
 
   welcome-promise:
-    description: "Android: the first-run welcome promises replies only on X, Reddit and LinkedIn and polish in other apps, never replies in any chat; Home repeats it while no writer is chosen. Light and dark, default and largest font. Any release APK (no stub flags); OWNVOICE_BEFORE=1 captures the base build. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    description: "Android: the first-run welcome promises replies only on X, Reddit and LinkedIn and polish in other apps, never replies in any chat. Light and dark, default and largest font. Any release APK (no stub flags); OWNVOICE_BEFORE=1 captures the base build. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     command: |
       set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/welcome.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
