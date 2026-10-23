@@ -705,7 +705,10 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
     shot(screen, 'inserted', theme);
     if (!/insert result ok=true/.test(logcat)) throw new Error(`The insert read-back check did not pass: ${result}`);
     if (!pillShown) throw new Error('The "Inserted. Send it yourself." confirmation is not visible.');
-    const boxText = await until(`the edit suffix "${EDIT_SUFFIX}" read back from the composer`, () => { const text = composerNode(nodes())?.text ?? ''; return text.includes(EDIT_SUFFIX) && text; }, { seconds: 15 });
+    const boxText = await until(`the edit suffix "${EDIT_SUFFIX}" read back from Chrome's editable composer`, () => {
+      const text = nodes().find(node => node.editable && node.app === 'com.android.chrome' && `${node.text ?? ''} ${node.label ?? ''}`.includes(EDIT_SUFFIX))?.text;
+      return text?.includes(EDIT_SUFFIX) && text;
+    }, { seconds: 30 });
     if (originalCardText && boxText.trim() === originalCardText) throw new Error('The inserted text equals the unedited card text: the edit did not change it.');
     await readBackOutcome(screen, theme);
     log(`${screen}/${theme}: cards + label check + edit + insert + confirmation + read-back + outcome record OK.`);
@@ -726,12 +729,14 @@ const newestReadBlock = async () => {
   // any older one (rows are newest first).
   return until('a Chrome row on the read list', () => {
     const texts = nodes().map(n => `${n.text ?? ''}\n${n.label ?? ''}`.trim()).filter(Boolean);
+    // The title can be omitted from the accessibility tree while a clipped row is becoming visible.
+    // Prefer the actual newest Chrome row; re-routing on a missing title resets the scroll each poll.
+    const first = texts.findIndex(text => /in Chrome\b/i.test(text));
+    if (first >= 0) return texts.slice(first, first + 3).join(' | ');
     if (!texts.some(text => /what ownvoice read/i.test(text))) {
       adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://reads');
       return false;
     }
-    const first = texts.findIndex(text => /in Chrome\b/i.test(text));
-    if (first >= 0) return texts.slice(first, first + 3).join(' | ');
     const [w, h] = sizeNow();
     adb('shell', 'input', 'swipe', String(w / 2), String(h * .8), String(w / 2), String(h * .45), '300');
     return false;
