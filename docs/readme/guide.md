@@ -8,6 +8,8 @@ The full detail behind the [README](../../README.md): every screen, every check 
 
 An empty message box over a readable post on a recognized feed app (X, LinkedIn, Reddit, Threads, Bluesky, including in Chrome when its address bar identifies the site) offers reply cards. The panel grounds them on the post block the screen shows above the box; the cards, their ratings and the length checks follow that platform. A blank composer with nothing to answer asks for the one line instead (see [Start a post from a blank composer](#start-a-post-from-a-blank-composer)). When nothing readable sits above the box — an image-only post, a compose screen with only labels — the panel shows **Reply ideas are unavailable for now. Write your reply first, then tap the bubble to polish it.** instead: no reply is generated, streamed, retried or offered to copy or insert. Chats keep this same withhold.
 
+<p align="center"><img src="reply-cards-light.webp" width="300" alt="Suggested replies · X: Push back, kindly and Ask a question cards, each with Insert, Edit and Why?, and notes on how it reads on X" /></p>
+
 In Gmail, open the email you want to answer and tap the bubble there. The panel reads the open thread and offers three replies: **Accept**, **Say no, kindly** and **Ask first**. **Reply** on a card opens Gmail's own reply to the newest mail with that reply in the box; you read it over and press Send yourself. If Gmail's reply doesn't open, the reply is copied for you to paste. Tapped anywhere else in Gmail, such as the inbox, the panel says **Open the email you want to answer, then tap the bubble for reply ideas.** and writes nothing. In Gmail's own reply screen the original mail isn't shown, so tap the bubble on the thread, not there; text you already typed there is polished as usual.
 
 Your voice notes describe style, not facts. Names in polished drafts keep their own check, which this release did not rerun.
@@ -38,6 +40,8 @@ Select text in any app, choose **Ownvoice** from the selection menu (or share th
 
 In the panel, tap the mic to listen, speak, then tap **Stop listening** (or go quiet, and Ownvoice finishes on its own). The words you said go into the field you were writing in, the same way **Insert** does. Recognition runs on this phone only. The first tap asks for the microphone; if this phone is missing its speech language pack, the phone's own download prompt appears first. When this phone can't listen in your language, or the microphone is refused, the panel says so.
 
+<p align="center"><img src="speak-light.webp" width="300" alt="Polish your message with the mic row, Listen, above your own text while new versions are being written" /></p>
+
 ## Your choice of writer
 
 Pick who writes your drafts, and change it any time. **On this phone** is private and free: nothing you read or write leaves the phone, and it works without internet. Phones that need it get a one-time download of about 2 to 3 GB, on Wi-Fi, and only after you say yes. **With your ChatGPT** and **With your Claude** use the plan you already pay for: sharper and usually quicker, but what's on screen goes to that service when you tap the bubble. **With your OpenRouter** uses a key you paste in, billed by OpenRouter as you use it; it appears only when the phone can use it. **With your OpenCode Go** uses the key your OpenCode Go plan gave you, billed as that plan rather than per use; it appears only when the phone can use it. **Use my computer** (on Home) writes with the Claude you already use on your own computer; see [Use my computer](#use-my-computer). If Claude's plan limit is reached, Ownvoice says when it resets and writes on the phone where it can.
@@ -49,6 +53,8 @@ Your own computer can write your drafts, with the Claude you already use there. 
 1. **On your computer**, you need Node 22.18 or later and Claude Code, signed in. Get a copy of Ownvoice, then in its `link` folder run `npm ci` once and `node host.mjs`. Leave it running: it shows a code.
 2. **On your phone**, open Ownvoice, tap **Use my computer** on Home, paste the code, and tap **Pair**.
 3. **Check the two words.** Your phone shows two words. Your computer asks whether it shows the same two; say yes there. The phone then says **Paired with** and your computer's name.
+
+<p align="center"><img src="computer-light.webp" width="300" alt="Use my computer: your computer writes the drafts with your own Claude. Paste the code your computer shows, then Pair" /></p>
 
 From then on, drafts for apps the bubble shows in go to that computer, and this phone writes them if the computer doesn't answer. Phone and computer must be on the same Wi-Fi, unless you set your computer up to be reached from outside your home. **Write on this phone instead** switches back any time, and **Forget this computer** unpairs. If your computer was off when you forgot it, remove this phone there too (delete its `ownvoice-computer` folder).
 

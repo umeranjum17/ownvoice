@@ -64,12 +64,26 @@ You know what you want to say. Sometimes it just needs a little tidying. Ownvoic
     </td>
   </tr>
   <tr>
-    <td align="center" colspan="2">
+    <td align="center" width="50%">
+      <img src="docs/readme/reply-cards-light.webp" width="100%" alt="Suggested replies · X: Push back, kindly and Ask a question cards, each with Insert, Edit and Why?, and notes on how it reads on X" />
+      <br /><strong>Reply ideas on X</strong><br />Cards rated for the platform.
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/readme/speak-light.webp" width="100%" alt="Polish your message with the mic row, Listen, above your own text while new versions are being written" />
+      <br /><strong>Speak instead of typing</strong><br />Tap Listen and talk.
+    </td>
+  </tr>
+  <tr>
+    <td align="center" width="50%">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/readme/voice-dark.webp" />
-        <img src="docs/readme/voice-light.webp" width="50%" alt="Your voice: phrases you never say, and a note on how you like to write" />
+        <img src="docs/readme/voice-light.webp" width="100%" alt="Your voice: phrases you never say, and a note on how you like to write" />
       </picture>
       <br /><strong>Teach it your voice</strong><br />Words and habits that feel like you.
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/readme/computer-light.webp" width="100%" alt="Use my computer: your computer writes the drafts with your own Claude. Paste the code your computer shows, then Pair" />
+      <br /><strong>Use my computer</strong><br />Your computer's Claude writes.
     </td>
   </tr>
 </table>
