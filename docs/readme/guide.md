@@ -1,6 +1,6 @@
 # Ownvoice user guide
 
-The full detail behind the [README](../../README.md): every screen, every check and every known limit of the current build (1.0.4).
+The full detail behind the [README](../../README.md): every screen, every check and every known limit of the current build (1.0.7).
 
 ## Reply ideas
 
@@ -40,7 +40,17 @@ In the panel, tap the mic to listen, speak, then tap **Stop listening** (or go q
 
 ## Your choice of writer
 
-Pick who writes your drafts, and change it any time. **On this phone** is private and free: nothing you read or write leaves the phone, and it works without internet. Phones that need it get a one-time download of about 2 to 3 GB, on Wi-Fi, and only after you say yes. **With your ChatGPT** and **With your Claude** use the plan you already pay for: sharper and usually quicker, but what's on screen goes to that service when you tap the bubble. **With your OpenRouter** uses a key you paste in, billed by OpenRouter as you use it; it appears only when the phone can use it. **With your OpenCode Go** uses the key your OpenCode Go plan gave you, billed as that plan rather than per use; it appears only when the phone can use it. **Use my computer** (on Home) writes with the Claude you already use on your own computer: start the Ownvoice helper there, pair this phone with the code it shows, and check the same two words on both. Drafts for apps the bubble shows in then go to that computer, and this phone writes them if the computer doesn't answer. If Claude's plan limit is reached, Ownvoice says when it resets and writes on the phone where it can.
+Pick who writes your drafts, and change it any time. **On this phone** is private and free: nothing you read or write leaves the phone, and it works without internet. Phones that need it get a one-time download of about 2 to 3 GB, on Wi-Fi, and only after you say yes. **With your ChatGPT** and **With your Claude** use the plan you already pay for: sharper and usually quicker, but what's on screen goes to that service when you tap the bubble. **With your OpenRouter** uses a key you paste in, billed by OpenRouter as you use it; it appears only when the phone can use it. **With your OpenCode Go** uses the key your OpenCode Go plan gave you, billed as that plan rather than per use; it appears only when the phone can use it. **Use my computer** (on Home) writes with the Claude you already use on your own computer; see [Use my computer](#use-my-computer). If Claude's plan limit is reached, Ownvoice says when it resets and writes on the phone where it can.
+
+## Use my computer
+
+Your own computer can write your drafts, with the Claude you already use there. Nothing new to pay for and no account to give Ownvoice.
+
+1. **On your computer**, you need Node 22.18 or later and Claude Code, signed in. Get a copy of Ownvoice, then in its `link` folder run `npm ci` once and `node host.mjs`. Leave it running: it shows a code.
+2. **On your phone**, open Ownvoice, tap **Use my computer** on Home, paste the code, and tap **Pair**.
+3. **Check the two words.** Your phone shows two words. Your computer asks whether it shows the same two; say yes there. The phone then says **Paired with** and your computer's name.
+
+From then on, drafts for apps the bubble shows in go to that computer, and this phone writes them if the computer doesn't answer. Phone and computer must be on the same Wi-Fi, unless you set your computer up to be reached from outside your home. **Write on this phone instead** switches back any time, and **Forget this computer** unpairs. If your computer was off when you forgot it, remove this phone there too (delete its `ownvoice-computer` folder).
 
 ## Your growth
 
@@ -95,7 +105,10 @@ Then setup takes about a minute:
 1. **Open Ownvoice** and tap **Continue**.
 2. **Choose how Ownvoice writes.**
    - **On this phone**: pick it and tap **Continue**. If the phone first needs its one-time download, the button reads **Get it ready** (about 2 to 3 GB, once, on Wi-Fi).
-   - **With your ChatGPT**: pick it and tap **Continue**. ChatGPT's page opens inside Ownvoice; tap **Approve** there and you're back, with nothing to copy or type. **Use a code instead** on that page is the fallback that shows a code to type on the ChatGPT page.
+   - **With your ChatGPT**: pick it and tap **Continue**. ChatGPT's page opens inside Ownvoice; tap **Approve** there and you're back, with nothing to copy or type. Closed the page too soon? The card says there's nothing to type and offers **Open the ChatGPT page** again. **Use a code instead** on that card is the fallback that shows a code to type on the ChatGPT page.
+
+     <p align="center"><img src="chatgpt-light.webp" width="300" alt="Sign in to ChatGPT: ChatGPT's page opens here. Approve there and you're back. Nothing to type." /></p>
+
    - **With your Claude**: pick it and tap **Continue**, then **Open the Claude page**, sign in there with the account you already have, and paste back the code that page shows.
    If your phone can't write on its own, Ownvoice says so, ChatGPT is picked for you, and the button reads **Sign in**; the two accounts are still both offered.
 3. **Let Ownvoice see your chats, only when you tap.** Tap **Turn on**. In the phone's settings, in **Downloaded apps** tap **Ownvoice**, switch on **Use Ownvoice**, and tap **Allow**. Ownvoice comes back by itself. If the switch is greyed out, tap **Switch greyed out?** in Ownvoice: on Android 13 and later, apps installed from a file need **Allow restricted settings** in App info first. On OPPO, OnePlus or Realme phones, add Ownvoice to the security app's allowlist before this step; [Download and install](#download-and-install) shows how.
