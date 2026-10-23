@@ -6,7 +6,7 @@ export type Case =
   | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; exact?: string; from?: string; app?: string; minCards?: number }
   | { id: string; kind: 'select'; typed: string; how: 'Shorter' | 'Simpler' | 'Fix spelling' | 'Friendlier' | 'Firmer'; keep: string[]; exact?: string; layout?: boolean; why: string }
   | { id: string; kind: 'tone'; typed: string; why: string }
-  | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string; point?: string; minCards?: number; reject?: string[] }
+  | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string; point?: string; minCards?: number; reject?: string[]; promptText?: string; cleaned?: { raw: string; text: string }[] }
   | { id: string; kind: 'thread'; typed: string; app?: string; guide?: string; keep: string[]; why: string }
   // Grow-mode feed case: a post plus an optional draft of his own, scored by the G2 checks
   // (never-say, long dash, invented numbers, the "Yours" card, and the bottom level for a
@@ -114,14 +114,21 @@ export const cases: Case[] = [
     screen: 'Umer Demo @umer_demo\nShipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', latest: 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?',
     points: [['timer', 'focus', 'minutes', 'app', 'week']], minCards: 3,
     reject: ['Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', 'Shipping a tiny app every week this year. Week 12: a timer that only counts focused minutes. What should week 13 be!', 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be? Nice.'],
+    cleaned: [{ raw: 'Reply:\nWeek 13 could be a productivity tracker that highlights the most productive hours of the week. This would help users identify their peak productivity times and optimize their work schedule accordingly.', text: 'Week 13 could be a productivity tracker that highlights the most productive hours of the week. This would help users identify their peak productivity times and optimize their work schedule accordingly.' }],
     why: 'Published phone writer offered the parent post itself: exact and near echoes must be retried, not inserted' },
   { id: 'R14-x-reply-not-instruction', kind: 'reply', app: 'com.twitter.android', guide: LOWER,
     screen: 'Umer Demo @umer_demo\nShipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', latest: 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', point: 'could it include breaks too?',
     points: [['break']], minCards: 3,
     reject: ['Agree, adding that the focus timer could also track breaks.', 'Push back, suggesting that the app could track time differently.', 'Ask, "Could the app also include breaks?"',
-      'Reply:\nWeek 13 could be a productivity tracker that highlights the most productive hours of the week. This would help users identify their peak productivity times and optimize their work schedule accordingly.',
       'X: Push back with the idea of a productivity tracker that highlights the most productive hours of the week. This would help users identify their peak productivity times and optimize their work schedule accordingly.',
-      'Push back with the idea of a productivity tracker.', 'X: Agree, adding that the focus timer could also track breaks.', 'Ask "Could the app include breaks?"'],
+      'Push back with the idea of a productivity tracker.', 'X: Agree, adding that the focus timer could also track breaks.', 'Ask "Could the app include breaks?"',
+      'X: Can I search them?', 'Backups still matter.', 'Can I search them?\n\nReply: Can I search them?',
+      'Can I search them too?', 'Backups really still matter.',
+      'I keep my notes at https://example.com, and I also use a digital calendar for organizing my schedule.',
+      'Backups still matter. Keep a spare copy.', 'Reply: Backups still matter. Keep a spare copy.'],
+    // Retired native prompt excerpts plus quoted boundary controls; never part of a live prompt.
+    promptText: 'Draft 1: No signal needed.\nDraft 2: Backups still matter.\nDraft 3: Can I search them?\nTheir reply so far:\nI keep my notes at https://example.com.\nReplies they wrote: ["Backups still matter. Keep a spare copy."]',
+    cleaned: [{ raw: 'X: Reply: Break reminders could fit week 13.', text: 'Break reminders could fit week 13.' }],
     why: 'Grow cards must be replies in his voice, never directions telling a writer how to reply' },
   // --- Package 5: thread writer and hooks (report §7 row 5); `app` feeds the cap ---
   { id: 'H01-x-thread', kind: 'thread', app: 'com.twitter.android',

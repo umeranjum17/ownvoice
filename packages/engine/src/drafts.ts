@@ -280,13 +280,12 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
 
 // The phone model gets the same rules condensed (≤ 700 characters of instructions), one call,
 // three replies, each labelled so cleanDrafts/parts() splits them.
-const phoneExample = 'Example post: Offline notes.\nDraft 1: No signal needed.\nDraft 2: Backups still matter.\nDraft 3: Can I search them?';
 const phoneReplyInstructions = (slots: [string, string, string], feed = false) => [
   feed ? 'Write what they would send, not advice to a writer.' : 'Write their replies, ready to send, not instructions or copied posts.',
   'Every draft must respond to everything the latest message asks or offers.',
   'Draft 1:, Draft 2:, Draft 3:, slots in order, never swapped:',
   slotList(slots),
-  feed ? phoneExample : 'If news, thanks or feelings, stay warm and kind.',
+  'If news, thanks or feelings, stay warm and kind.',
   feed ? 'Never invent facts, times or dates. Use the post. Short, plain, kind. No flattery, hashtags, emoji or long dashes.' : 'Never invent facts, times or dates: use the screen. A change reuses screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
 ].join('\n');
 
@@ -322,7 +321,7 @@ export function phoneSlotPrompt(slot: string, input: Omit<ReplyInput, 'dashes' |
     pointLine(input.point),
     'Every draft must respond to everything the latest message asks or offers.',
     avoidLine(avoid),
-    feed ? 'Use only times, dates and facts from the post. Short, plain, kind. No flattery, hashtags, emoji or long dashes.\nExamples: "Notes work offline." -> "No signal needed."\n"File will not open." -> "What happens when you try?"' : 'Don\'t invent facts about them; ask a short question back instead. Use only times, dates and facts on the screen: if it gives no time or date, never add one. If you suggest a different time, use only one from the screen, otherwise ask when suits them. Match their language and tone; plain words, short sentences. No flattery openers, hashtags, emoji or long dashes.',
+    feed ? 'Use only times, dates and facts from the post. Short, plain, kind. No flattery, hashtags, emoji or long dashes.' : 'Don\'t invent facts about them; ask a short question back instead. Use only times, dates and facts on the screen: if it gives no time or date, never add one. If you suggest a different time, use only one from the screen, otherwise ask when suits them. Match their language and tone; plain words, short sentences. No flattery openers, hashtags, emoji or long dashes.',
   ].filter(Boolean).join('\n');
   const out = 'Output only the reply text.';
   return `${fixed}${ruleBlock(`${fixed}\n${out}`, input)}\n${out}\n\n${inputBlock(input)}`;
@@ -406,7 +405,7 @@ export function slotContradiction(slot: string, draft: string): boolean {
 
 /** Full-post echoes, including small wording changes; a short response sharing its topic is not a copy.
  * ponytail: word overlap, not semantic similarity; paraphrase detection needs a separate quality judge. */
-export function copiesPost(draft: string, post: string): boolean {
+export function copiesPost(draft: string, post: string, ratio = 0.85): boolean {
   const one = echoKey(draft);
   // Layout fallback can include an author or app label above the post's body.
   return [post, ...post.split('\n')].some(parent => {
@@ -414,21 +413,40 @@ export function copiesPost(draft: string, post: string): boolean {
     if (!two) return false;
     if (one === two) return true;
     const from = two.split(' '), to = one.split(' ');
-    if (Math.min(from.length, to.length) < 4) return false;
+    if (Math.min(from.length, to.length) < 3) return false;
     const remaining = [...from];
     let shared = 0;
     for (const word of to) {
       const at = remaining.indexOf(word);
       if (at >= 0) { shared++; remaining.splice(at, 1); }
     }
-    return shared / Math.max(from.length, to.length) >= 0.85;
+    return shared / Math.max(from.length, to.length) >= ratio;
   });
 }
 
-/** Narrow meta-reply openings seen from the phone writer, not natural agreement ('I agree, ...'). */
-export const replyInstruction = (text: string): boolean => /^(?:(?:x|linkedin|reddit|slack|gmail)\s*:\s*)?(?:(?:reply|response)\s*:|(?:agree|push back|disagree|ask)(?:\s+kindly)?(?:\s*[,;:]?\s*["“']|\s*[,;:]?\s*(?:(?:by\s+)?(?:adding|suggesting|saying|asking|noting|explaining)\b|with\s+(?:the\s+)?(?:idea|suggestion|reason|question)\b)))/i.test(text.trim());
+/** A preamble is formatting, not part of the reply. Repeated app/reply headers strip together. */
+export const stripReplyPreamble = (text: string): string => text.replace(/^(?:(?:reply|response|x|linkedin|reddit|slack|gmail)\s*:\s*)+/i, '').trim();
 
-export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = [], point = '', slots: string[] = [], post = ''): (string | null)[] {
+/** Compare complete lines, sentences and quoted samples, including their unlabelled text. */
+export function copiesPrompt(draft: string, prompt: string): boolean {
+  const lines = prompt.split(/\r?\n/).flatMap(line => [line, ...line.split(/(?<=[.!?;])\s+/u)]);
+  const fragments = lines.flatMap(line => [
+    line, line.replace(/^[^:\n]{1,80}:\s*/u, ''),
+    ...[...line.matchAll(/["“]([^"”]+)["”]/g)].map(match => match[1]),
+  ]);
+  const key = ` ${echoKey(draft)} `;
+  // A whole long sentence copied before an invented continuation is still a prompt echo.
+  const verbatim = fragments.some(part => {
+    const source = echoKey(part);
+    return source.split(' ').length >= 8 && key.includes(` ${source} `);
+  });
+  return verbatim || copiesPost(draft, fragments.join('\n'), 0.75);
+}
+
+/** Narrow meta-reply openings seen from the phone writer, not natural agreement ('I agree, ...'). */
+export const replyInstruction = (text: string): boolean => /^(?:(?:x|linkedin|reddit|slack|gmail)\s*:\s*)?(?:(?:reply|response)\s*:|(?:agree|push back|disagree|ask)(?:\s+kindly)?(?:\s*[,;:]?\s*["“']|\s*[,;:]?\s*(?:(?:by\s+)?(?:adding|suggesting|saying|asking|noting|explaining)\b|with\s+(?:the\s+)?(?:idea|suggestion|reason|question)\b)))|\n\s*(?:reply|response)\s*:/i.test(text.trim());
+
+export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = [], point = '', slots: string[] = [], post = '', prompt = ''): (string | null)[] {
   const accepted: (string | null)[] = Array(count).fill(null);
   // A card that still uses a never-say phrase is dropped, so the caller's existing per-slot retry
   // asks once more; a second break stays empty (the bottom-level check remains the backstop).
@@ -448,9 +466,9 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
     if (slot >= count || accepted[slot]) return;
     // Instruction line first (the prompt prints it above the reply), then any label the model
     // left as the reply itself: 'Agree and add ... from the post.\nDraft' must empty out.
-    const clean = stripDraftLabel(stripSlotInstruction(stripControlLines(text, controls), slots));
+    const clean = stripDraftLabel(stripReplyPreamble(stripSlotInstruction(stripControlLines(text, controls), slots)));
     const draft = dashes === 'remove' ? undash(clean) : clean;
-    if (!draft || breaks(draft) || echoes(draft) || copiesPost(draft, post) || replyInstruction(draft) || echoesSlots(draft) || contradicts(draft, slot)) return;
+    if (!draft || breaks(draft) || echoes(draft) || copiesPost(draft, post) || copiesPrompt(draft, prompt) || replyInstruction(draft) || echoesSlots(draft) || contradicts(draft, slot)) return;
     if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
   };
   for (const candidate of candidates) {

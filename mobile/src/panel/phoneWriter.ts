@@ -75,6 +75,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
   const never = request.never ?? [];
   const made: (string | null)[] = [null, null, null];
+  const prompt = phoneReplyPrompt(input);
   const take = (source: string, complete: boolean) => {
     // Match the acceptor's Markdown cleanup before looking for slot boundaries.
     source = source.replace(/\*\*/g, '');
@@ -88,20 +89,20 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     });
     if (complete && !markers.length) closed.push(source);
     for (const card of closed) {
-      acceptReplies([card], exclude, 3, dashes, controls, never, input.point ?? '', slots, parent).forEach((text, slot) => {
+      acceptReplies([card], exclude, 3, dashes, controls, never, input.point ?? '', slots, parent, prompt).forEach((text, slot) => {
         if (!text || made[slot]) return;
         made[slot] = text; exclude.push(text); landed(text, slot);
         if (exclude.length === (request.avoid?.length ?? 0) + 1) console.log(`Ownvoice first draft ms=${Date.now() - started}`);
       });
     }
   };
-  const answer = await ask(phoneReplyPrompt(input), 220);
+  const answer = await ask(prompt, 220);
   take(answer, true);
   for (let slot = 0; slot < slots.length; slot++) {
     if (made[slot]) continue;
     try {
       const asked = phoneSlotPrompt(slots[slot], input, exclude);
-      const [draft] = acceptReplies([await ask(asked, 120)], exclude, 1, dashes, controls, never, input.point ?? '', [slots[slot]], parent);
+      const [draft] = acceptReplies([await ask(asked, 120)], exclude, 1, dashes, controls, never, input.point ?? '', [slots[slot]], parent, asked);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }

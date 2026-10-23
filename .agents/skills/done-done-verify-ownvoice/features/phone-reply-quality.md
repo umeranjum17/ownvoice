@@ -24,6 +24,8 @@ surface; the Host CLI launch alone does not prove it.
 5. Inspect the resulting `reply-cards-*.png` screens: **Agree**, **Push back, kindly**
    and **Ask a question**, when offered, must be distinct replies, not copies of the post or
    instructions such as “Agree, adding that…” or “X: Push back with the idea…”.
+   A zero driver exit is not prose acceptance: inspect every card for unrelated prompt text,
+   repeated questions and embedded preambles too. Phone prompts use rules only, no examples.
    At least one clean reply is required; a rejected slot gets one regeneration attempt,
    then stays empty rather than showing a bad card. Every offered card has engagement and stock
    wording rows, including a clean push-back card. The rows are text checks, not a

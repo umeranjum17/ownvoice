@@ -22,20 +22,24 @@ import { words } from '../src/core/words.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
 
-// Replay the recorded native/audit failures offline before spending a generation.
-if (process.argv[2] === '--replay') {
-  let checked = 0;
-  for (const c of cases) {
-    if (c.kind !== 'reply' || !c.reject) continue;
-    const slots = D.slotsFor(platformForApp(c.app));
-    for (const raw of c.reject) {
-      assert.deepEqual(D.acceptReplies([raw], [], 3, 'remove', [], [], c.point ?? '', slots, c.latest), [], `Offered: ${raw}`);
-      checked++;
-    }
-    assert.equal(D.acceptReplies(['I agree, a break timer could fit week 13.'], [], 1, 'remove', [], [], c.point ?? '', slots, c.latest).length, 1);
+// Replay with the actual source text, including retired prompt excerpts that caused the leaks.
+function replayRecorded(c: any) {
+  const input = { latest: c.latest ?? '', conversation: c.screen, point: c.point, platform: platformForApp(c.app) };
+  const slots = D.slotsFor(input.platform), prompt = `${D.phoneReplyPrompt(input)}\n${c.promptText ?? ''}`;
+  const accept = (raw: string) => D.acceptReplies([raw], [], 3, 'remove', [], [], c.point ?? '', slots, c.latest, prompt);
+  const records: { raw: string; shown: (string | null)[] }[] = [];
+  for (const raw of c.reject) {
+    const shown = accept(raw); assert.deepEqual(shown, [], `Offered: ${raw}`); records.push({ raw, shown });
   }
-  assert.ok(checked > 0);
-  console.log(`Recorded reply admission: PASS (${checked} bad outputs dropped; natural replies retained)`);
+  for (const { raw, text } of [...c.cleaned ?? [], { raw: 'I agree, a break timer could fit week 13.', text: 'I agree, a break timer could fit week 13.' }]) {
+    const shown = accept(raw); assert.deepEqual(shown, [text]); assert.ok(!D.replyInstruction(text)); records.push({ raw, shown });
+  }
+  return { id: c.id, records };
+}
+if (process.argv[2] === '--replay') {
+  const replay = cases.filter(c => c.kind === 'reply' && c.reject).map(replayRecorded);
+  assert.ok(replay.length > 0);
+  console.log(JSON.stringify({ passed: true, replay }, null, 2));
   process.exit(0);
 }
 
@@ -180,16 +184,18 @@ async function reply(c: any, calls: Call[]) {
   const slots = D.slotsFor(input.platform);
   const exclude: string[] = [];
   const made: (string | null)[] = [null, null, null];
-  const first = await call(D.phoneReplyPrompt(input), 220, calls);
-  D.acceptReplies([first], exclude, 3, 'remove', [], [], c.point ?? '', slots, parent).forEach((t, i) => { if (t) { made[i] = t; exclude.push(t); } });
+  const prompt = D.phoneReplyPrompt(input);
+  const first = await call(prompt, 220, calls);
+  D.acceptReplies([first], exclude, 3, 'remove', [], [], c.point ?? '', slots, parent, prompt).forEach((t, i) => { if (t) { made[i] = t; exclude.push(t); } });
   for (let slot = 0; slot < 3; slot++) {
     if (made[slot]) continue;
-    const [d] = D.acceptReplies([await call(D.phoneSlotPrompt(slots[slot], input, exclude), 120, calls)], exclude, 1, 'remove', [], [], c.point ?? '', [slots[slot]], parent);
+    const retry = D.phoneSlotPrompt(slots[slot], input, exclude);
+    const [d] = D.acceptReplies([await call(retry, 120, calls)], exclude, 1, 'remove', [], [], c.point ?? '', [slots[slot]], parent, retry);
     if (d) { made[slot] = d; exclude.push(d); }
   }
   // Recorded bad answers from the published-app audit also pass through the live admission boundary.
-  const rejected = (c.reject ?? []).every((text: string) => D.acceptReplies([text], [], 3, 'remove', [], [], c.point ?? '', slots, parent).length === 0);
-  return { shown: made.map((text, slot) => ({ text, slot })).filter(x => x.text), rejected };
+  const replay = c.reject ? replayRecorded(c) : null;
+  return { shown: made.map((text, slot) => ({ text, slot })).filter(x => x.text), rejected: true, replay };
 }
 
 const results: any[] = [];
