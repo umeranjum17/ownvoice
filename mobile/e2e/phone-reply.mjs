@@ -9,6 +9,25 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
 import { copiesPost, norm, replyInstruction } from '../../packages/engine/src/drafts.ts';
+import { feedRead } from '../../packages/engine/src/feed.ts';
+
+const post = 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?';
+const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
+const shellCommand = args => args.map(quote).join(' ');
+const fixtureIntent = ['am', 'start', '-n', 'com.twitter.android/.Composer', '--es', 'post', post, '--es', 'replyText', ''];
+// Offline integration preflight: a real shell round-trip plus a retained native fixture read.
+if (process.argv[2] === '--preflight') {
+  const decode = 'process.stdout.write(JSON.stringify(process.argv.slice(1)))';
+  const parsed = JSON.parse(execFileSync('sh', ['-c', `${quote(process.execPath)} -e ${quote(decode)} -- ${shellCommand(fixtureIntent)}`], { encoding: 'utf8' }));
+  assert.deepEqual(parsed, fixtureIntent);
+  const list = JSON.parse(readFileSync(process.argv[3], 'utf8'));
+  const field = list.find(n => n.editable);
+  assert.ok(field && ['', "What's happening?"].includes(field.text));
+  const read = feedRead(list.map(n => ({ text: n.text, clickable: n.clickable, left: n.bounds[0], top: n.bounds[1], bottom: n.bounds[3] })), field.bounds[1]).post;
+  assert.ok(read.includes(post), 'The app must read the complete intended parent');
+  console.log(JSON.stringify({ parentPost: post, parentReadByApp: read, replyText: '', shellRoundTrip: parsed, passed: true }, null, 2));
+  process.exit(0);
+}
 
 const serial = process.env.ANDROID_SERIAL;
 assert.match(serial ?? '', /^emulator-\d+$/);
@@ -19,9 +38,8 @@ assert.ok(scratchArg && evidenceArg, 'Pass task-owned scratch and evidence direc
 const scratch = resolve(scratchArg), evidence = resolve(evidenceArg);
 mkdirSync(scratch, { recursive: true }); mkdirSync(evidence, { recursive: true });
 const repo = fileURLToPath(new URL('../../', import.meta.url));
-const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 // adb shell joins its arguments again remotely: preserve spaces and an empty replyText.
-const adb = (...args) => execFileSync('adb', ['-s', serial, ...(args[0] === 'shell' ? ['shell', args.slice(1).map(quote).join(' ')] : args)], { encoding: 'utf8', maxBuffer: 24 * 1024 * 1024 });
+const adb = (...args) => execFileSync('adb', ['-s', serial, ...(args[0] === 'shell' ? ['shell', shellCommand(args.slice(1))] : args)], { encoding: 'utf8', maxBuffer: 24 * 1024 * 1024 });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nodes = accessibilityProbe(serial, scratch);
 const tap = node => adb('shell', 'input', 'tap', ...center(node).map(n => String(Math.round(n))));
@@ -50,8 +68,7 @@ run(join(tools, 'aapt'), ['package', '-f', '-M', manifest, '-I', android, '-F', 
 run('zip', ['-j', apk, join(scratch, 'classes.dex')]);
 run(join(tools, 'apksigner'), ['sign', '--ks', join(repo, 'mobile/android/app/debug.keystore'), '--ks-key-alias', 'androiddebugkey', '--ks-pass', 'pass:android', apk]);
 adb('install', '-r', apk);
-const post = 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?';
-adb('shell', 'am', 'start', '-n', 'com.twitter.android/.Composer', '--es', 'post', post, '--es', 'replyText', '');
+adb('shell', ...fixtureIntent);
 const initial = await until('the complete post and empty fixture field', () => {
   const list = nodes(), field = list.find(n => n.editable && n.app === 'com.twitter.android');
   return list.some(n => n.text === post) && field && ['', "What's happening?"].includes(field.text) ? list : null;
