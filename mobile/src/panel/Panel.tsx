@@ -76,7 +76,7 @@ const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id
 /** Their reply typed under a post on X, LinkedIn or Reddit (the places the fit can rate) grows: their own text stays as Yours
  *  and the replies, started from their point, are ranked for that place. With nothing typed the reply stays withheld.
  *  A blank composer in a feed app is his own post with nothing to write from, so it asks for the one line it
- *  needs; an empty box anywhere else stays the empty state, and a chat or mail reply is withheld. */
+ *  needs; an empty box anywhere else stays the empty state, and a chat reply, or mail outside an open Gmail thread, is withheld. */
 const modeOf = (typed: string, written: string, hasField: boolean, feed: boolean, platform: Platform): Mode => {
   if (typed.trim()) return Judge.replying(written) ? (namesPlatform(platform) ? 'grow' : 'polish') : 'compose';
   if (Judge.replying(written)) return 'reply';
@@ -270,12 +270,13 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (nextMode === 'own') {
       setNote(null); setPhase('ready'); return;
     }
-    // A reply needs a real post to answer. On a recognized feed app the panel grounds the cards on
-    // the post the layout shows above the field; with nothing readable there it withholds before
-    // any writer runs and never invents a reply. Chats and mail keep the 1.0.3 withhold: this slice
-    // only offers replies to a post, on the platform the screen reads as.
-    if (nextMode === 'reply' && !(platform.kind === 'feed' && platform.label && feedRead(value.nodes, value.fieldTop).post.trim())) {
-      setNote(words.replyWithheld); setPhase('failed'); return;
+    // A reply needs a real message to answer. On a recognized feed app the panel grounds the cards on
+    // the post the layout shows above the field; in Gmail on the open thread, the mail read above
+    // Gmail's own Reply. Anywhere else (other chats, Gmail's inbox) it withholds before any writer runs
+    // and never invents a reply.
+    const mailThread = platform.id === 'gmail' && !!value.opensReply;
+    if (nextMode === 'reply' && !mailThread && !(platform.kind === 'feed' && platform.label && feedRead(value.nodes, value.fieldTop).post.trim())) {
+      setNote(platform.id === 'gmail' ? words.mailOpenThread : words.replyWithheld); setPhase('failed'); return;
     }
     setNote(words.writing);
     setPhase('writing');
@@ -573,12 +574,15 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const placeTitle = namesPlatform(platform) && mode !== 'empty' && mode != null ? `${title} · ${platform.label}` : title;
 
   const hasField = !!capture?.hasField;
+  // An open Gmail thread has no box: the picked reply opens Gmail's own reply with it in the box.
+  const opensReply = !hasField && !!capture?.opensReply && mode === 'reply';
+  const canPut = hasField || opensReply;
   const mainNote = phase === 'failed' || phase === 'loading' ? note
     : phase === 'ready' && declined ? words.unclearPolish
     : phase === 'ready' && unchanged ? words.looksGoodNote
     : mode === 'own' ? words.ownNote
     : phase === 'ready' && !shown.length ? (mode === 'reply' || mode === 'grow' ? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
-    : phase === 'ready' ? (mode === 'reply' || mode === 'grow' ? (hasField ? words.readyReply : words.noField) : words.readyPolish)
+    : phase === 'ready' ? (mode === 'reply' || mode === 'grow' ? (hasField ? words.readyReply : opensReply ? words.readyMail : words.noField) : words.readyPolish)
     : fraction != null ? words.gettingReady
     : words.writing;
 
@@ -591,7 +595,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const grow = mode === 'grow';
   const yoursFit = yours ? fits.get(yours.text) : undefined;
   // With their own text in the box (polish, grow) a card replaces it: Use this. An empty box takes a reply: Insert.
-  const insertLabel = mode === 'reply' ? words.insert : words.useThis;
+  const insertLabel = opensReply ? words.replyWithThis : mode === 'reply' ? words.insert : words.useThis;
   // Grow ranks the cards strongest first by their fit; each card keeps its slot, so its tag still names what it is for.
   // Unrated cards sit below rated ones; ties keep slot order (sort is stable).
   const listed = mode === 'grow' && fits.size ? [...shown].sort((a, b) => (fits.get(b.text)?.level ?? -1) - (fits.get(a.text)?.level ?? -1)) : cards;
@@ -671,10 +675,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           <Ratings ratings={editing ? rate(editing.text, platformOf.current, postOf.current, voice.current) : card.ratings} fit={cardFit} hideEngagement={grow && !editing && fitHidesEngagement(cardFit, card.ratings)} />
           {grow && !editing ? <FitBar fit={cardFit} ratings={card.ratings} /> : null}
           {editing ? <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy || !editing.text.trim()} onPress={() => { void put(editing.text, card.slot); }} />
+            <Button kind="filled" label={insertLabel} disabled={!canPut || limited || insertBusy || !editing.text.trim()} onPress={() => { void put(editing.text, card.slot); }} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
           </View> : <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!hasField || limited || insertBusy} onPress={() => { void put(card.text, card.slot, cardFit, card.ratings); }} />
+            <Button kind="filled" label={insertLabel} disabled={!canPut || limited || insertBusy} onPress={() => { void put(card.text, card.slot, cardFit, card.ratings); }} />
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
             <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />

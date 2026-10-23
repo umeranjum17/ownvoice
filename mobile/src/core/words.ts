@@ -210,8 +210,16 @@ const openCodeWords = {
   openCodePhoneCantWhy: 'Writing right on the phone needs a newer phone with its own built-in writer. This phone doesn’t have one, so Ownvoice writes with your OpenCode Go instead. You still pick each draft and press Send yourself.',
 } as const;
 
+// Gmail replies: the bubble tapped over an open email thread offers reply drafts; the picked one opens Gmail's own
+// reply with it in the box, and the person presses Send.
+const mailWords = {
+  replyWithThis: 'Reply with this',
+  readyMail: 'Pick one. Gmail opens your reply with it in the box. You send it yourself.',
+  mailOpenThread: 'Open the email you want to answer, then tap the bubble for reply ideas.',
+} as const;
+
 export const words = {
-  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords,
+  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords,
   keepReplies: 'Keep my replies to learn from',
   keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
   outcomeTitle: 'Replies you inserted',
