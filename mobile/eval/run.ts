@@ -7,6 +7,7 @@
 // Env: MODEL (default llama-server's loaded model), TEMP (default 0),
 //      SEED (default 7), ONLY (comma prefixes, e.g. ONLY=R07 or ONLY=P01,P13,S05,R01,R07).
 import { readFileSync, writeFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
 import { codexAnswer } from './codex.ts';
 import { cases } from './cases.ts';
 import { platformForApp } from 'ownvoice-engine/src/platforms.ts';
@@ -20,6 +21,27 @@ import { fixedSentenceSplits } from '../src/core/typing.ts';
 import { words } from '../src/core/words.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
+
+// Replay with the actual source text, including retired prompt excerpts that caused the leaks.
+function replayRecorded(c: any) {
+  const input = { latest: c.latest ?? '', conversation: c.screen, point: c.point, platform: platformForApp(c.app) };
+  const slots = D.slotsFor(input.platform), prompt = `${D.phoneReplyPrompt(input)}\n${c.promptText ?? ''}`;
+  const accept = (raw: string) => D.acceptReplies([raw], [], 3, 'remove', [], [], c.point ?? '', slots, c.latest, prompt);
+  const records: { raw: string; shown: (string | null)[] }[] = [];
+  for (const raw of c.reject) {
+    const shown = accept(raw); assert.deepEqual(shown, [], `Offered: ${raw}`); records.push({ raw, shown });
+  }
+  for (const { raw, text } of [...c.cleaned ?? [], { raw: 'I agree, a break timer could fit week 13.', text: 'I agree, a break timer could fit week 13.' }]) {
+    const shown = accept(raw); assert.deepEqual(shown, [text]); assert.ok(!D.replyInstruction(text)); records.push({ raw, shown });
+  }
+  return { id: c.id, records };
+}
+if (process.argv[2] === '--replay') {
+  const replay = cases.filter(c => c.kind === 'reply' && c.reject).map(replayRecorded);
+  assert.ok(replay.length > 0);
+  console.log(JSON.stringify({ passed: true, replay }, null, 2));
+  process.exit(0);
+}
 
 const [label, base, outPath] = process.argv.slice(2);
 if (!label || !base || !outPath) {
@@ -77,7 +99,7 @@ async function polish(c: any, calls: Call[]) {
   // Slot-0 fixtures qualify local cleanup only; live polish includes the advisory point check, as the phone does.
   const evalStarted = Date.now();
   const beforeCalls = calls.length;
-  if (c.id === 'P01-noon-list') {
+  if (c.id === 'P01-noon-list' || c.id === 'P20-own-post-line') {
     const checkStarted = Date.now();
     const clearPromise = c.slot === 0 ? Promise.resolve(true) : canPolish(c.typed, prompt => call(prompt, 8, calls)).catch(error => {
       if (error instanceof Error && error.message === words.noVersions) return false;
@@ -87,7 +109,7 @@ async function polish(c: any, calls: Call[]) {
     let firstCardMs = 0;
     const result = await polishVersions((prompt, tokens) => call(prompt, tokens, calls), {
       typed: c.typed, conversation: c.screen, guide: c.guide ?? '', dashes, avoid: [],
-      platform: c.app ? platformForApp(c.app) : undefined, clear: clearPromise,
+      platform: c.app ? platformForApp(c.app) : undefined, clear: clearPromise, slotsFirst: c.id === 'P20-own-post-line',
     }, (text, slot) => {
       if (!firstCardMs) firstCardMs = Date.now() - evalStarted;
       landed.push({ text, slot });
@@ -157,18 +179,23 @@ async function thread(c: any, calls: Call[]) {
 
 // Same shape as phoneWriter.replies: one numbered call, then one retry per empty slot.
 async function reply(c: any, calls: Call[]) {
-  const input = { latest: c.latest ?? '', conversation: c.screen, guide: c.guide, platform: c.app ? platformForApp(c.app) : undefined };
+  const input = { latest: c.latest ?? '', conversation: c.screen, point: c.point, guide: c.guide, platform: c.app ? platformForApp(c.app) : undefined };
+  const parent = input.platform?.kind === 'feed' ? input.latest : '';
   const slots = D.slotsFor(input.platform);
   const exclude: string[] = [];
   const made: (string | null)[] = [null, null, null];
-  const first = await call(D.phoneReplyPrompt(input), 220, calls);
-  D.acceptReplies([first], exclude, 3, 'remove', []).forEach((t, i) => { if (t) { made[i] = t; exclude.push(t); } });
+  const prompt = D.phoneReplyPrompt(input);
+  const first = await call(prompt, 220, calls);
+  D.acceptReplies([first], exclude, 3, 'remove', [], [], c.point ?? '', slots, parent, prompt).forEach((t, i) => { if (t) { made[i] = t; exclude.push(t); } });
   for (let slot = 0; slot < 3; slot++) {
     if (made[slot]) continue;
-    const [d] = D.acceptReplies([await call(D.phoneSlotPrompt(slots[slot], input, exclude), 120, calls)], exclude, 1, 'remove', []);
+    const retry = D.phoneSlotPrompt(slots[slot], input, exclude);
+    const [d] = D.acceptReplies([await call(retry, 120, calls)], exclude, 1, 'remove', [], [], c.point ?? '', [slots[slot]], parent, retry);
     if (d) { made[slot] = d; exclude.push(d); }
   }
-  return { shown: made.map((text, slot) => ({ text, slot })).filter(x => x.text) };
+  // Recorded bad answers from the published-app audit also pass through the live admission boundary.
+  const replay = c.reject ? replayRecorded(c) : null;
+  return { shown: made.map((text, slot) => ({ text, slot })).filter(x => x.text), rejected: true, replay };
 }
 
 const results: any[] = [];

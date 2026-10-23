@@ -1,11 +1,11 @@
 ---
 name: "done-done-verify-ownvoice"
-description: "Drive the ownvoice Host CLI: the published ownvoice-engine (packages/engine), a model-free JSON protocol driven over stdin and stdout. No device, no model, no network. The Android app is a separate surface and is not covered by this skill. the way a user does and capture proof it works. Use when proving a ownvoice change, capturing evidence, or keeping the feature map honest."
+description: "Prove Ownvoice through its model-free host CLI or the explicitly mapped Android journeys. Host CLI proof uses no device, model or network and does not qualify Android behavior. Use when proving a change, capturing evidence, or keeping the feature map honest."
 ---
 
 # done-done-verify-ownvoice
 
-Written by `done-done init` through claude from this repo's own files (surface: Host CLI: the published ownvoice-engine (packages/engine), a model-free JSON protocol driven over stdin and stdout. No device, no model, no network. The Android app is a separate surface and is not covered by this skill.). The drive changes no repo file: note findings in the run's report; after the drive, run done-done maintain to see what drifted, then fix the skill.
+The host launch below drives the published ownvoice-engine (`packages/engine`), a model-free stdin/stdout JSON protocol. Android is a separate surface: only the explicitly linked Android features qualify it, through their owned-emulator recipes. Host results are not Android proof. The drive changes no repo file: record findings in the run's report and keep this feature map aligned with its real capture paths.
 
 ## Launch
 
@@ -26,6 +26,7 @@ Harness: A shell. Each probe is a one-shot pipe: printf a JSON request into the 
 - [Get the platform list and per-platform limits](features/get-the-platform-list-and-per-platform-l.md): A caller asks which platforms the engine knows before it drafts for one of them (`packages/engine/src/platforms.ts`)
 - [Read the published protocol schema](features/read-the-published-protocol-schema.md): A caller wants the request and response shapes before it sends anything (`packages/engine/protocol/schema.json`)
 - [Use my computer (React Native app)](features/use-my-computer-on-the-react-native-app.md): Pair the app with the computer helper and write drafts through it (`mobile/src/computer/`, Android surface)
+- [Phone-writer reply quality (Android)](features/phone-reply-quality.md): One real on-phone generation under a native X lab post, only clean distinct replies (bad slots stay empty) and consistent rating rows; host eval also requires two own-post versions
 - [First-run welcome promise (React Native app)](features/first-run-welcome-promise.md): A new user opens Ownvoice and reads what it does in which apps (`packages/engine/src/words.ts`, Android surface)
 - [Reject bad requests with a readable error](features/reject-bad-requests-with-a-readable-erro.md): A caller sends a malformed or unknown request by mistake (`packages/engine/src/cli.mjs`)
 

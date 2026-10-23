@@ -86,13 +86,22 @@ comes back as the **Yours** card untouched; and a candidate that breaks the neve
 servers are banned here, a live pass against a model is out of scope for this lane: the G
 set is driven by a recorded run (`results[].shown[]` suggestions with `slot`/`level`, plus
 `results[].yours` and `results[].yoursLevel`), and it is reported beside the gate, never
-inside it. The five gate cases stay P01, P13, S05, R01 and R07.
+inside it. The original five gate cases stay P01, P13, S05, R01 and R07. R13, R14 and P20 additionally gate parent-copy rejection, reply-not-instruction output and two distinct own-post versions.
 
 ## Threshold rule
 
 A model or prompt change must not drop below the study's numbers on **P01,
 P13, S05, R01, and R07** (R07 added with the never-invent-times fix).
 `score.ts` enforces this as a gate: it exits 1 when any of the five fails.
-Record the run's numbers in the PR.
+Record the run's numbers in the PR. R13 and R14 run an X-style parent post through the phone reply prompts and admission, requiring three cards, no parent echoes and no instruction-style replies; they also replay the audit's bad answers through admission: copies and instructions must drop, while a preamble may only leave its clean reply text. R14 includes the person's own reply so far (grow mode). P20 runs the phone's slot-first polish pipeline from one line and requires both distinct writer versions. These three regressions are enforced alongside the original five; no original threshold is lowered. `node run.ts --replay` prints raw and admitted text for every recorded audit/native failure. It rejects copies and instructions, strips leading `Reply:` / `X:` preambles, and retains clean reply text. Historical prompt excerpts are replay-only fixtures for the leaked examples and the misquoted fixture's typed line; no few-shot example ships in a phone prompt. Live phone admission compares each candidate with the actual prompt it answered: labelled/unlabelled lines, sentences, quoted text and long verbatim spans, using stricter word overlap for prompt copies. A repeated or embedded reply preamble is not a reply. The phone pipeline gives each rejected slot one attempt regardless of inference speed, then withholds it rather than offering a bad draft.
+
+For a host without a permitted local model server, use the documented Codex backend:
+
+```sh
+EVAL_BACKEND=codex-cli ONLY=P01,P13,S05,R01,R07,R13,R14,P20 node run.ts echo-guard http://unused /path/to/eval.json
+node score.ts /path/to/eval.json
+```
+
+That run checks the prompts and admission on the hosted writer, not phone-model quality. The complementary native proof is `ANDROID_SERIAL=emulator-NNNN OWNVOICE_AVD_NAME=<owned> node e2e/phone-reply.mjs <scratch> <evidence>` from `mobile/` after installing the candidate, preparing **On this phone** through its download consent and enabling X in app choices. It uses the native X lab, one bubble tap, no browser or sign-in, and saves every offered reply plus its rating rows. Native acceptance requires at least one reply and every shown reply to be clean; fewer than three is allowed when bad slots are withheld. This explicit native acceptance does not relax the hosted eight-case gate.
 
 P14-P19 require their exact Cleaned up sentences. P14-P15 require `It's` along with the spelling and repeated-word fixes. P17-P18 cover spelling before repetition and lowercase-first mixed-case runs; P19 combines protected wording with a supported spelling fix so the unchanged-card guard does not hide the safety check. P14-P19 exercise the shared [Cleaned up acceptance](../README.md#cleaned-up-acceptance) without endpoint calls; their results qualify local cleanup, not live writer quality. Other polish cases run the point check (`canPolish`) as advisory, as the phone does: an `UNCLEAR` answer still requests the writer cards, and a case counts as declined only when no card lands. The combined results are scored.

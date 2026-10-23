@@ -121,8 +121,8 @@ export async function polishVersions(
   if (!hasWords(request.typed)) return { drafts: [], declined: true };
   const acceptor = await polishAcceptor(request.typed, request.dashes, request.avoid, spell);
   if (acceptor.local != null) landed(acceptor.local, 0, versionsList[0].label);
-  const note = avoidLine(request.avoid);
-  const askWith = (extra: string) => (prompt: string, maxTokens: number) => ask(prompt + [note, ALTERNATIVE_WORDING, extra].filter(Boolean).map(line => `\n\n${line}`).join(''), maxTokens);
+  // Each later call sees the versions already offered, including the single-line own-post case.
+  const askWith = (extra: string) => (prompt: string, maxTokens: number) => ask(prompt + [avoidLine([...request.avoid, ...acceptor.results.map(result => result.text)]), ALTERNATIVE_WORDING, extra].filter(Boolean).map(line => `\n\n${line}`).join(''), maxTokens);
   const writeAll = (extra: string) => rewrite({ ask: askWith(extra) }, request.typed, '', request.guide, (version, text) => {
     const slot = versionsList.findIndex(v => v.name === version.name);
     const clean = acceptor.accept(text, slot, version.label);
