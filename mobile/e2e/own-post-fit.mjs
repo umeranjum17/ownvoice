@@ -36,14 +36,18 @@ const evidence = (...args) => execFileSync('bash', [resolve(repoRoot, 'mobile/e2
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
 const FIXTURES = {
-  x: { pkg: 'com.twitter.android', name: 'X', text: 'Shipped offline saving in Ownvoice today after a month of flaky sync' },
-  reddit: { pkg: 'com.reddit.frontpage', name: 'Reddit', text: 'How do you test offline saving on Android without a flaky network' },
+  // The panel keeps one fit per distinct text, so each typed post has a comma: the stub's Shorter
+  // version cuts at it, and every card then carries its own level.
+  x: { pkg: 'com.twitter.android', name: 'X', text: 'Shipped offline saving in Ownvoice today, after a month of flaky sync' },
+  reddit: { pkg: 'com.reddit.frontpage', name: 'Reddit', text: 'How do you test offline saving on Android, without a flaky network' },
 };
 const LEVELS = ['Likely to be skipped', 'Might get a reply', 'Good fit here', 'Strong fit here'];
 const FIT_WORDS = [...LEVELS, 'Not sure about this one'];
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const nodes = accessibilityProbe(serial, out);
+// Fixture and probe builds stay out of [outdir], which holds only the proof.
+const scratch = mkdtempSync(join(tmpdir(), 'own-post-fit-'));
+const nodes = accessibilityProbe(serial, scratch);
 const shot = name => writeFileSync(resolve(out, `${name}-${label}.png`), execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 }));
 const tap = (...point) => adb('shell', 'input', 'tap', String(Math.round(point[0])), String(Math.round(point[1])));
 const until = async (find, what, tries = 40) => {
@@ -77,9 +81,6 @@ const standin = createServer((req, res) => {
   });
 });
 await new Promise(r => standin.listen(18612, '127.0.0.1', r));
-
-// Fixture builds stay out of [outdir], which holds only the proof.
-const scratch = mkdtempSync(join(tmpdir(), 'own-post-fit-'));
 
 /** The Composer fixture under one package id, host-side (as e2e/grow-reply-live.mjs builds it). */
 function buildFixture(name, targetPkg) {
@@ -128,19 +129,19 @@ const bubble = () => until(() => nodes().find(node => node.windowType === 4 && /
 const panelNodes = () => nodes().filter(n => n.app === pkg && ((n.text ?? '') || (n.label ?? '')).trim());
 const levelsShown = list => list.map(n => (n.label ?? '').trim()).filter(l => FIT_WORDS.includes(l));
 
-/** The offline ChatGPT stand-in keeps its connection in memory, so a restart (the theme flip) ends
- *  it: reconnect through the app's own writer screen, as e2e/own-post.mjs does. */
-const ensureConnected = async () => {
-  if (!nodes().some(node => (node.text ?? '').includes("can't write drafts on its own"))) return false;
-  adb('shell', 'input', 'keyevent', '4');
-  await wait(1500);
+/** The offline ChatGPT stand-in keeps its connection in memory, so every app restart (an install,
+ *  the theme flip) ends it and the phone writer takes over quietly. Reconnect through the app's own
+ *  writer screen before each round, so the cards and the fit come from the ChatGPT route. */
+const connect = async () => {
+  const connected = () => nodes().some(node => node.app === pkg && /ChatGPT is connected/.test(node.text ?? ''));
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
-  await wait(6000);
-  nodes('Continue with ChatGPT');
-  await until(() => nodes().some(node => /is connected/.test(node.text ?? '')), 'the reconnected writer', 40);
+  await until(() => nodes().some(node => node.app === pkg && /How Ownvoice writes/.test(node.text ?? '')), 'the writer screen', 30);
+  if (!connected()) {
+    nodes('Continue with ChatGPT');
+    await until(connected, 'the reconnected ChatGPT stand-in', 40);
+  }
   adb('shell', 'input', 'keyevent', '3');
   await wait(1500);
-  return true;
 };
 
 /** One own post on one platform in one theme: type it, open the panel, wait for the rated cards. */
@@ -162,7 +163,6 @@ async function one(id, theme) {
     await wait(2500);
   };
   await open();
-  if (await ensureConnected()) { adb('shell', 'am', 'force-stop', fix.pkg); await wait(600); await open(); }
   const title = `Polish your post · ${fix.name}`;
   await until(() => panelNodes().some(n => (n.text ?? '').startsWith(title)), `"${title}"`, 60);
   await until(() => panelNodes().filter(n => /^Use this$/.test(n.text ?? '')).length >= 2, 'the versions', 60);
@@ -206,6 +206,7 @@ try {
     // React Native reads the colour scheme at process start (AGENTS.md): restart, then rebind.
     adb('shell', 'am', 'force-stop', pkg);
     await rebind();
+    await connect();
     for (const id of Object.keys(FIXTURES)) await one(id, theme);
   }
   // Every request the stand-in saw must be a post rating: the platform's post rubric, no parent.
