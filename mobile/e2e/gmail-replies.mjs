@@ -35,7 +35,7 @@ const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
 const nodes = accessibilityProbe(serial, resolve(root, 'mobile/e2e'));
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 24 * 1024 * 1024 });
 const evidence = (...args) => execFileSync('bash', [`${root}/mobile/e2e/evidence.sh`, ...args], { cwd: root, encoding: 'utf8', env: { ...process.env, ANDROID_SERIAL: serial } });
-const shot = (screen, label, theme) => evidence('shot', task, screen, label, theme);
+const shot = (screen, label, theme) => evidence('shot', task, before ? `before-${screen}` : screen, label, theme);
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const log = line => console.log(line);
 const tap = (x, y) => adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y)));
@@ -279,6 +279,18 @@ try {
   rmSync(fixtureDir, { recursive: true, force: true });
   writeFileSync(`${out}/leg-summary${before ? '-before' : ''}.txt`, summary.join('\n') + '\n');
 }
+// The run's step record, for done-done: what a person did and what they saw at the end.
+const version = readFileSync(`${root}/mobile/app.config.js`, 'utf8').match(/version: '([^']+)'/)?.[1] ?? 'unknown';
+writeFileSync(`${out}/steps${before ? '-before' : ''}.json`, JSON.stringify({
+  target: { version: `${version} (${before ? 'base build' : 'this change'}, ${apk.split('/').pop()})` },
+  start: 'Ownvoice set up with a writer; the Gmail-style lab fixture open on an email from Sam Lee asking to move a review',
+  steps: before
+    ? ['Tap the bubble on the open email thread', 'Read the panel', 'Close it; open the inbox and tap the bubble there']
+    : ['Tap the bubble on the open email thread', 'Read the three reply cards (Accept, Say no, kindly, Ask first)', "Tap the first card's Reply", "See Gmail's reply screen open with that reply in its box; do not press Send", 'Open the inbox and tap the bubble there'],
+  result: before
+    ? 'The thread shows "Reply ideas are unavailable for now" and no reply cards'
+    : "The reply drafted from the email is in Gmail's reply box, ready for the person to send; the inbox shows the plain open-an-email note",
+}, null, 2) + '\n');
 const failed = summary.filter(l => l.includes('FAIL'));
 log(`Gmail replies proof ${before ? '(before) ' : ''}complete. Evidence in ${out}. Failed: ${failed.length}`);
 if (failed.length) process.exitCode = 1;
