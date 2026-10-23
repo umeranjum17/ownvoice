@@ -213,7 +213,7 @@ const openCodeWords = {
 // Gmail replies: the bubble tapped over an open email thread offers reply drafts; the picked one opens Gmail's own
 // reply with it in the box, and the person presses Send.
 const mailWords = {
-  replyWithThis: 'Reply with this',
+  mailReply: 'Reply',
   readyMail: 'Pick one. Gmail opens your reply with it in the box. You send it yourself.',
   mailOpenThread: 'Open the email you want to answer, then tap the bubble for reply ideas.',
 } as const;

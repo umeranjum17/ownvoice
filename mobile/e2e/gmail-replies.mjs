@@ -1,7 +1,7 @@
 // Gmail thread replies proof (done-done journey gmail-replies), on a Gmail-style lab fixture
-// (mobile/e2e/fixture-gmail) installed under Gmail's package id on an emulator image without the real
-// Gmail. Proves: the bubble tapped on an open thread reads the mail and offers three reply cards
-// (Accept / Say no, kindly / Ask first) grounded on it; "Reply with this" opens the thread's own Reply
+// (mobile/e2e/fixture-gmail) installed under Gmail's package id on an emulator without the real Gmail
+// (Google APIs images preinstall it; the error below says how to remove it from a throwaway AVD). Proves: the bubble tapped on an open thread reads the mail and offers three reply cards
+// (Accept / Say no, kindly / Ask first) grounded on it; a card's Reply opens the thread's own Reply
 // and the draft lands in the reply's body box (read back from the screen, plus the app's own insert
 // log), with Send never pressed; the inbox, which has no thread open, gets the plain "Open the email…"
 // note and no writer request. GMAIL_BEFORE=1 runs the thread leg against a base build and expects its
@@ -88,6 +88,8 @@ const tapButton = async text => {
   }
   throw new Error(`No "${text}" button.`);
 };
+// The panel's Reply on the first card; Gmail's own Reply buttons sit behind the panel in another app.
+const panelReply = all => all.filter(n => n.app === pkg && n.clickable && (n.text === 'Reply' || n.label === 'Reply')).sort((a, b) => a.bounds[1] - b.bounds[1])[0];
 const bubble = () => until('the Ownvoice bubble', () => nodes().find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label)), { seconds: 30, every: 500 });
 
 const fixtureDir = mkdtempSync(join(tmpdir(), 'ov-gmail-fixture-'));
@@ -134,7 +136,7 @@ try {
     try { return (await fetch(`http://127.0.0.1:${piPort}/api/v1/models`, { signal: AbortSignal.timeout(1000) })).ok; } catch { return false; }
   }, { seconds: 20, every: 500 });
   const realGmail = adb('shell', 'pm', 'path', gmail).trim();
-  if (realGmail && !realGmail.includes('/data/app/')) throw new Error('This emulator ships the real Gmail; use an image without it (google_apis, not playstore).');
+  if (realGmail && !realGmail.includes('/data/app/')) throw new Error('This emulator ships the real Gmail, which the fixture cannot replace. On a throwaway AVD started with -writable-system: adb root, adb remount, adb shell rm -rf /product/app/PrebuiltGmail, adb reboot.');
   extreme(false);
   adb('shell', 'cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');
   evidence('theme', 'light');
@@ -180,12 +182,12 @@ try {
     tap(...center(await bubble()));
     const note = before ? 'Reply ideas are unavailable' : 'Open the email you want to answer';
     await until(`the note "${note}"`, () => panelText(note), { seconds: 30 });
-    if (nodes().some(n => n.clickable && ['Reply with this', 'Insert', 'Edit'].includes(n.text || n.label))) throw new Error('A card showed over the inbox.');
+    if (nodes().some(n => n.app === pkg && n.clickable && ['Reply', 'Insert', 'Edit'].includes(n.text || n.label))) throw new Error('A card showed over the inbox.');
     shot('gmail-inbox', 'panel', theme);
     await click('Close');
   };
 
-  // The open thread: grounded cards, then "Reply with this" into Gmail's own reply box.
+  // The open thread: grounded cards, then a card's Reply into Gmail's own reply box.
   const threadLeg = async (theme, { screen = 'gmail-thread', motion = false } = {}) => {
     await openThread('thread');
     shot(screen, 'mail', theme);
@@ -198,13 +200,13 @@ try {
         shot(screen, 'panel', theme);
         return;
       }
-      const action = await until('a "Reply with this" card', () => {
+      const action = await until('a card with its Reply', () => {
         const all = nodes();
-        const text = all.map(n => (n.text || n.label || '').trim()).join(' | ');
-        if (/unavailable|didn't answer|can't write|couldn't come up/i.test(text)) throw new Error(`The panel refused: ${text.slice(0, 300)}`);
-        return all.find(n => n.clickable && (n.text === 'Reply with this' || n.label === 'Reply with this'));
+        const text = all.filter(n => n.app === pkg).map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ');
+        if (/unavailable|didn't answer|can't write|couldn't come up/i.test(text)) return { refused: text };
+        return panelReply(all);
       }, { seconds: 240, every: 1000 });
-      if (!action) throw new Error('No card.');
+      if (action.refused) { shot(screen, 'refused', theme); throw new Error(`The panel showed no cards: ${action.refused.slice(0, 300)}`); }
       await wait(1500); // the other slots land a beat after the first
       shot(screen, 'cards', theme);
       const panel = nodes().filter(n => n.app === pkg && (n.text || '').trim()).sort((a, b) => a.bounds[1] - b.bounds[1]);
@@ -212,7 +214,7 @@ try {
       const cards = [];
       for (const n of panel) {
         if (tags.includes(n.text.trim().toUpperCase())) cards.push({ tag: n.text.trim(), text: '' });
-        else if (cards.length && n.text.length > (cards.at(-1).text.length) && !/^(Reply with this|Edit|Why\?|Write new ones)$/.test(n.text)) cards.at(-1).text = n.text.trim();
+        else if (cards.length && n.text.length > (cards.at(-1).text.length) && !/^(Reply|Edit|Why\?|Write new ones)$/.test(n.text)) cards.at(-1).text = n.text.trim();
       }
       writeFileSync(`${out}/${screen}-cards-${theme}.json`, JSON.stringify(cards, null, 2) + '\n');
       for (const c of cards) log(`card "${c.tag}": ${c.text}`);
@@ -221,14 +223,19 @@ try {
       const ungrounded = cards.filter(c => c.text && !/friday|thursday|monday|review|numbers|sam/i.test(c.text));
       if (ungrounded.length) throw new Error(`Cards not grounded on the mail: ${JSON.stringify(ungrounded)}`);
       const draft = cards[0].text;
-      await click('Reply with this');
+      // The fixture behind the panel has its own Reply: tap the panel's, the first card's.
+      tap(...center(panelReply(nodes())));
       // Gmail's reply opens and the draft lands in its body box; the person presses Send, never the proof.
       const box = await until("the draft in the reply's body box", () => {
         if (!focus().includes(`${gmail}/${gmail}.Compose`)) return false;
         return nodes().find(n => n.app === gmail && n.editable && n.text === draft);
       }, { seconds: 30, every: 400 });
       shot(screen, 'reply-inserted', theme);
-      const lines = adb('logcat', '-d', '-s', 'OwnvoiceNative:V').split('\n').filter(l => /reply opened|insert verify|insert result/.test(l));
+      // The app confirms the insert by reading the box back a moment after it lands: wait for its result line.
+      const lines = await until("the app's insert result", () => {
+        const found = adb('logcat', '-d', '-s', 'OwnvoiceNative:V').split('\n').filter(l => /reply opened|insert verify|insert result/.test(l));
+        return found.some(l => /insert result/.test(l)) && found;
+      }, { seconds: 15, every: 300 });
       writeFileSync(`${out}/${screen}-insert-${theme}.txt`, [
         `focus: ${focus()}`,
         `card picked: ${cards[0].tag}: ${draft}`,

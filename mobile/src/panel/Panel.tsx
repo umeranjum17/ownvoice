@@ -595,7 +595,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const grow = mode === 'grow';
   const yoursFit = yours ? fits.get(yours.text) : undefined;
   // With their own text in the box (polish, grow) a card replaces it: Use this. An empty box takes a reply: Insert.
-  const insertLabel = opensReply ? words.replyWithThis : mode === 'reply' ? words.insert : words.useThis;
+  const insertLabel = opensReply ? words.mailReply : mode === 'reply' ? words.insert : words.useThis;
   // Grow ranks the cards strongest first by their fit; each card keeps its slot, so its tag still names what it is for.
   // Unrated cards sit below rated ones; ties keep slot order (sort is stable).
   const listed = mode === 'grow' && fits.size ? [...shown].sort((a, b) => (fits.get(b.text)?.level ?? -1) - (fits.get(a.text)?.level ?? -1)) : cards;

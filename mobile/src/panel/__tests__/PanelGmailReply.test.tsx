@@ -1,5 +1,5 @@
 // A tap over an open Gmail thread offers reply drafts grounded on that thread. The thread has no
-// message box, only Gmail's own Reply, so the card's main button is "Reply with this": the service
+// message box, only Gmail's own Reply, so the card's main button is "Reply": the service
 // opens that reply and puts the draft in its box, and the person presses Send. One render per
 // file — RTL v14's queued cleanup can take a second Panel root in the same file before its drafts land.
 import React from 'react';
@@ -39,6 +39,6 @@ test('an open Gmail thread offers grounded reply cards that open Gmail\'s own re
   expect(screen.getByText(words.readyMail)).toBeTruthy();
   expect(screen.queryByText(words.replyWithheld)).toBeNull();
   expect(screen.queryByText(words.insert)).toBeNull();
-  fireEvent.press(screen.getAllByText(words.replyWithThis)[0]);
+  fireEvent.press(screen.getAllByText(words.mailReply)[0]);
   await waitFor(() => expect(native.insert).toHaveBeenCalledWith(DRAFTS[0]));
 });
