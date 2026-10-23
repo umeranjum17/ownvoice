@@ -281,12 +281,12 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
 // The phone model gets the same rules condensed (≤ 700 characters of instructions), one call,
 // three replies, each labelled so cleanDrafts/parts() splits them.
 const phoneReplyInstructions = (slots: [string, string, string]) => [
-  'Write reply drafts from this screen.',
+  'Write their replies, ready to send, not instructions or copied posts.',
   'Every draft must respond to everything the latest message asks or offers.',
-  'Draft 1:, Draft 2:, Draft 3:, each the slot below, in this exact order, never swapped:',
+  'Draft 1:, Draft 2:, Draft 3:, slots in order, never swapped:',
   slotList(slots),
   'If news, thanks or feelings, stay warm and kind.',
-  'Never invent facts, times or dates: use only the screen. A change reuses only screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
+  'Never invent facts, times or dates: use the screen. A change reuses screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
 ].join('\n');
 
 // The rules half of the selected guide (dash/ending rules, never-say phrases and the note) rides
@@ -314,7 +314,7 @@ export function phoneReplyPrompt(input: Omit<ReplyInput, 'dashes' | 'avoid'>): s
 /** One extra call for one empty slot, with everything already shown as off-limits. */
 export function phoneSlotPrompt(slot: string, input: Omit<ReplyInput, 'dashes' | 'avoid'>, avoid: string[]): string {
   const fixed = [
-    'You write one reply for one person from their phone screen.',
+    'Write their reply, not instructions or copied posts.',
     `The reply: ${slot}`,
     platformLine(input.platform),
     pointLine(input.point),
@@ -402,7 +402,31 @@ export function slotContradiction(slot: string, draft: string): boolean {
   return false;
 }
 
-export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = [], point = '', slots: string[] = []): (string | null)[] {
+/** Full-post echoes, including small wording changes; a short response sharing its topic is not a copy.
+ * ponytail: word overlap, not semantic similarity; paraphrase detection needs a separate quality judge. */
+export function copiesPost(draft: string, post: string): boolean {
+  const one = echoKey(draft);
+  // Layout fallback can include an author or app label above the post's body.
+  return [post, ...post.split('\n')].some(parent => {
+    const two = echoKey(parent);
+    if (!two) return false;
+    if (one === two) return true;
+    const from = two.split(' '), to = one.split(' ');
+    if (Math.min(from.length, to.length) < 4) return false;
+    const remaining = [...from];
+    let shared = 0;
+    for (const word of to) {
+      const at = remaining.indexOf(word);
+      if (at >= 0) { shared++; remaining.splice(at, 1); }
+    }
+    return shared / Math.max(from.length, to.length) >= 0.85;
+  });
+}
+
+/** Narrow meta-reply openings seen from the phone writer, not natural agreement ('I agree, ...'). */
+export const replyInstruction = (text: string): boolean => /^(?:agree|push back|disagree|ask)(?:\s+kindly)?\s*[,;:]\s*(?:(?:adding|suggesting|saying|asking|noting|explaining)\b|["“'])|^(?:agree|push back|disagree|ask)(?:\s+kindly)?\s+(?:by\s+)?(?:adding|suggesting|saying|asking|noting|explaining)\b/i.test(text.trim());
+
+export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = [], point = '', slots: string[] = [], post = ''): (string | null)[] {
   const accepted: (string | null)[] = Array(count).fill(null);
   // A card that still uses a never-say phrase is dropped, so the caller's existing per-slot retry
   // asks once more; a second break stays empty (the bottom-level check remains the backstop).
@@ -424,7 +448,7 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
     // left as the reply itself: 'Agree and add ... from the post.\nDraft' must empty out.
     const clean = stripDraftLabel(stripSlotInstruction(stripControlLines(text, controls), slots));
     const draft = dashes === 'remove' ? undash(clean) : clean;
-    if (!draft || breaks(draft) || echoes(draft) || echoesSlots(draft) || contradicts(draft, slot)) return;
+    if (!draft || breaks(draft) || echoes(draft) || copiesPost(draft, post) || replyInstruction(draft) || echoesSlots(draft) || contradicts(draft, slot)) return;
     if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
   };
   for (const candidate of candidates) {

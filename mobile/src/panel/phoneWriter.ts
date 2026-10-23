@@ -6,6 +6,7 @@ import { words } from '../core/words';
 import { canPolish, polishAcceptor, polishVersions } from '../core/polish';
 import { acceptReplies, latestMessage, phoneReplyPrompt, phoneSlotPrompt, slotsFor } from '../core/drafts';
 import { versionsList } from '../core/judge';
+import { feedRead } from '../core/feed';
 import { devlog, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 // Demo fixture drafts live in their own module so normal bundles carry none of them: the
 // constant-false branch drops the require (as app/agent.tsx drops the lab screen).
@@ -70,6 +71,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   const dashes = request.dashes ?? 'remove';
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, samples: request.samples, platform: request.platform };
   const slots = slotsFor(request.platform);
+  const parent = request.platform?.kind === 'feed' ? feedRead(request.nodes, request.fieldTop).post || input.latest : '';
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
@@ -88,7 +90,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     });
     if (complete && !markers.length) closed.push(source);
     for (const card of closed) {
-      acceptReplies([card], exclude, 3, dashes, controls, never, input.point ?? '', slots).forEach((text, slot) => {
+      acceptReplies([card], exclude, 3, dashes, controls, never, input.point ?? '', slots, parent).forEach((text, slot) => {
         if (!text || made[slot]) return;
         made[slot] = text; exclude.push(text); landed(text, slot);
         if (exclude.length === (request.avoid?.length ?? 0) + 1) console.log(`Ownvoice first draft ms=${Date.now() - started}`);
@@ -102,7 +104,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
     if (made[slot]) continue;
     try {
       const asked = phoneSlotPrompt(slots[slot], input, exclude);
-      const [draft] = acceptReplies([await ask(asked, 120)], exclude, 1, dashes, controls, never, input.point ?? '', [slots[slot]]);
+      const [draft] = acceptReplies([await ask(asked, 120)], exclude, 1, dashes, controls, never, input.point ?? '', [slots[slot]], parent);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch { /* one retry per slot; a failure leaves the slot empty */ }
   }

@@ -3,10 +3,10 @@
 // polish = compose boost (the phone writer's rewrite + layout retry), select = selection-menu rewrite,
 // reply = reply drafts from the screen.
 export type Case =
-  | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; exact?: string; from?: string }
+  | { id: string; kind: 'polish'; typed: string; screen: string; guide?: string; keep: string[]; why: string; slot?: number; exact?: string; from?: string; app?: string; minCards?: number }
   | { id: string; kind: 'select'; typed: string; how: 'Shorter' | 'Simpler' | 'Fix spelling' | 'Friendlier' | 'Firmer'; keep: string[]; exact?: string; layout?: boolean; why: string }
   | { id: string; kind: 'tone'; typed: string; why: string }
-  | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string }
+  | { id: string; kind: 'reply'; screen: string; guide?: string; latest?: string; points: string[][]; noise?: string[]; why: string; app?: string; point?: string; minCards?: number; reject?: string[] }
   | { id: string; kind: 'thread'; typed: string; app?: string; guide?: string; keep: string[]; why: string }
   // Grow-mode feed case: a post plus an optional draft of his own, scored by the G2 checks
   // (never-say, long dash, invented numbers, the "Yours" card, and the bottom level for a
@@ -58,6 +58,8 @@ export const cases: Case[] = [
   // Shorter card of the P01 run (same input, same deterministic pipeline): it must exist, keep both items and markers.
   { id: 'P13-tent-shorter', kind: 'polish', typed: 'Please bring the tent\n1. Pack the stove\n2. Meet Saturday at noon', screen: '', keep: ['tent', 'stove', 'Saturday', 'noon'], slot: 1, from: 'P01-noon-list',
     why: 'phone validation: Shorter on a two-item list lost both items' },
+  { id: 'P20-own-post-line', kind: 'polish', app: 'com.twitter.android', typed: 'shipped offline notes for my app this week', screen: '', guide: LOWER,
+    keep: ['offline', 'notes', 'app', 'week'], minCards: 2, why: 'A one-line own post keeps both distinct writer versions, not only the first' },
   // --- Selection rewrite ---
   { id: 'S01-shorter', kind: 'select', how: 'Shorter', typed: "Hi Dana, just wanted to let you know that I went ahead and moved our call to Thursday at 3pm PT, because Marco isn't able to make it on Wednesday. We'll use the same Zoom link as before.", keep: ['Dana', 'Thursday', '3pm', 'PT', 'Marco', 'Wednesday', 'Zoom'],
     why: 'Shorter must keep every fact' },
@@ -108,6 +110,16 @@ export const cases: Case[] = [
     why: 'Reddit thread: specifics, a reasoned disagree, or one detail asked' },
   { id: 'R12-slack-deploy', kind: 'reply', app: 'com.Slack', guide: LOWER, screen: 'Slack #team · Jake: the staging deploy failed again, logs point at the auth migration. can someone take a look before the 4pm demo?', points: [['deploy', 'staging', 'migration', 'auth', 'look', 'take'], ['4', 'demo', 'before', 'pm']],
     why: 'Slack thread: next step, blocker, or what is unclear, lowercase voice' },
+  { id: 'R13-x-parent-echo', kind: 'reply', app: 'com.twitter.android', guide: LOWER,
+    screen: 'Umer Demo @umer_demo\nShipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', latest: 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?',
+    points: [['timer', 'focus', 'minutes', 'app', 'week']], minCards: 3,
+    reject: ['Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', 'Shipping a tiny app every week this year. Week 12: a timer that only counts focused minutes. What should week 13 be!', 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be? Nice.'],
+    why: 'Published phone writer offered the parent post itself: exact and near echoes must be retried, not inserted' },
+  { id: 'R14-x-reply-not-instruction', kind: 'reply', app: 'com.twitter.android', guide: LOWER,
+    screen: 'Umer Demo @umer_demo\nShipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', latest: 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', point: 'could it include breaks too?',
+    points: [['break']], minCards: 3,
+    reject: ['Agree, adding that the focus timer could also track breaks.', 'Push back, suggesting that the app could track time differently.', 'Ask, "Could the app also include breaks?"'],
+    why: 'Grow cards must be replies in his voice, never directions telling a writer how to reply' },
   // --- Package 5: thread writer and hooks (report §7 row 5); `app` feeds the cap ---
   { id: 'H01-x-thread', kind: 'thread', app: 'com.twitter.android',
     typed: 'Shipped our offline notes app today after six months of weekend work. It keeps everything in SQLite on the phone, so there is no account and no sign-in. Search is instant even with ten thousand notes, and it works on a plane with no signal. Backups are plain files you can read anywhere, not a locked format. It costs four pounds, once, and that is the whole price. If you keep notes on paper because apps feel creepy, this one is for you.',

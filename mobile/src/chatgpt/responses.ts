@@ -9,6 +9,7 @@ import { words } from '../core/words';
 import { canPolish, polishAcceptor } from '../core/polish';
 import { AccountRefused, cloudWords, PlanLimit, SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 import type { CloudKey } from '../core/source';
+import { feedRead } from '../core/feed';
 
 /** The ChatGPT model both the panel writer and the lab agent brain send to. */
 export { CHATGPT_MODEL } from './accounts';
@@ -169,13 +170,14 @@ async function replies(cloud: CloudKey | 'computer', request: DraftRequest, on: 
   const dashes = request.dashes ?? 'remove' as const;
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, dashes, platform: request.platform };
   const slots = slotsFor(request.platform);
+  const parent = request.platform?.kind === 'feed' ? feedRead(request.nodes, request.fieldTop).post || input.latest : '';
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
   const never = request.never ?? [];
   const made: (string | null)[] = [null, null, null];
   const take = (raw: string[]) => {
-    acceptReplies(raw, request.avoid ?? [], 3, dashes, controls, never, input.point ?? '', slots).forEach((text, slot) => {
+    acceptReplies(raw, request.avoid ?? [], 3, dashes, controls, never, input.point ?? '', slots, parent).forEach((text, slot) => {
       if (!text || made[slot]) return;
       made[slot] = text;
       exclude.push(text);
@@ -196,7 +198,7 @@ async function replies(cloud: CloudKey | 'computer', request: DraftRequest, on: 
   for (let slot = 0; slot < slots.length; slot++) {
     if (made[slot]) continue;
     try {
-      const [draft] = acceptReplies(await ask(cloud, replySlotPrompt(slots[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes, controls, never, input.point ?? '', [slots[slot]]);
+      const [draft] = acceptReplies(await ask(cloud, replySlotPrompt(slots[slot], { ...input, avoid: exclude }), REPLY_INSTRUCTIONS, 'drafts', 1, on), exclude, 1, dashes, controls, never, input.point ?? '', [slots[slot]], parent);
       if (draft) { exclude.push(draft); made[slot] = draft; landed(draft, slot); }
     } catch (error) { if (error instanceof SendVeto || accountFailure(error)) throw error; }
   }

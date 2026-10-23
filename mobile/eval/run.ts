@@ -77,7 +77,7 @@ async function polish(c: any, calls: Call[]) {
   // Slot-0 fixtures qualify local cleanup only; live polish includes the advisory point check, as the phone does.
   const evalStarted = Date.now();
   const beforeCalls = calls.length;
-  if (c.id === 'P01-noon-list') {
+  if (c.id === 'P01-noon-list' || c.id === 'P20-own-post-line') {
     const checkStarted = Date.now();
     const clearPromise = c.slot === 0 ? Promise.resolve(true) : canPolish(c.typed, prompt => call(prompt, 8, calls)).catch(error => {
       if (error instanceof Error && error.message === words.noVersions) return false;
@@ -87,7 +87,7 @@ async function polish(c: any, calls: Call[]) {
     let firstCardMs = 0;
     const result = await polishVersions((prompt, tokens) => call(prompt, tokens, calls), {
       typed: c.typed, conversation: c.screen, guide: c.guide ?? '', dashes, avoid: [],
-      platform: c.app ? platformForApp(c.app) : undefined, clear: clearPromise,
+      platform: c.app ? platformForApp(c.app) : undefined, clear: clearPromise, slotsFirst: c.id === 'P20-own-post-line',
     }, (text, slot) => {
       if (!firstCardMs) firstCardMs = Date.now() - evalStarted;
       landed.push({ text, slot });
@@ -157,18 +157,21 @@ async function thread(c: any, calls: Call[]) {
 
 // Same shape as phoneWriter.replies: one numbered call, then one retry per empty slot.
 async function reply(c: any, calls: Call[]) {
-  const input = { latest: c.latest ?? '', conversation: c.screen, guide: c.guide, platform: c.app ? platformForApp(c.app) : undefined };
+  const input = { latest: c.latest ?? '', conversation: c.screen, point: c.point, guide: c.guide, platform: c.app ? platformForApp(c.app) : undefined };
+  const parent = input.platform?.kind === 'feed' ? input.latest : '';
   const slots = D.slotsFor(input.platform);
   const exclude: string[] = [];
   const made: (string | null)[] = [null, null, null];
   const first = await call(D.phoneReplyPrompt(input), 220, calls);
-  D.acceptReplies([first], exclude, 3, 'remove', []).forEach((t, i) => { if (t) { made[i] = t; exclude.push(t); } });
+  D.acceptReplies([first], exclude, 3, 'remove', [], [], c.point ?? '', slots, parent).forEach((t, i) => { if (t) { made[i] = t; exclude.push(t); } });
   for (let slot = 0; slot < 3; slot++) {
     if (made[slot]) continue;
-    const [d] = D.acceptReplies([await call(D.phoneSlotPrompt(slots[slot], input, exclude), 120, calls)], exclude, 1, 'remove', []);
+    const [d] = D.acceptReplies([await call(D.phoneSlotPrompt(slots[slot], input, exclude), 120, calls)], exclude, 1, 'remove', [], [], c.point ?? '', [slots[slot]], parent);
     if (d) { made[slot] = d; exclude.push(d); }
   }
-  return { shown: made.map((text, slot) => ({ text, slot })).filter(x => x.text) };
+  // Recorded bad answers from the published-app audit also pass through the live admission boundary.
+  const rejected = (c.reject ?? []).every((text: string) => D.acceptReplies([text], [], 3, 'remove', [], [], c.point ?? '', slots, parent).length === 0);
+  return { shown: made.map((text, slot) => ({ text, slot })).filter(x => x.text), rejected };
 }
 
 const results: any[] = [];

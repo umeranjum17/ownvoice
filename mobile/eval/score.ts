@@ -1,14 +1,14 @@
 // Scores run.ts outputs (report Appendix C, plus the invented-times check).
 // Usage: node score.ts out/<run>.json [out/<run2>.json ...]
 // Prints a table, writes out/scores.json, and exits non-zero when the gate
-// fails: P01, P13, S05, R01 and R07 must all pass, so a model or prompt change
-// can never silently drop below the study's numbers on them (README).
+// fails: the original P01/P13/S05/R01/R07 plus R13/R14/P20 must all pass,
+// preserving the study's numbers and the published-app regressions (README).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cases } from './cases.ts';
 import * as S from 'ownvoice-engine/src/slop.ts';
-import { layoutKept } from 'ownvoice-engine/src/drafts.ts';
+import { copiesPost, layoutKept, norm, replyInstruction } from 'ownvoice-engine/src/drafts.ts';
 import { parseTones } from 'ownvoice-engine/src/judge.ts';
 import { ALL_SLOTS, platformForApp } from 'ownvoice-engine/src/platforms.ts';
 
@@ -72,7 +72,8 @@ function scoreReply(c: any, text: string) {
   if (added.length) issues.push(`invented number ${added.join('/')}`);
   const times = S.inventedTimes(c.screen, text);
   if (times.length) issues.push(`invented time ${times.join('/')}`);
-  if (echoesPrompt(text)) issues.push('echoes instructions');
+  if (echoesPrompt(text) || replyInstruction(text)) issues.push('echoes instructions');
+  if (c.latest && copiesPost(text, c.latest)) issues.push('copies parent post');
   if (commentary(text)) issues.push('commentary');
   if ((c.noise ?? []).some((n: string) => text.includes(n))) issues.push('screen label leaked');
   const answersAll = c.points.every((group: string[]) => group.some(k => low(text).includes(k)));
@@ -152,8 +153,8 @@ function scoreFeed(c: any, r: any) {
   return { cards, yours, issues };
 }
 
-// The regression gate: these five must pass, or the model/prompt change is out.
-const GATE = ['P01-noon-list', 'P13-tent-shorter', 'S05-list-shorter', 'R01-sam-practice', 'R07-two-questions'];
+// The original five-case floor plus the three published-app regressions.
+const GATE = ['P01-noon-list', 'P13-tent-shorter', 'S05-list-shorter', 'R01-sam-practice', 'R07-two-questions', 'R13-x-parent-echo', 'R14-x-reply-not-instruction', 'P20-own-post-line'];
 
 const table: any[] = [];
 for (const file of process.argv.slice(2)) {
@@ -168,9 +169,9 @@ for (const file of process.argv.slice(2)) {
       : r.shown.map((s: any) => c.kind === 'reply' ? scoreReply(c, s.text) : c.kind === 'tone' ? scoreTone(s.text) : scoreRewrite(c, s.text, c.kind === 'polish' || !!c.layout));
     const allSafe = cards.every((x: any) => x.meaningOk);
     const pass = c.kind === 'reply'
-      ? cards.length >= 2 && allSafe && cards.some((x: any) => x.answersAll)
+      ? cards.length >= (c.minCards ?? 2) && allSafe && r.rejected !== false && cards.some((x: any) => x.answersAll)
       : feed ? cards.length >= 1 && allSafe && feed.yours && feed.issues.length === 0
-      : cards.length >= 1 && allSafe;
+      : cards.length >= (c.minCards ?? 1) && allSafe && new Set(r.shown.map((s: any) => norm(s.text))).size === cards.length;
     const issues = c.kind === 'feed' ? [...feed!.issues, ...cards.flatMap((x: any) => x.issues)] : [];
     const gen = r.calls.reduce((a: number, x: any) => a + x.genTokens, 0);
     const prompt = r.calls.reduce((a: number, x: any) => a + x.promptTokens, 0);
