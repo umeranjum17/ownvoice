@@ -19,7 +19,7 @@ const typingWords = {
   typingLimited:'In very long notes, checks cover only the first part.',
 } as const;
 
-// Grow-mode fit bar: what each level means, in plain words. Definitions of the level, never a
+// Fit bar (grown replies and own posts): what each level means, in plain words. Definitions of the level, never a
 // promise of reach (no "viral", no "will get"). The unsure line says the rating itself is missing.
 const fitWords = {
   fitWhyStrong: 'Reads like it moves the conversation forward.',

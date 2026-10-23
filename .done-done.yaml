@@ -179,6 +179,18 @@ journeys:
       node mobile/e2e/own-post.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
+  own-post-fit:
+    description: "Android (AA-04): a new post typed in the X and Reddit composer fixtures opens Polish your post, and the typed post and every version carry the fit bar, light and dark; the base build (BEFORE_APK) shows no bar and asks for no rating. Levels come from a fixed-answer Jev stand-in through the real decide path, and the run fails unless every rating request carries the platform's post rubric and no parent post. Needs an explicit emulator allocation, JAVA_HOME, and stub+GPT release APKs built with EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455 EXPO_PUBLIC_JEV_KEY=stand-in EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18612 (APK for this change, BEFORE_APK for the base)."
+    command: |
+      set -u; : "${APK:?path to release APK required}"; : "${BEFORE_APK:?path to the base release APK required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      S="$(mktemp -d)"; trap 'rm -rf -- "$S"' EXIT
+      node mobile/e2e/first-run.mjs "$BEFORE_APK" "$S/setup" >"$S/setup.log" 2>&1 || { tail -40 "$S/setup.log"; exit 1; }
+      OWNVOICE_BEFORE=1 node mobile/e2e/own-post-fit.mjs "$BEFORE_APK" "$E/before" >"$E/before.log" 2>&1; c1=$?
+      adb -s "$ANDROID_SERIAL" install -r "$APK" >/dev/null 2>&1; node mobile/e2e/own-post-fit.mjs "$APK" "$E/after" >"$E/after.log" 2>&1; c2=$?
+      printf '%s\n' '{"target":{"version":"'"$(git rev-parse --short HEAD)"'"},"start":"setup finished with ChatGPT on the base build","steps":["type a new post in the X composer and tap the bubble","read the Polish your post panel and scroll it","repeat in the Reddit composer","repeat both in dark mode","install this change over the base build and repeat"],"result":"before: no fit bar on any card; after: the typed post and each version show their own fit level on X and Reddit"}' > "$E/steps.json"
+      echo "before exit=$c1 after exit=$c2" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ]
+    timeout: 45m
+
   typing-checks:
     description: "Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery, plus the overlay typing-fix leg. Needs an explicit emulator allocation."
     command: |

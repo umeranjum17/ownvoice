@@ -298,6 +298,29 @@ describe('grow fit bar', () => {
     } finally { spy.mockRestore(); }
   });
 
+  const own = { conversation: '', written: '', nodes: [], fieldTop: null, typed: 'Shipped offline saving today after a month of flaky sync.' };
+  const versions = ['Shipped offline saving today. A month of flaky sync taught me to test with the network off.', 'Offline saving is live. What broke first for you when you added it?'];
+  test.each([['com.twitter.android', 'X'], ['com.reddit.frontpage', 'Reddit']])('their own new post and its versions on %s carry the fit bar, rated as a post', async (app, place) => {
+    const spy = jest.spyOn(FitModule, 'judgeFit').mockResolvedValue([fit({ level: 1, words: LEVELS[1] }), fit({ level: 3, words: LEVELS[3] }), fit({ level: 2, words: LEVELS[2] })]);
+    try {
+      const screen = await open(capture({ ...own, app, label: place }), versions);
+      await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(3));
+      expect(spy.mock.calls[0][0]).toMatchObject({ kind: 'post', post: '', candidates: [own.typed, ...versions], platform: { id: place.toLowerCase() } });
+      // Yours first, then each version: one level per card, never a second engagement verdict.
+      for (const word of LEVELS.slice(1)) expect(screen.getAllByLabelText(word)).toHaveLength(1);
+      expect(screen.queryAllByLabelText(/^Engagement on /)).toEqual([]);
+    } finally { spy.mockRestore(); }
+  });
+
+  test('LinkedIn has no post rubric yet, so its own posts keep the text checks alone', async () => {
+    const spy = jest.spyOn(FitModule, 'judgeFit');
+    try {
+      const screen = await open(capture({ ...own, app: 'com.linkedin.android', label: 'LinkedIn' }), versions);
+      expect(spy).not.toHaveBeenCalled();
+      expect(screen.queryByTestId('fit-bar')).toBeNull();
+    } finally { spy.mockRestore(); }
+  });
+
   test('a typed reply still gets its fit read when the writer fails', async () => {
     // The 2026-10-01 failure: the writer failed and the panel showed only its fallback, no fit read.
     const spy = jest.spyOn(FitModule, 'judgeFit');
