@@ -118,7 +118,10 @@ export const cases: Case[] = [
   { id: 'R14-x-reply-not-instruction', kind: 'reply', app: 'com.twitter.android', guide: LOWER,
     screen: 'Umer Demo @umer_demo\nShipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', latest: 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', point: 'could it include breaks too?',
     points: [['break']], minCards: 3,
-    reject: ['Agree, adding that the focus timer could also track breaks.', 'Push back, suggesting that the app could track time differently.', 'Ask, "Could the app also include breaks?"'],
+    reject: ['Agree, adding that the focus timer could also track breaks.', 'Push back, suggesting that the app could track time differently.', 'Ask, "Could the app also include breaks?"',
+      'Reply:\nWeek 13 could be a productivity tracker that highlights the most productive hours of the week. This would help users identify their peak productivity times and optimize their work schedule accordingly.',
+      'X: Push back with the idea of a productivity tracker that highlights the most productive hours of the week. This would help users identify their peak productivity times and optimize their work schedule accordingly.',
+      'Push back with the idea of a productivity tracker.', 'X: Agree, adding that the focus timer could also track breaks.', 'Ask "Could the app include breaks?"'],
     why: 'Grow cards must be replies in his voice, never directions telling a writer how to reply' },
   // --- Package 5: thread writer and hooks (report §7 row 5); `app` feeds the cap ---
   { id: 'H01-x-thread', kind: 'thread', app: 'com.twitter.android',

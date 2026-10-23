@@ -280,13 +280,14 @@ export function replyPrompt(input: ReplyInput & { slots?: string[] }): string {
 
 // The phone model gets the same rules condensed (≤ 700 characters of instructions), one call,
 // three replies, each labelled so cleanDrafts/parts() splits them.
-const phoneReplyInstructions = (slots: [string, string, string]) => [
-  'Write their replies, ready to send, not instructions or copied posts.',
+const phoneExample = 'Example post: Offline notes.\nDraft 1: No signal needed.\nDraft 2: Backups still matter.\nDraft 3: Can I search them?';
+const phoneReplyInstructions = (slots: [string, string, string], feed = false) => [
+  feed ? 'Write what they would send, not advice to a writer.' : 'Write their replies, ready to send, not instructions or copied posts.',
   'Every draft must respond to everything the latest message asks or offers.',
   'Draft 1:, Draft 2:, Draft 3:, slots in order, never swapped:',
   slotList(slots),
-  'If news, thanks or feelings, stay warm and kind.',
-  'Never invent facts, times or dates: use the screen. A change reuses screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
+  feed ? phoneExample : 'If news, thanks or feelings, stay warm and kind.',
+  feed ? 'Never invent facts, times or dates. Use the post. Short, plain, kind. No flattery, hashtags, emoji or long dashes.' : 'Never invent facts, times or dates: use the screen. A change reuses screen times, else asks. Match their tone, short and plain. No flattery, hashtags, emoji or long dashes.',
 ].join('\n');
 
 // The rules half of the selected guide (dash/ending rules, never-say phrases and the note) rides
@@ -307,12 +308,13 @@ const ruleBlock = (fixed: string, input: { guide?: string; samples?: string[] })
 /** The condensed phone prompt: instructions (≤ 700 characters) plus the input block. */
 export function phoneReplyPrompt(input: Omit<ReplyInput, 'dashes' | 'avoid'>): string {
   const lines = [platformLine(input.platform), pointLine(input.point)].filter(Boolean).map(line => `\n${line}`).join('');
-  const fixed = `${phoneReplyInstructions(slotsFor(input.platform))}${lines}`;
+  const fixed = `${phoneReplyInstructions(slotsFor(input.platform), input.platform?.kind === 'feed' && input.platform.id !== 'default')}${lines}`;
   return `${fixed}${ruleBlock(fixed, input)}\n\n${inputBlock(input)}`;
 }
 
 /** One extra call for one empty slot, with everything already shown as off-limits. */
 export function phoneSlotPrompt(slot: string, input: Omit<ReplyInput, 'dashes' | 'avoid'>, avoid: string[]): string {
+  const feed = input.platform?.kind === 'feed' && input.platform.id !== 'default';
   const fixed = [
     'Write their reply, not instructions or copied posts.',
     `The reply: ${slot}`,
@@ -320,7 +322,7 @@ export function phoneSlotPrompt(slot: string, input: Omit<ReplyInput, 'dashes' |
     pointLine(input.point),
     'Every draft must respond to everything the latest message asks or offers.',
     avoidLine(avoid),
-    'Don\'t invent facts about them; ask a short question back instead. Use only times, dates and facts on the screen: if it gives no time or date, never add one. If you suggest a different time, use only one from the screen, otherwise ask when suits them. Match their language and tone; plain words, short sentences. No flattery openers, hashtags, emoji or long dashes.',
+    feed ? 'Use only times, dates and facts from the post. Short, plain, kind. No flattery, hashtags, emoji or long dashes.\nExamples: "Notes work offline." -> "No signal needed."\n"File will not open." -> "What happens when you try?"' : 'Don\'t invent facts about them; ask a short question back instead. Use only times, dates and facts on the screen: if it gives no time or date, never add one. If you suggest a different time, use only one from the screen, otherwise ask when suits them. Match their language and tone; plain words, short sentences. No flattery openers, hashtags, emoji or long dashes.',
   ].filter(Boolean).join('\n');
   const out = 'Output only the reply text.';
   return `${fixed}${ruleBlock(`${fixed}\n${out}`, input)}\n${out}\n\n${inputBlock(input)}`;
@@ -424,7 +426,7 @@ export function copiesPost(draft: string, post: string): boolean {
 }
 
 /** Narrow meta-reply openings seen from the phone writer, not natural agreement ('I agree, ...'). */
-export const replyInstruction = (text: string): boolean => /^(?:agree|push back|disagree|ask)(?:\s+kindly)?\s*[,;:]\s*(?:(?:adding|suggesting|saying|asking|noting|explaining)\b|["“'])|^(?:agree|push back|disagree|ask)(?:\s+kindly)?\s+(?:by\s+)?(?:adding|suggesting|saying|asking|noting|explaining)\b/i.test(text.trim());
+export const replyInstruction = (text: string): boolean => /^(?:(?:x|linkedin|reddit|slack|gmail)\s*:\s*)?(?:(?:reply|response)\s*:|(?:agree|push back|disagree|ask)(?:\s+kindly)?(?:\s*[,;:]?\s*["“']|\s*[,;:]?\s*(?:(?:by\s+)?(?:adding|suggesting|saying|asking|noting|explaining)\b|with\s+(?:the\s+)?(?:idea|suggestion|reason|question)\b)))/i.test(text.trim());
 
 export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = [], point = '', slots: string[] = [], post = ''): (string | null)[] {
   const accepted: (string | null)[] = Array(count).fill(null);

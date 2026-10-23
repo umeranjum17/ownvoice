@@ -17,8 +17,6 @@ const demoStubs = process.env.EXPO_PUBLIC_DEMO_PLATFORM === '1' ? require('./dem
 // `ponytail: if the local model returns fewer than 2 distinct drafts from the numbered call
 // in at least half of the real-phone chats (spec §6 P3), switch to three slot calls from the start.
 
-const FILL_MS = 8000;
-
 async function ask(prompt: string, maxTokens: number): Promise<string> {
   return askLocal(prompt, maxTokens);
 }
@@ -66,7 +64,7 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
   return outcome;
 }
 
-/** Replies: one numbered call, then one retry per empty slot within 8 s of its answer. */
+/** Replies: one numbered call, then one bounded retry per empty slot, even on a slow phone. */
 async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
   const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, samples: request.samples, platform: request.platform };
@@ -99,8 +97,7 @@ async function replies(request: DraftRequest, on: WriterEvents, started: number)
   };
   const answer = await ask(phoneReplyPrompt(input), 220);
   take(answer, true);
-  const fillStarted = Date.now();
-  for (let slot = 0; slot < slots.length && Date.now() - fillStarted <= FILL_MS; slot++) {
+  for (let slot = 0; slot < slots.length; slot++) {
     if (made[slot]) continue;
     try {
       const asked = phoneSlotPrompt(slots[slot], input, exclude);

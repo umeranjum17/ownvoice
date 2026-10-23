@@ -99,16 +99,18 @@ for (let step = 0; step < 6; step++) {
   const hash = createHash('sha256').update(png).digest('hex');
   if (!hashes.has(hash)) { writeFileSync(join(evidence, `reply-cards-${step + 1}.png`), png); hashes.add(hash); }
   writeFileSync(join(evidence, `reply-cards-${step + 1}.nodes.json`), JSON.stringify(list, null, 1));
-  if (cards.size === 3 && ratedCards.size === 3) break;
+  const end = list.some(n => n.text === 'Write new ones');
+  if (cards.size > 0 && ratedCards.size === cards.size && (cards.size === 3 || end)) break;
   adb('shell', 'input', 'swipe', String(width / 2), String(height * .74), String(width / 2), String(height * .38), '350');
   await wait(1500);
 }
-assert.equal(cards.size, 3, `Expected all three reply slots: ${JSON.stringify([...cards])}`);
+// Firstmate 004: fewer cards are acceptable only when every shown card is a clean reply.
+assert.ok(cards.size > 0, 'No clean reply was offered');
 const replies = [...cards.values()];
-assert.equal(new Set(replies.map(norm)).size, 3, 'Reply cards must differ');
+assert.equal(new Set(replies.map(norm)).size, replies.length, 'Reply cards must differ');
 for (const reply of replies) { assert.ok(!copiesPost(reply, post), 'Card copies the parent'); assert.ok(!replyInstruction(reply), 'Card describes how to reply'); }
 // Clear rating labels can be identical across cards; every shown card must have both rows.
-assert.equal(ratedCards.size, 3, 'Every reply card must have both engagement and stock rows');
-writeFileSync(join(evidence, 'steps.json'), JSON.stringify({ target: { version: adb('shell', 'dumpsys', 'package', 'dev.ownvoice.next').match(/versionName=(\S+)/)?.[1] }, start: 'Candidate installed on an owned x86_64 emulator, free phone writer ready, X lab allowed', steps: ['Open the lab X post with an empty reply box', 'Tap the bubble once', 'Wait for the on-phone writer', 'Scroll the three reply cards and their rating rows; do not insert or send'], result: { post, cards: Object.fromEntries(cards), ratingLabels: [...ratings], sent: false } }, null, 2));
+assert.equal(ratedCards.size, cards.size, 'Every reply card must have both engagement and stock rows');
+writeFileSync(join(evidence, 'steps.json'), JSON.stringify({ target: { version: adb('shell', 'dumpsys', 'package', 'dev.ownvoice.next').match(/versionName=(\S+)/)?.[1] }, start: 'Candidate installed on an owned x86_64 emulator, free phone writer ready, X lab allowed', steps: ['Open the lab X post with an empty reply box', 'Tap the bubble once', 'Wait for the on-phone writer', 'Scroll every shown reply and its rating rows; do not insert or send'], result: { post, cards: Object.fromEntries(cards), ratingLabels: [...ratings], sent: false } }, null, 2));
 adb('shell', 'input', 'keyevent', '4');
 console.log(JSON.stringify({ cards: Object.fromEntries(cards), ratingLabels: [...ratings], passed: true }));

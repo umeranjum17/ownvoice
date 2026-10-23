@@ -258,19 +258,19 @@ test('practice controls after the message are not sent as the latest message', a
   expect(mockAsk.mock.calls[0][0]).toContain('Latest message:\nAre we still on for Saturday?\nI can bring the tent if you bring the stove.\n\nConversation:');
 });
 
-test('at least one reply that is not a plain yes survives, and retries stop after 8 seconds', async () => {
+test('a slow reply still gives each missing slot one bounded retry', async () => {
   setClock(1000);
   mockAsk.mockResolvedValueOnce('Draft 1: Yep, still on for Saturday. 👍');
   const retry = async (prompt: string) => {
-    setClock(9500); // The 8-second cap passes before the second retry.
-    return prompt.includes('Give a different answer') ? 'Could we do Sunday instead?' : 'Yep';
+    setClock(9500); // A slow phone must not lose the last slot's one retry.
+    return prompt.includes('Give a different answer') ? 'Could we do Sunday instead?' : 'What time should I bring the stove?';
   };
   mockAsk.mockImplementation(async (prompt: string) => retry(prompt));
   const landed: [string, number][] = [];
   const { drafts } = await phoneWriter.write(request(), { landed: (text, slot) => landed.push([text, slot]) });
-  expect(drafts).toEqual(['Yep, still on for Saturday. 👍', 'Could we do Sunday instead?']);
-  expect(mockAsk).toHaveBeenCalledTimes(2);
-  expect(landed.map(([, slot]) => slot)).toEqual([0, 1]);
+  expect(drafts).toEqual(['Yep, still on for Saturday. 👍', 'Could we do Sunday instead?', 'What time should I bring the stove?']);
+  expect(mockAsk).toHaveBeenCalledTimes(3);
+  expect(landed.map(([, slot]) => slot)).toEqual([0, 1, 2]);
 });
 
 test('one retry per slot; a failed retry leaves the slot empty', async () => {

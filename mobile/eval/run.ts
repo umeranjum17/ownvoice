@@ -7,6 +7,7 @@
 // Env: MODEL (default llama-server's loaded model), TEMP (default 0),
 //      SEED (default 7), ONLY (comma prefixes, e.g. ONLY=R07 or ONLY=P01,P13,S05,R01,R07).
 import { readFileSync, writeFileSync } from 'node:fs';
+import assert from 'node:assert/strict';
 import { codexAnswer } from './codex.ts';
 import { cases } from './cases.ts';
 import { platformForApp } from 'ownvoice-engine/src/platforms.ts';
@@ -20,6 +21,23 @@ import { fixedSentenceSplits } from '../src/core/typing.ts';
 import { words } from '../src/core/words.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
+
+// Replay the recorded native/audit failures offline before spending a generation.
+if (process.argv[2] === '--replay') {
+  let checked = 0;
+  for (const c of cases) {
+    if (c.kind !== 'reply' || !c.reject) continue;
+    const slots = D.slotsFor(platformForApp(c.app));
+    for (const raw of c.reject) {
+      assert.deepEqual(D.acceptReplies([raw], [], 3, 'remove', [], [], c.point ?? '', slots, c.latest), [], `Offered: ${raw}`);
+      checked++;
+    }
+    assert.equal(D.acceptReplies(['I agree, a break timer could fit week 13.'], [], 1, 'remove', [], [], c.point ?? '', slots, c.latest).length, 1);
+  }
+  assert.ok(checked > 0);
+  console.log(`Recorded reply admission: PASS (${checked} bad outputs dropped; natural replies retained)`);
+  process.exit(0);
+}
 
 const [label, base, outPath] = process.argv.slice(2);
 if (!label || !base || !outPath) {
