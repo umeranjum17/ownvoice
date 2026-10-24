@@ -6,8 +6,9 @@ import { resolve } from 'node:path';
 // with the steps (the greyed switch first, since App info offers the fix only after one try), the
 // greyed switch and Android's own message, the card again without that first step, Open App info and
 // its three-dot menu, the card's "that worked" line once allowed, then Turn on and setup moving on.
-// adb installs are trusted, so the block is set the way a browser install sets it: the restricted-
-// settings app op goes to "deny" (errored), which is what Android's installer writes for a file install.
+// adb installs are trusted, so each pass installs the APK the way a person does: from Downloads, through
+// Android's own installer (a local-file install, which is what Android blocks). Android 15+ keeps the
+// block's state from the app, so there the card keeps every step until the switch is on.
 // Needs a release APK built with EXPO_PUBLIC_E2E_DOWNLOAD=1 (the phone choice's pretend download, so
 // setup reaches the permission step without a real one). Light at the default font, then dark at the
 // largest. Shell input and screencap only, never UiAutomator (which would unbind the service).
@@ -59,13 +60,13 @@ const waitForLine = async (want, tries = 30) => {
   throw new Error(`Could not see "${want}" on screen.\n${text}`);
 };
 // Taps the lowest visible line holding [want] (buttons sit below the words that name them).
-const tapText = async (want, { tries = 10, below = 0 } = {}) => {
+const tapText = async (want, { tries = 10, below = 0, exact = false } = {}) => {
   for (let i = 0; i < tries; i++) {
     const read = lines(screen());
     let hits = read.found.filter(l => l.text.includes(want) && l.top >= below);
     if (!hits.length) { read.bands(); hits = read.found.filter(l => l.text.includes(want) && l.top >= below); }
-    if (hits.length) {
-      const line = hits.sort((a, b) => b.top - a.top)[0];
+    if (hits.filter(l => !exact || l.text.trim() === want).length) {
+      const line = hits.filter(l => !exact || l.text.trim() === want).sort((a, b) => b.top - a.top)[0];
       tap(Math.round((line.left + line.right) / 2), Math.round((line.top + line.bottom) / 2));
       return;
     }
@@ -88,13 +89,33 @@ const backToOwnvoice = async () => {
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
   await waitFocus(pkg);
 };
-const services = () => adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
+const services = () => { const v = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim(); return v === 'null' ? '' : v; };
+const setServices = list => list ? adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', list) : adb('shell', 'settings', 'delete', 'secure', 'enabled_accessibility_services');
 
 const priorMode = adb('shell', 'cmd', 'uimode', 'night').trim().match(/^Night mode: (\w+)$/)?.[1];
 const priorScale = adb('shell', 'settings', 'get', 'system', 'font_scale').trim();
 const priorSchedule = adb('shell', 'settings', 'get', 'secure', 'ui_night_mode_custom_type').trim();
 const priorServices = services();
-execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
+const sdk = Number(adb('shell', 'getprop', 'ro.build.version.sdk').trim());
+const hidden = sdk >= 35; // the app may not read the block's state; it knows only that it came from a file
+// The person's install: the APK in Downloads, opened from Files, Android's installer, Install.
+const fileInstall = async () => {
+  if (adb('shell', 'pm', 'list', 'packages', pkg).includes(pkg)) adb('uninstall', pkg);
+  execFileSync('adb', ['-s', serial, 'push', apk, '/sdcard/Download/Ownvoice.apk'], { stdio: 'ignore' });
+  adb('shell', 'appops', 'set', 'com.android.providers.downloads', 'REQUEST_INSTALL_PACKAGES', 'allow');
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW_DOWNLOADS');
+  await waitForLine('ownvoice.apk');
+  await tapText('ownvoice.apk');
+  await waitForLine('install this app');
+  await tapText('install', { exact: true, below: Math.round(height * 0.4) });
+  for (let i = 0; !adb('shell', 'pm', 'list', 'packages', pkg).includes(pkg); i++) { if (i === 60) throw new Error('The file install did not finish.'); await wait(1000); }
+  const source = adb('shell', 'dumpsys', 'package', pkg).match(/packageSource=(\d)/)?.[1];
+  if (source !== '3' && source !== '4') throw new Error(`Not installed as a file (packageSource=${source}).`);
+  logLine(`installed from a file: packageSource=${source}, op ${op()}`);
+  adb('shell', 'rm', '/sdcard/Download/Ownvoice.apk');
+  adb('shell', 'am', 'force-stop', 'com.google.android.documentsui');
+  adb('shell', 'input', 'keyevent', '3');
+};
 try {
   adb('shell', 'settings', 'put', 'secure', 'ui_night_mode_custom_type', '-1');
   for (const [mode, scale] of [['light', '1.0'], ['dark', '1.3']]) {
@@ -102,14 +123,14 @@ try {
     const tag = name => `${mode}${scale === '1.3' ? '-large' : ''}-${name}`;
     adb('shell', 'cmd', 'uimode', 'night', dark ? 'yes' : 'no');
     adb('shell', 'settings', 'put', 'system', 'font_scale', scale);
-    adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', priorServices === 'null' ? '""' : priorServices.split(':').filter(s => s !== component).join(':') || '""');
-    // RN reads the colour scheme at process start, so each pass starts from a cleared app.
-    adb('shell', 'pm', 'clear', pkg);
-    adb('shell', 'appops', 'set', pkg, 'ACCESS_RESTRICTED_SETTINGS', 'deny');
-    logLine(`${mode}: op before setup: ${op()}`);
-    await wait(1000);
-    adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
-    await waitForLine('sound like you');
+    setServices(priorServices.split(':').filter(s => s && s !== component).join(':'));
+    // A fresh install per pass: the block comes back, and RN reads the colour scheme at process start.
+    await fileInstall();
+    for (let i = 0; ; i++) {
+      await wait(2000);
+      adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+      try { await waitForLine('sound like you', 15); break; } catch (error) { if (i === 2) throw error; }
+    }
     await wait(1500);
     await tapText('continue');
     await waitForLine('how should ownvoice write');
@@ -129,17 +150,18 @@ try {
     text = await waitForLine('restricted');
     await wait(500);
     if (!dark) snap(tag('02-android-restricted'), dark, 'Android\'s own message after tapping the greyed Ownvoice switch');
-    await tapText('ok');
+    await tapText('ok', { exact: true });
     await wait(1000);
     logLine(`${mode}: op after the try: ${op()}`);
     if (!/ignore/i.test(op())) throw new Error(`${mode}: Android did not record the try (${op()}).`);
 
-    // 3. Back in Ownvoice: re-checked, the try step is gone, four steps and Open App info remain.
+    // 3. Back in Ownvoice: re-checked. Where Android tells the app, the try step is gone (four steps);
+    //    on Android 15+ it can't know, so all five stay.
     await backToOwnvoice();
     text = await waitForLine('android blocks this');
-    if (text.includes('tap the greyed')) throw new Error(`${mode}: the try step still shows after the try.\n${text}`);
+    if (text.includes('tap the greyed') !== hidden) throw new Error(`${mode}: wrong steps after the try (Android ${sdk}).\n${text}`);
     await wait(800);
-    snap(tag('03-tried-card'), dark, 'Back in Ownvoice after the try: four steps and Open App info');
+    snap(tag('03-back-card'), dark, hidden ? 'Back in Ownvoice after the try: the card and Open App info still there (Android 15+ hides the try from apps)' : 'Back in Ownvoice after the try: four steps and Open App info');
 
     // 4. Open App info lands on this app's App info; its three-dot menu offers the fix.
     await tapText('open app info', { below: Math.round(height * 0.2) });
@@ -156,19 +178,23 @@ try {
     logLine(`${mode}: op after allowing: ${op()}`);
     if (!/allow/i.test(op())) throw new Error(`${mode}: allowing did not reach Android (${op()}).`);
 
-    // 5. Back in Ownvoice: re-checked, the card gives way to one line; the switch now turns on.
+    // 5. Back in Ownvoice: where Android tells the app, the card gives way to one line; on 15+ it stays.
     await backToOwnvoice();
-    text = await waitForLine('that worked');
-    if (text.includes('android blocks this')) throw new Error(`${mode}: the card still shows after allowing.`);
-    await wait(500);
-    snap(tag('06-lifted'), dark, 'Back after allowing: the card gives way to "That worked. Now tap Turn on."');
+    if (!hidden) {
+      text = await waitForLine('that worked');
+      if (text.includes('android blocks this')) throw new Error(`${mode}: the card still shows after allowing.`);
+      await wait(500);
+      snap(tag('06-lifted'), dark, 'Back after allowing: the card gives way to "That worked. Now tap Turn on."');
+    } else await waitForLine('android blocks this');
+    // 6. Turn on: the switch is no longer greyed; Use Ownvoice, then Android's Allow.
     await tapText('turn on');
     await waitFocus('settings');
     await tapText('ownvoice', { below: Math.round(height * 0.1) });
     await waitForLine('use ownvoice');
     if (screenText().includes('restricted')) throw new Error(`${mode}: Android still says restricted after allowing.`);
-    const now = services();
-    adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', now === 'null' || !now ? component : `${now}:${component}`);
+    await tapText('use ownvoice');
+    await waitForLine('full control');
+    await tapText('allow', { exact: true });
     await waitForLine('tap the bubble to polish it');
     await wait(800);
     snap(tag('07-setup-moves-on'), dark, 'Ownvoice switched on: setup moved on to the practice chat');
@@ -179,5 +205,5 @@ try {
   adb('shell', 'settings', 'put', 'system', 'font_scale', priorScale === 'null' ? '1.0' : priorScale);
   if (priorSchedule !== 'null') adb('shell', 'settings', 'put', 'secure', 'ui_night_mode_custom_type', priorSchedule);
   if (priorMode) adb('shell', 'cmd', 'uimode', 'night', priorMode);
-  adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', priorServices === 'null' ? '""' : priorServices);
+  setServices(priorServices);
 }

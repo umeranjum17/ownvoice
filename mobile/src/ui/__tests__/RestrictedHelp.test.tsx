@@ -57,6 +57,17 @@ test('once allowed in App info, coming back says it worked; an app never blocked
   expect(clean.toJSON()).toBeNull();
 });
 
+test('installed from a file where Android hides the block (15 and later): every step, kept on each return', async () => {
+  native.restrictedSettings.mockResolvedValue('likely');
+  const screen = await render(<Step />);
+  await screen.findByText(words.restrictedTryFirst);
+  expect(screen.getAllByText(/^[1-5]$/).map(n => n.props.children)).toEqual([1, 2, 3, 4, 5]);
+  await returnToApp();
+  expect(screen.getByText(words.restrictedTryFirst)).toBeTruthy();
+  expect(screen.queryByText(words.restrictedLifted)).toBeNull();
+  expect(native.restrictedSettings).toHaveBeenCalledTimes(2);
+});
+
 test('off the permission step nothing is asked', async () => {
   const screen = await render(<Step active={false} />);
   expect(native.restrictedSettings).not.toHaveBeenCalled();

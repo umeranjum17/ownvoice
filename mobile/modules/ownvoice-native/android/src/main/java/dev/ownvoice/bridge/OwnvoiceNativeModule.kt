@@ -58,8 +58,9 @@ class OwnvoiceNativeModule : Module() {
     }.runOnQueue(Queues.MAIN)
     // Android 13+ greys out the switch of an app installed from a file until App info's "Allow restricted
     // settings" is tapped, and offers that menu item only after the person tried the greyed switch once.
-    // The app op tells the three apart: errored (blocked, not tried yet), ignored (tried), allowed (done).
-    // Without a set mode, Android decides by where the app came from, so this does too.
+    // Where the app op can be read (Android 13 and 14), it tells the three apart: errored (blocked, not
+    // tried yet), ignored (tried), allowed (done). Android 15+ keeps it from the app itself, so there an
+    // install from a file is all the app can know: likely blocked, tried or not.
     AsyncFunction("restrictedSettings") {
       if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@AsyncFunction "clear"
       val mode = runCatching {
@@ -72,7 +73,7 @@ class OwnvoiceNativeModule : Module() {
         AppOpsManager.MODE_ALLOWED -> "clear"
         else -> {
           val source = runCatching { context.packageManager.getInstallSourceInfo(context.packageName).packageSource }.getOrNull()
-          if (source == PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE || source == PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE) "blocked" else "clear"
+          if (source == PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE || source == PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE) "likely" else "clear"
         }
       }
     }.runOnQueue(Queues.MAIN)

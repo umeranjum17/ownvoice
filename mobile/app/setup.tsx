@@ -62,7 +62,7 @@ export default function Setup() {
   const [greyed, setGreyed] = useState(false);
   // Android's block on apps installed outside Google Play, asked again each time the person comes back.
   const restricted = useRestricted(step === 'PERMISSION');
-  const blocked = restricted === 'blocked' || restricted === 'tried';
+  const blocked = restricted === 'blocked' || restricted === 'tried' || restricted === 'likely';
   const [hintOn, setHintOn] = useState(false);
   const [typing, setTyping] = useState(false);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);

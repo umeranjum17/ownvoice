@@ -16,8 +16,9 @@ export function useRestricted(active: boolean): RestrictedView {
   useEffect(() => {
     if (!active) { setView('clear'); return; }
     let live = true;
+    // Only a block Android named can be seen lifting; "likely" stays until the switch is on and the step moves on.
     const check = () => Native.restrictedSettings().then(now => {
-      if (live) setView(was => now !== 'clear' ? now : was === 'clear' ? 'clear' : 'lifted');
+      if (live) setView(was => now !== 'clear' ? now : was === 'blocked' || was === 'tried' || was === 'lifted' ? 'lifted' : 'clear');
     }).catch(() => {});
     check();
     const state = AppState.addEventListener('change', next => { if (next === 'active') check(); });
@@ -27,7 +28,7 @@ export function useRestricted(active: boolean): RestrictedView {
 }
 
 /** The card above Turn on. "Tried" is the state where App info offers the fix; before that, Android
- *  hides the menu item until the greyed switch was tapped once, so that comes first. */
+ *  hides the menu item until the greyed switch was tapped once, so that comes first (also when unknown). */
 export function RestrictedCard({ view }: { view: RestrictedView }) {
   const t = useTheme();
   if (view === 'clear') return null;
@@ -35,7 +36,7 @@ export function RestrictedCard({ view }: { view: RestrictedView }) {
     <CheckIcon size={22} color={t.primary} />
     <Text style={[type.body, { color: t.text, flex: 1 }]}>{words.restrictedLifted}</Text>
   </View>;
-  const steps = [...view === 'blocked' ? [words.restrictedTryFirst] : [], words.restrictedOpen, words.restrictedDots, words.restrictedAllow, words.restrictedBack];
+  const steps = [...view === 'tried' ? [] : [words.restrictedTryFirst], words.restrictedOpen, words.restrictedDots, words.restrictedAllow, words.restrictedBack];
   return <View testID="restricted-card" style={[styles.card, { backgroundColor: t.group }]}>
     <View style={styles.head}>
       <WarnIcon size={24} color={t.attention} />
