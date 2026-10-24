@@ -167,7 +167,8 @@ if (leg === 'before') {
     nodes('Edit');
     const field = await until('the edit field', () => nodes().find(n => n.editable && n.app === pkg && n.text === first));
     adb('shell', 'input', 'tap', ...[(field.bounds[0] + field.bounds[2]) / 2, (field.bounds[1] + field.bounds[3]) / 2].map(n => String(Math.round(n))));
-    adb('shell', 'input', 'keyevent', 'KEYCODE_MOVE_END');
+    // Ctrl+End reaches the end of the whole post; End alone stops at the end of a wrapped line.
+    adb('shell', 'input', 'keycombination', 'KEYCODE_CTRL_LEFT', 'KEYCODE_MOVE_END');
     adb('shell', 'input', 'text', '%sMore%ssoon.');
     const edited = `${first} More soon.`;
     await until('the edited post', () => nodes().some(n => n.editable && n.text === edited));
