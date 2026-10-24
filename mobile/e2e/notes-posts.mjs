@@ -113,13 +113,16 @@ if (leg === 'before') {
   const NEEDS_ONLINE = 'Fit levels need an online writer, such as your ChatGPT. The writer on this phone can’t rate them.';
   const LEVEL = /^(Likely to be skipped|Might get a reply|Good fit here|Strong fit here|Not sure about this one)$/;
   const fitRead = list => ({ line: list.filter(n => n.text === NEEDS_ONLINE).length, bars: list.filter(n => LEVEL.test(n.label ?? '')).map(n => n.label) });
-  const fit = await until('the fit', () => { const read = fitRead(nodes()); return read.line || read.bars.length ? read : null; }, 900);
+  // The sheet scrolls only with a slow drag; the fit sits under the last post, so each look scrolls down first.
+  const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+  const scroll = down => adb('shell', 'input', 'swipe', String(width / 2), String(height * (down ? .72 : .3)), String(width / 2), String(height * (down ? .3 : .72)), '1200');
+  const fit = await until('the fit', () => { scroll(true); const read = fitRead(nodes()); return read.line || read.bars.length ? read : null; }, 900);
+  for (let i = 0; i < 5; i++) scroll(false);
   steps.push('Wait for the phone writer and its fit');
 
   // Every card: its label, its post and its rating rows, read while scrolling down the sheet.
   const labels = ['Main point', 'What happened', 'What I learned'];
   const posts = new Map(), rated = new Set();
-  const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
   for (let step = 0; step < 6; step++) {
     const list = nodes();
     let current = null;
@@ -134,8 +137,9 @@ if (leg === 'before') {
     }
     const name = shot(`${leg}-posts-${step + 1}-${theme}`);
     if (name) captures.push(name);
-    if (posts.size === labels.length && rated.size === posts.size && (fit.bars.length || list.some(n => n.text === NEEDS_ONLINE))) break;
-    adb('shell', 'input', 'swipe', String(width / 2), String(height * .74), String(width / 2), String(height * .38), '350');
+    // The fit's line or bars sit under the last post: once they show, every post has been on screen.
+    if (posts.size && rated.size === posts.size && (fitRead(list).line || fitRead(list).bars.length)) break;
+    scroll(true);
     await wait(1500);
   }
   const texts = [...posts.values()];
@@ -154,7 +158,7 @@ if (leg === 'before') {
   result = { ...result, posts: Object.fromEntries(posts), fit };
 
   // Back to the first card for the hand-off.
-  for (let i = 0; i < 4; i++) adb('shell', 'input', 'swipe', String(width / 2), String(height * .38), String(width / 2), String(height * .8), '300');
+  for (let i = 0; i < 5; i++) scroll(false);
   await wait(1000);
   const first = posts.get(labels.find(label => posts.has(label)));
   const sha = text => createHash('sha256').update(text).digest('hex').slice(0, 12);
@@ -167,7 +171,8 @@ if (leg === 'before') {
     adb('shell', 'input', 'text', '%sMore%ssoon.');
     const edited = `${first} More soon.`;
     await until('the edited post', () => nodes().some(n => n.editable && n.text === edited));
-    adb('shell', 'input', 'keyevent', '4'); // the keyboard closes; the sheet stays
+    // Back closes only the keyboard; with no keyboard up it would close the sheet.
+    if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) adb('shell', 'input', 'keyevent', '4');
     await wait(800);
     const name = shot(`share-edited-${theme}`);
     if (name) captures.push(name);
