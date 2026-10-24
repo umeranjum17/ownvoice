@@ -44,6 +44,8 @@ const unavailableApk = process.argv[4];
 // The default (full) journey still needs a funded account for a real draft comparison.
 const negative = process.env.OPENROUTER_SCENARIOS === 'negative';
 const pickScenario = process.env.OPENROUTER_SCENARIOS === 'pick';
+// `OPENROUTER_SCENARIOS=livepick`: the one live pass: connect the key, pick PICK_MODEL (an explicit :free id) from the live list, and write once.
+const livePick = process.env.OPENROUTER_SCENARIOS === 'livepick';
 // The refusal panel legs only (any build without the phone stub): a refused key must show the
 // cloud writer's own plain line with a retry, light and dark, and the retry must re-run it.
 const refusal = process.env.OPENROUTER_REFUSAL === '1';
@@ -476,32 +478,46 @@ const withFont = async (font, fn) => {
   adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true);
   try { await fn(); } finally { adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0'); adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true); }
 };
+// The widths the owner's rule asks for, in dp at the emulator's density (420 dpi: 1 dp = 2.625 px).
+const WIDTHS = [360, 390, 445];
+const withWidth = async (dp, fn) => {
+  adb('shell', 'wm', 'size', `${Math.round(dp * 2.625)}x2400`);
+  adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true);
+  try { await fn(); } finally { adb('shell', 'wm', 'size', 'reset'); adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true); }
+};
 const pickJourney = async () => {
   await fresh(); await theme(false); await skipSetup(); await enableChrome();
   // 1. Connected but nothing picked: the card, Home and the panel ask (after only; before there is nothing to ask).
   await connectOpenRouter('light', { pick: false });
-  await pickScreens('light', '');
   if (!pickBefore) {
     await run('panel-asks', async () => { const panel = await openPanelAny('panel-asks-light'); if (!panel.map(n => n.text).join(' ').toLowerCase().includes('choose which one writes first')) throw new Error('The panel did not ask which one writes.'); });
   }
-  // 2. Picked from the list (after): the pick list in each look, then the card, Home and a real panel.
+  for (const dark of [false, true]) for (const dp of WIDTHS) {
+    const T = dark ? 'dark' : 'light';
+    await run(`unpicked-${T}-w${dp}`, async () => { await theme(dark); await withWidth(dp, () => pickScreens(`${T}-unpicked`, `-w${dp}`)); });
+  }
+  // 2. The pick list (after only) at each width in each theme, and at font 1.3.
   if (!pickBefore) {
-    for (const [T, F, dark, font] of [['light', '', false, '1.0'], ['dark', '', true, '1.0'], ['light', '-font1.3', false, '1.3'], ['dark', '-font1.3', true, '1.3']]) {
-      await run(`pick-${T}${F}`, async () => {
-        await theme(dark);
-        await withFont(font, async () => {
-          adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://model?account=openrouter', pkg);
-          await waitText('search the list', 90);
-          snap(`pick-list-${T}${F}`);
-        });
-      });
+    const openList = async name => {
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://model?account=openrouter', pkg);
+      await waitText('search the list', 90);
+      snap(name);
+    };
+    for (const dark of [false, true]) for (const dp of WIDTHS) {
+      const T = dark ? 'dark' : 'light';
+      await run(`pick-${T}-w${dp}`, async () => { await theme(dark); await withWidth(dp, () => openList(`pick-list-${T}-w${dp}`)); });
+    }
+    for (const dark of [false, true]) {
+      const T = dark ? 'dark' : 'light';
+      await run(`pick-${T}-font1.3`, async () => { await theme(dark); await withFont('1.3', () => openList(`pick-list-${T}-font1.3`)); });
     }
     await theme(false);
     adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://model?account=openrouter', pkg);
     await pickModel('final');
     await waitText('openrouter is connected', 60);
   }
-  for (const [T, F, dark, font] of [['dark', '', true, '1.0'], ['light', '-font1.3', false, '1.3']]) {
+  // 3. Picked: the card and Home in each theme, and at font 1.3.
+  for (const [T, F, dark, font] of [['dark', '', true, '1.0'], ['light', '', false, '1.0'], ['light', '-font1.3', false, '1.3']]) {
     await run(`screens-${T}${F}`, async () => { await theme(dark); await withFont(font, () => pickScreens(`${T}-picked`, F)); });
   }
   await theme(false);
@@ -521,7 +537,10 @@ try {
   let realDrafts = [];
   // Capture the displayed result. A different string is only an observation, not source provenance.
   const captureReal = async tag => realDraft(tag);
-  if (pickScenario) {
+  if (livePick) {
+    await run('live-pick', async () => { await fresh(); await theme(false); await skipSetup(); await enableChrome(); await connectOpenRouter('live'); await waitText('openrouter is connected', 60); });
+    await run('live-draft', async () => { await realDraft('live-light'); });
+  } else if (pickScenario) {
     await run('pick', pickJourney);
   } else if (refusal) {
     await run('refusal-panels', refusalJourney);
