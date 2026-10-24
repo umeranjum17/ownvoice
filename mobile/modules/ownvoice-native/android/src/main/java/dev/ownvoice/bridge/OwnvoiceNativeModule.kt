@@ -36,7 +36,8 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("openAccessibilitySettings") { comeBack: Boolean ->
       check(context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().putBoolean("comeBack", comeBack).commit())
       val me = ComponentName(context, OwnvoiceService::class.java).flattenToString()
-      context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(":settings:fragment_args_key", me))
+      // A fresh task each time: Settings keeps one, so App info opened from setup would otherwise come back instead.
+      context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra(":settings:fragment_args_key", me))
     }.runOnQueue(Queues.MAIN)
     // The panel's own Linking start lands the app on Home; the bridge start the service itself uses
     // for ownvoice://setup (NEW_TASK|CLEAR_TOP) is what reaches the router's screen.
@@ -53,7 +54,7 @@ class OwnvoiceNativeModule : Module() {
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("openAppInfo") {
       context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         .setData(android.net.Uri.fromParts("package", context.packageName, null)))
     }.runOnQueue(Queues.MAIN)
     // Android 13+ greys out the switch of an app installed from a file until App info's "Allow restricted

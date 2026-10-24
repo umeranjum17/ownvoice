@@ -100,7 +100,7 @@ Open this link on your phone, tap **Download**, then **Open** and **Install**; i
 
 On Android 13 and later, Android blocks **Use Ownvoice** for apps installed outside Google Play, and says the app was denied access or calls it a restricted setting. Setup spots this and shows the steps with an **Open App info** button. Do this once:
 
-1. Tap **Turn on**, then tap the greyed **Use Ownvoice** switch once and tap **OK** on Android's message. (Until you do, App info doesn't offer the next step.)
+1. Tap **Turn on**, then tap the greyed **Ownvoice** row once and close Android's message (**Close** or **OK**). Until you do, App info doesn't offer the next step.
 2. Come back to Ownvoice and tap **Open App info**, then tap the three dots **⋮** at the top right.
 3. Tap **Allow restricted settings**, then come back to Ownvoice and tap **Turn on** again.
 

@@ -43,11 +43,13 @@ export function RestrictedCard({ view }: { view: RestrictedView }) {
       <Text accessibilityRole="header" style={[type.body, { color: t.text, fontWeight: '600', flex: 1 }]}>{words.restrictedTitle}</Text>
     </View>
     <Text style={[type.body, { color: t.text }]}>{words.restrictedNote}</Text>
-    {steps.map((step, i) => <View key={step} style={styles.step}>
+    {steps.map((step, i) => <View key={step} style={[styles.step, step === words.restrictedOpen && styles.open]}>
       <View style={[styles.number, { backgroundColor: t.primary }]}><Text style={[type.label, { color: t.onPrimary }]}>{i + 1}</Text></View>
-      <Text style={[type.body, { color: t.text, flex: 1 }]}>{step}</Text>
+      {/* The step that says "Open App info" is the button, so it stays in view at the largest text. */}
+      {step === words.restrictedOpen
+        ? <Button kind="tonal" label={step} onPress={() => { Native.openAppInfo().catch(() => {}); }} />
+        : <Text style={[type.body, { color: t.text, flex: 1 }]}>{step}</Text>}
     </View>)}
-    <View style={styles.open}><Button kind="tonal" label={words.restrictedOpen} onPress={() => { Native.openAppInfo().catch(() => {}); }} /></View>
   </View>;
 }
 
@@ -57,5 +59,5 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'flex-start', gap: space.m },
   step: { flexDirection: 'row', alignItems: 'flex-start', gap: space.m },
   number: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  open: { alignItems: 'flex-start' },
+  open: { alignItems: 'center' },
 });

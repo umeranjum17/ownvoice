@@ -77,7 +77,7 @@ export const words = {
   // Android 13+ blocks the switch for apps installed outside Google Play; App info offers the fix only after one try.
   restrictedTitle:'Android blocks this for apps installed outside Google Play',
   restrictedNote:'Do this once:',
-  restrictedTryFirst:'Tap Turn on, then tap the greyed “Use Ownvoice” switch. Tap OK on Android’s message and come back here.',
+  restrictedTryFirst:'Tap Turn on, then tap the greyed “Ownvoice” row. Close Android’s message and come back here.',
   restrictedOpen:'Open App info',
   restrictedDots:'Tap the three dots at the top right',
   restrictedAllow:'Tap “Allow restricted settings”',

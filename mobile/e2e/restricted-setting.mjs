@@ -42,8 +42,9 @@ const lines = image => {
       const c = row.split('\t');
       if (c.length < 12 || !c[11].trim()) continue;
       const key = c.slice(0, 5).join(':');
-      const line = byLine.get(key) ?? { words: [], left: Infinity, top: Infinity, right: 0, bottom: 0 };
+      const line = byLine.get(key) ?? { words: [], boxes: [], left: Infinity, top: Infinity, right: 0, bottom: 0 };
       line.words.push(c[11]);
+      line.boxes.push({ text: c[11].toLowerCase().replace(/[^a-z]/g, ''), left: +c[6], top: +c[7] + top, right: +c[6] + +c[8], bottom: +c[7] + +c[9] + top });
       line.left = Math.min(line.left, +c[6]); line.top = Math.min(line.top, +c[7] + top);
       line.right = Math.max(line.right, +c[6] + +c[8]); line.bottom = Math.max(line.bottom, +c[7] + +c[9] + top);
       byLine.set(key, line);
@@ -59,15 +60,19 @@ const waitForLine = async (want, tries = 30) => {
   for (let i = 0; i < tries; i++) { text = screenText(); if (text.includes(want)) return text; await wait(1000); }
   throw new Error(`Could not see "${want}" on screen.\n${text}`);
 };
-// Taps the lowest visible line holding [want] (buttons sit below the words that name them).
+// Taps the lowest visible line holding [want] (buttons sit below the words that name them); [exact]
+// taps the lowest word that is exactly [want], for dialog buttons OCR reads on one line ("cancel install").
 const tapText = async (want, { tries = 10, below = 0, exact = false } = {}) => {
   for (let i = 0; i < tries; i++) {
     const read = lines(screen());
-    let hits = read.found.filter(l => l.text.includes(want) && l.top >= below);
-    if (!hits.length) { read.bands(); hits = read.found.filter(l => l.text.includes(want) && l.top >= below); }
-    if (hits.filter(l => !exact || l.text.trim() === want).length) {
-      const line = hits.filter(l => !exact || l.text.trim() === want).sort((a, b) => b.top - a.top)[0];
-      tap(Math.round((line.left + line.right) / 2), Math.round((line.top + line.bottom) / 2));
+    const find = () => exact
+      ? read.found.flatMap(l => l.boxes).filter(b => b.text === want && b.top >= below)
+      : read.found.filter(l => l.text.includes(want) && l.top >= below);
+    let hits = find();
+    if (!hits.length) { read.bands(); hits = find(); }
+    if (hits.length) {
+      const hit = hits.sort((a, b) => b.top - a.top)[0];
+      tap(Math.round((hit.left + hit.right) / 2), Math.round((hit.top + hit.bottom) / 2));
       return;
     }
     await wait(1000);
@@ -75,8 +80,17 @@ const tapText = async (want, { tries = 10, below = 0, exact = false } = {}) => {
   throw new Error(`Could not find "${want}" to tap.\n${screenText()}`);
 };
 const waitFocus = async (part, tries = 10) => {
-  for (let i = 0; i < tries; i++) { if (focus().includes(part)) return; await wait(1000); }
+  for (let i = 0; i < tries; i++) { if (focus().match(part)) return; await wait(1000); }
   throw new Error(`Expected ${part} in front, got ${focus()}.`);
+};
+// Ownvoice's row in Accessibility: Settings may open scrolled past it, and greyed it is too faint for
+// OCR, so scroll to the top and tap the row under its "Downloaded apps" heading.
+const tapOwnvoiceRow = async () => {
+  adb('shell', 'input', 'swipe', String(width / 2), String(height * 0.3), String(width / 2), String(height * 0.85), '300');
+  await wait(1000);
+  const heading = lines(screen()).found.find(l => l.text.includes('downloaded apps'));
+  if (!heading) throw new Error(`No Downloaded apps heading in Settings.\n${screenText()}`);
+  tap(Math.round(width / 2), heading.bottom + Math.round(130 * height / 2400));
 };
 const steps = [];
 const snap = (name, dark, note) => {
@@ -104,8 +118,9 @@ const fileInstall = async () => {
   execFileSync('adb', ['-s', serial, 'push', apk, '/sdcard/Download/Ownvoice.apk'], { stdio: 'ignore' });
   adb('shell', 'appops', 'set', 'com.android.providers.downloads', 'REQUEST_INSTALL_PACKAGES', 'allow');
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW_DOWNLOADS');
-  await waitForLine('ownvoice.apk');
-  await tapText('ownvoice.apk');
+  // At the largest font Files cuts the name to "Ownvoice.a…".
+  await waitForLine('ownvoice.a');
+  await tapText('ownvoice.a');
   await waitForLine('install this app');
   await tapText('install', { exact: true, below: Math.round(height * 0.4) });
   for (let i = 0; !adb('shell', 'pm', 'list', 'packages', pkg).includes(pkg); i++) { if (i === 60) throw new Error('The file install did not finish.'); await wait(1000); }
@@ -143,17 +158,22 @@ try {
     await wait(800);
     snap(tag('01-blocked-card'), dark, 'Permission step on a blocked app: the card above Turn on, its first step the greyed switch');
 
-    // 2. Turn on, then Ownvoice's greyed row: Android's own restricted message, OK.
+    // 2. Turn on, then Ownvoice's greyed row: Android's own message. Android 16 may show it as Settings
+    //    opens on the highlighted row, before any tap.
+    const message = hidden ? 'denied access' : 'for your security';
     await tapText('turn on');
-    await waitFocus('settings');
-    await tapText('ownvoice', { below: Math.round(height * 0.1) });
-    text = await waitForLine('restricted');
+    await waitFocus(/settings|permissioncontroller/);
+    await wait(2500);
+    if (!screenText().includes(message)) await tapOwnvoiceRow();
+    text = await waitForLine(message);
     await wait(500);
-    if (!dark) snap(tag('02-android-restricted'), dark, 'Android\'s own message after tapping the greyed Ownvoice switch');
-    await tapText('ok', { exact: true });
+    if (!dark) snap(tag('02-android-restricted'), dark, 'Android\'s own message on the greyed Ownvoice row');
+    // Close (15+) or OK; the thin Close label can escape OCR, and Back closes the message the same way.
+    await tapText(hidden ? 'close' : 'ok', { exact: true, tries: 3 }).catch(() => adb('shell', 'input', 'keyevent', '4'));
     await wait(1000);
+    if (screenText().includes(message)) throw new Error(`${mode}: Android's message did not close.`);
     logLine(`${mode}: op after the try: ${op()}`);
-    if (!/ignore/i.test(op())) throw new Error(`${mode}: Android did not record the try (${op()}).`);
+    if (!hidden && !/ignore/i.test(op())) throw new Error(`${mode}: Android did not record the try (${op()}).`);
 
     // 3. Back in Ownvoice: re-checked. Where Android tells the app, the try step is gone (four steps);
     //    on Android 15+ it can't know, so all five stay.
@@ -186,15 +206,27 @@ try {
       await wait(500);
       snap(tag('06-lifted'), dark, 'Back after allowing: the card gives way to "That worked. Now tap Turn on."');
     } else await waitForLine('android blocks this');
-    // 6. Turn on: the switch is no longer greyed; Use Ownvoice, then Android's Allow.
-    await tapText('turn on');
-    await waitFocus('settings');
-    await tapText('ownvoice', { below: Math.round(height * 0.1) });
-    await waitForLine('use ownvoice');
+    // 6. Turn on: the switch is no longer greyed; Use Ownvoice, then Android's Allow. The re-check may
+    //    still be redrawing the step, so a tap that lands mid-layout is tried again.
+    for (let i = 0; ; i++) {
+      await wait(1000);
+      await tapText('turn on');
+      try { await waitFocus('settings', 6); break; } catch (error) { if (i === 2) throw error; }
+    }
+    await wait(1500);
+    await tapOwnvoiceRow();
+    await waitForLine('ownvoice shortcut');
+    // At the largest font the service page can open scrolled past its switch.
+    adb('shell', 'input', 'swipe', String(width / 2), String(height * 0.3), String(width / 2), String(height * 0.85), '300');
+    await wait(1000);
     if (screenText().includes('restricted')) throw new Error(`${mode}: Android still says restricted after allowing.`);
+    // The switch row's label sits on a filled pill that full-screen OCR can miss; tapText reads it in bands.
     await tapText('use ownvoice');
     await waitForLine('full control');
-    await tapText('allow', { exact: true });
+    // Allow is the thin first of three stacked buttons (Allow, Deny, Uninstall); OCR reads Deny reliably.
+    const deny = lines(screen()).found.flatMap(l => l.boxes).find(b => b.text === 'deny');
+    if (!deny) throw new Error(`${mode}: no Deny under Android's full-control question.`);
+    tap(Math.round((deny.left + deny.right) / 2), Math.round((deny.top + deny.bottom) / 2 - 150 * height / 2400));
     await waitForLine('tap the bubble to polish it');
     await wait(800);
     snap(tag('07-setup-moves-on'), dark, 'Ownvoice switched on: setup moved on to the practice chat');

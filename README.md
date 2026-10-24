@@ -94,7 +94,7 @@ You know what you want to say. Sometimes it just needs a little tidying. Ownvoic
 2. **Allow the bubble.** Open Ownvoice and choose how it writes. For ChatGPT, approve on ChatGPT's page and you're back, with nothing to type. Then tap **Turn on** and switch on **Use Ownvoice**.
 3. **Try it in a chat.** Start with the practice chat, then choose where the bubble shows. Write a reply, tap the bubble, and pick the version you like.
 
-Android says the app was denied access, or the switch is greyed out? Android 13 and later blocks it for apps installed outside Google Play, and setup shows the way past it: tap the greyed switch once and tap **OK**, then in Ownvoice tap **Open App info**, tap **⋮** at the top right, choose **Allow restricted settings**, and come back to tap **Turn on**. On OPPO, OnePlus or Realme phones, also add Ownvoice to the security app's allowlist ([how](docs/readme/guide.md#download-and-install)). Step-by-step help is in the [user guide](docs/readme/guide.md#get-started).
+Android says the app was denied access, or the switch is greyed out? Android 13 and later blocks it for apps installed outside Google Play, and setup shows the way past it: tap the greyed **Ownvoice** row once and close Android's message, then in Ownvoice tap **Open App info**, tap **⋮** at the top right, choose **Allow restricted settings**, and come back to tap **Turn on**. On OPPO, OnePlus or Realme phones, also add Ownvoice to the security app's allowlist ([how](docs/readme/guide.md#download-and-install)). Step-by-step help is in the [user guide](docs/readme/guide.md#get-started).
 
 Want to build it yourself? See [Build and run](mobile/README.md#android-build-and-device-checks).
 
