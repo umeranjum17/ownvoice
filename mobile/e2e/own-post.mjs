@@ -416,9 +416,8 @@ shot('drafts');
 // (a system toast is not in the accessible tree), against the composer field and the Post button.
 const noteBoxes = [];
 const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+// The note shows for about 4 s, so the screenshots start at once and the boxes are read after the note is found.
 const noteLanded = async (screen, start) => {
-  const field = composer()?.bounds;
-  const post = nodes().find(node => /^(Post|Reply)$/.test(node.text ?? '') && node.app === fixturePkg)?.bounds;
   for (let attempt = 0; attempt < 12; attempt++) {
     const file = resolve(repoRoot, evidence('shot', 'ov-own-posts', screen, label, theme).trim());
     const lines = new Map();
@@ -433,6 +432,9 @@ const noteLanded = async (screen, start) => {
     }
     const found = [...lines.values()].find(line => line.text[0]?.startsWith(start));
     if (found) {
+      const list = nodes();
+      const field = list.find(node => node.className === 'android.widget.EditText' && node.editable)?.bounds;
+      const post = list.find(node => /^(Post|Reply)$/.test(node.text ?? '') && node.app === fixturePkg)?.bounds;
       const entry = { screen, label, theme, note: found.text.join(' '), noteBox: found.box, field, post, coversField: !!field && overlaps(found.box, field), coversPost: !!post && overlaps(found.box, post) };
       noteBoxes.push(entry);
       writeFileSync(resolve(out, `note-boxes-${label}-${theme}.json`), JSON.stringify(noteBoxes, null, 1));
