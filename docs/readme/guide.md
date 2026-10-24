@@ -38,7 +38,7 @@ Select text in any app, choose **Ownvoice** from the selection menu (or share th
 
 ## Turn your notes into posts
 
-Share your raw notes to Ownvoice from your notes app, or select them in a post you're writing and choose **Ownvoice**, then pick **Posts for X**. Ownvoice writes three different posts from those notes, in your voice, each leading with something else: **Main point**, **What happened** and **What I learned**. A post that copies your notes, reads like instructions or adds a number your notes don't have is never shown. Each post shows the same checks as your own posts, and its fit for X once it has one. **Edit** changes a post first; **Copy** copies it, and when you selected the notes in a post you're writing, **Replace** puts it there instead. Nothing is posted: you post it yourself. When the notes came from LinkedIn, Reddit, Threads or Bluesky, the posts are for that place instead.
+Share your raw notes to Ownvoice from your notes app, or select them in a post you're writing and choose **Ownvoice**, then pick **Posts for X**. Ownvoice writes up to three different posts from those notes, in your voice, each leading with something else: **Main point**, **What happened** and **What I learned**. A post that copies your notes, reads like instructions or adds a number your notes don't have is never shown. Each post shows the same checks as your own posts, and its fit for X once it has one. **Edit** changes a post first; **Copy** copies it, and when you selected the notes in a post you're writing, **Replace** puts it there instead. Nothing is posted: you post it yourself. When the notes came from LinkedIn, Reddit, Threads or Bluesky, the posts are for that place instead.
 
 ## Speak instead of typing
 

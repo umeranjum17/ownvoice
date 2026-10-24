@@ -40,8 +40,8 @@ const editWords = {
 // Posts from notes: the selection sheet turns shared or selected notes into three posts for one place.
 const postsWords = {
   postsFor: 'Posts for {name}',
-  postsReplace: 'Three posts from your notes. Edit one if you like. Replace puts it in the field; it is copied too.',
-  postsCopy: 'Three posts from your notes. Edit one if you like, then copy it and paste it where you post.',
+  postsReplace: 'Posts from your notes. Edit one if you like. Replace puts it in the field; it is copied too.',
+  postsCopy: 'Posts from your notes. Edit one if you like, then copy it and paste it where you post.',
   postsNone: "Couldn't write posts from that. Try again, or add a few more notes.",
 } as const;
 

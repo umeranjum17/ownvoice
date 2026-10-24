@@ -113,7 +113,7 @@ if (leg === 'before') {
   nodes(choice);
   steps.push(`Tap ${choice}`);
   // Writing ends with the sheet's own line; then the phone's fit, if any, lands as bars or as one line for the set.
-  const DONE = /^Three posts from your notes\./, NONE = /^Couldn't write posts/;
+  const DONE = /^Posts from your notes\./, NONE = /^Couldn't write posts/;
   const end = await until('the posts', () => nodes().find(n => DONE.test(n.text ?? '') || NONE.test(n.text ?? '')), 1200);
   assert.ok(DONE.test(end.text), `The sheet said: ${end.text}`);
   const NEEDS_ONLINE = 'Fit levels need an online writer, such as your ChatGPT. The writer on this phone can’t rate them.';

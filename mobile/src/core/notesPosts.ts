@@ -23,7 +23,7 @@ function postRules(request: NotesRequest, slot: number, avoid: string[]): string
     `The post: ${NOTE_POSTS[slot].ask}`,
     `Write in first person, in their voice: plain words, short sentences. Keep it under ${Math.min(platform.limit ?? 280, 600)} characters: one post, not a thread.`,
     polishLine(platform),
-    'Use only facts from the notes. Never add numbers, names, dates, times or results that are not in the notes.',
+    'Use only facts from the notes. Never add numbers, names, dates, times or results that are not in the notes, and never say how people felt or reacted beyond what the notes say.',
     'Write the post itself, not advice about writing one, and do not copy the notes as they are.',
     request.dashes === 'remove' ? 'No hashtags, emoji, flattery or long dashes.' : 'No hashtags, emoji or flattery.',
     request.guide ? `Their rules and note: ${request.guide}` : '',
