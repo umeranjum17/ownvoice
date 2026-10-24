@@ -26,8 +26,9 @@ let geometry;
 const textOf = n => `${n.label} ${n.text}`.toLowerCase();
 const find = text => nodes().find(n => textOf(n).includes(text.toLowerCase()));
 const seen = async (text, timeout = 45000) => {
+  const match = typeof text === 'function' ? text : n => textOf(n).includes(text.toLowerCase());
   const end = Date.now() + timeout;
-  while (Date.now() < end) { const n = find(text); if (n) return n; await wait(800); }
+  while (Date.now() < end) { const n = nodes().find(match); if (n) return n; await wait(800); }
   throw new Error(`Missing ${text}: ${nodes().map(n => n.text || n.label).filter(Boolean).join(' | ').slice(0, 500)}`);
 };
 const tap = async text => { const n = await seen(text); adb('shell', 'input', 'tap', ...center(n).map(x => String(Math.round(x)))); await wait(800); };
@@ -47,7 +48,7 @@ const snap = async (name, result) => {
     steps, result: steps.at(-1).result,
   }, null, 2));
 };
-const footer = () => nodes().find(n => n.className === 'android.widget.Button' && /^(continue|sign in|get it ready)$/i.test((n.label || n.text).trim()));
+const footer = () => seen(n => n.className === 'android.widget.Button' && /^(continue|sign in|get it ready)$/i.test((n.label || n.text).trim()));
 const radios = () => nodes().filter(n => n.checkable && n.app === pkg);
 // Synthetic app-owned restore fixture: no credentials or existing owner state is read/copied.
 const restorePractice = async () => {
@@ -89,7 +90,7 @@ try {
     await tap('Continue');
     await seen('how should ownvoice write');
     await wait(2000); // Allow the phone capability answer to settle; disabled buttons are not clickable nodes.
-    const action = footer();
+    const action = await footer();
     assert(action, 'The main choice action is visible.');
     assert.equal(action.enabled, before, 'Continue is disabled until an explicit tap, unlike the baseline.');
     assert.equal(radios().filter(n => n.checked).length, before ? 1 : 0, 'No writer is preselected.');
@@ -104,7 +105,8 @@ try {
       adb('shell', 'input', 'swipe', String(width / 2), String(height * .75), String(width / 2), String(height * .3), '300'); await wait(800);
     }
     await tap('with your chatgpt');
-    assert.equal(footer()?.enabled, true, 'An explicit writer tap enables Continue.');
+    await seen(n => n.checkable && n.checked && textOf(n).includes('with your chatgpt'));
+    assert.equal((await footer()).enabled, true, 'An explicit writer tap enables Continue.');
     assert.equal(radios().filter(n => n.checked).length, 1);
     await snap(`${tag}-chosen`, 'The person tapped their account; Continue is enabled. No sign-in or generation was requested.');
     if (recorder) {
