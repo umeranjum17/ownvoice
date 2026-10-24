@@ -92,11 +92,11 @@ const tapOwnvoiceRow = async () => {
   if (!heading) throw new Error(`No Downloaded apps heading in Settings.\n${screenText()}`);
   tap(Math.round(width / 2), heading.bottom + Math.round(130 * height / 2400));
 };
-const steps = [];
+const captures = [];
 const snap = (name, dark, note) => {
   if (!adb('shell', 'dumpsys', 'uimode').includes(`mComputedNightMode=${dark}`)) throw new Error(`Wrong colour mode for ${name}.`);
   execFileSync('magick', ['png:-', resolve(out, `${name}.png`)], { input: screen() });
-  steps.push({ capture: `${name}.png`, shows: note });
+  captures.push({ capture: `${name}.png`, shows: note });
   logLine(`saved ${name}.png: ${note}`);
 };
 const backToOwnvoice = async () => {
@@ -231,7 +231,22 @@ try {
     await wait(800);
     snap(tag('07-setup-moves-on'), dark, 'Ownvoice switched on: setup moved on to the practice chat');
   }
-  writeFileSync(resolve(out, 'steps.json'), JSON.stringify(steps, null, 2) + '\n');
+  // done-done's step record: what was driven, from where, the user's steps, and what they see at the end.
+  const version = adb('shell', 'dumpsys', 'package', pkg).match(/versionName=(\S+)/)?.[1] ?? 'unknown';
+  writeFileSync(resolve(out, 'steps.json'), JSON.stringify({
+    target: { version, android: sdk, device: avd },
+    start: 'Ownvoice installed from a file in Downloads through Android\'s own installer, so Android greys its accessibility switch; setup on the permission step',
+    steps: [
+      'Read the card above Turn on: Android blocks this for apps installed outside Google Play, with five steps and Open App info',
+      'Tap Turn on, then the greyed Ownvoice row; Android says App was denied access; close it',
+      'Come back to Ownvoice: the card is still there',
+      'Tap Open App info: Ownvoice\'s App info opens',
+      'Tap the three dots at the top right, then Allow restricted settings',
+      'Come back to Ownvoice and tap Turn on, then Use Ownvoice and Allow',
+    ],
+    result: 'Ownvoice is switched on and setup has moved on to the practice chat (light at the default font, dark at the largest)',
+    captures,
+  }, null, 2) + '\n');
   logLine(`Restricted-setting proof saved to ${out}.`);
 } finally {
   adb('shell', 'settings', 'put', 'system', 'font_scale', priorScale === 'null' ? '1.0' : priorScale);
