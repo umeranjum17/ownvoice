@@ -6,7 +6,7 @@ import { checkAddress } from '../core/plainAddress';
 /** Emulator-only stand-in (EXPO_PUBLIC_E2E_OPENROUTER_BASE, never set in a distributable build): OpenRouter's address
  *  becomes the host's `e2e/pi-writer.mjs`, for the list the kit reads as well as for the chat. */
 const OPENROUTER = 'https://openrouter.ai/api/v1';
-export const proofRoute = (url: string): string => {
+const proofRoute = (url: string): string => {
   const base = process.env.EXPO_PUBLIC_E2E_OPENROUTER_BASE;
   return base && url.startsWith(OPENROUTER) ? base + url.slice(OPENROUTER.length) : url;
 };

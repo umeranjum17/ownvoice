@@ -64,3 +64,13 @@ jest.mock('expo-sqlite/kv-store', () => {
   return { __esModule: true, default: new Storage(), Storage, __map: map };
 });
 jest.mock('react-native-webview', () => ({ WebView: (props) => { globalThis.__web = props; return null; } }));
+// The kit's key-runtime seam lazily loads its pinned Pi adapters with native dynamic import(), which the jest VM refuses
+// without --experimental-vm-modules. This loads the kit's own runtime (its model routes included) and gives the adapters
+// through require instead: identical files, identical runtime, only the loader differs.
+jest.mock('@byokit/accounts/keys', () => {
+  const path = require('path');
+  const kitRoot = path.dirname(require.resolve('@byokit/accounts/keys'));
+  const runtime = { ...require(path.join(kitRoot, 'portable-keys.js')).runtime, api: async name => require(path.join(kitRoot, 'pi', `${name}.js`)), cloudflare: async () => require(path.join(kitRoot, 'pi', 'cloudflare-stream.js')) };
+  const keys = async () => runtime;
+  return { keys, withKeys: platform => ({ ...platform, keys }) };
+});

@@ -1,12 +1,13 @@
-import { proofRoute, responseFetch } from './responseFetch';
+import { responseFetch } from './responseFetch';
 import * as SecureStore from 'expo-secure-store';
-import { Accounts, liveLimits, offered, portable, PROVIDERS, route, secureStore } from '@byokit/accounts';
-import { withKeys } from '@byokit/accounts/keys';
+import { Accounts, offered, portable, PROVIDERS, resolveModel, route, secureStore } from '@byokit/accounts';
+import { keys, withKeys } from '@byokit/accounts/keys';
 import { nativeStore } from '@byokit/secrets/native';
 import { CryptoDigestAlgorithm, digest as sha256, getRandomValues } from 'expo-crypto';
 
 import type { CloudKey } from '../core/source';
-import type { Model, OpenCodeGoWorkspace } from '@byokit/accounts';
+import type { Api, Model, OpenCodeGoWorkspace } from '@byokit/accounts';
+import type { KeyRuntime } from '@byokit/accounts/keys';
 const member = 'owner';
 const store = secureStore(SecureStore, 'ownvoice.chatgpt.1');
 // API keys (billed per use) live only in the phone's own secure store, never in the account store.
@@ -109,37 +110,28 @@ export async function codexAuth(): Promise<{ access: string; accountId: string }
   return { access: auth.auth.apiKey, accountId: credential.accountId };
 }
 
-/** OpenCode Go's chat endpoint, as the plan's own gateway serves it; the kit's route names only where its list is read. */
-const OPENCODE_CHAT = 'https://opencode.ai/zen/go/v1';
-
 /** The vendor's own live list for one account: each row `{ id, name, available, why? }`, nothing kept in this app.
  *  Empty when the account is not ready; a list the vendor won't give throws, so the screen can say so and offer to try again. */
 export const listModels = async (key: CloudKey) => getInstance().models(member, (await getInstance().status(member, accountRoute(key))).id);
 
-const noPrice = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 };
-const keyModels = new Map<string, Promise<Model<'openai-completions'>>>();
+const keyModels = new Map<string, Promise<Model<Api>>>();
+let kitModels: Promise<ReturnType<KeyRuntime['createModels']>> | undefined;
+const models = () => kitModels ??= keys().then(({ createModels }) => createModels({ authContext: { env: async () => undefined, fileExists: async () => false } }));
 
-/** A key route's typed model for the id the person picked: the route's own API and address from the kit, the size
- *  and price from that vendor's live list when it gives them (else the kit's safe defaults). This is never shown to the person.
- *  `EXPO_PUBLIC_E2E_OPENROUTER_BASE` (emulator-only, see `proofRoute`) points OpenRouter at the host's `e2e/pi-writer.mjs`, which
- *  answers through @byokit/decide's pi backend, so the live reply proof can run on the real route without a provider key. */
-function keyModel(key: 'openrouter' | 'opencode', id: string): Promise<Model<'openai-completions'>> {
+/** A key route's typed model for the id the person picked, resolved by the kit from the vendor's live list (limits and price
+ *  when it gives them, else the kit's documented defaults); this app keeps no model rows. This is never shown to the person.
+ *  `EXPO_PUBLIC_E2E_OPENROUTER_BASE` (emulator-only, see `proofRoute`) points OpenRouter's list and chat at the host's
+ *  `e2e/pi-writer.mjs`, so the live reply proof can run on the real route without a provider key. */
+function keyModel(key: 'openrouter' | 'opencode', id: string): Promise<Model<Api>> {
   const at = `${key}:${id}`;
   let found = keyModels.get(at);
   if (!found) {
     found = (async () => {
-      const r = route(key === 'opencode' ? OPENCODE_ROUTE : 'openrouter:key', { platform: 'rn' });
-      if (r.models?.api !== 'openai-completions') throw new Error('This account lists no models.');
-      const limits = await liveLimits({ api: r.models.api, baseUrl: r.models.baseUrl, id }, { apiKey: await getInstance().key(member, accountRoute(key)), fetch: responseFetch });
-      const contextWindow = limits.contextWindow ?? 128_000;
-      return {
-        id, name: id, api: 'openai-completions', provider: r.upstream.id, reasoning: false, input: ['text'],
-        baseUrl: key === 'opencode' ? OPENCODE_CHAT : proofRoute(r.models.baseUrl),
-        cost: limits.cost ?? noPrice, contextWindow, maxTokens: Math.min(limits.maxTokens ?? 16_384, contextWindow),
-        // The plan's gateway turns away a request that carries no session (400 on activate), so the model opts into
-        // the adapter's session-affinity headers through its own compat seam.
-        ...(key === 'opencode' ? { compat: { sendSessionAffinityHeaders: true, sessionAffinityFormat: 'openai' as const } } : {}),
-      } as Model<'openai-completions'>;
+      const resolved = await resolveModel(await models(), key === 'opencode' ? 'opencode-go' : 'openrouter', id, { apiKey: await getInstance().key(member, accountRoute(key)), fetch: responseFetch });
+      if (!resolved) throw new Error('This account lists no models.');
+      // The plan's gateway turns away a request that carries no session (400 on activate), so the model opts into
+      // the adapter's session-affinity headers through its own compat seam.
+      return key === 'opencode' ? { ...resolved.model, compat: { ...resolved.model.compat, sendSessionAffinityHeaders: true, sessionAffinityFormat: 'openai' as const } } as Model<Api> : resolved.model;
     })();
     keyModels.set(at, found);
     found.catch(() => keyModels.delete(at));

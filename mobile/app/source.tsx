@@ -19,7 +19,7 @@ import { showsBubble } from '../src/core/privacy';
 import { pickedModel } from '../src/core/model';
 import { cloudSession, getSource, phoneOnly, setSource, type CloudKey, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
-import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, mocked, nothing, termsOf, type GptState } from '../src/chatgpt/session';
+import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, asksModel, nothing, termsOf, type GptState } from '../src/chatgpt/session';
 import { appsLine } from './index';
 import Native from '../modules/ownvoice-native';
 
@@ -96,9 +96,6 @@ export default function SourceScreen() {
     if (!live.current || at !== attempt.current) return;
     if (next.signedIn) { setSignIn(null); setState(key, next); choose(key); chooseModel(key); } else setSignIn({ key, state: next });
   };
-
-  // The emulator's ChatGPT stand-in (EXPO_PUBLIC_E2E_GPT) has no list to pick from.
-  const asksModel = (key: CloudKey) => !(mocked && key === 'chatgpt');
 
   /** A signed-in account with no pick yet: ask which one writes, right away (never a choice made for the person). */
   const chooseModel = (key: CloudKey) => { if (asksModel(key) && !pickedModel(key)) router.push(`/model?account=${key}`); };

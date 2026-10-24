@@ -15,7 +15,7 @@ import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, store, type CheckinAnswer, type Outcome } from '../src/core/store';
 import { cloudOf, cloudSession, getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
-import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, mocked, type GptState } from '../src/chatgpt/session';
+import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, asksModel, type GptState } from '../src/chatgpt/session';
 import { pickedModel } from '../src/core/model';
 import { openCodeReady, openRouterReady } from '../src/chatgpt/accounts';
 import { say } from '@byokit/accounts';
@@ -191,7 +191,7 @@ export default function Home() {
   // Never ready from missing data: wait until the writer, its apps and this phone's answer are known.
   const checking = source === undefined || rules === null || viaPhone && model === null || viaGpt && (gpt === null || apps === null || model === null) || viaClaude && (claude === null || apps === null || model === null) || viaOpenRouter && (openrouter === null || apps === null || model === null) || viaOpenCode && (openCode === null || apps === null || model === null);
   // Signed in and ready, but the person has not picked which one writes: ask, never pick for them.
-  const needsModel = !!cloud && !gptLine && !mocked && !pickedModel(cloud);
+  const needsModel = !!cloud && !gptLine && asksModel(cloud) && !pickedModel(cloud);
   const green = !needs && !needsModel && on && !paused && problem === null && !ask && !gptLine && !cantWrite && !checking;
   const headline = needs ? words.needWriter : needsModel ? words.needModel : !on ? words.statusOff : ask ? keptLine ?? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : cantWrite ?? (checking ? words.statusChecking : words.statusReady));
   const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : needsModel ? words.needModelNote : !on ? words.statusOffNote : ask ? (keptLine ? words.cantWriteReadyNote : words.readyNote) : problem

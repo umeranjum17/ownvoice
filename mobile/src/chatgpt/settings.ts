@@ -12,7 +12,7 @@ import { store } from '../core/store';
 import { cloudWords, computerWords, needWriter, routeWriters, SendVeto, thrower, withPhoneFallback, type Writer, type WriterEvents, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
-import { mocked, signOutGuard } from './session';
+import { asksModel, mocked, signOutGuard } from './session';
 const stubbed = process.env.EXPO_PUBLIC_E2E_STUB === '1';
 type BubbleRules = Awaited<ReturnType<typeof Native.bubbleRules>>;
 let rulesNow: BubbleRules | null = null;
@@ -167,7 +167,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
     signedIn: state.signedIn,
     phoneOnlyApp: listed || !visible,
     enabled,
-    needsModel: !mocked && !pickedModel(key),
+    needsModel: asksModel(key) && !pickedModel(key),
     note: state.resting ?? (!state.signedIn ? state.note : null),
     phone,
     lines: cloudWords(key),

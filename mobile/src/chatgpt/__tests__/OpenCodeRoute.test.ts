@@ -6,26 +6,6 @@
 
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args) }));
 
-// The kit's key-runtime seam lazily loads its pinned Pi adapters with native dynamic import(),
-// which the jest VM refuses without --experimental-vm-modules. Load those same modules through
-// require instead — identical files, identical runtime, only the loader differs.
-jest.mock('@byokit/accounts/keys', () => {
-  const path = require('path');
-  const kitRoot = path.dirname(require.resolve('@byokit/accounts/keys'));
-  const pi = (name: string) => require(path.join(kitRoot, 'pi', `${name}.js`));
-  return {
-    withKeys: (platform: object) => ({
-      ...platform,
-      keys: async () => ({
-        ...pi('core'),
-        supported: ['openai-completions', 'openai-responses', 'anthropic-messages', 'google-generative-ai', 'mistral-conversations', 'pi-messages', 'azure-openai-responses'],
-        api: async (name: string) => pi(name),
-        cloudflare: async () => pi('cloudflare-stream'),
-      }),
-    }),
-  };
-});
-
 // The jest-setup secure-store mock never keeps a value; this journey needs the plan key to survive
 // from the paste to the ask, exactly as the phone's own store does.
 jest.mock('expo-secure-store', () => {
@@ -114,7 +94,7 @@ test('a pasted plan key answers askCloud on the plan endpoint, with the kit\'s s
   // One request, on the plan's own endpoint, carrying the plan's model and both prompt parts.
   expect(seen).toHaveLength(1);
   const [call] = seen;
-  expect(call.url).toBe('https://opencode.ai/zen/go/v1/chat/completions');
+  expect(call.url).toBe('https://opencode.ai/inference/go/v1/chat/completions');
   expect(call.body.model).toBe(PICKED.model);
   const messages = JSON.stringify(call.body.messages);
   expect(messages).toContain('system');

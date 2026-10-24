@@ -3,22 +3,6 @@ jest.setTimeout(20000);
 // OpenRouter key reads that vendor's full live list, the person searches and picks, and every ask then names that pick.
 // Only the network and the phone's secure store are fixtures (as OpenCodeConnect.test).
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => globalThis.fetch(...args) }));
-jest.mock('@byokit/accounts/keys', () => {
-  const path = require('path');
-  const kitRoot = path.dirname(require.resolve('@byokit/accounts/keys'));
-  const pi = (name: string) => require(path.join(kitRoot, 'pi', `${name}.js`));
-  return {
-    withKeys: (platform: object) => ({
-      ...platform,
-      keys: async () => ({
-        ...pi('core'),
-        supported: ['openai-completions', 'openai-responses', 'anthropic-messages', 'google-generative-ai', 'mistral-conversations', 'pi-messages', 'azure-openai-responses'],
-        api: async (name: string) => pi(name),
-        cloudflare: async () => pi('cloudflare-stream'),
-      }),
-    }),
-  };
-});
 jest.mock('expo-secure-store', () => {
   const map = new Map<string, string>();
   return {
