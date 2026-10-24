@@ -49,8 +49,10 @@ const wait = ms => new Promise(r => setTimeout(r, ms));
 // Fixture and probe builds stay out of [outdir], which holds only the proof.
 const scratch = mkdtempSync(join(tmpdir(), 'own-post-fit-'));
 const nodes = accessibilityProbe(serial, scratch);
-const shot = name => writeFileSync(resolve(out, `${name}-${label}.png`), execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 }));
+let frame = '390';
+const shot = name => writeFileSync(resolve(out, `${name}-${frame}-${label}.png`), execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 24 * 1024 * 1024 }));
 const tap = (...point) => adb('shell', 'input', 'tap', String(Math.round(point[0])), String(Math.round(point[1])));
+const scroll = (up = false) => { const [w, h] = [...adb('shell', 'wm', 'size').matchAll(/(\d+)x(\d+)/g)].at(-1).slice(1).map(Number); adb('shell', 'input', 'swipe', String(w / 2), String(h * (up ? .3 : .8)), String(w / 2), String(h * (up ? .8 : .3)), '400'); };
 const until = async (find, what, tries = 40) => {
   for (let i = 0; i < tries; i++) { const found = await find(); if (found) return found; await wait(1000); }
   throw new Error(`Timed out waiting for ${what}.`);
@@ -158,18 +160,19 @@ const jevSettings = async (theme, ending = false) => {
   if (!ending) {
     adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://', pkg);
     await wait(2000);
-    if (!nodes().some(n => n.text === 'Ratings with Jev')) adb('shell', 'input', 'swipe', '540', '1800', '540', '950', '400');
+    if (!nodes().some(n => n.text === 'Ratings with Jev')) scroll();
     await until(() => nodes().some(n => n.text === 'Ratings with Jev'), 'the Home settings row');
     await wait(1500); shot(`home-${theme}`);
-  }
-  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://ratings', pkg);
-  const toggle = () => nodes().find(n => n.app === pkg && n.label === 'Use Jev for ratings' && n.checkable);
+    nodes('Ratings with Jev');
+  } else adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://ratings', pkg);
+  const click = async text => { await until(() => { if (nodes().some(n => n.text === text || n.label === text)) return true; scroll(); return false; }, text); nodes(text); };
+  const toggle = () => { const found = nodes().find(n => n.app === pkg && n.label === 'Use Jev for ratings' && n.checkable); if (!found) scroll(); return found; };
   await until(toggle, 'the Jev rating switch');
   if (ending) {
     nodes('Use Jev for ratings');
     await until(() => { const n = toggle(); return n && !n.checked; }, 'Jev off');
     shot(`jev-off-${theme}`);
-    nodes('Disconnect Jev');
+    await click('Disconnect Jev');
     await until(() => nodes().some(n => n.password && n.editable), 'the removed Jev account');
     shot(`jev-disconnected-${theme}`);
     return;
@@ -178,21 +181,23 @@ const jevSettings = async (theme, ending = false) => {
   if (initial.checked || initial.enabled) throw new Error('Jev was not off and disconnected by default.');
   await wait(1500);
   shot(`jev-default-${theme}`);
-  const recording = theme === 'light' ? spawn('adb', ['-s', serial, 'shell', 'screenrecord', '--time-limit', '45', '/sdcard/jev-consent.mp4'], { stdio: 'ignore' }) : null;
+  const recording = theme === 'light' && frame === '390' ? spawn('adb', ['-s', serial, 'shell', 'screenrecord', '--time-limit', '45', '/sdcard/jev-consent.mp4'], { stdio: 'ignore' }) : null;
   const recorded = recording ? new Promise((resolve, reject) => { recording.once('error', reject); recording.once('exit', code => code === 0 ? resolve() : reject(new Error(`screenrecord exit ${code}`))); }) : null;
   const field = await until(() => nodes().find(n => n.app === pkg && n.password && n.editable), 'the Jev key field');
   tap(...center(field));
   adb('shell', 'input', 'text', 'fixture-jev-key');
   adb('shell', 'input', 'keyevent', '4');
-  nodes('Agree and connect Jev');
+  await click('Agree and connect Jev');
   await until(() => { const n = toggle(); return n && n.enabled && !n.checked; }, 'connected but still off');
   shot(`jev-connected-off-${theme}`);
   nodes('Use Jev for ratings');
   await until(() => toggle()?.checked, 'Jev on');
   await wait(1000);
   shot(`jev-on-${theme}`);
+  for (let i = 0; i < 3; i++) scroll(true);
+  await wait(1000); shot(`jev-consent-${theme}`);
   if (recorded) { await recorded; adb('pull', '/sdcard/jev-consent.mp4', resolve(out, 'jev-consent.mp4')); adb('shell', 'rm', '-f', '/sdcard/jev-consent.mp4'); }
-  appendFileSync(resolve(out, 'steps.jsonl'), JSON.stringify({ theme, result: 'default off; BYOKit key saved; still off until switched on' }) + '\n');
+  appendFileSync(resolve(out, 'steps.jsonl'), JSON.stringify({ theme, frame, result: 'default off; BYOKit key saved; still off until switched on' }) + '\n');
 };
 
 /** One own post on one platform in one theme: type it, open the panel, wait for the rated cards. */
@@ -230,7 +235,7 @@ async function one(id, theme) {
   const top = panelNodes();
   shot(`${id}-post-${theme}`);
   // The last versions sit below the fold: scroll the sheet once and read and shoot again.
-  const [w, h] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
+  const [w, h] = [...adb('shell', 'wm', 'size').matchAll(/(\d+)x(\d+)/g)].at(-1).slice(1).map(Number);
   adb('shell', 'input', 'swipe', String(w / 2), String(Math.round(h * 0.8)), String(w / 2), String(Math.round(h * 0.35)), '500');
   await wait(1500);
   const below = panelNodes();
@@ -259,15 +264,27 @@ try {
   }
   // Both fixture packages are on by default (src/core/defaultApps.json), so no switch is touched.
   if (!adb('shell', 'pm', 'path', pkg).includes('package:')) throw new Error('Install the app and run e2e/first-run.mjs first.');
-  for (const theme of ['light', 'dark']) {
+  for (const [width, height, density, font] of [[390, 844, 480, 1], [360, 800, 480, 1], [445, 932, 480, 1], [360, 800, 480, 1.3], [1280, 800, 160, 1]]) {
+    frame = `${width}${font === 1.3 ? '-font13' : ''}`;
+    adb('shell', 'wm', 'size', `${width * density / 160}x${height * density / 160}`);
+    adb('shell', 'wm', 'density', String(density));
+    adb('shell', 'settings', 'put', 'system', 'font_scale', String(font));
+    for (const theme of ['light', 'dark']) {
     evidence('theme', theme);
     // React Native reads the colour scheme at process start (AGENTS.md): restart, then rebind.
     adb('shell', 'am', 'force-stop', pkg);
     await rebind();
     await connect();
+    if (before && process.env.JEV_LAYOUT_ONLY === '1') {
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://', pkg);
+      await wait(2000); scroll(); await wait(1000); shot(`home-${theme}`);
+      if (nodes().some(n => n.text === 'Ratings with Jev')) throw new Error('Base build already has the Jev settings row.');
+      continue;
+    }
     if (!before) await jevSettings(theme);
-    for (const id of Object.keys(FIXTURES)) await one(id, theme);
+    if (width === 390) for (const id of Object.keys(FIXTURES)) await one(id, theme);
     if (!before) await jevSettings(theme, true);
+    }
   }
   // Every request the stand-in saw must be a post rating: the platform's post rubric, no parent.
   const seen = readFileSync(requests, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
@@ -280,7 +297,7 @@ try {
       if (!r.instructions.every(line => line.includes(`A new ${r.platform} post`))) throw new Error(`A ${r.platform} rating did not use the post rubric: ${r.instructions.join(' | ')}`);
     }
   }
-  writeFileSync(resolve(out, 'steps.json'), JSON.stringify({ result: 'PASS', label, requests: seen.length, route: 'Jev fixed-answer HTTP fixture; generation uses the E2E stub; no real account or spend' }, null, 2));
+  writeFileSync(resolve(out, 'steps.json'), JSON.stringify({ result: 'PASS', steps: ['Open Home and Ratings with Jev in each width, theme and font case', 'Connect the synthetic key through BYOKit; verify ratings stay off', 'Turn Jev on; rate native X and Reddit lab drafts through the HTTP fixture', 'Turn Jev off and disconnect it in every layout'], label, requests: seen.length, route: 'Jev fixed-answer HTTP fixture; generation uses the E2E stub; no real account or spend' }, null, 2));
   console.log(`own-post-fit ${label}: PASS (${seen.length} stand-in requests). Shots and log in ${out}.`);
 } finally {
   standin.close();

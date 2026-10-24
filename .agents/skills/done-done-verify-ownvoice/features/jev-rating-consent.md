@@ -10,8 +10,8 @@ Source: `mobile/app/ratings.tsx`, `mobile/src/chatgpt/settings.ts`,
    account with synthetic secure storage and HTTP answers: default off, all four
    writer routes when off, opt-in, withdrawal, disconnection, privacy vetoes and
    refused/limited/unavailable Jev responses. No actual Jev call is made.
-2. Use an owned 1080x2400 x86_64 emulator, through the memory gate, one lane at a
-   time. Build per `mobile/README.md` with `EXPO_PUBLIC_E2E_STUB=1`,
+2. Use an owned x86_64 emulator, through the memory gate, one lane at a
+   time (`-gpu guest -feature -WiFiPacketStream,-Uwb`, Wi-Fi off). Build per `mobile/README.md` with `EXPO_PUBLIC_E2E_STUB=1`,
    `EXPO_PUBLIC_E2E_GPT=1`, `EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455` and
    `EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18612`. Do not embed a Jev key.
    These are proof-only flags, never a distributable build. No local model runs.
@@ -21,7 +21,9 @@ Source: `mobile/app/ratings.tsx`, `mobile/src/chatgpt/settings.ts`,
    no real sign-in, paid writer, send or post occurs.
 4. Run `ANDROID_SERIAL=emulator-NNNN OWNVOICE_AVD_NAME=<owned> JAVA_HOME=<jdk>
    node mobile/e2e/own-post-fit.mjs <apk> <capture-output>`. The driver captures
-   the new Home row and **Ratings with Jev** in light and dark. It must begin off
+   the new Home row and **Ratings with Jev** in light and dark at 360, 390 and
+   445 dp, plus 360 dp with font 1.3 and the reachable 1280x800 large-screen window.
+   These are `wm size`/density changes in the same owned boot. It must begin off
    and disconnected, show Jev/TypeSafe, the post/drafts/writing examples sent, and
    per-use billing outside the writing plan. It pastes `fixture-jev-key` into the
    real key field and presses **Agree and connect Jev**. Saving the key must leave
@@ -34,8 +36,10 @@ Source: `mobile/app/ratings.tsx`, `mobile/src/chatgpt/settings.ts`,
 6. Inspect every retained PNG. The complete consent/cost text and switch must be
    readable without overlap or clipping. Confirm no secret is visible. Keep
    `steps.json` with a non-empty result and the request record beside the shots.
-   Use a published base APK on the same owned emulator for before Home captures;
-   the ratings screen is new, so there is no before version of that screen.
+   For before Home captures, first build the base commit in the same isolated worktree
+   with the same fixture flags and run the driver with `OWNVOICE_BEFORE=1
+   JEV_LAYOUT_ONLY=1`. Restore the feature branch and install its exact APK afterwards.
+   The ratings screen is new, so there is no before version of that screen.
 
 ## Evidence and limits
 

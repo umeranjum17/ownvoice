@@ -41,7 +41,7 @@ export default function Ratings() {
     } catch { setProblem(words.jevForgetFailed); }
     finally { setBusy(false); }
   };
-  return <Page title={words.jevTitle} note={words.jevNote} onBack={() => router.back()}>
+  return <Page title={words.jevTitle} note={words.jevNote} stickyTop onBack={() => router.back()}>
     <Text style={[type.body, { color: t.text }]}>{words.jevConsent}</Text>
     <Text style={[type.body, { color: t.text }]}>{words.jevCost}</Text>
     <Text style={[type.note, { color: t.muted }]}>{words.jevScope}</Text>
