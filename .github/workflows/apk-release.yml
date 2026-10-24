@@ -67,6 +67,8 @@ jobs:
         working-directory: mobile/android
         env:
           OWNVOICE_RELEASE_SIGNING: '1'
+          # Marks this build as a tagged release; every other build says pre-release (src/core/version.ts).
+          EXPO_PUBLIC_OWNVOICE_RELEASE: '1'
           OWNVOICE_KEYSTORE_PATH: ${{ runner.temp }}/ownvoice-release.jks
           OWNVOICE_STORE_PASSWORD: ${{ secrets.OWNVOICE_STORE_PASSWORD }}
           OWNVOICE_KEY_ALIAS: ${{ secrets.OWNVOICE_KEY_ALIAS }}

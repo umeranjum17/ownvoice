@@ -13,6 +13,7 @@ import { hostKeyFile } from '@byokit/pair/node';
 import { WebSocketServer } from 'ws';
 import { write } from './write.mjs';
 
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'));
 const { values: flags } = parseArgs({ options: { via: { type: 'string', default: 'lan' }, port: { type: 'string', default: '7441' }, url: { type: 'string' }, claude: { type: 'string', default: 'claude' } } });
 const state = join(process.env.XDG_CONFIG_HOME ?? join(homedir(), '.config'), 'ownvoice-computer');
 mkdirSync(state, { recursive: true, mode: 0o700 });
@@ -26,7 +27,7 @@ const host = await Host.open({
   grants: { load: () => { try { return JSON.parse(readFileSync(join(state, 'phones.json'), 'utf8')); } catch { return []; } }, save: (g) => writeFileSync(join(state, 'phones.json'), JSON.stringify(g), { mode: 0o600 }) },
   confirm: async ({ name, words }) => /^y/i.test(await ask(`\n${name} wants to pair. Does it show "${words}"? (y/n) `)),
   handle: async (req) => {
-    if (req.op === 'hello') return { ok: true };
+    if (req.op === 'hello') return { ok: true, version };
     if (req.op === 'write') { console.log('A phone asked for a draft.'); return write(req.args ?? {}, { claude: flags.claude }); }
     throw new Error('Unknown request.');
   },

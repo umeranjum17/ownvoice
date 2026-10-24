@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Row } from '../src/ui/Row';
@@ -8,6 +8,7 @@ import { Progress } from '../src/ui/Progress';
 import { Button } from '../src/ui/Button';
 import { Badge } from '../src/ui/Badge';
 import { Dot } from '../src/ui/Dot';
+import { isRelease, versionName } from '../src/core/version';
 import { ChatIcon, CheckIcon, EyeIcon, GridIcon, HandIcon, LockIcon, PauseIcon, PenIcon, TrendIcon } from '../src/ui/icons';
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
@@ -284,6 +285,10 @@ export default function Home() {
     {process.env.EXPO_PUBLIC_PHONE_AGENT === '1' && <View style={group}>
       <Row lead={icon(ChatIcon)} title={words.agentRow} onPress={() => router.push('/agent')} />
     </View>}
+
+    {versionName() && <Pressable accessibilityRole="link" accessibilityLabel={`${words.aboutTitle}, ${versionName()}`} onPress={() => router.push('/about')} style={styles.version}>
+      <Text style={[type.note, { color: t.muted }]}>{`Ownvoice ${versionName()}${isRelease() ? '' : ' · pre-release'}`}</Text>
+    </Pressable>}
   </ScrollView></View>;
 }
 
@@ -296,6 +301,7 @@ const styles = StyleSheet.create({
   resting: { opacity: 0.55 },
   tip: { flexDirection: 'row', alignItems: 'flex-start', gap: space.l, borderRadius: shape.group, borderWidth: 1, borderStyle: 'dashed', padding: space.l },
   statusActions: { flexDirection: 'row', flexWrap: 'wrap', gap: space.s, marginTop: space.l },
+  version: { minHeight: 48, justifyContent: 'center', alignItems: 'center' },
   growth: { gap: space.s, borderRadius: shape.group, padding: space.l },
   answers: { flexDirection: 'row', gap: space.m, marginTop: space.s },
   answerCol: { flex: 1, gap: space.xs, alignItems: 'flex-start' },
