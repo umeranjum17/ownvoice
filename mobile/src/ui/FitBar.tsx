@@ -32,11 +32,12 @@ const sentence = (parts: string[]) => parts.map(part => part.replace(/\.$/, ''))
 
 const GLOSS = [words.fitWhySkipped, words.fitWhyVague, words.fitWhyGood, words.fitWhyStrong] as const;
 
-/** Whether the bar shows for this card: a judged or abstained fit, or a rule flag on its own. */
+/** Whether the bar shows for this card: a judged or abstained fit, or a rule flag on its own.
+ *  The phone writer's abstention shows no bar: the panel says once, for the set, that levels need an online writer. */
 export function fitBarVisible(fit: Fit | undefined, ratings: Ratings | null): boolean {
   if (!fit) return false;
   if (fitFlag(ratings) || fit.refusal) return true;
-  return fit.level != null || fit.words === UNSURE;
+  return fit.level != null || fit.words === UNSURE && !fit.onPhone;
 }
 
 /** Whether the bar carries a real verdict that replaces the engagement row: a rule flag or a level.

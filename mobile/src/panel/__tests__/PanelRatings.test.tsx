@@ -19,7 +19,7 @@ import Native, { type Capture } from '../../../modules/ownvoice-native';
 jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default: {
   addListener: jest.fn(() => ({ remove: () => {} })),
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(async () => {}), copy: jest.fn(),
-  closePanel: jest.fn(),
+  closePanel: jest.fn(async () => {}), openRoute: jest.fn(async () => {}),
 } }));
 
 const native = Native as jest.Mocked<typeof Native>;
@@ -242,6 +242,8 @@ describe('grow fit bar', () => {
       expect(screen.getAllByLabelText(UNSURE)).toHaveLength(1);
       expect(screen.queryAllByLabelText(/^Engagement on /)).toEqual([]);
       expect(screen.getByText(words.fitWhyUnsure)).toBeTruthy();
+      // A cloud writer's abstention keeps its card's bar: the online-writer line is the phone writer's alone.
+      expect(screen.queryByText(words.fitNeedsOnline)).toBeNull();
       expect(screen.getByText('Asks a question. Reads on-topic, with a clear point.')).toBeTruthy();
       const [unsure] = bars(screen);
       expect(new Set(fills(unsure)).size).toBe(1);
@@ -374,17 +376,27 @@ describe('grow fit bar', () => {
       const screen = await onPhone();
       await waitFor(() => expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(CLEAN.length + 1));
       expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
+      // A real level shows the bar on every card, and no line about needing an online writer.
+      expect(screen.getAllByTestId('fit-bar')).toHaveLength(CLEAN.length + 1);
+      expect(screen.queryByText(words.fitNeedsOnline)).toBeNull();
     } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
 
-  test('on the phone writer a model that cannot answer still says not sure, plainly', async () => {
+  // The phone's model ties every level (data: ov-phone-fit-abstain), so an empty bar and the unsure note on every card
+  // looked broken: the set carries one plain line instead, and the writer choice is a tap away.
+  test('on the phone writer a model that gives no level says once that levels need an online writer', async () => {
     const phone = writesAll();
     phoneModel('ready');
     askLocalMock.mockRejectedValue(new Error('model stopped'));
     try {
       const screen = await onPhone();
-      await waitFor(() => expect(screen.getAllByLabelText(UNSURE)).toHaveLength(CLEAN.length + 1));
-      expect(screen.getAllByText(new RegExp(words.fitWhyUnsure))).toHaveLength(CLEAN.length + 1);
+      await waitFor(() => expect(screen.getByText(words.fitNeedsOnline)).toBeTruthy());
+      expect(screen.getAllByText(words.fitNeedsOnline)).toHaveLength(1);
+      expect(screen.queryAllByTestId('fit-bar')).toHaveLength(0);
+      expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
+      expect(screen.queryByText(new RegExp(words.fitWhyUnsure))).toBeNull();
+      fireEvent.press(screen.getByText(words.claudeChooseWriter));
+      expect(native.openRoute).toHaveBeenCalledWith('ownvoice://source');
     } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
 
@@ -393,7 +405,8 @@ describe('grow fit bar', () => {
     askLocalMock.mockResolvedValue('');
     try {
       const screen = await onPhone();
-      await waitFor(() => expect(screen.getAllByLabelText(UNSURE)).toHaveLength(CLEAN.length + 1));
+      await waitFor(() => expect(screen.getByText(words.fitNeedsOnline)).toBeTruthy());
+      expect(screen.queryAllByTestId('fit-bar')).toHaveLength(0);
       expect(askLocalMock.mock.calls.some(([prompt]) => String(prompt).includes('An X reply.'))).toBe(false);
     } finally { phone.mockRestore(); askLocalMock.mockReset(); }
   });
