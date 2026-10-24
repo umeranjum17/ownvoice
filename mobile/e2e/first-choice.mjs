@@ -47,7 +47,7 @@ const snap = async (name, result) => {
     steps, result: steps.at(-1).result,
   }, null, 2));
 };
-const footer = () => nodes().find(n => n.clickable && /^(continue|sign in|get it ready)$/i.test((n.label || n.text).trim()));
+const footer = () => nodes().find(n => n.className === 'android.widget.Button' && /^(continue|sign in|get it ready)$/i.test((n.label || n.text).trim()));
 const radios = () => nodes().filter(n => n.checkable && n.app === pkg);
 // Synthetic app-owned restore fixture: no credentials or existing owner state is read/copied.
 const restorePractice = async () => {
@@ -88,6 +88,7 @@ try {
     await seen('sound like you');
     await tap('Continue');
     await seen('how should ownvoice write');
+    await wait(2000); // Allow the phone capability answer to settle; disabled buttons are not clickable nodes.
     const action = footer();
     assert(action, 'The main choice action is visible.');
     assert.equal(action.enabled, before, 'Continue is disabled until an explicit tap, unlike the baseline.');
