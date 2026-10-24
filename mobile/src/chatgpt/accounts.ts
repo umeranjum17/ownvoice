@@ -20,7 +20,7 @@ const claudePlan = { crypto: { getRandomValues, subtle: { digest: (_algorithm: s
 
 // Start with hardcoded list to avoid calling offered() at module scope (RN crash).
 // Wrapper functions will delegate to a lazily-initialized instance with kit-driven list.
-const fallback = new Accounts({ offer: ['claude', 'chatgpt'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase } : {}) }, withKeys(portable));
+const fallback = new Accounts({ offer: ['claude', 'chatgpt', 'typesafe'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase } : {}) }, withKeys(portable));
 let realInstance: Accounts | undefined;
 
 /** Whether the kit reports this phone's OpenRouter key route ready. Offered only then; the kit decides, not Ownvoice.
@@ -49,7 +49,7 @@ function kitInstance(): Accounts | undefined {
     if (!plans.length) return undefined;
     const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
     const offer = openRouterReady() ? [...planOrder, 'openrouter'] : planOrder;
-    realInstance = new Accounts({ offer, app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase} : {}) }, withKeys(portable));
+    realInstance = new Accounts({ offer: [...offer, 'typesafe'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase} : {}) }, withKeys(portable));
     return realInstance;
   } catch {
     return undefined;
@@ -88,6 +88,10 @@ export const signInClaude = () => getInstance().login(member, 'claude');
 // this phone's secure store. A phone has no OpenRouter OAuth sign-in, so there is no code to open or paste back.
 export const connectOpenRouter = (secret: string) => getInstance().saveKey(member, 'openrouter', secret.trim(), { billedPerUse: true });
 export const signOutOpenRouter = () => getInstance().logout(member, 'openrouter');
+// Jev is a separate, explicitly billed account; never a writing source or automatic fallback.
+export const connectJev = (secret: string) => getInstance().saveKey(member, 'typesafe', secret.trim(), { billedPerUse: true });
+export const jevKey = () => getInstance().key(member, 'typesafe');
+export const disconnectJev = () => getInstance().logout(member, 'typesafe');
 // OpenCode Go is a plan key route: the kit's add() saves the key the plan gave the person as that plan's
 // account, with the workspace every Go call names. A key that acts for several workspaces saves nothing and
 // hands back the kit's list so the person picks one; connecting again with that workspace saves it.

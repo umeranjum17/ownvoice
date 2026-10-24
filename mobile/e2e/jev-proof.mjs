@@ -2,8 +2,9 @@
 // host rules map x.com to this script's HTTPS server), each reply typed in its field, the bubble
 // tapped, and the panel's Jev levels read from the `ownvoice-fit` log line plus a screenshot.
 // Needs a release APK built with EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1, already set up
-// with ChatGPT (the E2E ChatGPT session lives in memory: sign in again after any force-stop), and, for levels, EXPO_PUBLIC_JEV_KEY plus EXPO_PUBLIC_E2E_JEV_BASE
-// pointing at `node e2e/jev-standin.mjs serve`. Without a key the fit runs on the ChatGPT plan instead (see fit-live-proof.mjs).
+// with ChatGPT (the E2E ChatGPT session lives in memory: sign in again after any force-stop).
+// For Jev levels, connect the synthetic key and opt in through Ratings with Jev, with
+// EXPO_PUBLIC_E2E_JEV_BASE pointing at `node e2e/jev-standin.mjs serve` (see fit-live-proof.mjs).
 // Env: ANDROID_SERIAL=emulator-NNNN, OWNVOICE_AVD_NAME, JAVA_HOME; KEEP=1 leaves the last panel open (for
 // evidence.sh shots), NOFIT=1 waits a fixed time instead of the log line (a build without fit).
 // Args: <cases.json> [out-dir] [limit].
