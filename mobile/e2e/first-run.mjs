@@ -211,8 +211,8 @@ const run = async mode => {
   snap(tag('01-welcome'));
 
   // 2. How Ownvoice writes. The phone row is dimmed on an emulator, so ChatGPT leads and the step
-  //    signs in inside itself: pick the card, then the footer (Continue, or Sign in when the phone
-  //    can't write and the account is already the default).
+  //    signs in inside itself: nothing is selected on arrival (the footer stays off until a tap), so pick
+  //    the card, then the footer (Continue, or Sign in when the phone can't write).
   await tapUntil('Continue', 'how should ownvoice write');
   await waitForLine('with your chatgpt');
   await wait(600);

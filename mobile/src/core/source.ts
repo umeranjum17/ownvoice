@@ -37,9 +37,8 @@ export async function getSource(): Promise<Source> {
     store.set(SOURCE_KEY, 'chatgpt');
     return 'chatgpt';
   }
-  if (!setup) return null;
-  store.set(SOURCE_KEY, 'phone');
-  return 'phone';
+  // Nothing chosen stays nothing chosen: the app asks, it never picks the phone (or anything) for the person.
+  return null;
 }
 
 export function setSource(source: Source): void { store.set(SOURCE_KEY, source ?? NONE); }
