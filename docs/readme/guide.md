@@ -36,6 +36,10 @@ A draft shows no verdict until all the deeper checks have run. Even then, Ownvoi
 
 Select text in any app, choose **Ownvoice** from the selection menu (or share the text to Ownvoice), and pick **Shorter**, **Simpler**, **Fix spelling**, **Friendlier** or **Firmer**. **Copy** copies the version, then paste it where you like, or **Share this text** to choose where it goes. If a new version adds a time, a number or a fact you didn't write, it says **Check this**, and **Copy** and **Share this text** stay disabled while it shows. This works without the bubble's permission.
 
+## Turn your notes into posts
+
+Share your raw notes to Ownvoice from your notes app, or select them in a post you're writing and choose **Ownvoice**, then pick **Posts for X**. Ownvoice writes up to three different posts from those notes, in your voice, each leading with something else: **Main point**, **What happened** and **What I learned**. A post that copies your notes, reads like instructions or adds a number your notes don't have is never shown. Each post shows the same checks as your own posts, and its fit for X once it has one. **Edit** changes a post first; **Copy** copies it, and when you selected the notes in a post you're writing, **Replace** puts it there instead. Nothing is posted: you post it yourself. When the notes came from LinkedIn, Reddit, Threads or Bluesky, the posts are for that place instead.
+
 ## Speak instead of typing
 
 In the panel, tap the mic to listen, speak, then tap **Stop listening** (or go quiet, and Ownvoice finishes on its own). The words you said go into the field you were writing in, the same way **Insert** does. Recognition runs on this phone only. The first tap asks for the microphone; if this phone is missing its speech language pack, the phone's own download prompt appears first. When this phone can't listen in your language, or the microphone is refused, the panel says so.

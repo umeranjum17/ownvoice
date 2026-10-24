@@ -18,6 +18,7 @@ import * as T from 'ownvoice-engine/src/threads.ts';
 import nspell from 'nspell';
 import { canPolish, polishAcceptor, polishVersions } from '../src/core/polish.ts';
 import { fixedSentenceSplits } from '../src/core/typing.ts';
+import { acceptNotesPost, notesPostPrompt, notesPosts } from '../src/core/notesPosts.ts';
 import { words } from '../src/core/words.ts';
 
 const spell = nspell(readFileSync(new URL('../assets/dictionary/en-affixes.aff', import.meta.url), 'utf8'), readFileSync(new URL('../assets/dictionary/en-words.dic', import.meta.url), 'utf8'));
@@ -198,6 +199,17 @@ async function reply(c: any, calls: Call[]) {
   return { shown: made.map((text, slot) => ({ text, slot })).filter(x => x.text), rejected: true, replay };
 }
 
+// Same as the selection sheet's Posts for X: one call per post through core/notesPosts, then the recorded
+// bad answers through the same admission, which must drop each one.
+async function notes(c: any, calls: Call[]) {
+  const request = { notes: c.notes, guide: c.guide ?? '', platform: platformForApp(c.app), never: c.never ?? [], dashes: 'remove' as const };
+  const shown: { text: string; slot: number }[] = [];
+  await notesPosts((prompt, maxTokens) => call(prompt, maxTokens, calls), request, (text, slot) => { shown.push({ text, slot }); });
+  const { rules } = notesPostPrompt(request, 0, []);
+  for (const raw of c.reject ?? []) assert.equal(acceptNotesPost(raw, request, rules, []), null, `Offered: ${raw}`);
+  return { shown };
+}
+
 const results: any[] = [];
 let timedOut = false;
 for (const c of cases) {
@@ -206,7 +218,7 @@ for (const c of cases) {
   const calls: Call[] = [];
   const started = Date.now();
   let r: any;
-  try { r = c.kind === 'polish' ? await polish(c, calls) : c.kind === 'select' ? await select(c, calls) : c.kind === 'tone' ? await tone(c, calls) : c.kind === 'thread' ? await thread(c, calls) : await reply(c, calls); }
+  try { r = c.kind === 'polish' ? await polish(c, calls) : c.kind === 'select' ? await select(c, calls) : c.kind === 'tone' ? await tone(c, calls) : c.kind === 'thread' ? await thread(c, calls) : c.kind === 'notes' ? await notes(c, calls) : await reply(c, calls); }
   catch (e) { r = { error: String(e), shown: [] }; }
   results.push({ id: c.id, ...r, calls, wallMs: Date.now() - started });
   process.stderr.write(`${label} ${c.id} ${Date.now() - started}ms shown=${r.shown.length}\n`);

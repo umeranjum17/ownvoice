@@ -55,7 +55,7 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   /** Pack download trigger; resolves with the recognizer's outcome (scheduled, success, error N, timeout). */
   dictateDownload(locale: string): Promise<string>;
   sharedMarkdown(): Promise<string | null>;
-  rewriteInput(): { text: string; editable: boolean; markdown?: boolean } | null;
+  rewriteInput(): { text: string; editable: boolean; markdown?: boolean; app?: string | null } | null;
   finishRewrite(text: string | null, replace: boolean): Promise<void>;
   /** Developer diagnostics (logcat) that survive release minification, which strips console.*. */
   logDev(line: string): void;

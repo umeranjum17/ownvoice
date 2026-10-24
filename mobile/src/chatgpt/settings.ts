@@ -204,8 +204,9 @@ const JEV_BASE = process.env.EXPO_PUBLIC_E2E_JEV_BASE;
 /** Fit ratings run on the person's signed-in ChatGPT plan by default, under the same consent as a
  *  ChatGPT send for this app: the post and drafts leave the phone only when the writer's would.
  *  Jev is used only when this build carries `EXPO_PUBLIC_JEV_KEY` (emulator stand-in proof builds).
- *  Checked before sending and again at dispatch; a blocked call abstains with the plain unsure read. */
-export function fitBackends(app: string, o: { key?: string; fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent' | 'refused'> } = {}): Backend[] {
+ *  Checked before sending and again at dispatch; a blocked call abstains with the plain unsure read.
+ *  `app` is null for the selection sheet, which works in any app under its writer's consent. */
+export function fitBackends(app: string | null, o: { key?: string; fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent' | 'refused'> } = {}): Backend[] {
   // The fit backend follows the chosen cloud source, so the ratings reach whichever account writes.
   const cloud: CloudKey = cloudOf(store.peek<Source>(SOURCE_KEY)) ?? 'chatgpt';
   const bubble = cloudConsent(cloud, app);

@@ -1,7 +1,7 @@
 // Scores run.ts outputs (report Appendix C, plus the invented-times check).
 // Usage: node score.ts out/<run>.json [out/<run2>.json ...]
 // Prints a table, writes out/scores.json, and exits non-zero when the gate
-// fails: the original P01/P13/S05/R01/R07 plus R13/R14/P20 must all pass,
+// fails: the original P01/P13/S05/R01/R07 plus R13/R14/P20 and N01 must all pass,
 // preserving the study's numbers and the published-app regressions (README).
 import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
@@ -11,6 +11,7 @@ import * as S from 'ownvoice-engine/src/slop.ts';
 import { copiesPost, layoutKept, norm, replyInstruction } from 'ownvoice-engine/src/drafts.ts';
 import { parseTones } from 'ownvoice-engine/src/judge.ts';
 import { ALL_SLOTS, platformForApp } from 'ownvoice-engine/src/platforms.ts';
+import { postInstruction } from '../src/core/notesPosts.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const byId = Object.fromEntries(cases.map(c => [c.id, c]));
@@ -90,6 +91,25 @@ function scoreReply(c: any, text: string) {
 // Package 5 acceptance, scored on the whole thread at once: every part within
 // the place's cap, every kept word present, no number or time added or dropped
 // (addedNumbers both ways, inventedTimes), and 3 distinct hooks from their words.
+function scoreNotes(c: any, text: string) {
+  const issues: string[] = [];
+  const added = S.addedNumbers(c.notes, text);
+  if (added.length) issues.push(`invented number ${added.join('/')}`);
+  const times = S.inventedTimes(c.notes, text);
+  if (times.length) issues.push(`invented time ${times.join('/')}`);
+  if (copiesPost(text, c.notes)) issues.push('copies the notes');
+  // Not commentary(): "i changed it" is a rewrite's chatter but a natural line in a post.
+  if (postInstruction(text) || echoesPrompt(text)) issues.push('instructions');
+  if (text.length > (platformForApp(c.app).limit ?? 280)) issues.push('over cap');
+  if (!c.keep.some((k: string) => low(text).includes(k))) issues.push('not from the notes');
+  const voice: string[] = [];
+  if (c.guide?.includes('lowercase') && /[A-Z]/.test(text[0] ?? '')) voice.push('capitalised');
+  const stock = S.hits(text, { ...S.NO_RULES, never: c.never ?? [] }, true).length;
+  if (stock) voice.push(`${stock} stock`);
+  if (/—/.test(text)) voice.push('long dash');
+  return { meaningOk: !issues.length, issues, voiceOk: !voice.length, voice };
+}
+
 function scoreThread(c: any, r: any) {
   const limit = (c.app ? platformForApp(c.app).limit : null) ?? 280;
   const texts = r.shown.map((s: any) => s.text);
@@ -153,8 +173,8 @@ function scoreFeed(c: any, r: any) {
   return { cards, yours, issues };
 }
 
-// The original five-case floor plus the three published-app regressions.
-const GATE = ['P01-noon-list', 'P13-tent-shorter', 'S05-list-shorter', 'R01-sam-practice', 'R07-two-questions', 'R13-x-parent-echo', 'R14-x-reply-not-instruction', 'P20-own-post-line'];
+// The original five-case floor, the three published-app regressions and posts from notes.
+const GATE = ['P01-noon-list', 'P13-tent-shorter', 'S05-list-shorter', 'R01-sam-practice', 'R07-two-questions', 'R13-x-parent-echo', 'R14-x-reply-not-instruction', 'P20-own-post-line', 'N01-notes-to-posts'];
 
 const table: any[] = [];
 for (const file of process.argv.slice(2)) {
@@ -166,7 +186,7 @@ for (const file of process.argv.slice(2)) {
     const feed = c.kind === 'feed' ? scoreFeed(c, r) : null;
     const cards = c.kind === 'thread' ? [scoreThread(c, r)]
       : feed ? feed.cards
-      : r.shown.map((s: any) => c.kind === 'reply' ? scoreReply(c, s.text) : c.kind === 'tone' ? scoreTone(s.text) : scoreRewrite(c, s.text, c.kind === 'polish' || !!c.layout));
+      : r.shown.map((s: any) => c.kind === 'reply' ? scoreReply(c, s.text) : c.kind === 'notes' ? scoreNotes(c, s.text) : c.kind === 'tone' ? scoreTone(s.text) : scoreRewrite(c, s.text, c.kind === 'polish' || !!c.layout));
     const allSafe = cards.every((x: any) => x.meaningOk);
     const pass = c.kind === 'reply'
       ? cards.length >= (c.minCards ?? 2) && allSafe && r.rejected !== false && cards.some((x: any) => x.answersAll)
