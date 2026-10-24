@@ -54,7 +54,7 @@ const shot = name => {
 
 // The theme flips before the app process starts, since React Native reads it at process start; the service is
 // toggled off and on afterwards because a stopped process is not rebound on its own (AGENTS.md).
-adb('shell', 'cmd', 'uimode', 'night', 'custom', '-o', 'off');
+adb('shell', 'cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');
 adb('shell', 'cmd', 'uimode', 'night', theme === 'dark' ? 'yes' : 'no');
 adb('shell', 'am', 'force-stop', pkg);
 const enabled = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
