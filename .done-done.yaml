@@ -222,19 +222,20 @@ journeys:
     timeout: 30m
 
   note-clear:
-    description: "Android (AA-34): the note after Copy and after Insert ('Copied.', 'Inserted. Send it yourself.') never covers the composer field or its Post button, on a small screen (720x1280) at the largest text (1.3), light and dark; the base build (BEFORE_APK) is captured the same way with the boxes only logged. Each note's box is read by OCR from the screenshot, the field and button from the accessible tree (note-boxes-<label>-<theme>.json). Needs an explicit emulator allocation, JAVA_HOME, and stub+GPT release APKs built with EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455 (APK for this change, BEFORE_APK for the base)."
+    description: "Android (AA-34): the note after Copy and after Insert ('Copied.', 'Inserted. Send it yourself.') never covers the composer field or its Post button, at phone widths 360, 390 and 445 dp with the largest text (1.3), light and dark; the base build (BEFORE_APK) is captured at 360 dp the same way with the boxes only logged. Drafts come from the stub build's phone writer. Each note's box is read by OCR from the screenshot, the field and button from the accessible tree (note-boxes-<label>-<theme>.json). The guest's Wi-Fi stays off. Needs an explicit emulator allocation, JAVA_HOME, and stub+GPT release APKs built with EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455 (APK for this change, BEFORE_APK for the base)."
     command: |
       set -u; : "${APK:?path to release APK required}"; : "${BEFORE_APK:?path to the base release APK required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
-      S="$(mktemp -d)"; trap 'rm -rf -- "$S"; adb -s "$ANDROID_SERIAL" shell wm size reset; adb -s "$ANDROID_SERIAL" shell wm density reset; adb -s "$ANDROID_SERIAL" shell settings put system font_scale 1.0' EXIT
+      A="adb -s $ANDROID_SERIAL"; S="$(mktemp -d)"; trap 'rm -rf -- "$S"; $A shell wm size reset; $A shell wm density reset; $A shell settings put system font_scale 1.0' EXIT
+      $A shell svc wifi disable
       rm -f verify-artifacts/ov-own-posts/*-before-*.png verify-artifacts/ov-own-posts/*-after-*.png
       node mobile/e2e/first-run.mjs "$BEFORE_APK" "$S/setup" >"$S/setup.log" 2>&1 || { mkdir -p "$E/setup-failed"; cp "$S/setup.log" "$S"/setup/failed-* "$E/setup-failed/" 2>/dev/null; tail -40 "$S/setup.log"; exit 1; }
-      c=0; for t in light dark; do OWN_POST_NARROW=1 OWNVOICE_THEME=$t OWNVOICE_LABEL=before OWNVOICE_NOTE_CLEAR=record node mobile/e2e/own-post.mjs "$BEFORE_APK" "$E/before" >"$E/before-$t.log" 2>&1 || c=1; done
-      adb -s "$ANDROID_SERIAL" install -r "$APK" >/dev/null 2>&1
-      d=0; for t in light dark; do OWN_POST_NARROW=1 OWNVOICE_THEME=$t OWNVOICE_LABEL=after OWNVOICE_NOTE_CLEAR=1 node mobile/e2e/own-post.mjs "$APK" "$E/after" >"$E/after-$t.log" 2>&1 || d=1; done
+      c=0; for t in light dark; do OWN_POST_DP=360 OWNVOICE_THEME=$t OWNVOICE_LABEL=before-360 OWNVOICE_NOTE_CLEAR=record node mobile/e2e/own-post.mjs "$BEFORE_APK" "$E/before" >"$E/before-360-$t.log" 2>&1 || c=1; done
+      $A install -r "$APK" >/dev/null 2>&1
+      d=0; for w in 360 390 445; do for t in light dark; do OWN_POST_DP=$w OWNVOICE_THEME=$t OWNVOICE_LABEL=after-$w OWNVOICE_NOTE_CLEAR=1 node mobile/e2e/own-post.mjs "$APK" "$E/after" >"$E/after-$w-$t.log" 2>&1 || d=1; done; done
       cp verify-artifacts/ov-own-posts/*-before-*.png "$E/before/" 2>/dev/null; cp verify-artifacts/ov-own-posts/*-after-*.png "$E/after/" 2>/dev/null
-      printf '%s\n' '{"target":{"version":"'"$(git rev-parse --short HEAD)"'"},"start":"setup finished with ChatGPT on the base build, screen 720x1280, largest text","steps":["type one line in the X-style composer and tap the bubble","tap Copy on the panel and read where the Copied note lands","tap the bubble again, edit a version and tap Use this","read where the Inserted note lands against the composer and its Post button","repeat in dark mode","install this change over the base build and repeat"],"result":"see note-boxes-before-*.json and note-boxes-after-*.json: after, no note covers the composer or its Post button"}' > "$E/steps.json"
+      printf '%s\n' '{"target":{"version":"'"$(git rev-parse --short HEAD)"'"},"start":"setup finished on the base build, phone writer chosen in the app, largest text","steps":["type one line in the X-style composer and tap the bubble","tap Copy on the panel and read where the Copied note lands","tap the bubble again, edit a version and tap Use this","read where the Inserted note lands against the composer and its Post button","repeat in dark mode","install this change over the base build and repeat at 360, 390 and 445 dp"],"result":"After the change, no Copied or Inserted note covers the composer or its Post button at 360, 390 or 445 dp, light or dark; the base build is logged at 360 dp."}' > "$E/steps.json"
       echo "before exit=$c after exit=$d" | tee "$E/driver.log"; [ $c -eq 0 ] && [ $d -eq 0 ]
-    timeout: 60m
+    timeout: 120m
 
   typing-checks:
     description: "Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery, plus the overlay typing-fix leg. Needs an explicit emulator allocation."

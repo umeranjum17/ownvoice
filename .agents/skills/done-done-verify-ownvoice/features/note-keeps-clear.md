@@ -9,9 +9,11 @@ This is an Android surface; the Host CLI launch alone does not prove it.
 1. Use an owned emulator, one lane at a time. Build two stub+GPT release APKs per `mobile/README.md`
    (`EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455`): the base
    (`BEFORE_APK`) and this change (`APK`).
-2. Run the `note-clear` journey in `.done-done.yaml`. It finishes setup on the base build, then runs
-   `mobile/e2e/own-post.mjs` at 720x1280 with the largest text, light and dark: one line in the X-style
-   composer, **Copy** on the panel, then edit a version and **Use this**. After Copy and after Use this it
+2. Boot with `-gpu guest -feature -WiFiPacketStream,-Uwb` (the journey turns the guest's Wi-Fi off). Run the
+   `note-clear` journey in `.done-done.yaml`. It finishes setup on the base build, picks **On this phone** (the stub
+   build's phone writer) in the app, then runs `mobile/e2e/own-post.mjs` with the largest text, light and dark, at
+   360 dp for the base and 360, 390 and 445 dp for the change (`OWN_POST_DP`): one line in the X-style composer,
+   **Copy** on the panel, then edit a version and **Use this**. After Copy and after Use this it
    takes screenshots until the note shows, reads the note's box by OCR and the composer field and its Post
    button from the accessible tree, and writes `note-boxes-<label>-<theme>.json`. The base run only logs;
    the change's run fails when a note covers the field or the button. Nothing is posted.

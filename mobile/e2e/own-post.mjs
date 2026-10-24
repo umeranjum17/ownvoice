@@ -46,7 +46,8 @@ const noteClear = process.env.OWNVOICE_NOTE_CLEAR ?? '';
 const theme = process.env.OWNVOICE_THEME ?? 'light';
 // The live leg (done-done journey own-posts): the real writer connected through the app's own screens,
 // no stub text. OWN_POST_WRITER=opencode connects the OpenCode Go key; OWN_POST_WRITER=phone uses the
-// phone's own writer. OWN_POST_NARROW=1 runs the emulator round at 720x1280, font 1.3.
+// phone's own writer. OWN_POST_NARROW=1 runs the emulator round at 720x1280, font 1.3; OWN_POST_DP=<360|390|445>
+// runs it at that phone width in dp (the 1080 px screen's density set to match), font 1.3.
 const live = writer === 'opencode' || phone;
 const out = resolve(process.argv[3] ?? 'mobile/.own-post');
 mkdirSync(out, { recursive: true });
@@ -154,6 +155,13 @@ if (phone) {
   evidence('font', 'largest');
   adb('shell', 'wm', 'size', '720x1280');
   adb('shell', 'wm', 'density', '320');
+} else if (process.env.OWN_POST_DP) {
+  const dp = Number(process.env.OWN_POST_DP);
+  if (!(dp >= 320 && dp <= 600)) throw new Error(`OWN_POST_DP must be a phone width in dp, not ${process.env.OWN_POST_DP}.`);
+  evidence('font', 'largest');
+  adb('shell', 'wm', 'size', 'reset');
+  const width = Number(adb('shell', 'wm', 'size').match(/(\d+)x\d+/)[1]);
+  adb('shell', 'wm', 'density', String(Math.round(width * 160 / dp)));
 } else {
   evidence('font', 'default');
   adb('shell', 'wm', 'size', 'reset');
@@ -294,6 +302,19 @@ if (process.env.OWNVOICE_OUTCOME_PROOF === '1') {
   process.exit(0);
 }
 
+// The note-clear legs write on the stub build's phone writer, chosen through the app's own writer list as
+// e2e/own-post-talk.mjs does: the ChatGPT stand-in keeps its sign-in in memory, and the force-stop above ends it.
+if (noteClear) {
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source');
+  await wait(5000);
+  const onPhone = nodes().find(node => node.clickable && node.label?.startsWith('On this phone,'));
+  if (!onPhone) throw new Error('The phone writer choice is not offered.');
+  nodes(onPhone.label);
+  await wait(1500);
+  key(4);
+  await wait(1000);
+}
+
 // 2. The blank X-style composer: focused, empty, nothing on it about the post.
 adb('shell', 'monkey', '-p', fixturePkg, '-c', 'android.intent.category.LAUNCHER', '1');
 await withNodes('the blank composer', list => !!list.find(node => node.className === 'android.widget.EditText' && node.editable), 20);
@@ -379,7 +400,11 @@ for (let attempt = 0; attempt < 3; attempt++) {
   await focusComposer();
   bubble();
   await wait(2500);
-  try { await withNodes('the drafts', useThis, 60); break; } catch { if (attempt === 2) { await ensureConnected(); await withNodes('the drafts', useThis, 90); } }
+  try { await withNodes('the drafts', useThis, 60); break; } catch {
+    // Keep what the panel showed instead, so a miss can be read from the record.
+    writeFileSync(resolve(out, `no-drafts-${attempt}.nodes.json`), JSON.stringify(nodes(), null, 1));
+    if (attempt === 2) { await ensureConnected(); await withNodes('the drafts', useThis, 90); }
+  }
 }
 await wait(2500);
 const cards = nodes().map(node => node.text).filter(Boolean);
