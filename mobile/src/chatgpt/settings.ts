@@ -142,7 +142,8 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   // (stub builds pretend the phone writes).
   if (source === 'phone') return !stubbed && (await modelStatus().catch(() => null))?.phase === 'unsupported' ? { writer: needWriter, note: null } : { writer: phoneWriter, note: null };
   const practice = isOwnApp(app);
-  if (source == null) return practice ? { writer: phoneWriter, note: null } : { writer: needWriter, note: null };
+  // Nothing chosen: every chat, the setup practice chat included, asks who writes first.
+  if (source == null) return { writer: needWriter, note: null };
   if (source === 'computer') return computerRoute(app, practice);
   const key: CloudKey = cloudOf(source) ?? 'chatgpt';
   const state = await cloudSession(key).current();

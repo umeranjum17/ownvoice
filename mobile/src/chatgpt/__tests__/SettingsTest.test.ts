@@ -99,10 +99,12 @@ test('no source tells the panel to choose first instead of drafting', async () =
   await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.needWriterPanel);
 });
 
-test('the practice call drafts on the phone before a source is chosen', async () => {
+test('the practice call asks who writes before a source is chosen, and the phone does not write', async () => {
   store.set(SOURCE_KEY, null);
   const route = await gptRoute('dev.ownvoice.app', offline);
-  expect(route.writer).toBe(phoneWriter);
+  expect(route.writer).not.toBe(phoneWriter);
+  await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.needWriterPanel);
+  expect(phoneWriter.write).not.toHaveBeenCalled();
   expect(route.note).toBeNull();
 });
 

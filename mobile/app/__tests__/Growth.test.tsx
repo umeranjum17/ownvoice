@@ -66,6 +66,7 @@ const apps = [
 beforeEach(() => {
   kv.clear();
   kv.set('setup-done', '"done"');
+  kv.set('writer-source', '"phone"'); // the person chose this phone; nothing is chosen for them
   jest.clearAllMocks();
   for (const method of Object.values(native)) if (jest.isMockFunction(method)) method.mockReset();
   native.serviceState.mockResolvedValue('on');

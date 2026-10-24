@@ -67,12 +67,11 @@ export default function Setup() {
   const [typing, setTyping] = useState(false);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
   const [picked, setPicked] = useState<'phone' | string | null>(null);
-  // The first run offers the person's cloud accounts too: ChatGPT first (it stays the listed-first
-  // default the wizard always had), then Claude, which signs in on its own page with its code pasted
-  // back (the kit's paste seam, the same shared piece as How Ownvoice writes). Key/host routes stay out.
+  // The first run offers the person's cloud accounts too: ChatGPT, then Claude, which signs in on its own page with
+  // its code pasted back (the kit's paste seam, the same shared piece as How Ownvoice writes). Key/host routes stay out.
+  // Nothing is chosen until the person taps one: there is no default writer.
   const plans = ['chatgpt', 'claude'].flatMap(key => accounts.providers.filter(p => p.key === key));
-  const defaultPlan = plans[0]?.key ?? 'chatgpt';
-  const pick = picked ?? (phone === 'cant' ? defaultPlan : 'phone');
+  const pick = picked;
   // Plan sign-in state, shown inside the choice step: null while the options show.
   const [planState, setPlanState] = useState<PlanState | null>(null);
   const signing = useRef(0);
@@ -366,10 +365,10 @@ export default function Setup() {
   return <Screen step={step} footer={<>
     {step === 'CHOOSE' && !planState && (phone === 'cant'
       ? <>
-        <Button kind="filled" large label={words.signIn} onPress={() => startPlanSignIn(pick)} />
+        <Button kind="filled" large disabled={!pick} label={words.signIn} onPress={() => pick && startPlanSignIn(pick)} />
         <View style={styles.skip}><Button kind="text" label={words.notNow} onPress={() => { void finish(); }} /></View>
       </>
-      : <Button kind="filled" large disabled={!phone} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : startPlanSignIn(pick)} />)}
+      : <Button kind="filled" large disabled={!phone || !pick} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : pick && startPlanSignIn(pick)} />)}
     {step === 'CHOOSE' && planState?.waiting && planState.provider === 'chatgpt' && <>
       {(planState.code || !planState.url) && <Button kind="filled" large disabled={!planState.code} label={words.copyAndOpen} onPress={copyAndOpen} />}
       <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>

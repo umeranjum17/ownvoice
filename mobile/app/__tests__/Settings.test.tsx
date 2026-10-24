@@ -80,6 +80,8 @@ beforeEach(() => {
   kv.clear();
   sequence = 0;
   kv.set('setup-done', '"done"');
+  // The person chose this phone to write (nothing is chosen for them); tests of the unchosen state clear it.
+  kv.set(SOURCE_KEY, '"phone"');
   jest.clearAllMocks();
   for (const method of Object.values(native)) if (jest.isMockFunction(method)) method.mockReset();
   picker.pickFileAsync.mockReset();

@@ -32,10 +32,10 @@ test('a fresh install has no source and stores nothing', async () => {
   expect(kv.has(PHONE_ONLY_KEY)).toBe(false);
 });
 
-test('a phone-only setup migrates to the phone and leaves the default list alone', async () => {
+test('setup done with nothing chosen stays not chosen: the app asks, it never picks the phone', async () => {
   store.set('setup-done', true);
-  expect(await getSource()).toBe('phone');
-  expect(kv.get(SOURCE_KEY)).toBe(JSON.stringify('phone'));
+  expect(await getSource()).toBeNull();
+  expect(kv.has(SOURCE_KEY)).toBe(false);
   expect(phoneOnly()).toEqual([...CHATGPT_DEFAULT_OFF]);
   expect(kv.has(PHONE_ONLY_KEY)).toBe(false);
 });
@@ -54,11 +54,11 @@ test('a signed-in ChatGPT user with app choices keeps ChatGPT, and the phone kee
   expect(native.bubbleRules).not.toHaveBeenCalled();
 });
 
-test('a signed-in ChatGPT user with an empty list migrates to the phone', async () => {
+test('a signed-in ChatGPT user with an empty list has nothing chosen, and the phone is not picked for them', async () => {
   store.set('setup-done', true);
   store.set('chatgpt-apps', { on: [] });
   (session.current as jest.Mock).mockResolvedValue(signed(true));
-  expect(await getSource()).toBe('phone');
+  expect(await getSource()).toBeNull();
   expect(phoneOnly()).toEqual([...CHATGPT_DEFAULT_OFF]);
 });
 
