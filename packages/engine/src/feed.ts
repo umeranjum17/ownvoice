@@ -109,21 +109,23 @@ export function feedRead(nodes: ScreenText[] = [], fieldTop?: number | null): Fe
 }
 
 const REPLYING_TO = /^Replying to\b/i;
+/** A line that could be a post: four words or more, not an author header or the "Replying to" line. */
+const sentence = (text: string) => !REPLYING_TO.test(text.trim()) && !authorOf(text) && text.trim().split(/\s+/).length >= 4;
 
 /** The post a feed reply answers. feedRead decides wherever the layout shows one. The native X app's own layout
  * is not known from a real phone yet (1.0.8 withheld replies under a real tweet), so there, and under a
  * "Replying to" line, an unread layout fails soft: the nearest sentence above the box (tappable cards
- * included), else the screen text. Anywhere else no layout post still means nothing to answer. */
+ * included), else the last sentence of the screen text (text drawn without its own view). With no sentence
+ * at all, as on an image-only post, there is still nothing to answer. Elsewhere no layout post means the same. */
 export function replyPost(nodes: ScreenText[] = [], fieldTop: number | null | undefined, conversation: string, app?: string | null): string {
   const read = feedRead(nodes, fieldTop).post.trim();
   if (read) return read;
   if (app !== 'com.twitter.android' && !nodes.some(n => REPLYING_TO.test(n.text.trim()))) return '';
   const top = fieldTop != null && Number.isFinite(fieldTop) ? fieldTop : null;
-  const sentences = nodes.filter(n => (top == null || n.bottom <= top) && n.viewId !== CHROME_URL_BAR
-    && !REPLYING_TO.test(n.text.trim()) && n.text.trim().split(/\s+/).length >= 4);
+  const sentences = nodes.filter(n => (top == null || n.bottom <= top) && n.viewId !== CHROME_URL_BAR && sentence(n.text));
   // Plain text first; tappable cards only when the whole post sits inside one.
   const pool = sentences.some(n => !n.clickable) ? sentences.filter(n => !n.clickable) : sentences;
   // Above a box the nearest sentence is the post; with no box, the first one on screen.
   const nearest = top == null ? pool.sort((a, b) => a.top - b.top)[0] : pool.sort((a, b) => b.bottom - a.bottom)[0];
-  return nearest?.text.trim() || conversation.trim();
+  return nearest?.text.trim() || conversation.split(/\r?\n/).filter(sentence).at(-1)?.trim() || '';
 }

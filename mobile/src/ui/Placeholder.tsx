@@ -18,7 +18,7 @@ export function Placeholder() {
     loop.start();
     return () => loop.stop();
   }, [reduced, pulse]);
-  return <View style={[styles.card, { backgroundColor: t.raised }]}>
+  return <View testID="placeholder" style={[styles.card, { backgroundColor: t.raised }]}>
     <Animated.View style={{ opacity: pulse }}>
       {WIDTHS.map(width => <View key={width} style={[styles.bar, { width, backgroundColor: t.yours }]} />)}
     </Animated.View>
