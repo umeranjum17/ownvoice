@@ -21,6 +21,8 @@ const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const nodes = accessibilityProbe(serial, out);
 const steps = [];
+const sizes = [[360, 720, 1280, 320], [390, 780, 1280, 320], [445, 890, 1280, 320], [1280, 1280, 800, 160]];
+let geometry;
 const textOf = n => `${n.label} ${n.text}`.toLowerCase();
 const find = text => nodes().find(n => textOf(n).includes(text.toLowerCase()));
 const seen = async (text, timeout = 45000) => {
@@ -38,9 +40,9 @@ const snap = async (name, result) => {
   await wait(1500); // A populated accessibility tree can precede the first painted frame.
   const png = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
   writeFileSync(resolve(out, `${name}.png`), png);
-  steps.push({ screenshot: `${name}.png`, result, at: new Date().toISOString() });
+  steps.push({ screenshot: `${name}.png`, geometry, result, at: new Date().toISOString() });
   writeFileSync(resolve(out, 'steps.json'), JSON.stringify({
-    target: { version: adb('shell', 'dumpsys', 'package', pkg).match(/versionName=([^\s]+)/)?.[1], surface: 'Android release APK, stub writer', geometry: '720x1280 at density 320' },
+    target: { version: adb('shell', 'dumpsys', 'package', pkg).match(/versionName=([^\s]+)/)?.[1], surface: 'Android release APK, stub writer', widthsDp: sizes.map(([dp]) => dp) },
     start: 'Cleared app for each theme/font; synthetic legacy TRY/no-source store for the practice leg.',
     steps, result: steps.at(-1).result,
   }, null, 2));
@@ -65,19 +67,22 @@ const restorePractice = async () => {
 
 const priorMode = adb('shell', 'cmd', 'uimode', 'night').trim().replace('Night mode: ', '');
 const priorFont = adb('shell', 'settings', 'get', 'system', 'font_scale').trim();
-const [width, height] = [720, 1280];
 let recorder;
 try {
   execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
-  adb('shell', 'wm', 'size', `${width}x${height}`);
-  adb('shell', 'wm', 'density', '320');
+  adb('shell', 'svc', 'wifi', 'disable'); // Avoid the shared netsimd packet stream; no network is needed.
   adb('shell', 'settings', 'put', 'secure', 'stylus_handwriting_enabled', '0');
   adb('shell', 'settings', 'put', 'secure', 'ui_night_mode_custom_type', '-1');
-  for (const mode of ['light', 'dark']) for (const font of ['1.0', '1.3']) {
-    const tag = `${before ? 'before' : 'after'}-${mode}${font === '1.3' ? '-large' : ''}`;
+  for (const [dp, width, height, density] of sizes) for (const mode of ['light', 'dark']) for (const font of ['1.0', '1.3']) {
+    geometry = { dp, width, height, density, mode, font };
+    const tag = `${before ? 'before' : 'after'}-${dp}dp-${mode}${font === '1.3' ? '-large' : ''}`;
+    console.log(`CELL ${tag}`);
+    await toggleService(false);
+    adb('shell', 'am', 'force-stop', pkg);
+    adb('shell', 'wm', 'size', `${width}x${height}`);
+    adb('shell', 'wm', 'density', String(density));
     adb('shell', 'cmd', 'uimode', 'night', mode === 'dark' ? 'yes' : 'no');
     adb('shell', 'settings', 'put', 'system', 'font_scale', font);
-    await toggleService(false);
     adb('shell', 'pm', 'clear', pkg);
     start();
     await seen('sound like you');
@@ -88,14 +93,14 @@ try {
     assert.equal(action.enabled, before, 'Continue is disabled until an explicit tap, unlike the baseline.');
     assert.equal(radios().filter(n => n.checked).length, before ? 1 : 0, 'No writer is preselected.');
     await snap(`${tag}-choose`, before ? 'Baseline: a writer is preselected and the main action is enabled without a tap.' : 'No writer selected; Continue disabled.');
-    if (!before && mode === 'light' && font === '1.0') {
+    if (!before && dp === 360 && mode === 'light' && font === '1.0') {
       const log = openSync(resolve(out, 'screenrecord.log'), 'w');
       recorder = spawn('adb', ['-s', serial, 'shell', 'screenrecord', '--time-limit', '15', '/sdcard/ov-p2-choice.mp4'], { stdio: ['ignore', log, log] });
       closeSync(log);
       await wait(1500);
     }
     for (let i = 0; i < 3 && !find('with your chatgpt'); i++) {
-      adb('shell', 'input', 'swipe', '360', '950', '360', '400', '300'); await wait(800);
+      adb('shell', 'input', 'swipe', String(width / 2), String(height * .75), String(width / 2), String(height * .3), '300'); await wait(800);
     }
     await tap('with your chatgpt');
     assert.equal(footer()?.enabled, true, 'An explicit writer tap enables Continue.');
