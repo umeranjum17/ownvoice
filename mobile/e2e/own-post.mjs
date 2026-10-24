@@ -158,7 +158,12 @@ if (phone) {
   adb('shell', 'wm', 'size', 'reset');
   adb('shell', 'wm', 'density', 'reset');
 }
-if (!phone) evidence('theme', theme);
+if (!phone) {
+  evidence('theme', theme);
+  // React Native reads the colour scheme at process start, so a running app keeps the old one; the service
+  // toggle below binds it again, and ensureConnected reconnects the in-memory sign-in stand-in.
+  adb('shell', 'am', 'force-stop', pkg);
+}
 const fixtureApk = buildFixture(out);
 if (phone) {
   // A real X on the phone is never replaced: only a fixture this run's adb installed may be.

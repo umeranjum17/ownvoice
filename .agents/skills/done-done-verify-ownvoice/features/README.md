@@ -9,3 +9,4 @@ The repo's maintained verification map; a proof that drives one entry point is i
 - [Posts from notes](posts-from-notes.md): A user shares raw notes, or selects them in the X composer, picks Posts for X, and gets three distinct posts to edit, copy or put in the field
 - [First-run welcome promise](first-run-welcome-promise.md): A new user opens Ownvoice and reads what it will do in which apps
 - [Reject bad requests with a readable error](reject-bad-requests-with-a-readable-erro.md): A caller sends a malformed or unknown request by mistake
+- [The note and bubble keep clear of the message box](note-keeps-clear.md): After Copy or Insert, the note never covers the composer or its Post button
