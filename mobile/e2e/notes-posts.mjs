@@ -186,6 +186,9 @@ if (leg === 'before') {
     result = { ...result, inserted };
   }
 }
-writeFileSync(join(evidence, `steps-${leg}-${theme}.json`), JSON.stringify({ target: { version: adb('shell', 'dumpsys', 'package', pkg).match(/versionName=(\S+)/)?.[1] }, start: 'Candidate installed on an owned x86_64 emulator, free phone writer ready', steps, result, captures }, null, 2));
+// done-done reads `result` as one plain sentence; the texts and reads stay in `details`.
+const said = leg === 'before' ? 'The sheet offers only the rewrite choices, with no posts choice.'
+  : `${Object.keys(result.posts).length} distinct posts from the notes, each with its rating rows; ${result.fit.bars.length ? 'fit levels shown' : 'one line says fit levels need an online writer'}; ${leg === 'share' ? 'the first post was edited and exactly that text copied' : 'Replace put the first post in the composer'}; nothing was posted.`;
+writeFileSync(join(evidence, `steps-${leg}-${theme}.json`), JSON.stringify({ target: { version: adb('shell', 'dumpsys', 'package', pkg).match(/versionName=(\S+)/)?.[1] }, start: 'Candidate installed on an owned x86_64 emulator, free phone writer ready', steps, result: said, details: result, captures }, null, 2));
 adb('shell', 'input', 'keyevent', '4');
 console.log(JSON.stringify({ leg, theme, ...result, captures, passed: true }));
