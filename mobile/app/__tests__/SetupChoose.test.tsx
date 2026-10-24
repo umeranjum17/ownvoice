@@ -17,7 +17,8 @@ jest.mock('../../modules/ownvoice-native', () => ({
   default: {
     addListener: jest.fn(() => ({ remove: () => {} })),
     serviceState: jest.fn(async () => 'off'), setPractice: jest.fn(async () => {}), clearSetupReturn: jest.fn(async () => {}),
-    typingCheck: jest.fn(async () => false), launcherApps: jest.fn(async () => []), bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: [] })),
+    typingCheck: jest.fn(async () => false), restrictedSettings: jest.fn(async () => 'clear'),
+    launcherApps: jest.fn(async () => []), bubbleRules: jest.fn(async () => ({ paused: false, on: [], off: [] })),
   },
 }));
 jest.mock('../../src/core/phoneStatus', () => ({ phoneCanWrite: jest.fn(async () => 'ready') }));
