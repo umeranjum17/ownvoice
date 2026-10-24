@@ -94,6 +94,9 @@ try {
       closeSync(log);
       await wait(1500);
     }
+    for (let i = 0; i < 3 && !find('with your chatgpt'); i++) {
+      adb('shell', 'input', 'swipe', '360', '950', '360', '400', '300'); await wait(800);
+    }
     await tap('with your chatgpt');
     assert.equal(footer()?.enabled, true, 'An explicit writer tap enables Continue.');
     assert.equal(radios().filter(n => n.checked).length, 1);
