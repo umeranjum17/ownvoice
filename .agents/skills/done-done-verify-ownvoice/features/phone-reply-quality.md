@@ -30,7 +30,14 @@ surface; the Host CLI launch alone does not prove it.
    then stays empty rather than showing a bad card. Every offered card has engagement and stock
    wording rows, including a clean push-back card. The rows are text checks, not a
    reach prediction. Keep only distinct, readable result screens in the sealed run.
-6. Host regression companion: from `mobile/eval`, run the documented eight-case
+6. Fit on the phone writer: run step 4 with `PHONE_FIT=1`. The lab opens with
+   Umer's reply typed (“I would add a break timer next.”), so the panel grows it and
+   the phone rates the fit. It waits up to ten more minutes for the fit, then scrolls to
+   **Write new ones**. When the phone gives no level, the set shows the one line
+   “Fit levels need an online writer…” with **Choose another writer**, and no card shows
+   an empty bar or “Not sure about this one”; a real level shows bars and no line. Cite the
+   `reply-cards-*.png` that shows the line. `steps.json` records the fit read.
+7. Host regression companion: from `mobile/eval`, run the documented eight-case
    gate (P01/P13/S05/R01/R07 plus R13/R14/P20) and `score.ts`, plus `node run.ts --replay`
    offline before a boot. R13/R14 replay the
    observed bad outputs through admission as well as generating live replies;
