@@ -1,6 +1,7 @@
 import { getSource } from '../../core/source';
 import { chatgptEnabled, currentSwitch } from '../../core/switch';
 import { words } from '../../core/words';
+import { setPickedModel } from '../../core/model';
 import { accounts, codexAuth, reportFailure } from '../../chatgpt/accounts';
 import { accountSessions, signOutGuard } from '../../chatgpt/session';
 const session = accountSessions.chatgpt.session;
@@ -74,6 +75,7 @@ const okFetch = (payload: string) => jest.fn(async () => ({ ok: true, body: chop
 
 beforeEach(() => {
   jest.clearAllMocks();
+  setPickedModel('chatgpt', { id: 'vendor-model', name: 'Vendor Model' });
   mockSource.mockResolvedValue('chatgpt');
   mockCurrent.mockResolvedValue({ signedIn: true });
   mockNow.mockReturnValue({ signedIn: true });

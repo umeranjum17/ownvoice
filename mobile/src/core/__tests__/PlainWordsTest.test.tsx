@@ -6,6 +6,7 @@ import { NOTE_POSTS } from '../notesPosts';
 import React from 'react';
 const renderToStaticMarkup: (element: React.ReactElement) => string = require('react-dom/server').renderToStaticMarkup;
 import Home from '../../../app/index';
+import { ModelPick } from '../../ui/ModelPick';
 import Growth from '../../../app/growth';
 import Source from '../../../app/source';
 import Panel from '../../panel/Panel';
@@ -28,6 +29,12 @@ jest.mock('../../../modules/ownvoice-native', () => ({ __esModule: true, default
   capture: jest.fn(), serviceState: jest.fn(async () => 'on'), insert: jest.fn(), copy: jest.fn(),
   closePanel: jest.fn(),
 } }));
+jest.mock('../../chatgpt/accounts', () => ({ ...jest.requireActual('../../chatgpt/accounts'), listModels: jest.fn(async () => [
+  { id: 'vendor/gpt-6-sol', name: 'Vendor: GPT-6 Sol', available: true },
+  { id: 'vendor/gemma-4-31b-it:free', name: 'Vendor: Gemma 4 31B (free)', available: true },
+  { id: 'vendor/resting', name: 'Vendor: Resting One', available: false, why: 'resting' },
+  { id: 'vendor/plan', name: 'Vendor: Plan One', available: false, why: 'plan' },
+]) }));
 jest.mock('../../core/localModel', () => ({ askLocal: jest.fn(), localModelState: jest.fn(async () => ({ phase: 'unsupported' })), agreedToDownload: jest.fn(() => false) }));
 import { askLocal, localModelState } from '../../core/localModel';
 const mockAsk = askLocal as jest.MockedFunction<typeof askLocal>;
@@ -97,6 +104,19 @@ test('agentWords', () => { const keys = ['agentRow', 'agentAsk', 'agentGo', 'age
 test('openRouterAccountWords', () => { const keys = ['openrouterKeyNote', 'openrouterPasteField', 'openrouterConnect', 'openrouterSignOut', 'openrouterButton', 'openrouterKeyFailed', 'srcOpenRouter', 'srcOpenRouterSub', 'rowSourceOpenRouter', 'homeOpenRouter', 'headOpenRouter', 'privacyOpenRouter', 'switchNoteOpenRouter', 'openrouterSwitchTitle', 'openrouterSwitchBody', 'openrouterSwitchYes', 'openrouterPhoneBackup', 'openrouterFailed', 'openrouterFallback', 'openrouterOff', 'openrouterOffNoPhone', 'openrouterNeedNote', 'openrouterSwitchUnavailable', 'openrouterCantWriteNote', 'openrouterCantWriteFix', 'openrouterPhoneCantWhy']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
 test('openCodeAccountWords', () => { const keys = ['openCodeKeyNote', 'openCodePasteField', 'openCodeConnect', 'openCodeSignOut', 'openCodeButton', 'openCodeKeyFailed', 'srcOpenCode', 'srcOpenCodeSub', 'rowSourceOpenCode', 'homeOpenCode', 'headOpenCode', 'privacyOpenCode', 'switchNoteOpenCode', 'openCodeSwitchTitle', 'openCodeSwitchBody', 'openCodeSwitchYes', 'openCodePhoneBackup', 'openCodeFailed', 'openCodeFallback', 'openCodeOff', 'openCodeOffNoPhone', 'openCodeNeedNote', 'openCodeSwitchUnavailable', 'openCodeCantWriteNote', 'openCodeCantWriteFix', 'openCodePhoneCantWhy']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
 test('jevConsentWords', () => assertPlain(Object.entries(words).filter(([key]) => key.startsWith('jev')).map(([, text]) => text)));
+test('modelPickerWords', () => { const keys = ['rowModel', 'rowModelNone', 'needModel', 'needModelNote', 'needModelPanel', 'modelTitle', 'modelNote', 'modelSearch', 'modelLoading', 'modelFailed', 'modelEmpty', 'modelMore', 'modelPicked', 'modelChoose', 'modelLimited', 'modelResting', 'modelSaveFailed']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
+// The one narrow exception: the rows of the Which one writes list are the vendor's own names, whatever they hold. Every other
+// line on that list stays plain, and the rule itself still catches those names anywhere else.
+test('theModelListShowsVendorNamesAndNothingElseTechnical', async () => {
+  const vendor = ['Vendor: GPT-6 Sol', 'vendor/gpt-6-sol', 'Vendor: Gemma 4 31B (free)', 'vendor/gemma-4-31b-it:free', 'Vendor: Resting One', 'vendor/resting', 'Vendor: Plan One', 'vendor/plan'];
+  const screen = await render(<ModelPick account="chatgpt" picked={null} onPick={() => {}} />);
+  await waitFor(() => expect(screen.getByText('Vendor: GPT-6 Sol')).toBeTruthy());
+  const shown = visibleStrings(screen);
+  expect(shown).toEqual(expect.arrayContaining(vendor.slice(0, 2)));
+  expect(vendor.filter(name => technicalWords.test(name)).length).toBeGreaterThan(0);
+  assertPlain([...shown.filter(line => !vendor.includes(line)), words.modelSearch, words.modelResting, words.modelLimited]);
+  expect(shown).toEqual(expect.arrayContaining([words.modelResting, words.modelLimited]));
+});
 test('catchesATechnicalWord', () => { for (const bad of ['Scored by the judge', 'Slop: clean (10/100)', 'The on-device model is ready (nano-v3).', '117 characters on screen', 'Update AICore', 'Gemini Nano', 'Gemma', 'Done in 42%', '78 percent ready', '(500) something broke']) expect(technicalWords.test(bad)).toBe(true); for (const fine of ['Sounds natural and answers Sam', 'Getting Ownvoice ready… this happens once.', 'A bit stock', 'Sounds friendly', 'Sounds a bit sharp', 'Friendlier', 'Firmer']) expect(technicalWords.test(fine)).toBe(false); });
 test('toneLineAndPolishChoices', () => { assertPlain([words.toneSounds, Judge.toneLine('friendly'), Judge.toneLine('a bit sharp'), Judge.Rewrite.FRIENDLIER, Judge.Rewrite.FIRMER, Judge.rewriteAsk[Judge.Rewrite.FRIENDLIER], Judge.rewriteAsk[Judge.Rewrite.FIRMER], Judge.tonePrompt(['Fine. Do whatever you want.'])]); });
 

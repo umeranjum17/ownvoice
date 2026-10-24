@@ -149,6 +149,22 @@ const captureWriterList = async tag => {
   await wait(500);
   return card;
 };
+// Right after the key connects the app asks which one writes: search the account's own list for PICK_MODEL (an explicit
+// model id, never openrouter/auto; a live run uses a :free id) and tap that row, as a person would.
+const PICK_MODEL = process.env.PICK_MODEL;
+const pickModel = async tag => {
+  if (!PICK_MODEL || /^openrouter\/auto$/.test(PICK_MODEL)) throw new Error('Set PICK_MODEL to the explicit model id to pick from the list.');
+  await waitText('search the list', 90); // the list is read from the account, so it can take a moment
+  snap(`pick-list-${tag}`);
+  const field = find(n => (n.label || '').toLowerCase().includes('search the list'));
+  if (!field) throw new Error('The model search field did not open.');
+  tap(...center(field)); await wait(700);
+  adb('shell', 'input', 'text', `'${PICK_MODEL.replace(/ /g, '%s')}'`); await wait(900);
+  if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
+  snap(`pick-search-${tag}`);
+  await tapText(PICK_MODEL.toLowerCase(), 20);
+  await wait(1200);
+};
 const connectOpenRouter = async tag => {
   const card = await captureWriterList(tag);
   tap(...center(card));
@@ -159,6 +175,7 @@ const connectOpenRouter = async tag => {
   adb('shell', 'input', 'text', `'${key}'`); await wait(700); // never logged or screenshotted
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); } // hide the keyboard so Connect is visible
   await tapText('connect', 20);
+  await pickModel(tag);
   await waitText('openrouter is connected', 60);
   snap(`connected-${tag}`);
   log(`OpenRouter connected (${tag})`);

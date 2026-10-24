@@ -15,7 +15,8 @@ import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, store, type CheckinAnswer, type Outcome } from '../src/core/store';
 import { cloudOf, cloudSession, getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
-import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, type GptState } from '../src/chatgpt/session';
+import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, mocked, type GptState } from '../src/chatgpt/session';
+import { pickedModel } from '../src/core/model';
 import { openCodeReady, openRouterReady } from '../src/chatgpt/accounts';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
@@ -189,11 +190,13 @@ export default function Home() {
   const cantWriteFix = viaClaude ? words.claudeCantWriteFix : viaOpenRouter ? words.openrouterCantWriteFix : viaOpenCode ? words.openCodeCantWriteFix : words.cantWriteFix;
   // Never ready from missing data: wait until the writer, its apps and this phone's answer are known.
   const checking = source === undefined || rules === null || viaPhone && model === null || viaGpt && (gpt === null || apps === null || model === null) || viaClaude && (claude === null || apps === null || model === null) || viaOpenRouter && (openrouter === null || apps === null || model === null) || viaOpenCode && (openCode === null || apps === null || model === null);
-  const green = !needs && on && !paused && problem === null && !ask && !gptLine && !cantWrite && !checking;
-  const headline = needs ? words.needWriter : !on ? words.statusOff : ask ? keptLine ?? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : cantWrite ?? (checking ? words.statusChecking : words.statusReady));
-  const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : !on ? words.statusOffNote : ask ? (keptLine ? words.cantWriteReadyNote : words.readyNote) : problem
+  // Signed in and ready, but the person has not picked which one writes: ask, never pick for them.
+  const needsModel = !!cloud && !gptLine && !mocked && !pickedModel(cloud);
+  const green = !needs && !needsModel && on && !paused && problem === null && !ask && !gptLine && !cantWrite && !checking;
+  const headline = needs ? words.needWriter : needsModel ? words.needModel : !on ? words.statusOff : ask ? keptLine ?? words.readyTitle : problem ? words.statusNotReady : gptLine ?? (getting ? words.statusGettingReady : paused ? words.statusPaused : cantWrite ?? (checking ? words.statusChecking : words.statusReady));
+  const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : needsModel ? words.needModelNote : !on ? words.statusOffNote : ask ? (keptLine ? words.cantWriteReadyNote : words.readyNote) : problem
     ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : cantWrite ? cantWriteNote : checking ? null : words.statusReadyNote);
-  const mood = needs ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (cloudState?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : cantWrite ? 'check' : checking ? 'idle' : 'ready';
+  const mood = needs || needsModel ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (cloudState?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : cantWrite ? 'check' : checking ? 'idle' : 'ready';
   const signIn = (needs && !phoneCan || on && !!cloud && !!cloudState && !cloudState.signedIn) && !((viaOpenRouter && !openRouterReady()) || (viaOpenCode && !openCodeReady()));
   const onCard = green ? t.onPrimaryContainer : t.text;
   const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
@@ -216,9 +219,10 @@ export default function Home() {
         <Text style={[type.body, { color: t.text }]}>{words.changeFailed}</Text>
         <Button kind="text" label={words.tryAgain} onPress={() => { const again = retry; setRetry(null); again(); }} />
       </View>}
-      {(needs || signIn || on && (problem !== null || ask || !!cantWrite) || service !== 'on') && <View style={styles.statusActions}>
+      {(needs || needsModel || signIn || on && (problem !== null || ask || !!cantWrite) || service !== 'on') && <View style={styles.statusActions}>
         {service === 'off' && !needs && !signIn && <Button kind="filled" label={words.turnOn} onPress={() => power(true)} />}
         {signIn && <Button kind="filled" label={cloud === 'claude' ? words.claudeButton : cloud === 'openrouter' ? words.openrouterButton : cloud === 'opencode' ? words.openCodeButton : words.gptButton} onPress={() => router.push(cloud === 'claude' ? '/source?start=claude' : cloud === 'openrouter' ? '/source?start=openrouter' : cloud === 'opencode' ? '/source?start=opencode' : '/source?start=chatgpt')} />}
+        {needsModel && cloud && <Button kind="filled" label={words.modelChoose} onPress={() => router.push(`/model?account=${cloud}`)} />}
         {needs && phoneCan && <Button kind="filled" label={words.continueLabel} onPress={() => router.push('/source')} />}
         {!needs && on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="filled" label={words.tryAgain} onPress={() => start()} />}

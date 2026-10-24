@@ -1,5 +1,5 @@
 // The OpenCode Go writer, driven end to end through the real @byokit/accounts kit: the app's own
-// askCloud opencode branch, the plan-key route id, the typed model and the wire a fixture endpoint
+// askCloud opencode branch, the plan-key route id, the picked model's typed form and the wire a fixture endpoint
 // sees. Only the network and the phone's secure store are fixtures; every routing, key and stream
 // call is the shipped kit's — the same shape as the SignInWaitTest device-code journey, which also
 // scripts fetch and lets the kit do the rest.
@@ -38,14 +38,18 @@ jest.mock('expo-secure-store', () => {
 });
 
 import { ResponseError } from '@byokit/accounts';
-import { OPENCODE_MODEL, OPENCODE_ROUTE, accountRoute, askCloud, connectOpenCode, openCodeReady, signOutOpenCode, status } from '../accounts';
+import { OPENCODE_ROUTE, accountRoute, askCloud, connectOpenCode, listModels, openCodeReady, signOutOpenCode, status } from '../accounts';
 import { Rewrite } from '../../core/judge';
+import { setPickedModel } from '../../core/model';
 import { AccountRefused } from '../../core/writers';
 import { words } from '../../core/words';
 import { streamSelectionRewrite } from '../responses';
 
 const PLAN_KEY = 'fixture-opencode-go-key';
 const REPLY = '{"drafts":["Yes, Saturday works."]}';
+// The plan's own live list, as the vendor gives it: the person picks from this, the app keeps none.
+const LIST = [{ id: 'vendor-fast', name: 'Vendor Fast' }, { id: 'vendor-deep', name: 'Vendor Deep' }];
+const PICKED = { account: 'opencode' as const, model: 'vendor-deep' };
 
 const sse = (...chunks: string[]) => new ReadableStream<Uint8Array>({ start(controller) {
   for (const chunk of chunks) controller.enqueue(new TextEncoder().encode(chunk));
@@ -58,6 +62,7 @@ const planEndpoint = (orgs: Array<{ id: string; name: string }> = []) => {
   const seen: Array<{ url: string; headers: Headers; body: Record<string, unknown> }> = [];
   const fetch = jest.fn(async (url: string | URL, init?: RequestInit) => {
     if (String(url) === 'https://opencode.ai/console/api/orgs') return new Response(JSON.stringify(orgs), { status: 200, headers: { 'content-type': 'application/json' } });
+    if (String(url).endsWith('/models')) return new Response(JSON.stringify({ data: LIST }), { status: 200, headers: { 'content-type': 'application/json' } });
     seen.push({ url: String(url), headers: new Headers(init?.headers), body: JSON.parse(String(init?.body)) });
     return new Response(sse(
       `data: ${JSON.stringify({ id: 'c1', object: 'chat.completion.chunk', choices: [{ index: 0, delta: { content: REPLY } }] })}\n\n`,
@@ -69,6 +74,7 @@ const planEndpoint = (orgs: Array<{ id: string; name: string }> = []) => {
 };
 
 const realFetch = globalThis.fetch;
+beforeEach(() => setPickedModel('opencode', { id: PICKED.model, name: 'Vendor Deep' }));
 afterEach(async () => {
   globalThis.fetch = realFetch;
   await signOutOpenCode().catch(() => {});
@@ -83,6 +89,16 @@ test('the kit offers the OpenCode Go plan-key route on this phone, under its rou
   expect((await status(OPENCODE_ROUTE)).state).toBe('signed_out');
 });
 
+test('the plan\'s own live list is what the person picks from, read with the plan key', async () => {
+  const { fetch } = planEndpoint();
+  globalThis.fetch = fetch as unknown as typeof globalThis.fetch;
+  await connectOpenCode(PLAN_KEY);
+  expect((await listModels('opencode')).map(({ id, name, available }) => ({ id, name, available }))).toEqual(LIST.map(row => ({ ...row, available: true })));
+  const [url, init] = fetch.mock.calls.find(([address]) => String(address).endsWith('/models'))!;
+  expect(String(url)).toBe('https://opencode.ai/inference/go/v1/models');
+  expect(new Headers(init?.headers).get('authorization')).toBe(`Bearer ${PLAN_KEY}`);
+});
+
 test('a pasted plan key answers askCloud on the plan endpoint, with the kit\'s session headers', async () => {
   const { seen, fetch } = planEndpoint();
   globalThis.fetch = fetch as unknown as typeof globalThis.fetch;
@@ -90,7 +106,7 @@ test('a pasted plan key answers askCloud on the plan endpoint, with the kit\'s s
   expect((await status(OPENCODE_ROUTE)).state).toBe('ready');
 
   const deltas: string[] = [];
-  const text = await askCloud('opencode', {
+  const text = await askCloud(PICKED, {
     instructions: 'Return the requested reply drafts as JSON.', input: 'Sam: Saturday?', json: true,
     onText: delta => deltas.push(delta),
   });
@@ -99,7 +115,7 @@ test('a pasted plan key answers askCloud on the plan endpoint, with the kit\'s s
   expect(seen).toHaveLength(1);
   const [call] = seen;
   expect(call.url).toBe('https://opencode.ai/zen/go/v1/chat/completions');
-  expect(call.body.model).toBe(OPENCODE_MODEL.id);
+  expect(call.body.model).toBe(PICKED.model);
   const messages = JSON.stringify(call.body.messages);
   expect(messages).toContain('system');
   expect(messages).toContain('Return the requested reply drafts as JSON.');
@@ -128,7 +144,7 @@ test('a key with several workspaces connects only once one is picked, and every 
 
   expect(await connectOpenCode(PLAN_KEY, 'wrk_two')).toBeUndefined();
   expect((await status(OPENCODE_ROUTE)).state).toBe('ready');
-  await askCloud('opencode', { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
+  await askCloud(PICKED, { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
   expect(seen).toHaveLength(1);
   expect(seen[0].headers.get('x-opencode-org-id')).toBe('wrk_two');
 });
@@ -138,7 +154,7 @@ test('a key with one workspace connects with no pick, and asks name it', async (
   globalThis.fetch = fetch as unknown as typeof globalThis.fetch;
   expect(await connectOpenCode(PLAN_KEY)).toBeUndefined();
   expect((await status(OPENCODE_ROUTE)).state).toBe('ready');
-  await askCloud('opencode', { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
+  await askCloud(PICKED, { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
   expect(seen[0].headers.get('x-opencode-org-id')).toBe('wrk_only');
 });
 
@@ -148,7 +164,7 @@ test('without the plan key the ask fails as signed out, and no request goes out'
   // Nothing was saved for the route in this run's store (the previous test signed out): the kit
   // refuses before any request goes out, with its own typed signed-out error — the state in which
   // the app's route table hands the writing to the phone with this writer's own line.
-  const refusal = askCloud('opencode', { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
+  const refusal = askCloud(PICKED, { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
   await expect(refusal).rejects.toBeInstanceOf(ResponseError);
   await expect(refusal).rejects.toMatchObject({ kind: 'signed_out' });
   expect(seen).toHaveLength(0);

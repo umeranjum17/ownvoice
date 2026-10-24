@@ -228,8 +228,30 @@ const mailWords = {
   mailOpenThread: 'Open the email you want to answer, then tap the bubble for reply ideas.',
 } as const;
 
+// Which one writes: the person picks, from the account's own list; the names in that list are the vendor's and the one
+// place a name may show (the picker's rows). Everything around the list stays in plain words.
+const modelWords = {
+  rowModel: 'Which one writes',
+  rowModelNone: 'Not chosen yet',
+  needModel: 'Choose which one writes',
+  needModelNote: 'Your account is ready. Pick which one writes for you.',
+  needModelPanel: 'Choose which one writes first.',
+  modelTitle: 'Which one writes',
+  modelNote: 'This is your account’s own list. Ownvoice never picks for you.',
+  modelSearch: 'Search the list',
+  modelLoading: 'Getting your list…',
+  modelFailed: 'Couldn’t get the list. Check your connection and try again.',
+  modelEmpty: 'Nothing in the list matches.',
+  modelMore: 'Show more',
+  modelPicked: 'Chosen',
+  modelChoose: 'Choose',
+  modelLimited: 'Not with your plan right now',
+  modelResting: 'Resting right now',
+  modelSaveFailed: 'Couldn’t save your choice. Try again.',
+} as const;
+
 export const words = {
-  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...postsWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords,
+  ...engineWords, ...modelWords, ...typingWords, ...fitWords, ...editWords, ...postsWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords,
   aboutTitle: 'About Ownvoice',
   aboutVersion: 'Version',
   aboutBuild: 'Build',

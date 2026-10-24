@@ -1,5 +1,6 @@
 import { ResponseError } from '@byokit/accounts';
 import { Rewrite } from '../../core/judge';
+import { setPickedModel } from '../../core/model';
 import { cloudWords, PlanLimit, withPhoneFallback } from '../../core/writers';
 jest.mock('../../core/polish', () => ({
   ...jest.requireActual('../../core/polish'),
@@ -32,6 +33,7 @@ import { platformForApp } from '../../core/platforms';
 import { accounts, codexAuth, reportFailure } from '../accounts';
 import { words } from '../../core/words';
 import type { DraftRequest } from '../../core/writers';
+const PICKED = { id: 'vendor-model', name: 'Vendor Model' };
 const chatgptWriter = cloudWriter('chatgpt');
 
 const event = (item: object) => `data: ${JSON.stringify(item)}`;
@@ -43,6 +45,7 @@ const fetcher = (stream: ReadableStream<Uint8Array>) => jest.fn(async () => ({ o
 const reported = reportFailure as jest.Mock;
 beforeEach(() => {
   jest.clearAllMocks();
+  for (const account of ['chatgpt', 'claude', 'openrouter', 'opencode'] as const) setPickedModel(account, PICKED);
   jest.requireMock('../../core/polish').canPolish.mockImplementation(async () => true);
 });
 

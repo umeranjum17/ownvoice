@@ -13,6 +13,7 @@ import { AGREED_KEY } from '../../src/core/phoneDownload';
 import { PHONE_ONLY_KEY, SOURCE_KEY, setSource, storedSource } from '../../src/core/source';
 import Native, { type TapFact } from '../../modules/ownvoice-native';
 import { words } from '../../src/core/words';
+import { pickedModel, setPickedModel } from '../../src/core/model';
 import { space } from '../../src/ui/theme';
 import { readLog } from '../../src/core/readLog';
 import { loadVoice } from '../../src/core/voiceStore';
@@ -82,6 +83,8 @@ beforeEach(() => {
   kv.set('setup-done', '"done"');
   // The person chose this phone to write (nothing is chosen for them); tests of the unchosen state clear it.
   kv.set(SOURCE_KEY, '"phone"');
+  // The person has picked which one writes on their account; the ask for it has its own test below.
+  setPickedModel('chatgpt', { id: 'vendor-model', name: 'Vendor Model' });
   jest.clearAllMocks();
   for (const method of Object.values(native)) if (jest.isMockFunction(method)) method.mockReset();
   picker.pickFileAsync.mockReset();
@@ -323,6 +326,19 @@ test('with ChatGPT chosen, Home never asks for the phone download', async () => 
   const screen = await show(<Home />);
   expect(await screen.findByText(words.statusReady)).toBeTruthy();
   expect(screen.queryByText(words.getReady)).toBeNull();
+});
+
+test('a signed-in account with no pick: Home asks which one writes, never ready, and picks nothing', async () => {
+  kv.set(SOURCE_KEY, '"chatgpt"');
+  setPickedModel('chatgpt', null);
+  gpt.current.mockResolvedValue(connected);
+  const screen = await show(<Home />);
+  expect(await screen.findByText(words.needModel)).toBeTruthy();
+  expect(screen.getByText(words.needModelNote)).toBeTruthy();
+  expect(screen.queryByText(words.statusReady)).toBeNull();
+  await fireEvent.press(screen.getByText(words.modelChoose));
+  expect(router.push).toHaveBeenCalledWith('/model?account=chatgpt');
+  expect(pickedModel('chatgpt')).toBeNull();
 });
 
 test('Get it ready is the yes: it downloads on Wi-Fi with a bar, and Home is ready after', async () => {

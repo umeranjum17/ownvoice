@@ -4,6 +4,7 @@ import { jev, type Backend } from '@byokit/decide';
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
 import { cloudNow, cloudOf, cloudSession, getSource, isOwnApp, phoneListed, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
+import { pickedModel } from '../core/model';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { modelStatus } from '../core/phoneDownload';
 import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
@@ -166,6 +167,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
     signedIn: state.signedIn,
     phoneOnlyApp: listed || !visible,
     enabled,
+    needsModel: !mocked && !pickedModel(key),
     note: state.resting ?? (!state.signedIn ? state.note : null),
     phone,
     lines: cloudWords(key),

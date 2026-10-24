@@ -4,9 +4,10 @@ import { act, fireEvent, render, type RenderResult } from '@testing-library/reac
 
 // The element handle the kit's queries hand back; v14 no longer re-exports ReactTestInstance.
 type Field = Parameters<typeof fireEvent.changeText>[0];
-import { useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import Source from '../source';
 import { setSource, storedSource } from '../../src/core/source';
+import { pickedModel, setPickedModel } from '../../src/core/model';
 import { words } from '../../src/core/words';
 import { OPENCODE_ROUTE, askCloud, signOutOpenCode, status } from '../../src/chatgpt/accounts';
 import { say } from '@byokit/accounts';
@@ -81,6 +82,7 @@ const scripted = () => {
       orgCalls.push({ headers: new Headers(init?.headers) });
       return new Response(JSON.stringify(orgs), { status: 200, headers: { 'content-type': 'application/json' } });
     }
+    if (u.endsWith('/models')) return new Response(JSON.stringify({ data: [{ id: 'vendor-fast', name: 'Vendor Fast' }, { id: 'vendor-deep', name: 'Vendor Deep' }] }), { status: 200, headers: { 'content-type': 'application/json' } });
     if (u.startsWith('https://opencode.ai')) {
       gateway.push({ headers: new Headers(init?.headers) });
       return new Response(sse(
@@ -153,12 +155,19 @@ test('a key that works with several workspaces shows the kit\'s pick, and pickin
   expect(storedSource()).toBe('opencode');
   expect((await status(OPENCODE_ROUTE)).state).toBe('ready');
 
+  // Connected with no pick yet: the app asks which one writes right away, and the chosen card says it is not chosen yet.
+  expect(router.push).toHaveBeenCalledWith('/model?account=opencode');
+  expect(pickedModel('opencode')).toBeNull();
+  expect(screen.getByText(words.rowModel)).toBeTruthy();
+  expect(screen.getByText(words.rowModelNone)).toBeTruthy();
+
   // The tap-log row names the writer now in use, never ChatGPT.
   expect(screen.getByText(words.readsNoteTo.replace('{name}', 'OpenCode Go'))).toBeTruthy();
   expect(screen.queryByText(/ChatGPT saw/)).toBeNull();
 
   // A draft ask through the app's own route reaches the gateway naming the picked workspace.
-  const answer = await askCloud('opencode', { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
+  setPickedModel('opencode', { id: 'vendor-deep', name: 'Vendor Deep' });
+  const answer = await askCloud({ account: 'opencode', model: pickedModel('opencode')!.id }, { instructions: 'Return drafts.', input: 'Sam: Saturday?', json: true });
   expect(answer).toBe(REPLY);
   expect(gateway[0].headers.get('x-opencode-org-id')).toBe('wrk_two');
 });
