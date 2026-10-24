@@ -192,6 +192,9 @@ class OwnvoiceService : AccessibilityService() {
   private var checkedText: String? = null
   private var checkedApp: String? = null
   private var pausedAt = 0L
+  /** A note said while the panel closes, such as "Copied.", shown once the app it closed over is back: text, how long
+   * it shows, and when it was said (it expires after that long). */
+  private var pendingNote: Triple<String, Long, Long>? = null
   private var slipApp: String? = null
   private var slipCount = 0
   private var slipLabel = ""
@@ -208,7 +211,7 @@ class OwnvoiceService : AccessibilityService() {
   var panelOpen: Boolean
     get() = panelIsOpen
     // When the panel opens, put idle back (the bubble is hidden then), so closing it never leaves the tap mood on the bubble.
-    set(value) { panelIsOpen = value; if (value) restIdle(); refreshBubble() }
+    set(value) { panelIsOpen = value; if (value) restIdle(); refreshBubble(); if (!value) sayPending() }
 
   private fun px(dp: Int) = (dp * resources.displayMetrics.density).toInt()
   private fun kitRules() = Rules(paused, onApps.toList(), offApps.toList(), DEFAULT_ON.toList())
@@ -403,6 +406,7 @@ class OwnvoiceService : AccessibilityService() {
     if (limitedApp != null && app != limitedApp && !panelIsOpen) { limitedApp = null; bubbles?.setLabel("Ownvoice") }
     if (slipCount > 0 && app != slipApp && !panelIsOpen) showSlips(app.orEmpty(), 0, "")
     refreshBubble()
+    sayPending()
     if (app != null && !panelIsOpen && effectiveRules().shows(app) && !prefs.getBoolean("tipShown", false)) {
       prefs.edit().putBoolean("tipShown", true).apply()
       say(TIP, 6000)
@@ -437,6 +441,7 @@ class OwnvoiceService : AccessibilityService() {
     forget()
     // The send controls of an earlier insert may have moved since; the next insert measures them again.
     bubbles?.keepClear(emptyList())
+    pendingNote = null
     val app = currentApp()?.takeIf(::allowed) ?: run { restIdle(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
@@ -731,14 +736,29 @@ class OwnvoiceService : AccessibilityService() {
 
   fun say(message: String, forMs: Long = 4000) {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs) }; return }
-    // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one. The
-    // panel closing over an app hands its note to the bubble, which shows it clear of the field once the app is back.
-    if (currentApp() == packageName && !practice && !panelIsOpen) {
+    // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
+    // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
+    if (panelIsOpen && !practice) { pendingNote = Triple(message, forMs, SystemClock.uptimeMillis()); return }
+    // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one.
+    if (currentApp() == packageName && !practice) {
       Toast.makeText(this, message, Toast.LENGTH_LONG).show()
       return
     }
     // Announced, so TalkBack reads the pill the way the old live region did.
     bubbles?.say(message, moodFor(message), forMs, announce = true)
+  }
+
+  /** Posted, so it runs after the kit has shown the bubble again for the app in front; it waits while the panel or an
+   * Ownvoice screen is in front, until it expires. */
+  private fun sayPending() {
+    main.post {
+      val (message, forMs, at) = pendingNote ?: return@post
+      val left = forMs - (SystemClock.uptimeMillis() - at)
+      if (left <= 0) { pendingNote = null; return@post }
+      if (panelIsOpen || frontApp == null || frontApp == packageName) return@post
+      pendingNote = null
+      bubbles?.say(message, moodFor(message), left, announce = true)
+    }
   }
 
   /** Idle again after a tap mood, so closing the panel never leaves the tap mood on the bubble. */
