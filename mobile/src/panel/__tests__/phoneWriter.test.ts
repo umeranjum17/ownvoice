@@ -390,6 +390,45 @@ test('phone polish declines UNCLEAR keyboard mash only when the writer hands bac
   mockAsk.mockReset();
 });
 
+// 1.0.8 on the owner's phone: "Looks nice" came back as the writer talking to him, shown as the Shorter card.
+const OWNER_TALK = "I'm not sure what you're asking for. Could you please provide more details or clarify your request?";
+test.each([
+  OWNER_TALK,
+  'It seems like you want a shorter version. Could you share the full text?',
+  'As an AI, I cannot rewrite this without more context.',
+  'What would you like me to change?',
+])('a version that talks to the person instead of rewriting their text never lands: %j', async talk => {
+  mockAsk.mockImplementation(async prompt => prompt.includes('If it is a new post') ? 'Looks really nice.' : talk);
+  const landed = jest.fn();
+  const { drafts } = await phoneWriter.write(request({ typed: 'Looks nice' }), { landed });
+  expect(drafts).toEqual(['Looks really nice.']);
+  expect(landed.mock.calls.map(([text]) => text)).toEqual(['Looks really nice.']);
+  mockAsk.mockReset();
+});
+
+test('when every version talks back the phone polish ends with no card, not a declined text', async () => {
+  mockAsk.mockResolvedValue(OWNER_TALK);
+  const landed = jest.fn();
+  expect(await phoneWriter.write(request({ typed: 'Looks nice' }), { landed })).toEqual({ drafts: [], unchanged: false });
+  expect(landed).not.toHaveBeenCalled();
+  mockAsk.mockReset();
+});
+
+test('their own request rewritten as a question and their own words stay', async () => {
+  const typed = 'send me the deck pls, it seems like you forgot it';
+  mockAsk.mockImplementation(async prompt => prompt.includes('If it is a new post') ? 'It seems like you forgot the deck. Can you send it?' : 'Could you send me the deck?');
+  const { drafts } = await phoneWriter.write(request({ typed }));
+  expect(drafts).toEqual(['Could you send me the deck?', 'It seems like you forgot the deck. Can you send it?']);
+  mockAsk.mockReset();
+});
+
+test('a reply that asks the poster for details is kept; one addressed to the requester is dropped and retried', async () => {
+  mockAsk.mockResolvedValueOnce('Draft 1: Congrats on the launch!\nDraft 2: As an AI, I cannot share an opinion on this.\nDraft 3: Could you please provide more details about the role?')
+    .mockResolvedValue('Not sure it fits everyone yet.');
+  const { drafts } = await phoneWriter.write(request());
+  expect(drafts).toEqual(['Congrats on the launch!', 'Not sure it fits everyone yet.', 'Could you please provide more details about the role?']);
+});
+
 // The point check's leading word decides for mash; real text with nothing usable never gets the unclear message.
 test.each([
   ['CLEAR: it makes sense', 'asdf qwer zxcv jkl', false],

@@ -9,7 +9,7 @@ import { slipsLabel } from '../core/typingCheck';
 import { dashesFor } from '../core/drafts';
 import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
 import { prefillFor, prefillUrl } from '../core/prefill';
-import { feedRead } from '../core/feed';
+import { replyPost } from '../core/feed';
 import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
 import { abstain, judgeFit, rated, type Fit, type FitKind } from '../grow/fit';
@@ -52,6 +52,10 @@ const TAGS: Record<string, [string, string, string]> = {
 };
 const CHAT_TAGS: [string, string, string] = [words.replyYes, words.replyNo, words.replyAsk];
 type Phase = 'loading' | 'writing' | 'ready' | 'failed';
+/** How long a card may stay a placeholder, counted from the last card that landed: the phone writer took 60 to 250 s
+ *  for a whole set on a 2-core emulator, a cloud writer takes seconds. "Still working" shows after STILL_MS without a card. */
+const CARD_MS = { phone: 300_000, cloud: 90_000 };
+const STILL_MS = 20_000;
 type Draft = { text: string; label?: string; slot: number; scores: Scores; meaning: Check | null; ratings: CardRatings | null };
 type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
 
@@ -60,6 +64,8 @@ const opensApp: Set<string> = new Set([words.needWriterPanel, words.needWriterNo
 const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
 /** A plan limit is not stuck: open the writer list so the person can pick another writer. */
 const openSource = () => { void Native.openRoute('ownvoice://source').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
+/** Lines that end a run with no card: another writer may do better, so the panel offers the writer list beside Try again. */
+const otherWriter: Set<string> = new Set([words.noReplies, words.noVersions, words.tookTooLong]);
 
 /** Prefill hand-off: the app's own compose opens with this text, or the share
  *  sheet when it has no compose link; either way the person presses Send. */
@@ -149,6 +155,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [phase, setPhase] = useState<Phase>('loading');
   const [note, setNote] = useState<string | null>(null);
   const [fraction, setFraction] = useState<number | null>(null);
+  const [slow, setSlow] = useState(false);
+  // Bumped whenever the writer shows progress (it starts, a card lands, the phone takes over): the card deadline restarts.
+  const [beat, setBeat] = useState(0);
+  const downloading = useRef(false);
   const [reason, setReason] = useState<string | null>(null);
   const [who, setWho] = useState<string | null>(null);
   const [yours, setYours] = useState<Draft | null>(null);
@@ -259,6 +269,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setDeclined(false);
     setReason(null);
     setFraction(null);
+    setSlow(false);
+    downloading.current = false;
     setWhy(null);
     setWhys(new Map());
     setEdit(null);
@@ -278,14 +290,16 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     // Gmail's own Reply. Anywhere else (other chats, Gmail's inbox) it withholds before any writer runs
     // and never invents a reply.
     const mailThread = platform.id === 'gmail' && !!value.opensReply;
-    if (nextMode === 'reply' && !mailThread && !(platform.kind === 'feed' && platform.label && feedRead(value.nodes, value.fieldTop).post.trim())) {
+    const read = platform.kind === 'feed' ? replyPost(value.nodes, value.fieldTop, value.conversation, value.app) : '';
+    if (nextMode === 'reply' && !mailThread && !(platform.kind === 'feed' && platform.label && read)) {
       setNote(platform.id === 'gmail' ? words.mailOpenThread : words.replyWithheld); setPhase('failed'); return;
     }
     setNote(words.writing);
     setPhase('writing');
+    setBeat(value => value + 1);
     // What the reply answers: the post block when the layout shows one, else the screen text the
     // writer drafts from; '' only when nothing was read. A new post has no parent to compare with.
-    const shownPost = postOf.current = post ? null : feedRead(value.nodes, value.fieldTop).post || value.conversation.trim();
+    const shownPost = postOf.current = post ? null : read || value.conversation.trim();
     // Nothing was typed, so there is no Yours card to offer: a blank composer has only the drafts.
     if (typed) setYours({ text: typed, slot: -1, scores: Judge.scoreDraft(typed, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(typed, platform, shownPost, rules) });
     void (async () => {
@@ -307,6 +321,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           typed: grow ? '' : typed,
           point: grow ? typed : undefined,
           platform,
+          post: read || undefined,
           guide: picked.line,
           never: rules.never,
           samples: samplesOf.current = picked.samples,
@@ -314,17 +329,23 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           avoid,
         }, {
           ...readLog(value.id),
-          fallback: () => { if (run.current === id) shownOnPhone.current = true; },
+          fallback: () => { if (run.current === id) { shownOnPhone.current = true; setBeat(value => value + 1); } },
           state: state => {
             if (run.current !== id) return;
             setNote(state === 'downloading' ? words.gettingReady : words.writing);
+            // The one-time download has its own progress bar; the card deadline counts writing only.
+            downloading.current = state === 'downloading';
             if (state === 'writing') setFraction(null);
+            setSlow(false);
+            setBeat(value => value + 1);
           },
           fraction: value2 => { if (run.current === id) setFraction(value2); },
           reset: () => { if (run.current === id) { landedAny.current = false; setCards([null, null, null]); setWhy(null); } },
           landed: (text, slot, label) => {
             if (run.current !== id) return;
             landedAny.current = true;
+            setSlow(false);
+            setBeat(value => value + 1);
             const scores = Judge.scoreDraft(text, null, !publicScreen, rules, post, person, platform);
             const meaning = label ? Judge.meaning(value.typed, text, null) : null;
             const ratings = rate(text, platform, shownPost, rules);
@@ -359,6 +380,24 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     }).catch(() => { setPhase('failed'); setNote(words.noCapture); });
     return () => { ++run.current; dictateHandle.current?.cancel(); dictateHandle.current = null; };
   }, [start]);
+
+  // ---- Card deadline: a placeholder never stays forever. "Still working" after a while, then the run stops at its
+  // writer's deadline: the cards that landed stay and the rest collapse, or with none a plain line and Try again. ----
+  useEffect(() => {
+    if (phase !== 'writing' || downloading.current) return;
+    const id = run.current;
+    const still = setTimeout(() => { if (run.current === id) setSlow(true); }, STILL_MS);
+    const limit = setTimeout(() => {
+      if (run.current !== id) return;
+      // Late cards from the stopped run are dropped, never mixed into what shows now.
+      ++run.current;
+      setSlow(false);
+      setFraction(null);
+      setNote(landedAny.current ? null : words.tookTooLong);
+      setPhase(landedAny.current ? 'ready' : 'failed');
+    }, !leaves.current || shownOnPhone.current ? CARD_MS.phone : CARD_MS.cloud);
+    return () => { clearTimeout(still); clearTimeout(limit); };
+  }, [phase, beat]);
 
   // ---- Tone line (package 4): one batched writer call per tap names every shown text's tone; never per keystroke ----
   useEffect(() => {
@@ -589,6 +628,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     : phase === 'ready' && !shown.length ? (mode === 'reply' || mode === 'grow' ? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
     : phase === 'ready' ? (mode === 'reply' || mode === 'grow' ? (hasField ? words.readyReply : opensReply ? words.readyMail : words.noField) : words.readyPolish)
     : fraction != null ? words.gettingReady
+    : slow ? (!leaves.current || shownOnPhone.current ? words.stillWorking : words.stillWorkingCloud)
     : words.writing;
 
   const mood = phase === 'failed' || mode === 'empty' || !capture ? 'check'
@@ -626,6 +666,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         {phase === 'ready' && !declined && mode !== 'empty' && mode !== 'own' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
         {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
         {phase === 'failed' && isOtherWriterLine(mainNote) ?<Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
+        {otherWriter.has(mainNote) ? <Button kind="text" label={words.claudeChooseWriter} onPress={openSource} /> : null}
       </Empty>
       : undefined}
     onCloseCover={() => setWhy(null)}>
@@ -666,7 +707,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       </Card>
     </View> : null}
     {listed.map((card, i) => {
-      if (!card) return phase === 'writing' ? <View key={`empty-${i}`} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
+      // Cleaned up is never written by a writer: it lands from the phone's own spelling fix at once, or not at all.
+      if (!card) return phase === 'writing' && (replies || i > 0) ? <View key={`empty-${i}`} style={{ marginBottom: space.m }}><Placeholder /></View> : null;
       const verdict = card.label ? null : distinctVerdict(card, shown);
       const exportBlocked = card.meaning?.ok === false;
       const editing = edit?.slot === card.slot ? edit : null;

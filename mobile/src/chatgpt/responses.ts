@@ -174,9 +174,9 @@ function finishedReplies(text: string): string[] {
 /** Replies through the C2 reply prompt (the old bug sent replies through the rewrite prompt). */
 async function replies(cloud: CloudKey | 'computer', request: DraftRequest, on: WriterEvents): Promise<string[]> {
   const dashes = request.dashes ?? 'remove' as const;
-  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, dashes, platform: request.platform };
+  const input = { latest: latestMessage(request.nodes, request.fieldTop) || request.post || '', conversation: request.conversation, point: request.point, guide: request.guide, dashes, platform: request.platform };
   const slots = slotsFor(request.platform);
-  const parent = request.platform?.kind === 'feed' ? feedRead(request.nodes, request.fieldTop).post || input.latest : '';
+  const parent = request.platform?.kind === 'feed' ? request.post ?? (feedRead(request.nodes, request.fieldTop).post || input.latest) : '';
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];

@@ -67,9 +67,9 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
 /** Replies: one numbered call, then one bounded retry per empty slot, even on a slow phone. */
 async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
-  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, samples: request.samples, platform: request.platform };
+  const input = { latest: latestMessage(request.nodes, request.fieldTop) || request.post || '', conversation: request.conversation, point: request.point, guide: request.guide, samples: request.samples, platform: request.platform };
   const slots = slotsFor(request.platform);
-  const parent = request.platform?.kind === 'feed' ? feedRead(request.nodes, request.fieldTop).post || input.latest : '';
+  const parent = request.platform?.kind === 'feed' ? request.post ?? (feedRead(request.nodes, request.fieldTop).post || input.latest) : '';
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
