@@ -49,8 +49,8 @@ jobs:
           fi
           node - <<'JS'
           const { expo } = require('./app.config');
-          if (!/^v\d+\.\d+\.\d+$/.test(process.env.RELEASE_TAG) || process.env.RELEASE_TAG !== `v${expo.version}`) {
-            throw new Error('Tag must match the app version (vMAJOR.MINOR.PATCH)');
+          if (!/^v\d+\.\d+\.\d+(\.\d+)?$/.test(process.env.RELEASE_TAG) || process.env.RELEASE_TAG !== `v${expo.version}`) {
+            throw new Error('Tag must match the app version (vMAJOR.MINOR.PATCH or vMAJOR.MINOR.PATCH.BUILD)');
           }
           JS
       - run: npm ci
