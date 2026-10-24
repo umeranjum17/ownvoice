@@ -11,6 +11,7 @@
 // the offline sign-in stand-in), and e2e/first-run.mjs run once first so setup is finished.
 // Set OWNVOICE_BEFORE=1 against the base build: it captures the same screens without the
 // own-post assertions, so before and after sit side by side in one evidence folder.
+// OWN_POST_TALK=1 runs only the 'Looks nice' polish leg (e2e/own-post-talk.mjs) into [outdir].
 // Never UiAutomator: it would unbind the running Ownvoice service (e2e/accessibility.mjs).
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -269,6 +270,12 @@ if (!bound()) {
   // Keep the recent log, so the miss can be read from the record.
   try { writeFileSync(resolve(out, 'bind-logcat.txt'), execFileSync('adb', ['-s', serial, 'logcat', '-d', '-t', '800'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 })); } catch { /* no log */ }
   throw new Error('Ownvoice accessibility service is not bound.');
+}
+
+if (process.env.OWN_POST_TALK === '1') {
+  const { proveOwnPostTalk } = await import('./own-post-talk.mjs');
+  await proveOwnPostTalk({ adb, nodes, bubble, wait, out, fixturePkg, pkg, type, key, serial });
+  process.exit(0);
 }
 
 if (process.env.OWNVOICE_OUTCOME_PROOF === '1') {

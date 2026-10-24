@@ -150,6 +150,16 @@ export const phoneWriter = {
         if (acceptor.local != null) on.landed?.(acceptor.local, 0, versionsList[0].label);
         return { drafts: acceptor.results.map(result => result.text), unchanged: acceptor.unchanged };
       }
+      // A typed 'Looks nice' replays the owner's 1.0.8 run: Shorter talks to him and is dropped by the real acceptor,
+      // Main point first lands, and the writer then never answers, so the card deadline can be proved on an emulator.
+      if (request.typed.startsWith('Looks nice')) {
+        const acceptor = await polishAcceptor(request.typed, request.dashes ?? 'remove', request.avoid ?? []);
+        const talk = acceptor.accept("I'm not sure what you're asking for. Could you please provide more details or clarify your request?", 1, versionsList[1].label);
+        if (talk != null) on.landed?.(talk, 1, versionsList[1].label);
+        const first = acceptor.accept('Looks really nice.', 2, versionsList[2].label);
+        if (first != null) on.landed?.(first, 2, versionsList[2].label);
+        return new Promise<Choice>(() => {});
+      }
       // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).
       const drafts = request.typed.includes('multiline draft')
