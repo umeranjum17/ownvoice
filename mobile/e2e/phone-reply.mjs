@@ -14,7 +14,9 @@ import { feedRead } from '../../packages/engine/src/feed.ts';
 const post = 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?';
 const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 const shellCommand = args => args.map(quote).join(' ');
-const fixtureIntent = ['am', 'start', '-n', 'com.twitter.android/.Composer', '--es', 'post', post, '--es', 'replyText', ''];
+const fitProof = process.env.PHONE_FIT === '1';
+const replyText = fitProof ? 'I would add a break timer next.' : '';
+const fixtureIntent = ['am', 'start', '-n', 'com.twitter.android/.Composer', '--es', 'post', post, '--es', 'replyText', replyText];
 // Offline integration preflight: a real shell round-trip plus a retained native fixture read.
 if (process.argv[2] === '--preflight') {
   const decode = 'process.stdout.write(JSON.stringify(process.argv.slice(1)))';
@@ -68,17 +70,27 @@ run(join(tools, 'aapt'), ['package', '-f', '-M', manifest, '-I', android, '-F', 
 run('zip', ['-j', apk, join(scratch, 'classes.dex')]);
 run(join(tools, 'apksigner'), ['sign', '--ks', join(repo, 'mobile/android/app/debug.keystore'), '--ks-key-alias', 'androiddebugkey', '--ks-pass', 'pass:android', apk]);
 adb('install', '-r', apk);
+adb('shell', 'am', 'force-stop', 'com.twitter.android');
 adb('shell', ...fixtureIntent);
 const initial = await until('the complete post and empty fixture field', () => {
   const list = nodes(), field = list.find(n => n.editable && n.app === 'com.twitter.android');
-  return list.some(n => n.text === post) && field && ['', "What's happening?"].includes(field.text) ? list : null;
+  return list.some(n => n.text === post) && field && (fitProof ? field.text === replyText : ['', "What's happening?"].includes(field.text)) ? list : null;
 });
 writeFileSync(join(evidence, 'fixture-input.json'), JSON.stringify(initial, null, 1));
 // One tap, one generation; never retry a failing writer silently.
+const fitLines = () => adb('logcat', '-d', '-s', 'ReactNativeJS:I').split('\n').filter(line => line.includes('ownvoice-fit '));
+const beforeFits = fitLines().length;
 tap(await until('the bubble', () => nodes().find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label))));
 await until('the completed reply cards', () => nodes().some(n => /Pick one to put in your message box/.test(n.text ?? '')), 600);
 
-const labels = ['Agree', 'Push back, kindly', 'Ask a question'];
+let fits = null;
+if (fitProof) {
+  const line = await until('this tap’s completed phone judgments', () => fitLines().length > beforeFits && fitLines().at(-1), 900);
+  fits = JSON.parse(line.slice(line.indexOf('ownvoice-fit ') + 'ownvoice-fit '.length));
+  writeFileSync(join(evidence, 'phone-fit.json'), JSON.stringify(fits, null, 2));
+  assert.ok(fits.some(f => f.level != null), 'All phone judgments abstained');
+}
+const labels = [...fitProof ? ['Yours'] : [], 'Agree', 'Push back, kindly', 'Ask a question'];
 const cards = new Map(), ratings = new Set(), ratedCards = new Set(), hashes = new Set();
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
 for (let step = 0; step < 6; step++) {
@@ -97,10 +109,10 @@ for (let step = 0; step < 6; step++) {
   }
   const png = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p']);
   const hash = createHash('sha256').update(png).digest('hex');
-  if (!hashes.has(hash)) { writeFileSync(join(evidence, `reply-cards-${step + 1}.png`), png); hashes.add(hash); }
+  if (!hashes.has(hash)) { writeFileSync(join(evidence, `${fitProof ? 'phone-fit' : 'reply-cards'}-${step + 1}.png`), png); hashes.add(hash); }
   writeFileSync(join(evidence, `reply-cards-${step + 1}.nodes.json`), JSON.stringify(list, null, 1));
   const end = list.some(n => n.text === 'Write new ones');
-  if (cards.size > 0 && ratedCards.size === cards.size && (cards.size === 3 || end)) break;
+  if (cards.size > 0 && (fitProof ? cards.size === fits.length && end : ratedCards.size === cards.size && (cards.size === 3 || end))) break;
   adb('shell', 'input', 'swipe', String(width / 2), String(height * .74), String(width / 2), String(height * .38), '350');
   await wait(1500);
 }
@@ -110,7 +122,10 @@ const replies = [...cards.values()];
 assert.equal(new Set(replies.map(norm)).size, replies.length, 'Reply cards must differ');
 for (const reply of replies) { assert.ok(!copiesPost(reply, post), 'Card copies the parent'); assert.ok(!replyInstruction(reply), 'Card describes how to reply'); }
 // Clear rating labels can be identical across cards; every shown card must have both rows.
-assert.equal(ratedCards.size, cards.size, 'Every reply card must have both engagement and stock rows');
-writeFileSync(join(evidence, 'steps.json'), JSON.stringify({ target: { version: adb('shell', 'dumpsys', 'package', 'dev.ownvoice.next').match(/versionName=(\S+)/)?.[1] }, start: 'Candidate installed on an owned x86_64 emulator, free phone writer ready, X lab allowed', steps: ['Open the lab X post with an empty reply box', 'Tap the bubble once', 'Wait for the on-phone writer', 'Scroll every shown reply and its rating rows; do not insert or send'], result: { post, cards: Object.fromEntries(cards), ratingLabels: [...ratings], sent: false } }, null, 2));
+if (fitProof) {
+  assert.ok(cards.has('Yours') && cards.size > 1, 'Require Yours and at least one writer reply');
+  assert.equal(cards.size, fits.length, 'Capture every judged card');
+} else assert.equal(ratedCards.size, cards.size, 'Every reply card must have both engagement and stock rows');
+writeFileSync(join(evidence, 'steps.json'), JSON.stringify({ target: { version: adb('shell', 'dumpsys', 'package', 'dev.ownvoice.next').match(/versionName=(\S+)/)?.[1] }, start: 'Candidate installed on an owned x86_64 emulator, free phone writer ready, X lab allowed', steps: [`Open the lab X post with ${fitProof ? 'Umer’s typed reply' : 'an empty reply box'}`, 'Tap the bubble once', 'Wait for the on-phone writer', ...fitProof ? ['Wait for the on-phone fit judgment, including its shared inference queue'] : [], 'Scroll every shown reply and its rating rows; do not insert or send'], result: { post, replyText, cards: Object.fromEntries(cards), fits, ratingLabels: [...ratings], sent: false } }, null, 2));
 adb('shell', 'input', 'keyevent', '4');
 console.log(JSON.stringify({ cards: Object.fromEntries(cards), ratingLabels: [...ratings], passed: true }));

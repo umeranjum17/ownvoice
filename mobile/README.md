@@ -79,7 +79,7 @@ score question per shown text on X, LinkedIn and Reddit replies, and on a new po
 versions on X and Reddit (`kind: 'post'`, a post rubric with no parent; LinkedIn has no post
 rubric yet): the platform rubric is the question and the model's most probable level (`LEVELS`) becomes the card's engagement
 level. Below decide's 0.6 floor, or when nothing answered (no backend, no consent,
-offline, the 60 second deadline), the card abstains with the plain **Not sure about this
+offline, the deadline), the card abstains with the plain **Not sure about this
 one** bar; the panel never shows a number and never predicts reach. The level is never
 adjusted by hand rules. The panel asks once per tap after the writer settles, never per
 keystroke, and never for an edited text; each call uses a fresh in-memory cache.
@@ -94,6 +94,13 @@ dispatch. Drafts the phone wrote are never sent. The fit uses the same account a
 writer, so a rate limit on either pauses both until the plan recovers. When the phone wrote the drafts
 (**On this phone**, or as the fallback after the chosen account fails), the fit runs on the phone's own model through `phoneFit()` in
 `src/grow/phoneFit.ts`, so nothing leaves the phone; a card that model can't answer keeps the plain unsure read.
+Cloud fit keeps its 60-second deadline. Phone fit allows five minutes, including time queued behind
+other on-device checks: four native judgments took 172 seconds on a two-core x86_64 emulator.
+The prompt, schema, level mapping and confidence floor are unchanged; no level is supplied by a timer or rule.
+`cd mobile/eval && node phone-fit.integration.ts --deadline` replays the retained native output
+and a real delayed HTTP response through the published decision engine. For native fit proof use
+`PHONE_FIT=1 ANDROID_SERIAL=emulator-NNNN OWNVOICE_AVD_NAME=<owned> node mobile/e2e/phone-reply.mjs <scratch> <evidence>`
+from the repo root after preparing the free writer; it waits for this tap's actual judgments and requires a real level.
 
 A reply typed under an X, LinkedIn or Reddit post opens grow mode (`modeOf` in `src/panel/Panel.tsx`):
 the writer gets their text as `point` (with `typed` empty) so the replies start from it,

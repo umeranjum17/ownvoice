@@ -397,7 +397,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       const onPhone = !leaves.current || shownOnPhone.current;
       const backends = !onPhone ? fitBackends(capture.app, { on: { ...readLog(capture.id), refused: line => { refusal = line; } } }) : await phoneCanWrite() === 'cant' ? [] : [phoneFit()];
       if (run.current !== id) return;
-      void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, samples: samplesOf.current, backends, voice: !onPhone, kind: fitKind })
+      void judgeFit({ post: postOf.current ?? '', candidates: texts, platform: platformOf.current, samples: samplesOf.current, backends, voice: !onPhone, kind: fitKind, timeoutMs: onPhone ? 300000 : 60000 })
         .catch(() => texts.map(abstain))
         .then(found => {
           if (run.current !== id) return;

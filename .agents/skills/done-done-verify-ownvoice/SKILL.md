@@ -26,7 +26,7 @@ Harness: A shell. Each probe is a one-shot pipe: printf a JSON request into the 
 - [Get the platform list and per-platform limits](features/get-the-platform-list-and-per-platform-l.md): A caller asks which platforms the engine knows before it drafts for one of them (`packages/engine/src/platforms.ts`)
 - [Read the published protocol schema](features/read-the-published-protocol-schema.md): A caller wants the request and response shapes before it sends anything (`packages/engine/protocol/schema.json`)
 - [Use my computer (React Native app)](features/use-my-computer-on-the-react-native-app.md): Pair the app with the computer helper and write drafts through it (`mobile/src/computer/`, Android surface)
-- [Phone-writer reply quality (Android)](features/phone-reply-quality.md): One real on-phone generation under a native X lab post, only clean distinct replies (bad slots stay empty) and consistent rating rows; host eval also requires two own-post versions
+- [Phone-writer reply quality (Android)](features/phone-reply-quality.md): One real on-phone generation under a native X lab post, only clean distinct replies (bad slots stay empty) and consistent rating rows; the phone-fit companion proves actual fit judgments on Yours and reply cards; host eval also requires two own-post versions
 - [First-run welcome promise (React Native app)](features/first-run-welcome-promise.md): A new user opens Ownvoice and reads what it does in which apps (`packages/engine/src/words.ts`, Android surface)
 - [Reject bad requests with a readable error](features/reject-bad-requests-with-a-readable-erro.md): A caller sends a malformed or unknown request by mistake (`packages/engine/src/cli.mjs`)
 

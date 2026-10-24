@@ -38,6 +38,19 @@ loader and no `.mjs` helper in between; polish additionally imports the shared
 mobile `src/core/polish.ts` acceptor and loads the bundled Hunspell dictionary;
 prompts, pipeline and scorer are the app's own.
 
+## Phone fit deadline regression
+
+`node phone-fit.integration.ts` replays the retained native four-card answer through the
+actual `judgeFit` and published decision engine. Complete output maps to its actual levels;
+truncated JSON and a synthetic below-floor control still abstain. Add `--deadline` for a real
+61-second loopback HTTP response: the unchanged cloud/default minute deadline abstains,
+while the phone's five-minute deadline preserves the model's answer. This fixture serves
+recorded text, not inference; it does not qualify phone-model quality. The native companion is
+`PHONE_FIT=1 ANDROID_SERIAL=emulator-NNNN OWNVOICE_AVD_NAME=<owned> node mobile/e2e/phone-reply.mjs <scratch> <evidence>`
+from the repo root: the lab X post plus Umer's typed reply, free phone writer, actual fit
+results and every card captured without inserting or sending. Run the existing eight-case
+hosted writer gate as well; the timing change does not alter any prompt or threshold.
+
 ## Fit calibration (G9, local only)
 
 ```sh

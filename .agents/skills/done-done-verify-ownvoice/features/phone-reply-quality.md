@@ -30,7 +30,18 @@ surface; the Host CLI launch alone does not prove it.
    then stays empty rather than showing a bad card. Every offered card has engagement and stock
    wording rows, including a clean push-back card. The rows are text checks, not a
    reach prediction. Keep only distinct, readable result screens in the sealed run.
-6. Host regression companion: from `mobile/eval`, run the documented eight-case
+6. Phone fit companion (AA-04): run the same driver with `PHONE_FIT=1`. It opens
+   the same lab post with Umer's typed reply, waits for this tap's `ownvoice-fit`
+   answer (up to fifteen minutes including drafting), requires Yours plus at least
+   one writer reply and at least one non-null model judgment, then captures every card.
+   Inspect every `phone-fit-*.png`: at least one actual fit level, not all empty bars.
+   The phone fit has five minutes including queued on-device checks; the cloud minute
+   deadline, prompts, schema and confidence floor are unchanged. No rule supplies levels.
+   Repeat on a fresh app process in dark mode; keep the model download and consent.
+   Before booting, run `cd mobile/eval && node phone-fit.integration.ts --deadline`
+   to replay retained native outputs and a real delayed HTTP response. Truncated and
+   below-floor judgments must still abstain. No fit calibration or reach claim follows.
+7. Host regression companion: from `mobile/eval`, run the documented eight-case
    gate (P01/P13/S05/R01/R07 plus R13/R14/P20) and `score.ts`, plus `node run.ts --replay`
    offline before a boot. R13/R14 replay the
    observed bad outputs through admission as well as generating live replies;
