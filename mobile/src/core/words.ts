@@ -230,6 +230,17 @@ const mailWords = {
 
 export const words = {
   ...engineWords, ...typingWords, ...fitWords, ...editWords, ...postsWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords,
+  aboutTitle: 'About Ownvoice',
+  aboutVersion: 'Version',
+  aboutBuild: 'Build',
+  aboutPreRelease: 'Pre-release build. This is not the version people download.',
+  aboutRelease: 'Released version.',
+  aboutHelper: 'Computer helper',
+  aboutHelperNone: 'No computer is paired.',
+  aboutHelperUnreachable: "Couldn't reach your computer, so its version isn't known right now.",
+  aboutHelperUnknown: 'An older helper that does not say its version.',
+  aboutHelperOlder: 'Your computer helper is older than this app. Update it on your computer.',
+  aboutHelperNewer: 'This app is older than your computer helper. Update the app.',
   keepReplies: 'Keep my replies to learn from',
   keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
   outcomeTitle: 'Replies you inserted',

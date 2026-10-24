@@ -1,5 +1,6 @@
 {
   "name": "ownvoice-link",
+  "version": "1.0.8",
   "private": true,
   "type": "module",
   "description": "Runs on your own computer: Ownvoice on your phone sends it screen text and it answers with your signed-in Claude.",

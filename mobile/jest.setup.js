@@ -5,6 +5,8 @@ jest.mock('react-native-safe-area-context', () => {
   return { ...actual, useSafeAreaInsets: () => React.useContext(actual.SafeAreaInsetsContext) ?? { top: 0, right: 0, bottom: 0, left: 0 } };
 });
 
+// The build's own version comes from expo-constants; jest has no native config behind it.
+jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { version: '1.0.0', android: { versionCode: 1 } } } }));
 jest.mock('expo-secure-store', () => ({ getItemAsync: jest.fn(async () => null), setItemAsync: jest.fn(async () => {}), deleteItemAsync: jest.fn(async () => {}) }));
 jest.mock('expo-file-system', () => ({ File: { pickFileAsync: jest.fn() } }));
 // Only the Claude sign-in's crypto adapter runs under jest; deterministic bytes are enough for it.

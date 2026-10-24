@@ -26,6 +26,22 @@ async function dropComputer(): Promise<void> {
   await kept.clear();
 }
 
+/** What the paired computer helper's hello says of its version: `version` is null when it is too old to say, `reachable` false when it did not answer. */
+export async function helperVersion(): Promise<{ paired: boolean; version: string | null; reachable: boolean }> {
+  if (!(await computerName())) return { paired: false, version: null, reachable: false };
+  try {
+    const live = await connect();
+    if (!live) return { paired: false, version: null, reachable: false };
+    for (let waited = 0; live.status === 'connecting' && waited < 5000; waited += 100) await new Promise((done) => setTimeout(done, 100));
+    if (live.status !== 'online') throw new Error('offline');
+    const said = (await live.request('hello', {}, { timeoutMs: 5000 })) as { version?: unknown } | null;
+    const version = typeof said?.version === 'string' ? said.version : null;
+    return { paired: true, version, reachable: true };
+  } catch {
+    return { paired: true, version: null, reachable: false };
+  }
+}
+
 /** Asks the paired computer to drop this phone's trust; false when it could not be reached or did not confirm. */
 async function tellComputer(): Promise<boolean> {
   try {

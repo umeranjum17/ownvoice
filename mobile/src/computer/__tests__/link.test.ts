@@ -16,7 +16,7 @@ jest.mock('@byokit/pair', () => ({
   },
 }));
 
-import { askComputer, forgetComputer } from '../link';
+import { askComputer, forgetComputer, helperVersion } from '../link';
 import { words } from '../../core/words';
 import { SendVeto } from '../../core/writers';
 
@@ -203,5 +203,22 @@ describe('forgetComputer', () => {
     mockLink.status = 'online';
     mockLink.unpair.mockReset().mockRejectedValueOnce(new Error('timeout'));
     expect(await forgetComputer()).toEqual({ told: false });
+  });
+});
+
+describe('helperVersion', () => {
+  it('reads the version the paired computer reports in its hello', async () => {
+    mockLink.status = 'online';
+    mockLink.request.mockReset().mockResolvedValueOnce({ ok: true, version: '1.0.8' });
+    expect(await helperVersion()).toEqual({ paired: true, version: '1.0.8', reachable: true });
+    expect(mockLink.request).toHaveBeenCalledWith('hello', {}, expect.anything());
+  });
+
+  it('reports a helper that is too old to say its version, and one that is off', async () => {
+    mockLink.status = 'online';
+    mockLink.request.mockReset().mockResolvedValueOnce({ ok: true });
+    expect(await helperVersion()).toEqual({ paired: true, version: null, reachable: true });
+    mockLink.status = 'offline';
+    expect(await helperVersion()).toEqual({ paired: true, version: null, reachable: false });
   });
 });
