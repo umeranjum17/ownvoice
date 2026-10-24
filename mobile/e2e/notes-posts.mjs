@@ -36,9 +36,15 @@ const quote = value => `'${String(value).replaceAll("'", "'\\''")}'`;
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...(args[0] === 'shell' ? ['shell', args.slice(1).map(quote).join(' ')] : args)], { encoding: 'utf8', maxBuffer: 24 * 1024 * 1024 });
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
 const nodes = accessibilityProbe(serial, scratch);
+// A busy host can make the app's cold start trip Android's not-responding dialog: answer it with Wait, never Close.
+const answerNotResponding = () => {
+  const button = nodes().find(n => n.app === 'android' && n.text === 'Wait');
+  if (button) adb('shell', 'input', 'tap', ...[(button.bounds[0] + button.bounds[2]) / 2, (button.bounds[1] + button.bounds[3]) / 2].map(n => String(Math.round(n))));
+  return !!button;
+};
 const until = async (label, read, seconds = 60) => {
   const end = Date.now() + seconds * 1000;
-  while (Date.now() < end) { const found = read(); if (found) return found; await wait(2000); }
+  while (Date.now() < end) { const found = answerNotResponding() ? null : read(); if (found) return found; await wait(2000); }
   throw new Error(`Timed out waiting for ${label}`);
 };
 const hashes = new Set();
