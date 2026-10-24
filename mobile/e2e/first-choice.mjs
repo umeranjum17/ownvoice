@@ -3,7 +3,7 @@
 // The practice leg installs an explicit legacy SQLite fixture (TRY, no source), not a normal new-user path.
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
 
@@ -39,9 +39,13 @@ const snap = async (name, result) => {
   const png = execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { maxBuffer: 12 * 1024 * 1024 });
   writeFileSync(resolve(out, `${name}.png`), png);
   steps.push({ screenshot: `${name}.png`, result, at: new Date().toISOString() });
-  writeFileSync(resolve(out, 'steps.json'), JSON.stringify(steps, null, 2));
+  writeFileSync(resolve(out, 'steps.json'), JSON.stringify({
+    target: { version: adb('shell', 'dumpsys', 'package', pkg).match(/versionName=([^\s]+)/)?.[1], surface: 'Android release APK, stub writer', geometry: '720x1280 at density 320' },
+    start: 'Cleared app for each theme/font; synthetic legacy TRY/no-source store for the practice leg.',
+    steps, result: steps.at(-1).result,
+  }, null, 2));
 };
-const footer = () => nodes().find(n => n.clickable && /^(continue|sign in)$/i.test((n.label || n.text).trim()));
+const footer = () => nodes().find(n => n.clickable && /^(continue|sign in|get it ready)$/i.test((n.label || n.text).trim()));
 const radios = () => nodes().filter(n => n.checkable && n.app === pkg);
 // Synthetic app-owned restore fixture: no credentials or existing owner state is read/copied.
 const restorePractice = async () => {
@@ -83,9 +87,11 @@ try {
     assert(action, 'The main choice action is visible.');
     assert.equal(action.enabled, before, 'Continue is disabled until an explicit tap, unlike the baseline.');
     assert.equal(radios().filter(n => n.checked).length, before ? 1 : 0, 'No writer is preselected.');
-    await snap(`${tag}-choose`, before ? 'Baseline: phone selected, Continue enabled without a tap.' : 'No writer selected; Continue disabled.');
+    await snap(`${tag}-choose`, before ? 'Baseline: a writer is preselected and the main action is enabled without a tap.' : 'No writer selected; Continue disabled.');
     if (!before && mode === 'light' && font === '1.0') {
-      recorder = spawn('adb', ['-s', serial, 'shell', 'screenrecord', '--time-limit', '15', '/sdcard/ov-p2-choice.mp4'], { stdio: 'ignore' });
+      const log = openSync(resolve(out, 'screenrecord.log'), 'w');
+      recorder = spawn('adb', ['-s', serial, 'shell', 'screenrecord', '--time-limit', '15', '/sdcard/ov-p2-choice.mp4'], { stdio: ['ignore', log, log] });
+      closeSync(log);
       await wait(1500);
     }
     await tap('with your chatgpt');
@@ -93,17 +99,17 @@ try {
     assert.equal(radios().filter(n => n.checked).length, 1);
     await snap(`${tag}-chosen`, 'The person tapped their account; Continue is enabled. No sign-in or generation was requested.');
     if (recorder) {
-      await new Promise((res, rej) => { recorder.once('exit', code => code === 0 ? res() : rej(new Error(`screenrecord exit ${code}`))); });
+      if (recorder.exitCode === null) await new Promise((res, rej) => { recorder.once('exit', code => code === 0 ? res() : rej(new Error(`screenrecord exit ${code}`))); });
+      assert.equal(recorder.exitCode, 0, 'screenrecord completed successfully; inspect its log on failure.');
       adb('pull', '/sdcard/ov-p2-choice.mp4', resolve(out, 'choice-interaction.mp4')); recorder = null;
     }
     adb('shell', 'input', 'keyevent', '4'); // Leave setup without choosing a writer.
-    await seen('how ownvoice writes');
-    if (!before) await seen('choose how ownvoice writes');
+    await seen(before ? 'ownvoice is off' : 'choose how ownvoice writes');
     await snap(`${tag}-home`, before ? 'Baseline Home silently chooses the phone after leaving setup.' : 'Home asks the person to choose how Ownvoice writes after leaving setup.');
     await restorePractice();
     await tap('Message');
     adb('shell', 'input', 'text', 'yes,%sI%scan%sbring%sthe%stent');
-    adb('shell', 'input', 'keyevent', '4');
+    if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) adb('shell', 'input', 'keyevent', '4');
     await wait(1500);
     const bubble = nodes().find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label));
     assert(bubble, 'The restored practice chat has its bubble.');
@@ -114,7 +120,7 @@ try {
   }
   console.log(`PASS: ${steps.length} captures; no preselection, explicit tap enables Continue, Home and restored practice ask. Before=${before}`);
 } finally {
-  if (recorder) { recorder.kill('SIGTERM'); await new Promise(res => recorder.once('exit', res)); }
+  if (recorder && recorder.exitCode === null) { recorder.kill('SIGTERM'); await new Promise(res => recorder.once('exit', res)); }
   await toggleService(false);
   adb('shell', 'am', 'force-stop', pkg);
   adb('shell', 'settings', 'put', 'system', 'font_scale', priorFont === 'null' ? '1.0' : priorFont);
