@@ -1,7 +1,7 @@
 import { PHONE_ONLY_KEY, SOURCE_KEY } from '../../core/source';
 import { store } from '../../core/store';
-import { fitBackends } from '../settings';
-import { status } from '../accounts';
+import { fitBackends, jevEnabled, setJevEnabled } from '../settings';
+import { connectJev, disconnectJev, status } from '../accounts';
 import * as Switch from '../../core/switch';
 import { answerer } from '@byokit/decide';
 import { judgeFit, rated, LEVELS, UNSURE } from '../../grow/fit';
@@ -9,6 +9,7 @@ import { platformForApp } from '../../core/platforms';
 import Native from '../../../modules/ownvoice-native';
 import { signOut } from '../accounts';
 import { accountSessions } from '../session';
+import * as SecureStore from 'expo-secure-store';
 const session = accountSessions.chatgpt.session;
 
 jest.mock('../../../modules/ownvoice-native', () => ({
@@ -49,7 +50,7 @@ const ready = status as jest.Mock;
 const kv = jest.requireMock('expo-sqlite/kv-store').__map as Map<string, string>;
 
 
-beforeEach(() => {
+beforeEach(async () => {
   kv.clear();
   jest.restoreAllMocks();
   jest.clearAllMocks();
@@ -57,12 +58,18 @@ beforeEach(() => {
   mockState.mockResolvedValue({ phase: 'ready' });
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
   store.set(SOURCE_KEY, 'chatgpt');
+  const secrets = new Map<string, string>();
+  (SecureStore.getItemAsync as jest.Mock).mockImplementation(async (key: string) => secrets.get(key) ?? null);
+  (SecureStore.setItemAsync as jest.Mock).mockImplementation(async (key: string, value: string) => { secrets.set(key, value); });
+  (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (key: string) => { secrets.delete(key); });
+  await connectJev('fixture-jev-key');
+  setJevEnabled(true);
 });
 
 
 const platform = platformForApp('com.twitter.android');
 const options = { post: 'Umer built a timer.', candidates: ['Does it pause when you switch apps?', 'Game changer!'], platform };
-const evaluate = (fetcher: typeof fetch, key = 'fixture-jev-key') => judgeFit({ ...options, backends: fitBackends('com.twitter.android', { key, fetch: fetcher }) });
+const evaluate = (fetcher: typeof fetch) => judgeFit({ ...options, backends: fitBackends('com.twitter.android', { fetch: fetcher }) });
 const consent = () => {
   store.set(PHONE_ONLY_KEY, []);
   jest.spyOn(Switch, 'chatgptEnabled').mockResolvedValue(true);
@@ -70,17 +77,46 @@ const consent = () => {
 };
 const jevReply = (answers: object) => jest.fn(async (_url: RequestInfo | URL, _init?: RequestInit) => new Response(JSON.stringify({ answers, usage: { input_tokens: 9, output_tokens: 2 } })));
 
-test('no Jev key: the fit runs on the signed-in ChatGPT plan backend', async () => {
+test('Jev is off by default even with a saved BYOKit account: ratings follow the writer', async () => {
   consent();
+  kv.delete('jev-ratings');
+  expect(jevEnabled()).toBe(false);
   const fetcher = jevReply({});
-  const backends = fitBackends('com.twitter.android', { key: '', fetch: fetcher });
+  const backends = fitBackends('com.twitter.android', { fetch: fetcher });
   expect(backends).toHaveLength(1);
   expect(backends[0].name).toBe('chatgpt');
   expect(backends[0].leaves).toBe(true);
 });
 
+test.each(['chatgpt', 'claude', 'openrouter', 'opencode'])('Jev off preserves the %s rating route', cloud => {
+  setJevEnabled(false);
+  store.set(SOURCE_KEY, cloud);
+  expect(fitBackends('com.twitter.android')[0].name).toBe(cloud);
+});
+
+test.each(['off', 'off then on', 'disconnected'])('withdrawing Jev consent (%s) blocks an already selected backend', async scenario => {
+  consent();
+  const fetcher = jevReply({});
+  const backends = fitBackends('com.twitter.android', { fetch: fetcher });
+  if (scenario === 'disconnected') await disconnectJev();
+  else { setJevEnabled(false); if (scenario === 'off then on') setJevEnabled(true); }
+  expect((await judgeFit({ ...options, backends })).map(f => f.words)).toEqual([UNSURE, UNSURE]);
+  expect(fetcher).not.toHaveBeenCalled();
+});
+
+test.each([[401, 'Jev refused this key.'], [429, 'Jev has reached your account’s limit.'], [500, 'Jev did not return a rating']])('Jev HTTP %s gives a plain cause without a writer fallback', async (status, cause) => {
+  consent();
+  const refused = jest.fn();
+  const fetcher = jest.fn(async () => new Response('{}', { status: Number(status) }));
+  const backends = fitBackends('com.twitter.android', { fetch: fetcher, on: { refused } });
+  expect((await judgeFit({ ...options, backends })).every(f => f.level === null)).toBe(true);
+  expect(refused).toHaveBeenCalledWith(expect.stringContaining(cause));
+  expect(fetcher).toHaveBeenCalledTimes(1);
+});
+
 test('a fit request marks its own tap Sent through the read-log hooks it was given', async () => {
   consent();
+  setJevEnabled(false);
   const sent = jest.fn();
   const unsent = jest.fn();
   const fetcher = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'Too many requests', body: null } as unknown as Response));
@@ -95,7 +131,7 @@ test('a fit request marks its own tap Sent through the read-log hooks it was giv
   } finally { log.mockRestore(); }
 });
 
-test('a key turns it on: one Jev request with the rubric, its probabilities become the levels', async () => {
+test('an opt-in and saved BYOKit key route ratings to Jev without changing the writer', async () => {
   consent();
   const fetcher = jevReply({
     fit_0: { probabilities: { 0: 0.05, 1: 0.1, 2: 0.2, 3: 0.65 }, confidence: 0.65 },
@@ -104,6 +140,7 @@ test('a key turns it on: one Jev request with the rubric, its probabilities beco
   const fits = await evaluate(fetcher);
   expect(fits).toEqual([{ level: 3, words: LEVELS[3], probability: 0.65, voice: null }, { level: null, words: UNSURE, probability: null, voice: null }]);
   expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(store.get(SOURCE_KEY)).toBe('chatgpt');
   const [url, init] = fetcher.mock.calls[0];
   expect(url).toBe('https://api.typesafe.ai/v1/systemone');
   expect((init!.headers as Record<string, string>).authorization).toBe('Bearer fixture-jev-key');
@@ -124,7 +161,7 @@ test('the same call carries the selected samples as a Sounds-like-you yes/no per
     fit_1: { probabilities: { 0: 0.7, 1: 0.15, 2: 0.1, 3: 0.05 }, confidence: 0.7 },
     voice_1: { noul: 0.2 },
   });
-  const fits = await judgeFit({ ...options, samples, backends: fitBackends('com.twitter.android', { key: 'fixture-jev-key', fetch: fetcher }) });
+  const fits = await judgeFit({ ...options, samples, backends: fitBackends('com.twitter.android', { fetch: fetcher }) });
   expect(fits).toEqual([
     { level: 3, words: LEVELS[3], probability: 0.65, voice: true },
     { level: 0, words: LEVELS[0], probability: 0.7, voice: false },
@@ -139,7 +176,7 @@ test('the same call carries the selected samples as a Sounds-like-you yes/no per
     fit_0: { probabilities: { 0: 0.05, 1: 0.1, 2: 0.2, 3: 0.65 }, confidence: 0.65 },
     voice_0: { noul: 0.55 },
   });
-  expect(await judgeFit({ ...options, samples, backends: fitBackends('com.twitter.android', { key: 'fixture-jev-key', fetch: quiet }) }))
+  expect(await judgeFit({ ...options, samples, backends: fitBackends('com.twitter.android', { fetch: quiet }) }))
     .toEqual([
       { level: 3, words: LEVELS[3], probability: 0.65, voice: null },
       { level: null, words: UNSURE, probability: null, voice: null },
@@ -173,7 +210,7 @@ test('LinkedIn has its own rubric: a strong reply, a skipped one and an abstain'
   const platform = platformForApp('com.linkedin.android');
   const options = { post: 'After 6 years leading platform teams, I am starting my own consultancy.',
     candidates: ['We did the same review in Leeds: one chatty call on every page load, a small cache cut the slow calls from 900ms to 210ms.', 'Great post! Love this 🔥', 'Nice, consulting is always interesting.'], platform };
-  const evaluate = (fetcher: typeof fetch) => judgeFit({ ...options, backends: fitBackends('com.linkedin.android', { key: 'fixture-jev-key', fetch: fetcher }) });
+  const evaluate = (fetcher: typeof fetch) => judgeFit({ ...options, backends: fitBackends('com.linkedin.android', { fetch: fetcher }) });
   const fetcher = jevReply({
     fit_0: { probabilities: { 0: 0.02, 1: 0.03, 2: 0.15, 3: 0.8 }, confidence: 0.8 },
     fit_1: { probabilities: { 0: 0.7, 1: 0.15, 2: 0.1, 3: 0.05 }, confidence: 0.7 },

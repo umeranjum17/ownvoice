@@ -8,10 +8,11 @@
 // Owned emulator only, never the test phone; taps through the probe, never uiautomator dump.
 //   ANDROID_SERIAL=emulator-XXXX OWNVOICE_AVD_NAME=<avd> JAVA_HOME=<jdk> node e2e/own-post-fit.mjs <release-apk> [outdir]
 // The release APK needs EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_GPT=1
-// EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455 EXPO_PUBLIC_JEV_KEY=stand-in
-// EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18612, and e2e/first-run.mjs run once first so setup is
+// EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455
+// EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18612. Jev is connected and opted in through its UI below.
+// Run e2e/first-run.mjs once first so setup is
 // finished with ChatGPT. Shots, the stand-in's requests and the read levels land in [outdir].
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { createServer } from 'node:http';
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
@@ -67,6 +68,7 @@ const standin = createServer((req, res) => {
   req.on('end', () => {
     if (req.method !== 'POST' || req.url !== '/v1/systemone') { res.writeHead(404).end(); return; }
     try {
+      if (req.headers.authorization !== 'Bearer fixture-jev-key') throw new Error('The BYOKit fixture key did not reach Jev.');
       const body = JSON.parse(raw);
       const scores = Object.entries(body.questions ?? {}).filter(([, q]) => q.type === 'score');
       appendFileSync(requests, JSON.stringify({ platform: body.state?.platform, post: body.state?.post, candidates: body.state?.candidates,
@@ -151,6 +153,48 @@ const connect = async () => {
   await wait(1500);
 };
 
+// The real BYOKit account and persisted opt-in, with a synthetic key: never a real Jev request.
+const jevSettings = async (theme, ending = false) => {
+  if (!ending) {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://', pkg);
+    await wait(2000);
+    if (!nodes().some(n => n.text === 'Ratings with Jev')) adb('shell', 'input', 'swipe', '540', '1800', '540', '950', '400');
+    await until(() => nodes().some(n => n.text === 'Ratings with Jev'), 'the Home settings row');
+    await wait(1500); shot(`home-${theme}`);
+  }
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://ratings', pkg);
+  const toggle = () => nodes().find(n => n.app === pkg && n.label === 'Use Jev for ratings' && n.checkable);
+  await until(toggle, 'the Jev rating switch');
+  if (ending) {
+    nodes('Use Jev for ratings');
+    await until(() => { const n = toggle(); return n && !n.checked; }, 'Jev off');
+    shot(`jev-off-${theme}`);
+    nodes('Disconnect Jev');
+    await until(() => nodes().some(n => n.password && n.editable), 'the removed Jev account');
+    shot(`jev-disconnected-${theme}`);
+    return;
+  }
+  const initial = toggle();
+  if (initial.checked || initial.enabled) throw new Error('Jev was not off and disconnected by default.');
+  await wait(1500);
+  shot(`jev-default-${theme}`);
+  const recording = theme === 'light' ? spawn('adb', ['-s', serial, 'shell', 'screenrecord', '--time-limit', '45', '/sdcard/jev-consent.mp4'], { stdio: 'ignore' }) : null;
+  const recorded = recording ? new Promise((resolve, reject) => { recording.once('error', reject); recording.once('exit', code => code === 0 ? resolve() : reject(new Error(`screenrecord exit ${code}`))); }) : null;
+  const field = await until(() => nodes().find(n => n.app === pkg && n.password && n.editable), 'the Jev key field');
+  tap(...center(field));
+  adb('shell', 'input', 'text', 'fixture-jev-key');
+  adb('shell', 'input', 'keyevent', '4');
+  nodes('Agree and connect Jev');
+  await until(() => { const n = toggle(); return n && n.enabled && !n.checked; }, 'connected but still off');
+  shot(`jev-connected-off-${theme}`);
+  nodes('Use Jev for ratings');
+  await until(() => toggle()?.checked, 'Jev on');
+  await wait(1000);
+  shot(`jev-on-${theme}`);
+  if (recorded) { await recorded; adb('pull', '/sdcard/jev-consent.mp4', resolve(out, 'jev-consent.mp4')); adb('shell', 'rm', '-f', '/sdcard/jev-consent.mp4'); }
+  appendFileSync(resolve(out, 'steps.jsonl'), JSON.stringify({ theme, result: 'default off; BYOKit key saved; still off until switched on' }) + '\n');
+};
+
 /** One own post on one platform in one theme: type it, open the panel, wait for the rated cards. */
 async function one(id, theme) {
   const fix = FIXTURES[id];
@@ -221,7 +265,9 @@ try {
     adb('shell', 'am', 'force-stop', pkg);
     await rebind();
     await connect();
+    if (!before) await jevSettings(theme);
     for (const id of Object.keys(FIXTURES)) await one(id, theme);
+    if (!before) await jevSettings(theme, true);
   }
   // Every request the stand-in saw must be a post rating: the platform's post rubric, no parent.
   const seen = readFileSync(requests, 'utf8').trim().split('\n').filter(Boolean).map(line => JSON.parse(line));
@@ -234,6 +280,7 @@ try {
       if (!r.instructions.every(line => line.includes(`A new ${r.platform} post`))) throw new Error(`A ${r.platform} rating did not use the post rubric: ${r.instructions.join(' | ')}`);
     }
   }
+  writeFileSync(resolve(out, 'steps.json'), JSON.stringify({ result: 'PASS', label, requests: seen.length, route: 'Jev fixed-answer HTTP fixture; generation uses the E2E stub; no real account or spend' }, null, 2));
   console.log(`own-post-fit ${label}: PASS (${seen.length} stand-in requests). Shots and log in ${out}.`);
 } finally {
   standin.close();
