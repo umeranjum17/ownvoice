@@ -1,9 +1,12 @@
 package dev.ownvoice.bridge
 
+import android.app.AppOpsManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageInstaller
+import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import expo.modules.kotlin.Promise
@@ -52,6 +55,26 @@ class OwnvoiceNativeModule : Module() {
       context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
         .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         .setData(android.net.Uri.fromParts("package", context.packageName, null)))
+    }.runOnQueue(Queues.MAIN)
+    // Android 13+ greys out the switch of an app installed from a file until App info's "Allow restricted
+    // settings" is tapped, and offers that menu item only after the person tried the greyed switch once.
+    // The app op tells the three apart: errored (blocked, not tried yet), ignored (tried), allowed (done).
+    // Without a set mode, Android decides by where the app came from, so this does too.
+    AsyncFunction("restrictedSettings") {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@AsyncFunction "clear"
+      val mode = runCatching {
+        context.getSystemService(AppOpsManager::class.java)
+          .unsafeCheckOpNoThrow("android:access_restricted_settings", context.applicationInfo.uid, context.packageName)
+      }.getOrNull()
+      when (mode) {
+        AppOpsManager.MODE_ERRORED -> "blocked"
+        AppOpsManager.MODE_IGNORED -> "tried"
+        AppOpsManager.MODE_ALLOWED -> "clear"
+        else -> {
+          val source = runCatching { context.packageManager.getInstallSourceInfo(context.packageName).packageSource }.getOrNull()
+          if (source == PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE || source == PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE) "blocked" else "clear"
+        }
+      }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("launcherApps") Coroutine { packages: List<String>? ->
       val pm = context.packageManager
