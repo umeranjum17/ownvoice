@@ -12,7 +12,8 @@ export function emulatorName(serial) {
 
 /** Build a standalone test APK: it instruments itself, leaving Ownvoice's process and service alone.
  *  `phone` takes a real lab phone's serial (the phone writer proof) instead of an owned emulator. */
-export function accessibilityProbe(serial, scratch, { phone = false } = {}) {
+export function accessibilityProbe(serial, scratch, { phone = false, expectedPackage } = {}) {
+  if (expectedPackage !== undefined && !/^[\w.]+$/.test(expectedPackage)) throw new Error('Expected an Android package name.');
   if (phone) {
     if (!serial || /^emulator-/.test(serial)) throw new Error('The phone probe takes a phone serial.');
   } else {
@@ -45,11 +46,13 @@ export function accessibilityProbe(serial, scratch, { phone = false } = {}) {
   if (phone) { try { execFileSync('adb', ['-s', serial, 'uninstall', 'dev.ownvoice.probe'], { stdio: 'pipe' }); } catch { /* none installed */ } }
   run('adb', ['-s', serial, 'install', '-r', apk]);
   return (click) => {
-    const output = execFileSync('adb', ['-s', serial, 'shell', 'am', 'instrument', '-w', ...(click ? ['-e', 'click', "'" + click.replaceAll("'", "'\\'" + "'") + "'"] : []), 'dev.ownvoice.probe/dev.ownvoice.probe.Probe'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
+    const output = execFileSync('adb', ['-s', serial, 'shell', 'am', 'instrument', '-w', ...(expectedPackage ? ['-e', 'expectedPackage', expectedPackage] : []), ...(click ? ['-e', 'click', "'" + click.replaceAll("'", "'\\'" + "'") + "'"] : []), 'dev.ownvoice.probe/dev.ownvoice.probe.Probe'], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024, timeout: 25_000 });
     const json = output.match(/^INSTRUMENTATION_RESULT: nodes=(.+)$/m)?.[1];
     if (!json || !output.includes('INSTRUMENTATION_CODE: 0')) throw new Error(`Accessibility probe failed: ${output}`);
     if (click && !output.includes('INSTRUMENTATION_RESULT: clicked=true')) throw new Error(`Accessible click failed: ${click}`);
-    return JSON.parse(json).filter(node => node.visible && node.bounds[2] > node.bounds[0] && node.bounds[3] > node.bounds[1]);
+    const visible = JSON.parse(json).filter(node => node.visible && node.bounds[2] > node.bounds[0] && node.bounds[3] > node.bounds[1]);
+    if (!visible.length || expectedPackage && !visible.some(node => node.app === expectedPackage)) throw new Error('Accessibility probe returned no readable app snapshot.');
+    return visible;
   };
 }
 
