@@ -241,7 +241,6 @@ export const words = {
   aboutHelperUnknown: 'An older helper that does not say its version.',
   aboutHelperOlder: 'Your computer helper is older than this app. Update it on your computer.',
   aboutHelperNewer: 'This app is older than your computer helper. Update the app.',
-  aboutHelperSame: 'The app and the computer helper match.',
   keepReplies: 'Keep my replies to learn from',
   keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
   outcomeTitle: 'Replies you inserted',

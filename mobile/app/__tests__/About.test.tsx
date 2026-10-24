@@ -2,15 +2,19 @@ import { render, waitFor } from '@testing-library/react-native';
 import About from '../about';
 import { words, technicalWords } from '../../src/core/words';
 import { helperVersion } from '../../src/computer/link';
+import Constants from 'expo-constants';
 
 jest.mock('expo-constants', () => ({ __esModule: true, default: { expoConfig: { version: '1.0.9', android: { versionCode: 11 } } } }));
 jest.mock('../../src/computer/link', () => ({ helperVersion: jest.fn() }));
 const helper = helperVersion as jest.MockedFunction<typeof helperVersion>;
 
+const config = Constants as unknown as { expoConfig: unknown };
+const savedConfig = config.expoConfig;
+
 const shown = (screen: Awaited<ReturnType<typeof render>>) => screen.queryAllByText(/./).map((n) => String(n.props.children));
 
 describe('About', () => {
-  afterEach(() => { delete process.env.EXPO_PUBLIC_OWNVOICE_RELEASE; });
+  afterEach(() => { delete process.env.EXPO_PUBLIC_OWNVOICE_RELEASE; config.expoConfig = savedConfig; });
 
   it('marks a build that is not a tagged release as pre-release, in plain words', async () => {
     helper.mockResolvedValue({ paired: false, version: null, reachable: false });
@@ -30,6 +34,15 @@ describe('About', () => {
     expect(screen.getByText('Version 1.0.9')).toBeTruthy();
     expect(screen.getByText(`${words.aboutHelper} 1.0.8`)).toBeTruthy();
     expect(screen.getByText(words.aboutRelease)).toBeTruthy();
+  });
+
+  it('does not claim the versions match when the app has no version', async () => {
+    config.expoConfig = { version: undefined };
+    helper.mockResolvedValue({ paired: true, version: '1.0.8', reachable: true });
+    const screen = await render(<About />);
+    await waitFor(() => expect(screen.getByText(`${words.aboutHelper} 1.0.8`)).toBeTruthy());
+    expect(shown(screen).some(x => x.includes('match'))).toBe(false);
+    expect(screen.queryByRole('alert')).toBeNull();
   });
 
   it('says so when the paired helper is too old to report a version or cannot be reached', async () => {
