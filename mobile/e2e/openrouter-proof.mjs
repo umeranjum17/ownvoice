@@ -105,7 +105,13 @@ const theme = async dark => {
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(4000);
 };
 // Setup is finished with no writer: hardware Back on the welcome completes it (the person can choose later).
-const skipSetup = async () => { await waitText('sound like you', 30); adb('shell', 'input', 'keyevent', '4'); await wait(2500); await waitText('where the bubble shows', 30); };
+const skipSetup = async () => { await waitText('sound like you', 30); adb('shell', 'input', 'keyevent', '4'); await wait(2500); await homeRows(); };
+// Home's lower rows can sit below the narrow viewport after setup or returning from Apps.
+const homeRows = async () => {
+  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
+  await wait(1200);
+  await waitText('where the bubble shows', 30);
+};
 const openSource = async () => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg); await waitText('with your openrouter', 30); };
 const revealOpenRouter = async () => {
   for (let i = 0; i < 5 && !findText('with your openrouter'); i++) {
@@ -134,10 +140,7 @@ const enableChrome = async () => {
   }
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice:///', pkg);
   await wait(1500);
-  // Home's lower rows can sit below the fold: scroll once before asserting the return.
-  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
-  await wait(1200);
-  await waitText('where the bubble shows', 30);
+  await homeRows();
 };
 
 // The writer list: OpenRouter card present (the kit reports its key route ready), then connect with the key.

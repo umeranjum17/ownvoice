@@ -288,7 +288,7 @@ export default function SourceScreen() {
         </>}
       {phoneCan && indent(resting || !cloud?.signedIn ? words.restingPhone : copy.phoneBackup, t.muted)}
       {cloud?.signedIn && asksModel(key) && <View style={[styles.inner, { backgroundColor: t.group }]}>
-        <Row title={words.rowModel} subtitle={pickedModel(key)?.name ?? words.rowModelNone} onPress={() => router.push(`/model?account=${key}`)} />
+        <Row title={words.rowModel} subtitle={pickedModel(key) ? words.modelPicked : words.rowModelNone} onPress={() => router.push(`/model?account=${key}`)} />
       </View>}
       {key === 'chatgpt'
         ? <View style={[styles.inner, { backgroundColor: t.group }]}>
