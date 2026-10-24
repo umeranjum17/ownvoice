@@ -228,7 +228,8 @@ async function one(id, theme) {
   }
   const title = `Polish your post · ${fix.name}`;
   await until(() => panelNodes().some(n => (n.text ?? '').startsWith(title)), `"${title}"`, 60);
-  await until(() => panelNodes().filter(n => /^Use this$/.test(n.text ?? '')).length >= 2, 'the versions', 60);
+  // Narrow viewports show only one action; every expected level is still required after scrolling below.
+  await until(() => panelNodes().some(n => /^Use this$/.test(n.text ?? '')), 'the first visible version', 60);
   if (before) await wait(8000);
   else await until(() => fitLines().length && levelsShown(panelNodes()).length >= 2, 'the fit bars', 90);
   await wait(1500);
