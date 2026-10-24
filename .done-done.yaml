@@ -200,6 +200,13 @@ journeys:
       echo "before exit=$c1 after exit=$c2" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ]
     timeout: 45m
 
+  polish-talk-deadline:
+    description: "Android: 'Looks nice' typed in the blank X-style composer on the stub phone writer; the Shorter version that talks to the person never shows, 'Still working' shows while a card is coming, and the missing card collapses at the phone's card deadline. Needs an explicit emulator allocation after first-run.mjs setup and APK env (stub+GPT release APK, built per mobile/README.md)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      OWN_POST_TALK=1 node mobile/e2e/own-post.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 30m
+
   typing-checks:
     description: "Android: readable-field counts, honest capped-field disclosure, disabled partial Fix and Insert, fresh-field recovery, plus the overlay typing-fix leg. Needs an explicit emulator allocation."
     command: |

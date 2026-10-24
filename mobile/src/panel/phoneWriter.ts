@@ -67,9 +67,9 @@ async function polish(request: DraftRequest, on: WriterEvents): Promise<Choice> 
 /** Replies: one numbered call, then one bounded retry per empty slot, even on a slow phone. */
 async function replies(request: DraftRequest, on: WriterEvents, started: number): Promise<string[]> {
   const dashes = request.dashes ?? 'remove';
-  const input = { latest: latestMessage(request.nodes, request.fieldTop), conversation: request.conversation, point: request.point, guide: request.guide, samples: request.samples, platform: request.platform };
+  const input = { latest: latestMessage(request.nodes, request.fieldTop) || request.post || '', conversation: request.conversation, point: request.point, guide: request.guide, samples: request.samples, platform: request.platform };
   const slots = slotsFor(request.platform);
-  const parent = request.platform?.kind === 'feed' ? feedRead(request.nodes, request.fieldTop).post || input.latest : '';
+  const parent = request.platform?.kind === 'feed' ? request.post ?? (feedRead(request.nodes, request.fieldTop).post || input.latest) : '';
   const landed = on.landed ?? (() => {});
   const exclude = [...request.avoid ?? []];
   const controls = request.nodes?.filter(node => node.clickable).map(node => node.text) ?? [];
@@ -149,6 +149,16 @@ export const phoneWriter = {
         versionsList.slice(1).forEach((version, index) => acceptor.accept(request.typed, index + 1, version.label));
         if (acceptor.local != null) on.landed?.(acceptor.local, 0, versionsList[0].label);
         return { drafts: acceptor.results.map(result => result.text), unchanged: acceptor.unchanged };
+      }
+      // A typed 'Looks nice' replays the owner's 1.0.8 run: Shorter talks to him and is dropped by the real acceptor,
+      // Main point first lands, and the writer then never answers, so the card deadline can be proved on an emulator.
+      if (request.typed.startsWith('Looks nice')) {
+        const acceptor = await polishAcceptor(request.typed, request.dashes ?? 'remove', request.avoid ?? []);
+        const talk = acceptor.accept("I'm not sure what you're asking for. Could you please provide more details or clarify your request?", 1, versionsList[1].label);
+        if (talk != null) on.landed?.(talk, 1, versionsList[1].label);
+        const first = acceptor.accept('Looks really nice.', 2, versionsList[2].label);
+        if (first != null) on.landed?.(first, 2, versionsList[2].label);
+        return new Promise<Choice>(() => {});
       }
       // 'stock' in the typed text picks one deliberately stockier draft, so the e2e can show
       // the verdict line (cards differ) as well as the hidden shared note (cards agree).

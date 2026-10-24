@@ -446,6 +446,26 @@ export function copiesPrompt(draft: string, prompt: string): boolean {
 /** Narrow meta-reply openings seen from the phone writer, not natural agreement ('I agree, ...'). */
 export const replyInstruction = (text: string): boolean => /^(?:(?:x|linkedin|reddit|slack|gmail)\s*:\s*)?(?:(?:reply|response)\s*:|(?:agree|push back|disagree|ask)(?:\s+kindly)?(?:\s*[,;:]?\s*["“']|\s*[,;:]?\s*(?:(?:by\s+)?(?:adding|suggesting|saying|asking|noting|explaining)\b|with\s+(?:the\s+)?(?:idea|suggestion|reason|question)\b)))|\n\s*(?:reply|response)\s*:/i.test(text.trim());
 
+/** The writer talking to the person who asked, not a draft: an assistant disclaimer or a request for the text.
+ * Never natural in a reply under a post or in a chat, so replies and rewrites both drop it. */
+const REQUESTER = /\b(?:as an? (?:AI|language model|assistant)|I(?:['’]m| am) (?:an AI|a language model|an AI assistant)|(?:the|your) (?:text|message|post) you (?:provided|shared|gave|sent)|(?:clarify|rephrase) your (?:request|question)|provide (?:the|your) (?:text|message)\b)/i;
+/** A rewrite of their own text never asks them for details, refuses, or reads them back ('It seems like you...').
+ * Seen on 1.0.8: 'Looks nice' came back as "I'm not sure what you're asking for. Could you please provide more details or clarify your request?" */
+const REWRITE_TALK = /\b(?:I(?:['’]m| am) not sure what you|what you(?:['’]re| are) (?:asking|looking for|requesting)|(?:provide|share|give)(?: me| us)? (?:more |some |a few |additional |further )?(?:details|context|information)|clarify (?:your|what you)|your request|I (?:cannot|can['’]t|can not|am unable to) (?:help|assist|rewrite|do that|complete|fulfil)|it (?:seems|looks|sounds) like you)\b/i;
+/** All questions and none of their words: the writer asking them something back ('What would you like me to change?'),
+ * not their request reworded as a question ('Could you share the deck?'). */
+const asksBack = (original: string, version: string) => {
+  const sentences = version.split(/(?<=[.!?])\s+/u).filter(part => /[\p{L}\p{N}]/u.test(part));
+  const theirs = new Set(original.toLowerCase().match(/\p{L}{3,}/gu) ?? []);
+  return sentences.length > 0 && sentences.every(part => part.trim().endsWith('?')) && !(version.toLowerCase().match(/\p{L}{3,}/gu) ?? []).some(word => theirs.has(word));
+};
+/** Writer talk in a reply draft: addressed to the person who asked, never to whoever the reply is for. */
+export const talksToRequester = (draft: string): boolean => REQUESTER.test(draft);
+/** Writer talk in a version of their own text: requester talk, a clarification ask, or only questions back, sharing none of their words, when their text asked none.
+ * Phrases they wrote themselves stay theirs. */
+export const talksBack = (original: string, version: string): boolean =>
+  [REQUESTER, REWRITE_TALK].some(pattern => pattern.test(version) && !pattern.test(original)) || (!original.includes('?') && asksBack(original, version));
+
 export function acceptReplies(candidates: string[], exclude: string[], count = 3, dashes: 'keep' | 'remove' = 'remove', controls: string[] = [], never: string[] = [], point = '', slots: string[] = [], post = '', prompt = ''): (string | null)[] {
   const accepted: (string | null)[] = Array(count).fill(null);
   // A card that still uses a never-say phrase is dropped, so the caller's existing per-slot retry
@@ -468,7 +488,7 @@ export function acceptReplies(candidates: string[], exclude: string[], count = 3
     // left as the reply itself: 'Agree and add ... from the post.\nDraft' must empty out.
     const clean = stripDraftLabel(stripReplyPreamble(stripSlotInstruction(stripControlLines(text, controls), slots)));
     const draft = dashes === 'remove' ? undash(clean) : clean;
-    if (!draft || breaks(draft) || echoes(draft) || copiesPost(draft, post) || copiesPrompt(draft, prompt) || replyInstruction(draft) || echoesSlots(draft) || contradicts(draft, slot)) return;
+    if (!draft || breaks(draft) || echoes(draft) || copiesPost(draft, post) || copiesPrompt(draft, prompt) || replyInstruction(draft) || talksToRequester(draft) || echoesSlots(draft) || contradicts(draft, slot)) return;
     if (fresh(draft, [...exclude, ...accepted.filter((value): value is string => !!value)])) accepted[slot] = draft;
   };
   for (const candidate of candidates) {
@@ -504,7 +524,7 @@ export function versionAcceptor(original: string, dashes: 'keep' | 'remove', avo
   const same = (text: string) => { if (flat(text) === flat(original)) unchanged = true; };
   const clean = (text: string) => (dashes === 'remove' ? undash(text) : text).trim();
   const distinct = (text: string) => flat(text) !== flat(original) && fresh(text, [...shown, ...avoid]);
-  const usable = (text: string) => distinct(text) && layoutKept(original, text) && numbersAndTimesKept(original, text);
+  const usable = (text: string) => distinct(text) && layoutKept(original, text) && numbersAndTimesKept(original, text) && !talksBack(original, text);
   return {
     results,
     layoutFails,

@@ -9,7 +9,8 @@ import type { CloudKey, Source } from './source';
 /** `point`: in grow mode, what they typed; replies start from it while `typed` stays empty. */
 /** `never`: their never-say phrases; a reply card still using one is dropped so the slot is asked once more. */
 /** `samples`: the same selected replies the fit call judges as "Sounds like you"; the phone prompts fit the shortest that hold. */
-export type DraftRequest = { conversation: string; written: string; nodes?: ScreenText[]; fieldTop?: number; typed: string; point?: string; guide?: string; never?: string[]; samples?: string[]; dashes?: 'keep' | 'remove'; avoid?: string[]; platform?: Platform };
+/** `post`: the feed post a reply answers, as the panel read it (replyPost). */
+export type DraftRequest = { conversation: string; written: string; nodes?: ScreenText[]; fieldTop?: number; post?: string; typed: string; point?: string; guide?: string; never?: string[]; samples?: string[]; dashes?: 'keep' | 'remove'; avoid?: string[]; platform?: Platform };
 export type WriterState = 'downloading' | 'writing';
 export type WriterEvents = { state?: (state: WriterState) => void; landed?: (text: string, slot: number, label?: string) => void; reset?: () => void; fraction?: (value: number) => void; sent?: () => void | Promise<void>; unsent?: () => void | Promise<void>; started?: () => void; fallback?: () => void; refused?: (line: string) => void; beforeSend?: () => Promise<boolean>; beforeFetch?: () => boolean };
 /** `unchanged`: no drafts because the writer gave their text back as it was, so it already reads well. */
@@ -25,7 +26,7 @@ export class AccountRefused extends Error {}
 export const needWriter: Writer = { write: async () => { throw new Error(words.needWriterPanel); } };
 
 /** Failed lines worth a Try again button: sending again can work once the network, the account or its switch recovers. */
-export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.offlineNoPhone, words.gptOffNoPhone, words.claudeFailed, words.claudeOffNoPhone, words.openrouterFailed, words.openrouterOffNoPhone, words.openCodeFailed, words.openCodeOffNoPhone, words.computerFailed, words.computerOffNoPhone, words.computerUnaskedNoPhone]);
+export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.offlineNoPhone, words.gptOffNoPhone, words.claudeFailed, words.claudeOffNoPhone, words.openrouterFailed, words.openrouterOffNoPhone, words.openCodeFailed, words.openCodeOffNoPhone, words.computerFailed, words.computerOffNoPhone, words.computerUnaskedNoPhone, words.tookTooLong]);
 
 /** A writer that never drafts: the panel shows its line instead. */
 export const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });
