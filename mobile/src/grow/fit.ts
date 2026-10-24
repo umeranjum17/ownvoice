@@ -28,7 +28,8 @@ export type FitKind = 'reply' | 'post';
 /** `probability`: the judge's probability for `level`, for logs and proof only; people see `words`. */
 /** `voice`: the same call's yes/no on whether the card sounds like them, from their selected samples. */
 /** `refusal`: the writer account turned the rating away, so the bar says that instead of the unsure read. */
-export type Fit = { level: number | null; words: string; probability: number | null; voice: boolean | null; refusal?: string };
+/** `onPhone`: the phone's own writer judged and gave no level; the panel says once that levels need an online writer. */
+export type Fit = { level: number | null; words: string; probability: number | null; voice: boolean | null; refusal?: string; onPhone?: boolean };
 
 /** Whether this platform has a rubric to rate this kind of text against. */
 export const rated = (platform: Platform, kind: FitKind = 'reply') => platform.id in (kind === 'post' ? POST_RUBRIC : RUBRIC);

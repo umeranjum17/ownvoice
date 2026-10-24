@@ -27,6 +27,8 @@ const fitWords = {
   fitWhyVague: 'Reads relevant, but vague.',
   fitWhySkipped: 'Reads off-topic, or like bait.',
   fitWhyUnsure: 'The rating did not come back clearly.',
+  // Once per set, in place of an empty bar on every card, when the writer on this phone gave no level.
+  fitNeedsOnline: 'Fit levels need an online writer, such as your ChatGPT. The writer on this phone can’t rate them.',
 } as const;
 
 // Edit before insert: a card's text can be changed in the panel; Insert then uses the edited text.

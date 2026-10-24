@@ -403,7 +403,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           if (run.current !== id) return;
           // Levels and probabilities only, never the text: what the proof reads from the device log.
           console.log(`ownvoice-fit ${JSON.stringify(found)}`);
-          const judgedFit = (fit: Fit): Fit => refusal && fit.level == null ? { ...fit, refusal } : fit;
+          const judgedFit = (fit: Fit): Fit => fit.level != null ? fit : refusal ? { ...fit, refusal } : onPhone ? { ...fit, onPhone } : fit;
           setFits(new Map(texts.map((text, i) => [text, judgedFit(found[i])])));
         });
     })();
@@ -607,6 +607,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   // Unrated cards sit below rated ones; ties keep slot order (sort is stable).
   const listed = mode === 'grow' && fits.size ? [...shown].sort((a, b) => (fits.get(b.text)?.level ?? -1) - (fits.get(a.text)?.level ?? -1)) : cards;
   const prefill = prefillFor(platform);
+  // The phone writer gave no level on a card that shows no bar: one line for the set says why, instead of an empty bar on each.
+  const phoneUnsure = fitted && [...(yours ? [yours] : []), ...shown].some(draft => fits.get(draft.text)?.onPhone && !fitBarVisible(fits.get(draft.text), draft.ratings));
   const coverDraft = why != null ? [...(yours ? [yours] : []), ...shown].find(draft => draft.slot === why) : undefined;
   const check = coverDraft ? whys.get(coverDraft.text) : undefined;
 
@@ -698,6 +700,10 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         </Card>
       </View>;
     })}
+    {phoneUnsure ? <View testID="fit-needs-online" style={{ marginBottom: space.m }}>
+      <Text style={[type.note, { color: t.muted }]}>{words.fitNeedsOnline}</Text>
+      <Button kind="text" label={words.claudeChooseWriter} onPress={openSource} />
+    </View> : null}
     {phase === 'ready' && shown.length
       ? <View style={{ alignItems: 'flex-end', marginBottom: space.m }}>
         <Button kind="text" label={words.writeNew} onPress={() => capture && start(capture, shown.map(draft => draft.text))} />
