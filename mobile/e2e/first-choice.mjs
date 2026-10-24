@@ -17,9 +17,9 @@ mkdirSync(out, { recursive: true });
 const before = process.env.OWNVOICE_BEFORE === '1';
 const pkg = 'dev.ownvoice.next';
 const service = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
-const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8' });
+const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', timeout: 25_000 });
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const nodes = accessibilityProbe(serial, out);
+const nodes = accessibilityProbe(serial, out, { expectedPackage: pkg });
 const steps = [];
 const sizes = [[360, 720, 1280, 320], [390, 780, 1280, 320], [445, 890, 1280, 320], [1280, 1280, 800, 160]];
 let geometry;
@@ -46,7 +46,35 @@ const tap = async (text, reveal = false) => {
 const start = () => adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 const toggleService = async on => {
   adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', 'com.example.disabled/NoService');
-  if (on) { await wait(1000); adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', service); adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1'); await wait(2500); }
+  if (on) {
+    await wait(1000); adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', service); adb('shell', 'settings', 'put', 'secure', 'accessibility_enabled', '1');
+    const end = Date.now() + 15000;
+    while (Date.now() < end && !bound()) await wait(300);
+    assert(bound(), 'Ownvoice did not bind after the explicit off/on rebind.');
+  }
+};
+const bound = () => /Bound services:\s*[\[{][^}\]]*Ownvoice/.test(adb('shell', 'dumpsys', 'accessibility'));
+const captureMark = () => adb('logcat', '-d', '-s', 'OwnvoiceNative:D', '*:S').match(/^.*capture practice=.*$/gm)?.at(-1);
+const tapPracticeBubble = async tag => {
+  const priorCapture = captureMark();
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    assert(bound(), 'The service lost its binding before the bubble tap.');
+    const size = 56 * geometry.density / 160;
+    const bubble = await seen(n => n.app === pkg && n.windowType === 4 && n.className === 'android.widget.ImageView' && n.clickable
+      && /^Ownvoice(?:,|$)/.test(n.label) && n.bounds[0] >= 0 && n.bounds[1] >= 0 && n.bounds[2] <= geometry.width && n.bounds[3] <= geometry.height
+      && n.bounds[2] - n.bounds[0] >= size * .8 && n.bounds[2] - n.bounds[0] <= size * 1.2 && n.bounds[3] - n.bounds[1] >= size * .8, 10000);
+    const point = center(bubble).map(x => Math.round(x));
+    writeFileSync(resolve(out, `${tag}-tap-${attempt}.json`), JSON.stringify({ geometry, attempt, bounds: bubble.bounds, windowBounds: bubble.windowBounds, point, bound: true }));
+    adb('shell', 'input', 'tap', ...point.map(String));
+    const end = Date.now() + 10000;
+    while (Date.now() < end) {
+      // Once a read starts, do not tap again or duplicate a generation; the ordinary result assertion still has to pass.
+      if (captureMark() !== priorCapture || /mCurrentFocus=.*dev\.ownvoice\.bridge\.PanelActivity/.test(adb('shell', 'dumpsys', 'window'))) return;
+      await wait(400);
+    }
+    console.log(`${tag}: no native capture/panel after checked tap ${attempt}; reacquiring the target.`);
+  }
+  throw new Error('No native capture or panel after three checked bubble taps.');
 };
 const snap = async (name, result) => {
   await wait(1500); // A populated accessibility tree can precede the first painted frame.
@@ -129,10 +157,9 @@ try {
     await tap('Message');
     adb('shell', 'input', 'text', 'yes,%sI%scan%sbring%sthe%stent');
     if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) adb('shell', 'input', 'keyevent', '4');
+    await seen(n => n.editable && n.focused && n.text === 'yes, I can bring the tent');
     await wait(1500);
-    const bubble = nodes().find(n => n.windowType === 4 && /^Ownvoice(?:,|$)/.test(n.label));
-    assert(bubble, 'The restored practice chat has its bubble.');
-    adb('shell', 'input', 'tap', ...center(bubble).map(x => String(Math.round(x))));
+    await tapPracticeBubble(tag);
     await seen(before ? 'pick one to use instead' : 'choose how ownvoice writes first');
     await snap(`${tag}-practice`, before ? 'Legacy TRY/no-source fixture: baseline silently writes on the phone stub.' : 'Legacy TRY/no-source fixture: practice asks who writes, and produces no draft.');
     adb('shell', 'input', 'keyevent', '4');
