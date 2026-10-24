@@ -1,6 +1,7 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
 export type ServiceState = 'on' | 'off' | 'stuck';
+export type Restricted = 'blocked' | 'tried' | 'likely' | 'clear';
 export type NetworkType = 'wifi' | 'cellular' | 'other' | 'none';
 import type { ScreenText } from '../../../src/core/drafts';
 export type Capture = { conversation: string; written: string; nodes: ScreenText[]; fieldTop: number | null; typed: string; app: string; label: string; at: number; id: string; hasField: boolean; typingLimited?: boolean; /** An open Gmail thread: no box, but a picked draft opens Gmail's own reply. */ opensReply?: boolean };
@@ -19,6 +20,9 @@ declare class OwnvoiceNativeModule extends NativeModule<Events> {
   openAccessibilitySettings(comeBack: boolean): Promise<void>;
   clearSetupReturn(): Promise<void>;
   openAppInfo(): Promise<void>;
+  /** Android 13+'s block on apps installed from a file: blocked (switch greyed, not tried yet), tried (App info now offers the fix),
+   *  likely (installed from a file where Android 15+ hides which of those it is), clear. */
+  restrictedSettings(): Promise<Restricted>;
   /** Opens an ownvoice:// route the way the service's own setup link does; the panel's Linking start lands on Home. */
   openRoute(url: string): Promise<void>;
   setPractice(on: boolean): Promise<void>;

@@ -1,9 +1,12 @@
 package dev.ownvoice.bridge
 
+import android.app.AppOpsManager
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.ComponentName
 import android.content.Intent
+import android.content.pm.PackageInstaller
+import android.os.Build
 import android.provider.Settings
 import android.util.Log
 import expo.modules.kotlin.Promise
@@ -33,7 +36,8 @@ class OwnvoiceNativeModule : Module() {
     AsyncFunction("openAccessibilitySettings") { comeBack: Boolean ->
       check(context.getSharedPreferences("ownvoice-native", android.content.Context.MODE_PRIVATE).edit().putBoolean("comeBack", comeBack).commit())
       val me = ComponentName(context, OwnvoiceService::class.java).flattenToString()
-      context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK).putExtra(":settings:fragment_args_key", me))
+      // A fresh task each time: Settings keeps one, so App info opened from setup would otherwise come back instead.
+      context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK).putExtra(":settings:fragment_args_key", me))
     }.runOnQueue(Queues.MAIN)
     // The panel's own Linking start lands the app on Home; the bridge start the service itself uses
     // for ownvoice://setup (NEW_TASK|CLEAR_TOP) is what reaches the router's screen.
@@ -50,8 +54,29 @@ class OwnvoiceNativeModule : Module() {
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("openAppInfo") {
       context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
         .setData(android.net.Uri.fromParts("package", context.packageName, null)))
+    }.runOnQueue(Queues.MAIN)
+    // Android 13+ greys out the switch of an app installed from a file until App info's "Allow restricted
+    // settings" is tapped, and offers that menu item only after the person tried the greyed switch once.
+    // Where the app op can be read (Android 13 and 14), it tells the three apart: errored (blocked, not
+    // tried yet), ignored (tried), allowed (done). Android 15+ keeps it from the app itself, so there an
+    // install from a file is all the app can know: likely blocked, tried or not.
+    AsyncFunction("restrictedSettings") {
+      if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@AsyncFunction "clear"
+      val mode = runCatching {
+        context.getSystemService(AppOpsManager::class.java)
+          .unsafeCheckOpNoThrow("android:access_restricted_settings", context.applicationInfo.uid, context.packageName)
+      }.getOrNull()
+      when (mode) {
+        AppOpsManager.MODE_ERRORED -> "blocked"
+        AppOpsManager.MODE_IGNORED -> "tried"
+        AppOpsManager.MODE_ALLOWED -> "clear"
+        else -> {
+          val source = runCatching { context.packageManager.getInstallSourceInfo(context.packageName).packageSource }.getOrNull()
+          if (source == PackageInstaller.PACKAGE_SOURCE_DOWNLOADED_FILE || source == PackageInstaller.PACKAGE_SOURCE_LOCAL_FILE) "likely" else "clear"
+        }
+      }
     }.runOnQueue(Queues.MAIN)
     AsyncFunction("launcherApps") Coroutine { packages: List<String>? ->
       val pm = context.packageManager

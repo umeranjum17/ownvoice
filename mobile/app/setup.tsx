@@ -9,6 +9,7 @@ import { Dot } from '../src/ui/Dot';
 import { Badge } from '../src/ui/Badge';
 import { ChatIcon, CheckIcon, HandIcon, LockIcon, PhoneIcon, WarnIcon } from '../src/ui/icons';
 import { SourceOption } from '../src/ui/SourceOption';
+import { RestrictedCard, useRestricted } from '../src/ui/RestrictedHelp';
 import { ChatGptPage } from '../src/ui/ChatGptPage';
 import { ClaudeSignIn } from '../src/ui/ClaudeSignIn';
 import { shape, space, type, useReducedMotion, useTheme } from '../src/ui/theme';
@@ -59,6 +60,9 @@ export default function Setup() {
   const savingRef = useRef(false);
   const [choices, setChoices] = useState<Record<string, boolean>>({});
   const [greyed, setGreyed] = useState(false);
+  // Android's block on apps installed outside Google Play, asked again each time the person comes back.
+  const restricted = useRestricted(step === 'PERMISSION');
+  const blocked = restricted === 'blocked' || restricted === 'tried' || restricted === 'likely';
   const [hintOn, setHintOn] = useState(false);
   const [typing, setTyping] = useState(false);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
@@ -384,7 +388,7 @@ export default function Setup() {
       <Button kind="filled" large label={words.turnOn} onPress={() => { Native.openAccessibilitySettings(true).catch(() => {}); }} />
       <View style={styles.actions}>
         <Button kind="text" disabled={busyApps} label={words.notNow} onPress={() => advance()} />
-        <Button kind="text" label={words.switchGreyed} onPress={() => { setGreyed(true); Native.openAppInfo().catch(() => {}); }} />
+        {!blocked && <Button kind="text" label={words.switchGreyed} onPress={() => { setGreyed(true); Native.openAppInfo().catch(() => {}); }} />}
       </View>
     </>}
     {step === 'TRY' && (inserted
@@ -441,6 +445,7 @@ export default function Setup() {
       {planState.reason && <Text style={[type.note, { color: t.muted }]}>{planState.reason}</Text>}</View>}
     {step === 'PERMISSION' && <>
       <Head title={words.permissionTitle} note={words.permissionSubtitle} />
+      <RestrictedCard view={restricted} />
       <View style={[group, { gap: 2 }]}>
         <Row lead={<Badge><HandIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={typing ? words.promiseTapTyping : words.promiseTap} subtitle={typing ? words.promiseTapTypingNote : words.promiseTapNote} />
         {source && source !== 'phone'
@@ -469,7 +474,7 @@ export default function Setup() {
           </View>
         </View>)}
       </View>
-      {greyed && <Text style={[type.body, { color: t.text, marginTop: space.l }]}>{words.greyedHelp}</Text>}
+      {greyed && !blocked && <Text style={[type.body, { color: t.text, marginTop: space.l }]}>{words.greyedHelp}</Text>}
     </>}
     {step === 'TRY' && <>
       <Head title={inserted ? words.tryDoneTitle : words.tryTitle} note={inserted ? words.tryDone : serviceOn ? words.tryInsert : words.tryTurnOnFirst} done={inserted} />
