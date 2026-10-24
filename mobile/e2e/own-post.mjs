@@ -11,6 +11,10 @@
 // the offline sign-in stand-in), and e2e/first-run.mjs run once first so setup is finished.
 // Set OWNVOICE_BEFORE=1 against the base build: it captures the same screens without the
 // own-post assertions, so before and after sit side by side in one evidence folder.
+// OWNVOICE_NOTE_CLEAR=1 also copies one draft before the edit and, after Copy and after Insert, logs where
+// the note ("Copied." / "Inserted. Send it yourself.") lands against the composer and its Post button
+// (note-boxes-<label>-<theme>.json) and fails when it covers either; OWNVOICE_NOTE_CLEAR=record only logs,
+// for the base build. OWNVOICE_LABEL names the shots instead of before/after.
 // Never UiAutomator: it would unbind the running Ownvoice service (e2e/accessibility.mjs).
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
@@ -36,7 +40,8 @@ if (phone) {
 const apk = process.argv[2];
 if (!apk) throw new Error('Pass the release APK path.');
 const before = process.env.OWNVOICE_BEFORE === '1';
-const label = before ? 'before' : 'after';
+const label = process.env.OWNVOICE_LABEL ?? (before ? 'before' : 'after');
+const noteClear = process.env.OWNVOICE_NOTE_CLEAR ?? '';
 const theme = process.env.OWNVOICE_THEME ?? 'light';
 // The live leg (done-done journey own-posts): the real writer connected through the app's own screens,
 // no stub text. OWN_POST_WRITER=opencode connects the OpenCode Go key; OWN_POST_WRITER=phone uses the
@@ -361,6 +366,49 @@ if (!useThis(nodes())) throw new Error(`The panel drafted nothing from his line.
 if (cards.some(text => /^\?$/.test(text.trim()))) throw new Error('A question was offered as his post.');
 shot('drafts');
 
+// 4b. Where the note lands (AA-34): one screenshot per try until the note shows, its line's box read by OCR
+// (a system toast is not in the accessible tree), against the composer field and the Post button.
+const noteBoxes = [];
+const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+const noteLanded = async (screen, start) => {
+  const field = composer()?.bounds;
+  const post = nodes().find(node => /^(Post|Reply)$/.test(node.text ?? '') && node.app === fixturePkg)?.bounds;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const file = resolve(repoRoot, evidence('shot', 'ov-own-posts', screen, label, theme).trim());
+    const lines = new Map();
+    for (const row of execFileSync('tesseract', [file, 'stdout', 'tsv'], { encoding: 'utf8' }).split('\n').slice(1)) {
+      const c = row.split('\t');
+      if (c[0] !== '5' || !c[11]?.trim()) continue;
+      const id = c.slice(1, 5).join('.'), [x, y, w, h] = c.slice(6, 10).map(Number);
+      const line = lines.get(id) ?? { text: [], box: [x, y, x + w, y + h] };
+      line.text.push(c[11].trim());
+      line.box = [Math.min(line.box[0], x), Math.min(line.box[1], y), Math.max(line.box[2], x + w), Math.max(line.box[3], y + h)];
+      lines.set(id, line);
+    }
+    const found = [...lines.values()].find(line => line.text[0]?.startsWith(start));
+    if (found) {
+      const entry = { screen, label, theme, note: found.text.join(' '), noteBox: found.box, field, post, coversField: !!field && overlaps(found.box, field), coversPost: !!post && overlaps(found.box, post) };
+      noteBoxes.push(entry);
+      writeFileSync(resolve(out, `note-boxes-${label}-${theme}.json`), JSON.stringify(noteBoxes, null, 1));
+      console.log(`note ${JSON.stringify(entry)}`);
+      if (noteClear === '1' && (entry.coversField || entry.coversPost)) throw new Error(`The note "${entry.note}" covers the ${entry.coversField ? 'composer' : 'Post button'}.`);
+      return;
+    }
+    await wait(300);
+  }
+  throw new Error(`The note starting "${start}" never showed after ${screen}.`);
+};
+if (noteClear) {
+  // The card's Copy only copies; the panel closes, the note shows over the composer, and the line stays.
+  nodes('Copy');
+  await noteLanded('copied', 'Copied');
+  await wait(4500);
+  if (composerText() !== LINE) throw new Error(`Copy changed the composer (saw "${composerText() || 'nothing'}").`);
+  bubble();
+  await withNodes('the drafts again', useThis, 60);
+  await wait(2500);
+}
+
 // 5. Edit one draft and insert exactly that text.
 evidence('motion-start', 'ov-own-posts', 'edit-and-insert');
 try {
@@ -382,9 +430,10 @@ if (nodes().find(node => node.editable && node.windowType !== 4)?.text !== EDITE
 // and only while the keyboard shows, since Back on the bare panel would close it.
 if (nodes().some(node => node.windowType === 2)) { key(4); await wait(1500); }
 nodes('Use this'); // The edited card's own Use this: it is the first one in the tree.
-await wait(3500);
+if (noteClear) await noteLanded('inserted', 'Inserted');
+else await wait(3500);
 } finally { evidence('motion-stop'); }
-shot('inserted');
+if (!noteClear) shot('inserted');
 
 // 5. The read-back: the composer holds exactly the edited text, and nothing was posted.
 if (panelTitle(nodes())) { key(4); await wait(2000); }

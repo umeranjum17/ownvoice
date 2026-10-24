@@ -30,6 +30,7 @@ import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.Toast
 import com.facebook.react.ReactApplication
 import io.github.umeranjum17.byokit.overlay.ByokitAccessibility
+import io.github.umeranjum17.byokit.overlay.ClearRect
 import io.github.umeranjum17.byokit.overlay.FieldIdentity
 import io.github.umeranjum17.byokit.overlay.FieldNode
 import io.github.umeranjum17.byokit.overlay.FieldSelection
@@ -240,13 +241,13 @@ class OwnvoiceService : AccessibilityService() {
       bubbles = ServiceBubble(::moodDrawable, spots, ::reducedMotion, foregroundNow = { front })
       bubbles?.events?.add { e -> when (e) {
         OverlayEvent.Tap -> onBubbleTap()
+        OverlayEvent.Dismissed -> bubbleDismissed()
         else -> {}
       } }
     }
     unwatch?.invoke()
     unwatch = front.onChange { updateBubble() }
-    bubbles?.start(ServiceBubble.Config(mood = "idle", label = "Ownvoice", rules = effectiveRules(), perAppSpots = true))
-    bubbles?.setLabel(if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice")
+    startBubble()
     instance = this
     updateBubble()
     onServiceChange?.invoke("on")
@@ -375,6 +376,18 @@ class OwnvoiceService : AccessibilityService() {
     super.onDestroy()
   }
 
+  private fun startBubble() {
+    bubbles?.start(ServiceBubble.Config(mood = "idle", label = "Ownvoice", rules = effectiveRules(), perAppSpots = true))
+    bubbles?.setLabel(if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice")
+  }
+
+  /** Dropped on the kit's "turn it off" target, which already stopped it: pause as Home's Pause does, so Home shows it
+   * paused and Resume brings it back. */
+  private fun bubbleDismissed() {
+    setRules(true, onApps, offApps)
+    startBubble()
+  }
+
   private fun stopBubble() {
     readCue.stop()
     unwatch?.invoke()
@@ -422,6 +435,8 @@ class OwnvoiceService : AccessibilityService() {
     main.removeCallbacks(openPanel)
     readCue.stop()
     forget()
+    // The send controls of an earlier insert may have moved since; the next insert measures them again.
+    bubbles?.keepClear(emptyList())
     val app = currentApp()?.takeIf(::allowed) ?: run { restIdle(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
@@ -634,9 +649,11 @@ class OwnvoiceService : AccessibilityService() {
     if (!cancelled) {
       if (practice) restIdle()
       else if (ok) {
+        // The note keeps off the send control; the kit keeps it off the focused field (the inserted text) on its own.
         val root = appRoot()
-        val canSend = try { hasSendAction(root) } finally { root?.recycle() }
-        say(if (canSend) "Inserted. Send it yourself." else "Inserted")
+        val send = try { sendBounds(root) } finally { root?.recycle() }
+        bubbles?.keepClear(send)
+        say(if (send.isNotEmpty()) "Inserted. Send it yourself." else "Inserted")
       }
       else {
         if (result != "copied") copyDraft(text)
@@ -696,20 +713,27 @@ class OwnvoiceService : AccessibilityService() {
     }
   }
 
-  private fun hasSendAction(root: AccessibilityNodeInfo?): Boolean {
-    if (root == null || !root.isVisibleToUser) return false
+  /** Screen boxes of the visible send-like controls under [root]; empty when the screen has none to send with. */
+  private fun sendBounds(root: AccessibilityNodeInfo?, out: MutableList<ClearRect> = mutableListOf()): List<ClearRect> {
+    if (root == null || !root.isVisibleToUser) return out
     val label = (root.text?.takeIf { it.isNotBlank() } ?: root.contentDescription)?.toString()?.trim()?.lowercase()
-    if (root.isClickable && root.isEnabled && label in setOf("send", "send message", "send sms", "post", "reply", "publish", "tweet")) return true
+    if (root.isClickable && root.isEnabled && label in setOf("send", "send message", "send sms", "post", "reply", "publish", "tweet")) {
+      val box = Rect()
+      root.getBoundsInScreen(box)
+      out += ClearRect(box.left, box.top, box.width(), box.height())
+    }
     for (i in 0 until root.childCount) {
       val child = root.getChild(i) ?: continue
-      try { if (hasSendAction(child)) return true } finally { child.recycle() }
+      try { sendBounds(child, out) } finally { child.recycle() }
     }
-    return false
+    return out
   }
 
   fun say(message: String, forMs: Long = 4000) {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs) }; return }
-    if (currentApp() == packageName && !practice) {
+    // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one. The
+    // panel closing over an app hands its note to the bubble, which shows it clear of the field once the app is back.
+    if (currentApp() == packageName && !practice && !panelIsOpen) {
       Toast.makeText(this, message, Toast.LENGTH_LONG).show()
       return
     }
