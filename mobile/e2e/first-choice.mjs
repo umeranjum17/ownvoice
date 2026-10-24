@@ -122,6 +122,10 @@ try {
     adb('shell', 'input', 'keyevent', '4');
   }
   console.log(`PASS: ${steps.length} captures; no preselection, explicit tap enables Continue, Home and restored practice ask. Before=${before}`);
+} catch (error) {
+  writeFileSync(resolve(out, 'failure.txt'), String(error.stack ?? error));
+  try { await snap('failed-state', `FAILED: ${error.message}`); } catch { /* Preserve the original failure if the device exited. */ }
+  throw error;
 } finally {
   if (recorder && recorder.exitCode === null) { recorder.kill('SIGTERM'); await new Promise(res => recorder.once('exit', res)); }
   await toggleService(false);
