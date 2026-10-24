@@ -86,12 +86,20 @@ keystroke, and never for an edited text; each call uses a fresh in-memory cache.
 
 When a cloud account writes, the fit runs by default on the person's **signed-in account** — whichever cloud account is
 chosen, ChatGPT, Claude, OpenRouter or OpenCode Go — through the same `askCloud` boundary the writer uses, so no Jev
-key ships in the app. A build with `EXPO_PUBLIC_JEV_KEY` uses Jev instead (billed per use to
-that key), which the emulator stand-in proofs set. `fitBackends(app)` in
+key ships in the app. Home's **Ratings with Jev** is a separate opt-in, off by default.
+Its consent names Jev (TypeSafe), the post, drafts and writing examples it receives, and
+TypeSafe's per-use billing (not included in a writing plan). **Agree and connect Jev**
+saves the person's key through BYOKit Accounts' `typesafe` route in the phone's secure
+store; saving it does not turn ratings on. **Use Jev for ratings** selects Jev only for
+cloud-written drafts. Turning it off restores the chosen writer's ratings; **Disconnect
+Jev** turns it off and removes the key through BYOKit. Build keys no longer select Jev.
+`fitBackends(app)` in
 `src/chatgpt/settings.ts` sends only under the same consent as a send for that account
 (source, visibility, pause, phone-only, sign-out epoch, remote switch), checked again at
-dispatch. Drafts the phone wrote are never sent. The fit uses the same account as the
-writer, so a rate limit on either pauses both until the plan recovers. When the phone wrote the drafts
+dispatch, including the Jev opt-in after its key is read. Drafts the phone wrote are never sent.
+Without Jev, the fit uses the same account as the writer, so a rate limit on either
+pauses both until the plan recovers. With Jev, a missing key, refused key, account limit
+or connection failure shows its own plain cause rather than silently charging another route. When the phone wrote the drafts
 (**On this phone**, or as the fallback after the chosen account fails), the fit runs on the phone's own model through `phoneFit()` in
 `src/grow/phoneFit.ts`, so nothing leaves the phone; a card that model can't answer keeps the plain unsure read.
 
@@ -108,16 +116,24 @@ on a throwaway emulator with a signed-in ChatGPT build. It host-maps x.com and r
 pages and reads each panel's `ownvoice-fit` log line (levels and probabilities, never text); `DARK=1`
 adds a dark capture per platform.
 
-Jev stand-in proof, for builds that carry `EXPO_PUBLIC_JEV_KEY`: `node e2e/jev-standin.mjs serve`
+Jev stand-in proof (connect the synthetic stand-in key and opt in through **Ratings with Jev** first): `node e2e/jev-standin.mjs serve`
 answers Jev's wire format from a local model's token probabilities (ollama, `OLLAMA`/`MODEL`), and
 `node e2e/jev-standin.mjs rate e2e/jev-cases.json` runs the 10 posts x 3 replies
 through `judgeFit` and `jev()`. On an emulator, build with `EXPO_PUBLIC_E2E_GPT=1
-EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_JEV_KEY=stand-in
+EXPO_PUBLIC_E2E_STUB=1
 EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18610` and run `node e2e/jev-proof.mjs
 e2e/jev-cases.json [out]` after setup with ChatGPT and Chrome switched on: Chrome
 maps x.com to the script's lab page, and each panel's levels and probabilities
 are read from the `ownvoice-fit` log line (no text is logged). Load the model first: a
 cold load outlasts the 60 second deadline and the cards then read plainly Not sure.
+
+No-spend Android account/consent proof: `ANDROID_SERIAL=emulator-NNNN
+OWNVOICE_AVD_NAME=<owned> node e2e/own-post-fit.mjs <apk> <out>`, after the first-run
+fixture journey. It connects `fixture-jev-key` through the real BYOKit key route, checks
+that connection alone leaves the switch off, turns ratings on, and rates native X and
+Reddit lab drafts using a fixed-answer HTTP fixture. Both themes capture consent, on,
+off and disconnected states; `steps.json` states the fixture limitations. No real Jev
+account, sign-in, payment, rating quality or reach is proven.
 
 ### Card ratings
 

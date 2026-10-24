@@ -1,4 +1,5 @@
 import { checkAddress } from '../core/plainAddress';
+import { jevKey } from './accounts';
 import { jev, type Backend } from '@byokit/decide';
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
@@ -198,34 +199,50 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   return route;
 }
 
-const JEV_KEY = process.env.EXPO_PUBLIC_JEV_KEY ?? '';
+export const JEV_ENABLED = 'jev-ratings';
+export const jevEnabled = () => store.get<boolean>(JEV_ENABLED, true) === true;
+let jevEpoch = 0;
+export function setJevEnabled(on: boolean): void { store.set(JEV_ENABLED, on); jevEpoch++; }
 // Emulator acceptance only (EXPO_PUBLIC_E2E_JEV_BASE): Jev's requests go to a host stand-in instead.
 const JEV_BASE = process.env.EXPO_PUBLIC_E2E_JEV_BASE;
 
-/** Fit ratings run on the person's signed-in ChatGPT plan by default, under the same consent as a
- *  ChatGPT send for this app: the post and drafts leave the phone only when the writer's would.
- *  Jev is used only when this build carries `EXPO_PUBLIC_JEV_KEY` (emulator stand-in proof builds).
- *  Checked before sending and again at dispatch; a blocked call abstains with the plain unsure read.
- *  `app` is null for the selection sheet, which works in any app under its writer's consent. */
-export function fitBackends(app: string | null, o: { key?: string; fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent' | 'refused'> } = {}): Backend[] {
+/** Ratings follow the writer unless Jev was explicitly enabled. The separate BYOKit account holds
+ *  the person's key; both its opt-in and the writer's consent are checked again at dispatch.
+ *  Phone-written drafts never reach this route. `app` is null for the selection sheet. */
+export function fitBackends(app: string | null, o: { fetch?: typeof fetch; on?: Pick<WriterEvents, 'started' | 'sent' | 'unsent' | 'refused'> } = {}): Backend[] {
   // The fit backend follows the chosen cloud source, so the ratings reach whichever account writes.
   const cloud: CloudKey = cloudOf(store.peek<Source>(SOURCE_KEY)) ?? 'chatgpt';
   const bubble = cloudConsent(cloud, app);
   const remote = agentConsent(cloud);
   const beforeSend = async () => (await getSource()) === cloud && await bubble.beforeSend() && await remote.beforeSend();
   const beforeFetch = () => store.peek<Source>(SOURCE_KEY) === cloud && bubble.beforeFetch() && remote.beforeFetch();
-  const key = o.key ?? JEV_KEY;
-  if (key) {
-    const send = o.fetch ?? globalThis.fetch;
-    return [jev({ key, fetch: async (url, init) => {
-      if (!(await beforeSend()) || !beforeFetch()) throw new SendVeto(words.phoneWrote);
-      await o.on?.started?.();
-      const target = JEV_BASE ? String(url).replace('https://api.typesafe.ai', JEV_BASE) : url;
-      checkAddress(String(target));
-      const response = await send(target, init);
-      await o.on?.sent?.();
-      return response;
-    } })];
+  if (jevEnabled()) {
+    const epoch = jevEpoch;
+    const allowed = () => jevEnabled() && epoch === jevEpoch;
+    const gate = async () => {
+      if (!allowed() || !(await beforeSend()) || !allowed() || !beforeFetch()) throw new SendVeto(words.jevNotAsked);
+    };
+    return [{ name: 'jev', leaves: true, ask: async (state, questions, signal) => {
+      try {
+        await gate();
+        const key = await jevKey().catch(() => { throw new SendVeto(words.jevConnectFirst); });
+        if (!key) throw new SendVeto(words.jevConnectFirst);
+        return await jev({ key, fetch: async (url, init) => {
+          await gate();
+          await o.on?.started?.();
+          const target = JEV_BASE ? String(url).replace('https://api.typesafe.ai', JEV_BASE) : url;
+          checkAddress(String(target));
+          await gate();
+          const response = await (o.fetch ?? globalThis.fetch)(target, init).catch(() => { throw new Error(words.jevOffline); });
+          await o.on?.sent?.();
+          if (!response.ok) throw new SendVeto(response.status === 401 || response.status === 403 ? words.jevRefused : response.status === 429 ? words.jevLimited : words.jevFailed);
+          return response;
+        } }).ask(state, questions, signal);
+      } catch (error) {
+        o.on?.refused?.(error instanceof SendVeto ? error.message : error instanceof Error && error.message === words.jevOffline ? words.jevOffline : words.jevFailed);
+        throw error;
+      }
+    } }];
   }
   // The plan's default fit transport, over the same `askCloud` boundary the writer uses.
   return [require('./responses').fitBackend(cloud, { ...o.on, beforeSend, beforeFetch }, o.fetch)];

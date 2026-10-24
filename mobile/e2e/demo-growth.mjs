@@ -7,7 +7,7 @@
 // Lane emulator only, never the test phone; taps through Probe, never uiautomator dump.
 //   ANDROID_SERIAL=emulator-XXXX OWNVOICE_AVD_NAME=<avd> JAVA_HOME=<jdk> node e2e/demo-growth.mjs <release-apk> [outdir]
 // The release APK needs EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_DEMO_PLATFORM=1
-// EXPO_PUBLIC_JEV_KEY=demo EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18612
+// EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18612; connect a synthetic key and opt in in Ratings with Jev
 // EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455, and e2e/demo-setup.mjs run once first
 // so setup (ChatGPT source, mock sign-in) is finished.
 import { execFileSync, spawn } from 'node:child_process';
