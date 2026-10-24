@@ -173,7 +173,7 @@ journeys:
     timeout: 15m
 
   restricted-setting-help:
-    description: "Android: the permission step on an app Android blocks (restricted-settings app op set to deny, as a file install leaves it): the card with the greyed-switch try first, Android's restricted message, the card re-checked to four steps, Open App info and its three-dot Allow restricted settings, the card's that-worked line, then Turn on and setup moving on. Light at font 1.0, dark at 1.3. Needs an explicit emulator allocation and APK env (a release APK built with EXPO_PUBLIC_E2E_DOWNLOAD=1, per mobile/README.md)."
+    description: "Android: the permission step on an app Android blocks, installed the way a person does (Downloads, Files, Android's installer): the card with the greyed-row try first, Android's denied-access message, the card re-checked on return, Open App info and its three-dot Allow restricted settings, then Turn on, Use Ownvoice, Allow and setup moving on. Light at font 1.0, dark at 1.3. Needs an explicit emulator allocation and APK env (a release APK built with EXPO_PUBLIC_E2E_DOWNLOAD=1, per mobile/README.md)."
     command: |
       set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/restricted-setting.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
