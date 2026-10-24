@@ -227,7 +227,7 @@ journeys:
       set -u; : "${APK:?path to release APK required}"; : "${BEFORE_APK:?path to the base release APK required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       S="$(mktemp -d)"; trap 'rm -rf -- "$S"; adb -s "$ANDROID_SERIAL" shell wm size reset; adb -s "$ANDROID_SERIAL" shell wm density reset; adb -s "$ANDROID_SERIAL" shell settings put system font_scale 1.0' EXIT
       rm -f verify-artifacts/ov-own-posts/*-before-*.png verify-artifacts/ov-own-posts/*-after-*.png
-      node mobile/e2e/first-run.mjs "$BEFORE_APK" "$S/setup" >"$S/setup.log" 2>&1 || { tail -40 "$S/setup.log"; exit 1; }
+      node mobile/e2e/first-run.mjs "$BEFORE_APK" "$S/setup" >"$S/setup.log" 2>&1 || { mkdir -p "$E/setup-failed"; cp "$S/setup.log" "$S"/setup/failed-* "$E/setup-failed/" 2>/dev/null; tail -40 "$S/setup.log"; exit 1; }
       c=0; for t in light dark; do OWN_POST_NARROW=1 OWNVOICE_THEME=$t OWNVOICE_LABEL=before OWNVOICE_NOTE_CLEAR=record node mobile/e2e/own-post.mjs "$BEFORE_APK" "$E/before" >"$E/before-$t.log" 2>&1 || c=1; done
       adb -s "$ANDROID_SERIAL" install -r "$APK" >/dev/null 2>&1
       d=0; for t in light dark; do OWN_POST_NARROW=1 OWNVOICE_THEME=$t OWNVOICE_LABEL=after OWNVOICE_NOTE_CLEAR=1 node mobile/e2e/own-post.mjs "$APK" "$E/after" >"$E/after-$t.log" 2>&1 || d=1; done
