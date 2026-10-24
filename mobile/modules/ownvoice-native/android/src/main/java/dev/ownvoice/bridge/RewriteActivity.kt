@@ -69,6 +69,10 @@ class RewriteActivity : ReactActivity() {
   val selectedText: String
     get() = (intent.getCharSequenceExtra(Intent.EXTRA_PROCESS_TEXT) ?: intent.getCharSequenceExtra(Intent.EXTRA_TEXT))?.toString().orEmpty()
 
+  /** The app the text came from, when Android or the field behind this sheet names it: posts are written for that place. */
+  val sourceApp: String?
+    get() = callingPackage ?: sourceField?.packageName?.toString()
+
   /** Editable only from the selection menu of an editable field; a share never is (R4). */
   val editable: Boolean
     get() = intent.action == Intent.ACTION_PROCESS_TEXT && !intent.getBooleanExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)

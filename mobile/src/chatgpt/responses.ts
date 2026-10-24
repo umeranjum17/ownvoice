@@ -128,6 +128,12 @@ const REWRITE_INSTRUCTIONS = 'Output only the rewritten text.';
 export const streamSelectionRewrite = (cloud: CloudKey, text: string, how: Rewrite, guide: string, on: WriterEvents = {}): Promise<string> =>
   ask(cloud, selectionRewritePrompt(text, how, guide), REWRITE_INSTRUCTIONS, 'text', 1, on).then(([line]) => line ?? '');
 
+const POST_INSTRUCTIONS = 'Output only the post text.';
+
+/** One post from their notes (core/notesPosts builds the prompt and checks the answer). */
+export const streamNotesPost = (cloud: CloudKey, prompt: string, on: WriterEvents = {}): Promise<string> =>
+  ask(cloud, prompt, POST_INSTRUCTIONS, 'text', 1, on).then(([line]) => line ?? '');
+
 const accountFailure = (error: unknown) => {
   if (error instanceof PlanLimit || error instanceof AccountRefused) return true;
   const message = error instanceof Error ? error.message : String(error);

@@ -13,8 +13,8 @@ import android.widget.TextView;
  * An X-style composer fixture: the X package id, a composer field and a Post button. With no
  * extras it is the blank own-post composer. With a `post` extra it shows a feed post above the
  * field and prefills the field from `replyText`, the grow-mode reply case (a typed reply under a
- * post). `label` renames the top bar for the Reddit variant. Demo data only ("Umer"); it never
- * posts and never reaches a network.
+ * post). `text` prefills the blank composer (notes pasted into a new post). `label` renames the
+ * top bar for the Reddit variant. Demo data only ("Umer"); it never posts and never reaches a network.
  */
 public class Composer extends Activity {
   @Override protected void onCreate(Bundle state) {
@@ -54,6 +54,8 @@ public class Composer extends Activity {
       parentParams.topMargin = 16;
       root.addView(parent, parentParams);
       field.setText(replyText != null ? replyText : "I keep my notes at https://example.com.");
+    } else if (getIntent().getStringExtra("text") != null) {
+      field.setText(getIntent().getStringExtra("text"));
     }
     field.setTextSize(18);
     field.setTextColor(Color.BLACK);

@@ -37,8 +37,8 @@ surface; the Host CLI launch alone does not prove it.
    “Fit levels need an online writer…” with **Choose another writer**, and no card shows
    an empty bar or “Not sure about this one”; a real level shows bars and no line. Cite the
    `reply-cards-*.png` that shows the line. `steps.json` records the fit read.
-7. Host regression companion: from `mobile/eval`, run the documented eight-case
-   gate (P01/P13/S05/R01/R07 plus R13/R14/P20) and `score.ts`, plus `node run.ts --replay`
+7. Host regression companion: from `mobile/eval`, run the documented nine-case
+   gate (P01/P13/S05/R01/R07 plus R13/R14/P20 and N01) and `score.ts`, plus `node run.ts --replay`
    offline before a boot. R13/R14 replay the
    observed bad outputs through admission as well as generating live replies;
    P20 requires both distinct versions from a one-line own post. A hosted eval

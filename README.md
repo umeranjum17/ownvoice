@@ -105,6 +105,7 @@ Want to build it yourself? See [Build and run](mobile/README.md#android-build-an
 - 💬 **Suggests replies.** Tap the bubble in an empty reply box under a post on X, LinkedIn, Reddit, Threads or Bluesky for a few reply ideas, each rated for that platform.
 - ✨ **Polishes in place.** Marks stock phrases and fixes clear slips like "shoud" or "dont".
 - ✂️ **Rewrites any selection.** Shorter, simpler, friendlier or firmer, from any app.
+- 🗒️ **Turns your notes into posts.** Share raw notes and get three different posts for X in your voice, to edit and post yourself.
 - 🎙️ **Listens when you'd rather talk.** Tap the mic in the panel and speak; your words go into the box. It listens on your phone only.
 - 🔒 **Your choice of writer.** Private, free and offline on supported phones, or with your own ChatGPT, Claude, OpenRouter or OpenCode Go. ChatGPT signs in with one tap on its own page.
 - 💻 **Use my computer.** Pair your phone with your computer and the Claude you already use there writes your drafts ([how](docs/readme/guide.md#use-my-computer)).

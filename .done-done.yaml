@@ -179,6 +179,15 @@ journeys:
       node mobile/e2e/own-post.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
+  notes-posts:
+    description: "Android (AA-11): raw notes shared to Ownvoice, or selected in the lab X composer, become three distinct X posts on the free phone writer through Posts for X: none copies the notes, reads as instructions or adds a number; every post has its rating rows and the phone fit says once that levels need an online writer; the first post is edited then copied (copied text read back by its fingerprint), and Replace puts a post in the composer (read back from the fixture); Post is never tapped. The base build's sheet is captured separately with NOTES_LEG=before. Needs an explicit emulator allocation, JAVA_HOME, the phone writer already made ready through setup, APK (a release APK with no stub flags) installed."
+    command: |
+      set -u; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      S="$(mktemp -d)"; trap 'rm -rf -- "$S"' EXIT; fail=0
+      for leg in share replace; do NOTES_LEG=$leg node mobile/e2e/notes-posts.mjs "$S/$leg" "$E" >"$E/$leg.log" 2>&1 || fail=1; done
+      OWNVOICE_THEME=dark node mobile/e2e/notes-posts.mjs "$S/dark" "$E" >"$E/share-dark.log" 2>&1 || fail=1
+      echo "driver exit=$fail" | tee "$E/driver.log"; exit $fail
+    timeout: 90m
   own-post-fit:
     description: "Android (AA-04): a new post typed in the X and Reddit composer fixtures opens Polish your post, and the typed post and every version carry the fit bar, light and dark; the base build (BEFORE_APK) shows no bar and asks for no rating. Levels come from a fixed-answer Jev stand-in through the real decide path, and the run fails unless every rating request carries the platform's post rubric and no parent post. Needs an explicit emulator allocation, JAVA_HOME, and stub+GPT release APKs built with EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455 EXPO_PUBLIC_JEV_KEY=stand-in EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18612 (APK for this change, BEFORE_APK for the base)."
     command: |

@@ -11,7 +11,10 @@ export type Case =
   // Grow-mode feed case: a post plus an optional draft of his own, scored by the G2 checks
   // (never-say, long dash, invented numbers, the "Yours" card, and the bottom level for a
   // never-say breaker) against a recorded run; see scoreFeed and the README's G-set section.
-  | { id: string; kind: 'feed'; app: string; author: string; post: string; draft?: string; voice: { never: string[]; noDashes: boolean; samples: string[] }; why: string };
+  | { id: string; kind: 'feed'; app: string; author: string; post: string; draft?: string; voice: { never: string[]; noDashes: boolean; samples: string[] }; why: string }
+  // Posts from raw notes (the selection sheet's "Posts for X"): three posts through core/notesPosts, each grounded on
+  // a `keep` word; `reject` replays bad answers through the same admission, which must drop every one.
+  | { id: string; kind: 'notes'; notes: string; app: string; guide?: string; never?: string[]; keep: string[]; reject?: string[]; minCards?: number; why: string };
 
 
 const LOWER = 'How they write: all lowercase, short, no exclamation marks.';
@@ -116,6 +119,14 @@ export const cases: Case[] = [
     reject: ['Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', 'Shipping a tiny app every week this year. Week 12: a timer that only counts focused minutes. What should week 13 be!', 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be? Nice.'],
     cleaned: [{ raw: 'Reply:\nWeek 13 could be a productivity tracker that highlights the most productive hours of the week. This would help users identify their peak productivity times and optimize their work schedule accordingly.', text: 'Week 13 could be a productivity tracker that highlights the most productive hours of the week. This would help users identify their peak productivity times and optimize their work schedule accordingly.' }],
     why: 'Published phone writer offered the parent post itself: exact and near echoes must be retried, not inserted' },
+  { id: 'N01-notes-to-posts', kind: 'notes', app: 'com.twitter.android', guide: LOWER, never: ['game changer'],
+    notes: 'focus timer app, week 12\n- shipped the break reminder today\n- 3 testers said the old one felt pushy\n- now a quiet sound, no popup\n- next up: weekly summary',
+    keep: ['break', 'reminder', 'timer', 'tester', 'pushy', 'quiet', 'popup', 'summary'], minCards: 3,
+    reject: ['focus timer app, week 12\n- shipped the break reminder today\n- 3 testers said the old one felt pushy\n- now a quiet sound, no popup\n- next up: weekly summary',
+      'shipped the break reminder today', "Here's a post based on your notes: shipped the break reminder today.",
+      'Lead with the most concrete point in the notes, then one detail that backs it.', 'Post about the break reminder and the 3 testers.',
+      'shipped the break reminder today. 10 testers loved it.', 'shipped the break reminder at 9:30 today.', 'this break reminder is a game changer.'],
+    why: 'Raw notes from a notes app become three distinct X posts in his voice: no copy of the notes, no instructions, no made-up numbers' },
   { id: 'R14-x-reply-not-instruction', kind: 'reply', app: 'com.twitter.android', guide: LOWER,
     screen: 'Umer Demo @umer_demo\nShipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', latest: 'Shipping a tiny app every week this year. Week 12: a focus timer that only counts focused minutes. What should week 13 be?', point: 'could it include breaks too?',
     points: [['break']], minCards: 3,

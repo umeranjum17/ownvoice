@@ -37,6 +37,14 @@ const editWords = {
   editField:'Edit this draft',
 } as const;
 
+// Posts from notes: the selection sheet turns shared or selected notes into three posts for one place.
+const postsWords = {
+  postsFor: 'Posts for {name}',
+  postsReplace: 'Three posts from your notes. Edit one if you like. Replace puts it in the field; it is copied too.',
+  postsCopy: 'Three posts from your notes. Edit one if you like, then copy it and paste it where you post.',
+  postsNone: "Couldn't write posts from that. Try again, or add a few more notes.",
+} as const;
+
 // Panel mic: tap to listen on this phone, tap again (or silence) to finish; the heard
 // words go into the focused field through the insert path.
 const dictateWords = {
@@ -221,7 +229,7 @@ const mailWords = {
 } as const;
 
 export const words = {
-  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords,
+  ...engineWords, ...typingWords, ...fitWords, ...editWords, ...postsWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords,
   keepReplies: 'Keep my replies to learn from',
   keepRepliesNote: 'Only on this phone. Never sent. Off keeps no reply text.',
   outcomeTitle: 'Replies you inserted',
