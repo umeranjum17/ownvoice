@@ -31,7 +31,18 @@ const seen = async (text, timeout = 45000) => {
   while (Date.now() < end) { const n = nodes().find(match); if (n) return n; await wait(800); }
   throw new Error(`Missing ${text}: ${nodes().map(n => n.text || n.label).filter(Boolean).join(' | ').slice(0, 500)}`);
 };
-const tap = async text => { const n = await seen(text); adb('shell', 'input', 'tap', ...center(n).map(x => String(Math.round(x)))); await wait(800); };
+const tap = async (text, reveal = false) => {
+  for (let i = 0; i < 8; i++) {
+    const n = reveal ? find(text) : await seen(text);
+    // A card can be exposed as a one-pixel strip behind the fixed footer. Scroll before tapping, not merely until its node exists.
+    if (n && (!reveal || n.bounds[3] - n.bounds[1] >= 48 && center(n)[1] > geometry.height * .15 && center(n)[1] < geometry.height * .7)) {
+      adb('shell', 'input', 'tap', ...center(n).map(x => String(Math.round(x)))); await wait(800); return;
+    }
+    console.log(`reveal ${text}: rejected clipped bounds ${JSON.stringify(n?.bounds)}`);
+    adb('shell', 'input', 'swipe', String(geometry.width / 2), String(geometry.height * .75), String(geometry.width / 2), String(geometry.height * .3), '300'); await wait(800);
+  }
+  throw new Error(`No safely visible tap target for ${text}.`);
+};
 const start = () => adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
 const toggleService = async on => {
   adb('shell', 'settings', 'put', 'secure', 'enabled_accessibility_services', 'com.example.disabled/NoService');
@@ -101,10 +112,7 @@ try {
       closeSync(log);
       await wait(1500);
     }
-    for (let i = 0; i < 3 && !find('with your chatgpt'); i++) {
-      adb('shell', 'input', 'swipe', String(width / 2), String(height * .75), String(width / 2), String(height * .3), '300'); await wait(800);
-    }
-    await tap('with your chatgpt');
+    await tap('with your chatgpt', true);
     await seen(n => n.checkable && n.checked && textOf(n).includes('with your chatgpt'));
     assert.equal((await footer()).enabled, true, 'An explicit writer tap enables Continue.');
     assert.equal(radios().filter(n => n.checked).length, 1);
