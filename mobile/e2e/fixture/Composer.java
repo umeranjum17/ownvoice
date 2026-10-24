@@ -79,6 +79,8 @@ public class Composer extends Activity {
     postButton.setBackgroundColor(Color.rgb(29, 161, 242));
     postButton.setPadding(48, 24, 48, 24);
     postButton.setContentDescription("Post button");
+    // Clickable like a real one, so the insert note says to send it yourself; a tap posts nothing.
+    postButton.setOnClickListener(v -> { });
     LinearLayout.LayoutParams postParams = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
     postParams.gravity = Gravity.END;
     postParams.topMargin = 24;
