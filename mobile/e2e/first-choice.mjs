@@ -72,7 +72,7 @@ try {
   adb('shell', 'wm', 'size', `${width}x${height}`);
   adb('shell', 'wm', 'density', '320');
   adb('shell', 'settings', 'put', 'secure', 'stylus_handwriting_enabled', '0');
-  adb('shell', 'cmd', 'uimode', 'night', 'custom', '-o', 'off');
+  adb('shell', 'settings', 'put', 'secure', 'ui_night_mode_custom_type', '-1');
   for (const mode of ['light', 'dark']) for (const font of ['1.0', '1.3']) {
     const tag = `${before ? 'before' : 'after'}-${mode}${font === '1.3' ? '-large' : ''}`;
     adb('shell', 'cmd', 'uimode', 'night', mode === 'dark' ? 'yes' : 'no');
