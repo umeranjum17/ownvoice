@@ -366,8 +366,17 @@ const retypeLine = async () => {
   key(4); // Drop the keyboard so the bubble tap cannot land on it.
   await wait(1500);
 };
+// Back or a closing panel can leave the composer unfocused, and the bubble then reads the line as the screen's
+// text, not his ("Nothing to reply to yet"): tap into it first, as a person would.
+const focusComposer = async () => {
+  const field = composer();
+  if (!field) throw new Error('The composer is gone.');
+  tap(field.bounds[0] + 40, field.bounds[1] + 40);
+  await wait(1500);
+};
 for (let attempt = 0; attempt < 3; attempt++) {
   if (attempt) await retypeLine();
+  await focusComposer();
   bubble();
   await wait(2500);
   try { await withNodes('the drafts', useThis, 60); break; } catch { if (attempt === 2) { await ensureConnected(); await withNodes('the drafts', useThis, 90); } }
@@ -416,6 +425,7 @@ if (noteClear) {
   await noteLanded('copied', 'Copied');
   await wait(4500);
   if (composerText() !== LINE) throw new Error(`Copy changed the composer (saw "${composerText() || 'nothing'}").`);
+  await focusComposer();
   bubble();
   await withNodes('the drafts again', useThis, 60);
   await wait(2500);
