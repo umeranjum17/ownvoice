@@ -204,7 +204,14 @@ export default function Home() {
   // it as a row, so a skipped tour is never forced again (scope report, decisions 1 and 5).
   const tour = tourState();
   const tourDue = !!tour.pending && !tour.done && !tour.skipped;
-  useEffect(() => { if (tourDue) { openTour(); router.push('/tour'); } }, [tourDue]);
+  useEffect(() => {
+    if (!tourDue) return;
+    openTour();
+    // Pushed a beat later: the return from the pick is still settling, and a push in its last frame is
+    // popped by it, which left the person on Home with the tour marked as opened.
+    const late = setTimeout(() => router.push('/tour'), 350);
+    return () => clearTimeout(late);
+  }, [tourDue]);
   const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
   const shown = (apps ?? []).filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };
