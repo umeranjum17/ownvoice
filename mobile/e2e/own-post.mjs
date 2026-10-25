@@ -414,16 +414,15 @@ shot('drafts');
 
 // 4b. Where the note lands (AA-34): one screenshot per try until the note shows, its line's box read by OCR
 // (a system toast is not in the accessible tree), against the composer field and the Post button.
-// Whether the note's box differs from the app behind it: a laid-out pill that was never painted is exactly background.
-const meanOf = (file, [x1, y1, x2, y2]) => {
-  const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
-  return Number(execFileSync('magick', [file, '-crop', `${w}x${h}+${x1}+${y1}`, '+repage', '-format', '%[fx:mean]', 'info:'], { encoding: 'utf8' }).trim());
-};
-const painted = (file, box) => {
+// Whether the box holds a painted pill: one solid colour fills it (the pill and its text), which a region mixing the
+// mascot's colours, or plain app background, does not. Mean-vs-background alone passed the mascot, so the fill is read.
+const painted = (file, [x1, y1, x2, y2]) => {
   try {
-    const inside = meanOf(file, box);
-    const control = meanOf(file, [box[0], Math.max(0, box[1] - (box[3] - box[1])), box[2], Math.max(1, box[1] - 2)]);
-    return Math.abs(inside - control) > 0.08;
+    const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
+    const hist = execFileSync('magick', [file, '-crop', `${w}x${h}+${x1}+${y1}`, '+repage', '-colors', '6', '-format', '%c', 'histogram:info:-'], { encoding: 'utf8' });
+    const bins = hist.trim().split('\n').map(row => Number((row.match(/(\d+):\s*\(/) ?? [])[1] ?? 0));
+    const total = bins.reduce((a, b) => a + b, 0) || 1;
+    return Math.max(...bins) / total >= 0.7;
   } catch (error) {
     console.error(`pixels skipped: ${error.message.split('\n')[0]}`);
     return true; // no ImageMagick here: fall back to the tree reading rather than throw every leg away
@@ -470,12 +469,12 @@ const noteLanded = async (screen, start) => {
     const seen = ocrLines(file).find(line => line.text[0]?.startsWith(start));
     let found = null;
     let foundBy = '';
-    // The bubble carries the note's text too, so its nearly square box is not a note: the pill is wide and short, and
-    // it lies beside the bubble rather than over it.
+    // The bubble carries the note's text too (and the mascot's own round label sat where a note was read before), so a
+    // note must be wide, must not sit over any round overlay label, and its box must be filled by a painted pill.
     const wide = box => (box[2] - box[0]) >= 1.6 * (box[3] - box[1]);
-    const bubble = list.find(node => node.visible && node.windowType === 4 && (node.text ?? '').startsWith(start) && !wide(node.bounds));
-    const onBubble = !!bubble && !!said && overlaps(said.bounds, bubble.bounds);
-    if (said && wide(said.bounds) && !onBubble && painted(file, said.bounds)) { found = { text: [said.text], box: said.bounds }; foundBy = 'tree+pixels'; }
+    const round = list.filter(node => node.visible && node.windowType === 4 && !wide(node.bounds));
+    const onMascot = !!said && round.some(node => overlaps(said.bounds, node.bounds));
+    if (said && wide(said.bounds) && !onMascot && painted(file, said.bounds)) { found = { text: [said.text], box: said.bounds }; foundBy = 'tree+pixels'; }
     else if (!said && seen) { found = seen; foundBy = 'ocr'; }
     else if (said) console.error(`the note's text is on the bubble, not on a painted pill: ${said.text}`);
     if (found) {

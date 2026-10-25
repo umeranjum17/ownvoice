@@ -197,7 +197,7 @@ class OwnvoiceService : AccessibilityService() {
   /** A note said while the panel closes, such as "Copied.", shown once the app it closed over is back: text, how long
    * it shows, when it first showed (0 until then, so the note keeps its whole time on screen; it expires after it), and
    * the boxes of the field and send controls it keeps off. */
-  private data class Note(val text: String, val forMs: Long, val shownAt: Long, val clear: List<ClearRect>)
+  private data class Note(val text: String, val forMs: Long, val shownAt: Long, val clear: List<ClearRect>, val tries: Int = 0)
   private var pendingNote: Note? = null
   private var slipApp: String? = null
   private var slipCount = 0
@@ -743,14 +743,18 @@ class OwnvoiceService : AccessibilityService() {
     // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
     // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
     val clear = clearBoxes(box)
-    if (panelIsOpen && !practice) { pendingNote = Note(message, forMs, 0L, clear); Log.i(TAG, "note held for the panel to close: $message clear=${boxes(clear)}"); return }
-    // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one.
-    if (currentApp() == packageName && !practice) {
+    // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens with no panel
+    // up (setup, practice) use one.
+    if (currentApp() == packageName && PanelActivity.current == null && !practice) {
       Toast.makeText(this, message, Toast.LENGTH_LONG).show()
       return
     }
-    // Announced, so TalkBack reads the pill the way the old live region did.
-    showNote(message, forMs, clear)
+    // Held until the panel's own activity is gone: the insert verifies after the sheet has visibly closed, and a note
+    // said while that activity is still finishing is laid out over the app but never painted (seen at 390 and 445 dp,
+    // where the wider sheet takes longer, while 360 dp painted). It is announced once it is really on screen.
+    pendingNote = Note(message, forMs, 0L, clear)
+    Log.i(TAG, "note held: $message clear=${boxes(clear)} panel=${PanelActivity.current != null} open=$panelIsOpen")
+    sayPending()
   }
 
   /** Says [message] with its time and the boxes it keeps off, so the kit moves the bubble and the note together. */
@@ -787,14 +791,30 @@ class OwnvoiceService : AccessibilityService() {
     main.post {
       val note = pendingNote ?: return@post
       val left = note.forMs - if (note.shownAt == 0L) 0L else SystemClock.uptimeMillis() - note.shownAt
-      if (left <= 0) { pendingNote = null; Log.i(TAG, "note expired before it showed: ${note.text}"); return@post }
-      if (panelIsOpen || frontApp == null || frontApp == packageName) return@post
+      if (left <= 0) { pendingNote = null; Log.i(TAG, "note expired: ${note.text}"); return@post }
+      if (panelIsOpen || PanelActivity.current != null || frontApp == null || frontApp == packageName) {
+        // The panel's own state and its window can lag each other by a moment; wait for both rather than drop the note.
+        if (note.tries >= 20) { pendingNote = null; Log.i(TAG, "note dropped, no screen to show it on: ${note.text}"); return@post }
+        pendingNote = note.copy(tries = note.tries + 1)
+        main.postDelayed({ sayPending() }, 150)
+        return@post
+      }
       showNote(note.text, left, note.clear)
       if (note.shownAt == 0L) {
-        pendingNote = note.copy(shownAt = SystemClock.uptimeMillis())
+        pendingNote = note.copy(shownAt = SystemClock.uptimeMillis(), tries = 0)
         // The kit drops these boxes as the panel's own activity finishes, a moment after the note is said, and puts the
         // note back where the bubble rests (over the field): give them back over the note's first second.
         renewClear(pendingNote!!, 8)
+        // A note said as one window gives way to another is laid out but never painted, so say it once more after the
+        // transition: the second show always paints, and it carries what is left of the note's own time.
+        main.postDelayed({
+          val again = pendingNote
+          val rest = if (again == null || again.shownAt == 0L) 0L else again.forMs - (SystemClock.uptimeMillis() - again.shownAt)
+          if (again != null && again.text == note.text && rest > 500) {
+            Log.i(TAG, "note said again after the panel's window settled: ${again.text} restMs=$rest")
+            showNote(again.text, rest, again.clear)
+          }
+        }, 350)
       }
       val said = note.text
       main.postDelayed({ Log.i(TAG, "note drawn=${onScreen(said)} leftMs=$left clear=${note.clear.size} text=$said") }, 400)
