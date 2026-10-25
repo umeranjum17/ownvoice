@@ -171,6 +171,9 @@ const withWidth = async (dp, fn) => {
 // Home's own "Choose which one writes" is the way in (the newcomer path the tour hangs off).
 const connectOpenRouter = async tag => {
   await open('source');
+  // Home's own row carries the same words ("How Ownvoice writes, With your OpenRouter"), so the writer
+  // list has to be on screen before its card is looked for, or the tap lands on Home's row.
+  await waitText('choose who writes your drafts', 30);
   for (let i = 0; i < 5 && !findText('with your openrouter'); i++) await swipeDown();
   const card = await waitText('with your openrouter', 30);
   const [cx, cy] = center(card); adb('shell', 'input', 'tap', String(Math.round(cx)), String(Math.round(cy)));
