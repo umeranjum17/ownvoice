@@ -201,7 +201,9 @@ const connectOpenRouter = async tag => {
   await waitText('search the list', 90); // the account's own live list, nothing picked
   snap(`tour-pick-list-${tag}`);
   adb('shell', 'input', 'keyevent', '4'); await wait(1500);
-  await waitText('openrouter is connected', 60);
+  // Back from the pick list returns to where the key field was scrolled to, so the card's own line can sit
+  // above the fold: scroll to it rather than wait for it to be on screen.
+  await awaitVisible(['openrouter is connected', "if openrouter can't answer"], 60);
   log(`OpenRouter connected, nothing picked (${tag})`);
 };
 
