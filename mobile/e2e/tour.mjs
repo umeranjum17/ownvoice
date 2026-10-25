@@ -130,7 +130,7 @@ const theme = async dark => {
   await waitFocus();
 };
 const focused = () => {
-  try { return adb('shell', 'dumpsys', 'window').match(/mCurrentFocus=Window\{[^}]*\}\s+u0\s+([\w.]+)\//)?.[1] === pkg; } catch { return false; }
+  try { return adb('shell', 'dumpsys', 'window').match(/mCurrentFocus=Window\{[^}]*\bu0\s+([\w.]+)\//)?.[1] === pkg; } catch { return false; }
 };
 const waitFocus = async (tries = 25) => {
   for (let i = 0; i < tries; i++) { if (focused()) return; await wait(1000); }
