@@ -17,6 +17,10 @@ already pay for.
   <img src="docs/readme/hero-light.webp" width="800" alt="Left: Ownvoice's panel over an X reply box, headed Suggested replies, with a card marked Nothing flagged and another flagged for stock wording, each with Insert, Edit and Why? Right: the Ownvoice home screen, ready to help, with its on switch." />
 </picture>
 
+</div>
+
+<div align="center">
+
 [Download for Android](https://github.com/umeranjum17/ownvoice/releases/latest/download/Ownvoice.apk) ·
 [Quick start](#quick-start) ·
 [User guide](docs/readme/guide.md) ·
