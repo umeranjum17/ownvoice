@@ -30,7 +30,11 @@ if (!key.startsWith('sk-')) throw new Error('OpenRouter key file did not look li
 
 const pkg = 'dev.ownvoice.next';
 const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
-const nodes = accessibilityProbe(serial, out);
+const probe = accessibilityProbe(serial, out);
+// One probe serves every lookup for a moment: each probe is a fresh instrumentation, and a wait loop
+// asking twice a second would otherwise open hundreds of them.
+let seen = { at: 0, list: [] };
+const nodes = () => { if (Date.now() - seen.at > 600) seen = { at: Date.now(), list: probe() }; return seen.list; };
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const log = line => { const s = `${new Date().toISOString().slice(11, 19)} ${line}`; console.log(s); appendFileSync(resolve(out, 'tour-run.log'), s + '\n'); };
@@ -43,10 +47,24 @@ const waitText = async (label, tries = 40) => {
   for (let i = 0; i < tries; i++) { const n = wanted.map(findText).find(Boolean); if (n) return n; await wait(1000); }
   throw new Error(`Could not see "${wanted.join('" or "')}" on screen: ${screenWords()}`);
 };
+// The probe only reports what is on screen, and at 360 dp most rows are below the fold: scroll the page
+// until the control shows, so the proof taps what a person would scroll to.
+const swipeBy = async up => {
+  const [w, h] = size();
+  adb('shell', 'input', 'swipe', String(w / 2), String(up ? h * .72 : h * .3), String(w / 2), String(up ? h * .3 : h * .72), '300');
+  await wait(900);
+};
+const reveal = async label => {
+  let n = findText(label);
+  for (let i = 0; i < 4 && !n; i++) { await swipeBy(true); n = findText(label); }
+  for (let i = 0; i < 3 && !n; i++) { await swipeBy(false); n = findText(label); }
+  return n;
+};
+const tapNode = n => { const [x, y] = center(n); adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y))); return n; };
 const tapText = async (label, tries = 20) => {
   for (let i = 0; i < tries; i++) {
-    const n = findText(label);
-    if (n) { const [x, y] = center(n); adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y))); return n; }
+    const n = findText(label) || await reveal(label);
+    if (n) return tapNode(n);
     await wait(1000);
   }
   throw new Error(`Could not find visible ${label}: ${screenWords()}`);
@@ -55,8 +73,8 @@ const tapText = async (label, tries = 20) => {
 const findExact = label => find(n => (n.label || '').trim() === label || (n.text || '').trim() === label);
 const tapExact = async (label, tries = 20) => {
   for (let i = 0; i < tries; i++) {
-    const n = findExact(label);
-    if (n) { const [x, y] = center(n); adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y))); return n; }
+    const n = findExact(label) || (await reveal(label) ? findExact(label) : null);
+    if (n) return tapNode(n);
     await wait(1000);
   }
   throw new Error(`Could not find the ${label} button: ${screenWords()}`);
@@ -64,6 +82,16 @@ const tapExact = async (label, tries = 20) => {
 const waitFor = async (tries, pred, what) => {
   for (let i = 0; i < tries; i++) { const hit = pred(); if (hit) return hit; await wait(1000); }
   throw new Error(`Never saw ${what || 'it'}: ${screenWords()}`);
+};
+// Waiting for something the writer will put below the fold: scroll once per pass, not once per probe.
+const awaitVisible = async (labels, seconds) => {
+  const end = Date.now() + seconds * 1000;
+  for (let pass = 0; ; pass++) {
+    const hit = labels.map(findText).find(Boolean);
+    if (hit) return hit;
+    if (Date.now() > end) throw new Error(`Never saw ${labels.join(' or ')}: ${screenWords()}`);
+    if (pass % 2 === 0) await reveal(labels[0]); else await wait(1000);
+  }
 };
 
 const setService = async on => {
@@ -91,7 +119,7 @@ const theme = async dark => {
 const open = async route => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, pkg); await wait(1500); };
 // Setup is finished with no writer at all: hardware Back on the welcome completes it.
 const skipSetup = async () => { await waitText('sound like you', 40); adb('shell', 'input', 'keyevent', '4'); await wait(2500); };
-const home = async () => { await open('/'); await waitText('where the bubble shows', 30); };
+const home = async () => { await open('/'); await waitText('on x, reddit and linkedin', 30); };
 const swipeDown = async () => { const [w, h] = size(); adb('shell', 'input', 'swipe', String(w / 2), String(h * .7), String(w / 2), String(h * .3), '300'); await wait(1200); };
 
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
@@ -147,7 +175,6 @@ const tourScreen = async tries => waitText(TOUR_TITLE, tries);
 // Home keeps the tour as a row below the fold on some widths, so scroll until it shows.
 const openTourFromHome = async () => {
   await home();
-  for (let i = 0; i < 4 && !findText('take the tour'); i++) await swipeDown();
   await tapText('take the tour', 20);
   await tourScreen(30);
 };
@@ -196,7 +223,7 @@ try {
     await waitText('search the list', 90);
     await pickModel('home');
     await tourScreen(45); // back on Home, the tour opens itself
-    await waitText('polish the made-up post', 20);
+    await awaitVisible(['polish the made-up post'], 20);
     snap('tour-opens-light');
     log('the tour opened by itself right after the pick');
   });
@@ -208,7 +235,7 @@ try {
       await theme(dark);
       await withWidth(dp, async () => {
         await openTourFromHome();
-        await waitText('polish the made-up post', 20);
+        await awaitVisible(['polish the made-up post'], 20);
         snap(`tour-open-${T}-w${dp}`);
         adb('shell', 'input', 'keyevent', '4'); await wait(1200);
       });
@@ -223,7 +250,7 @@ try {
     await wait(1200);
     snap(`tour-writing-${tag}`);
     // Try another example only shows once the writer answered and the versions landed.
-    await waitText(['try another example', 'this one took too long'], 180);
+    await awaitVisible(['try another example', 'this one took too long'], 180);
     if (findText('this one took too long')) throw new Error(`The writer failed instead of answering: ${screenWords()}`);
     await wait(1500);
     snap(`tour-versions-${tag}`);
@@ -242,7 +269,7 @@ try {
     await writerOff();
     if (findText('try another example')) await tapText('try another example', 20);
     else await tapExact('Polish the made-up post', 20);
-    await waitFor(90, () => findExact('Try again'), 'the plain line with Try again');
+    await waitFor(90, () => findExact('Try again') || (reveal('Try again'), findExact('Try again')), 'the plain line with Try again');
     const rest = nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean).join(' ');
     if (!/try again/i.test(rest)) throw new Error('No retry offered after a failed call.');
     await wait(800);
@@ -250,7 +277,7 @@ try {
     const line = rest.split('Try again')[0].slice(0, 160);
     await writerOn();
     await tapExact('Try again', 20);
-    await waitText(['try another example', 'this one took too long'], 180);
+    await awaitVisible(['try another example', 'this one took too long'], 180);
     if (findText('this one took too long')) throw new Error(`The retry failed too: ${screenWords()}`);
     await wait(1500);
     snap('tour-recovered-light');
@@ -264,7 +291,7 @@ try {
     await theme(false);
     await withWidth(390, async () => {
       await openTourFromHome();
-      await waitText('polish the made-up post', 20);
+      await awaitVisible(['polish the made-up post'], 20);
       snap('tour-open-light-w390-font1.3');
       adb('shell', 'input', 'keyevent', '4'); await wait(1200);
     });
