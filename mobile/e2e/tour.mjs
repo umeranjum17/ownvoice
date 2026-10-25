@@ -183,6 +183,10 @@ const openTourFromHome = async () => {
 const writerPort = Number(process.env.PI_WRITER_PORT ?? 18799);
 // The stand-in is a child this run owns: stopping it is the failed-call leg (a real refused request,
 // nothing else on the phone touched), and starting it again is the restore before Try again.
+// The stand-in's port belongs to one run: a second driver on it would answer the first run's calls and
+// both would drive the same phone. Refuse instead of interleaving two proofs.
+const portBusy = () => { try { return execFileSync('ss', ['-ltn'], { encoding: 'utf8' }).includes(`:${writerPort} `); } catch { return false; } };
+if (process.env.TOUR_WRITER !== 'live' && portBusy()) throw new Error(`Port ${writerPort} is already serving: another run of this lane is still going. Stop it before starting this one.`);
 const writerArgs = ['e2e/pi-writer.mjs', 'serve', String(writerPort), resolve(out, 'pi-writer.log')];
 const startWriter = () => spawn(process.env.PI_BIN || 'node', writerArgs, { cwd: resolve(import.meta.dirname, '..'), stdio: 'inherit' });
 let piWriter = process.env.TOUR_WRITER === 'live' ? null : startWriter();
