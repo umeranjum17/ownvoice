@@ -68,8 +68,8 @@ const swipeBy = async up => {
 };
 const reveal = async label => {
   let n = findText(label);
-  for (let i = 0; i < 4 && !n; i++) { await swipeBy(true); n = findText(label); }
-  for (let i = 0; i < 3 && !n; i++) { await swipeBy(false); n = findText(label); }
+  for (let i = 0; i < 3 && !n; i++) { await swipeBy(true); n = findText(label); }
+  for (let i = 0; i < 2 && !n; i++) { await swipeBy(false); n = findText(label); }
   return n;
 };
 const tapNode = n => { const [x, y] = center(n); adb('shell', 'input', 'tap', String(Math.round(x)), String(Math.round(y))); return n; };
@@ -142,8 +142,17 @@ const open = async route => {
   await wait(1500);
 };
 // Setup is finished with no writer at all: hardware Back on the welcome completes it.
-const skipSetup = async () => { await waitText('sound like you', 40); adb('shell', 'input', 'keyevent', '4'); await wait(2500); };
-const home = async () => { await open('/'); await waitText('on x, reddit and linkedin', 30); };
+const skipSetup = async () => {
+  await waitText('sound like you', 40);
+  // Back on the welcome finishes setup; if the app lands back on it, press once more.
+  for (let i = 0; i < 3; i++) { adb('shell', 'input', 'keyevent', '4'); await wait(2500); if (!findText('sound like you')) return; }
+};
+// Home only: the welcome screen shares its copy, so Home is the row the tour sits next to.
+const home = async () => {
+  await open('/'); await waitFocus();
+  for (let i = 0; i < 3 && !(findText('where the bubble shows') || await reveal('where the bubble shows')); i++) await wait(1500);
+  if (!findText('where the bubble shows')) throw new Error(`Home did not show its rows: ${screenWords()}`);
+};
 const swipeDown = async () => { const [w, h] = size(); adb('shell', 'input', 'swipe', String(w / 2), String(h * .7), String(w / 2), String(h * .3), '300'); await wait(1200); };
 
 const [width, height] = adb('shell', 'wm', 'size').match(/(\d+)x(\d+)/).slice(1).map(Number);
