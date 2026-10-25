@@ -414,6 +414,25 @@ shot('drafts');
 
 // 4b. Where the note lands (AA-34): one screenshot per try until the note shows, its line's box read by OCR
 // (a system toast is not in the accessible tree), against the composer field and the Post button.
+// The note's own line boxes from the frame's pixels, so a reading can be tied to what the screen really shows.
+const ocrLines = file => {
+  try {
+    const lines = new Map();
+    for (const row of execFileSync('tesseract', [file, 'stdout', 'tsv'], { encoding: 'utf8' }).split('\n').slice(1)) {
+      const c = row.split('\t');
+      if (c[0] !== '5' || !c[11]?.trim()) continue;
+      const id = c.slice(1, 5).join('.'), [x, y, w, h] = c.slice(6, 10).map(Number);
+      const line = lines.get(id) ?? { text: [], box: [x, y, x + w, y + h] };
+      line.text.push(c[11].trim());
+      line.box = [Math.min(line.box[0], x), Math.min(line.box[1], y), Math.max(line.box[2], x + w), Math.max(line.box[3], y + h)];
+      lines.set(id, line);
+    }
+    return [...lines.values()];
+  } catch (error) {
+    console.error(`ocr skipped: ${error.message.split('\n')[0]}`);
+    return [];
+  }
+};
 const noteBoxes = [];
 const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 // The note shows for about 4 s, so the screenshots start at once and the boxes are read after the note is found.
@@ -430,25 +449,16 @@ const noteLanded = async (screen, start) => {
     // The note's own pill is a view in an overlay window, so it is in the tree; a system toast is not, and is read
     // by OCR instead. Either way its box comes from this screenshot's moment.
     const said = list.find(node => node.visible && node.windowType === 4 && (node.text ?? '').startsWith(start));
-    let found = said && { text: [said.text], box: said.bounds };
-    let foundBy = 'tree';
-    if (!found) try {
-      const lines = new Map();
-      for (const row of execFileSync('tesseract', [file, 'stdout', 'tsv'], { encoding: 'utf8' }).split('\n').slice(1)) {
-        const c = row.split('\t');
-        if (c[0] !== '5' || !c[11]?.trim()) continue;
-        const id = c.slice(1, 5).join('.'), [x, y, w, h] = c.slice(6, 10).map(Number);
-        const line = lines.get(id) ?? { text: [], box: [x, y, x + w, y + h] };
-        line.text.push(c[11].trim());
-        line.box = [Math.min(line.box[0], x), Math.min(line.box[1], y), Math.max(line.box[2], x + w), Math.max(line.box[3], y + h)];
-        lines.set(id, line);
-      }
-      found = [...lines.values()].find(line => line.text[0]?.startsWith(start));
-      foundBy = 'ocr';
-    } catch (error) {
-      // No OCR on this host: the tree above is the primary reader, so a missing tesseract is a miss, not a crash.
-      console.error(`ocr skipped: ${error.message.split('\n')[0]}`);
-    }
+    // The tree carries the note's text from the moment it is laid out, a moment before the pill is painted (one frame
+    // showed the bubble alone with the tree already saying "Inserted"), so a frame is only taken as proof when the text
+    // is also readable in its pixels. OCR failure on this host leaves the tree reading as the only one, unpainted.
+    const lines = ocrLines(file);
+    const seen = lines.find(line => line.text[0]?.startsWith(start));
+    let found = null;
+    let foundBy = '';
+    if (said && seen) { found = { text: said.text, box: said.bounds }; foundBy = 'tree+ocr'; }
+    else if (!said && seen) { found = seen; foundBy = 'ocr'; }
+    else if (said) console.error(`note laid out but not painted yet: ${said.text}`);
     if (found) {
       const field = list.find(node => node.className === 'android.widget.EditText' && node.editable)?.bounds;
       const post = list.find(node => /^(Post|Reply)$/.test(node.text ?? '') && node.app === fixturePkg)?.bounds;
