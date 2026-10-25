@@ -54,90 +54,65 @@ Step-by-step help for every screen is in the [user guide](docs/readme/guide.md#g
 
 ## Why Ownvoice
 
-| | Doing it by hand | With Ownvoice |
-| --- | --- | --- |
-| Catching slips | Read it again, and miss the "shoud" anyway | The panel marks the slip and offers the fix |
-| Trimming filler | Delete, retype, delete again | **Shorter** gives back the same points in fewer words |
-| Asking a chatbot to rewrite | Copy out, paste in, copy back, paste in | Never leaves the chat: **Insert** puts it in your box |
-| What it costs | A writing tool per seat, per month | Free on your phone, or the plan you already pay for |
-| What leaves your phone | — | Nothing, with **On this phone**. Nothing is sent unless you tap |
+| Doing it by hand | With Ownvoice |
+| --- | --- |
+| **Slips:** reread it, still miss the "shoud" | **Slips:** marked, one tap to fix |
+| **Filler:** delete, retype, delete again | **Shorter:** same points, fewer words |
+| **Rewriting:** copy out, paste in, copy back | **Insert:** it never leaves the chat |
+| **Cost:** a writing tool per seat, each month | Free on your phone, or the plan you pay for |
+| **Your words:** pasted into another app | Nothing leaves with **On this phone** |
 
 - **It never sends, posts or taps anything for you.** You read the version and press Send.
 - **It only reads when you tap.** The bubble shows in the apps you switch on, and **What Ownvoice read** lists every tap, without your text.
 - **It writes with what you already have.** Your phone, or the ChatGPT, Claude, OpenRouter or OpenCode Go plan you pay for, or the Claude on your own computer.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/panel-loop-dark.webp" />
-    <img src="docs/readme/panel-loop-light.webp" width="300" alt="A loop from the practice chat: the panel writes, then offers a Cleaned up line that fixes dont and shoud, and a Shorter line without the stock phrase" />
-  </picture><br />
-  <sub>A real run in the practice chat: it writes, then hands you a tidied line and a shorter one.</sub>
-</p>
-
 ## What you get
 
-<table>
-  <tr>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/readme/polish-dark.webp" />
-        <img src="docs/readme/polish-light.webp" width="100%" alt="Polish your message: Cleaned up fixes dont and shoud, while Shorter rewrites the reply without the highlighted stock phrase" />
-      </picture>
-      <br /><strong>Polish what you wrote</strong><br />Fix slips. Trim filler with Shorter.
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/readme/reply-cards-light.webp" width="100%" alt="Suggested replies · X: Push back, kindly and Ask a question cards, each with Insert, Edit and Why?, and notes on how it reads on X" />
-      <br /><strong>Reply ideas on X</strong><br />Cards rated for the platform.
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/readme/rewrite-dark.webp" />
-        <img src="docs/readme/rewrite-light.webp" width="100%" alt="Make it better: a selected sentence and its shorter version, with buttons for Shorter, Simpler, Fix spelling, Friendlier and Firmer" />
-      </picture>
-      <br /><strong>Make any text better</strong><br />Select text, choose Ownvoice.
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/readme/speak-light.webp" width="100%" alt="Polish your message with the mic row, Listen, above your own text while new versions are being written" />
-      <br /><strong>Speak instead of typing</strong><br />Tap Listen and talk.
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/readme/writer-dark.webp" />
-        <img src="docs/readme/writer-light.webp" width="100%" alt="How should Ownvoice write? On this phone, private and free, or with an AI plan you already pay for" />
-      </picture>
-      <br /><strong>Choose who writes</strong><br />On your phone, or your own plan.
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/readme/computer-light.webp" width="100%" alt="Use my computer: your computer writes the drafts with your own Claude. Paste the code your computer shows, then Pair" />
-      <br /><strong>Use my computer</strong><br />Your computer's Claude writes.
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <a href="docs/readme/polish-light.webp"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/polish-dark.webp" />
+    <img src="docs/readme/polish-light.webp" width="48%" alt="Polish your message: Cleaned up fixes dont and shoud, while Shorter rewrites the reply without the highlighted stock phrase" />
+  </picture></a>
+  <a href="docs/readme/reply-cards-light.webp"><img src="docs/readme/reply-cards-light.webp" width="48%" alt="Suggested replies · X: Push back, kindly and Ask a question cards, each with Insert, Edit and Why?, and notes on how it reads on X" /></a><br />
+  <sub><strong>Polish what you wrote</strong>: fix slips, trim filler with <strong>Shorter</strong>. &nbsp;&middot;&nbsp; <strong>Reply ideas on X</strong>: cards rated for the platform.</sub>
+</p>
 
-It also learns the words you never say and how you like to write, turns raw notes into posts, and
-follows your phone's colours, font, light and dark ([every screen](docs/readme/guide.md#everything-in-one-place)).
+<p align="center">
+  <a href="docs/readme/rewrite-light.webp"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/rewrite-dark.webp" />
+    <img src="docs/readme/rewrite-light.webp" width="48%" alt="Make it better: a selected sentence and its shorter version, with buttons for Shorter, Simpler, Fix spelling, Friendlier and Firmer" />
+  </picture></a>
+  <a href="docs/readme/writer-light.webp"><picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/writer-dark.webp" />
+    <img src="docs/readme/writer-light.webp" width="48%" alt="How Ownvoice writes: choose who writes your drafts, on this phone, private and free, or with the ChatGPT, Claude, OpenRouter or OpenCode Go plan you already pay for" />
+  </picture></a><br />
+  <sub><strong>Make any text better</strong>: select text, choose Ownvoice. &nbsp;&middot;&nbsp; <strong>Choose who writes</strong>: your phone, or your own plan.</sub>
+</p>
+
+It also speaks instead of typing when you tap **Listen**, writes from your own computer, learns the
+words you never say and how you like to write, turns raw notes into posts, and follows your phone's
+colours, font, light and dark ([every screen](docs/readme/guide.md#everything-in-one-place)).
 
 ## Proof
 
 Ownvoice is new, so there are no quotes or customer logos to show you yet. Here is what you can check yourself today.
 
-| What | Where to check it |
-| --- | --- |
-| Eleven releases in 24 days, v1.0.2 on 1 Oct 2026 to v1.0.10 on 24 Oct 2026 | [All releases](https://github.com/umeranjum17/ownvoice/releases) |
-| Every release ships `Ownvoice.apk` next to its `Ownvoice.apk.sha256`, so you can check the file you installed | [v1.0.10](https://github.com/umeranjum17/ownvoice/releases/tag/v1.0.10) |
-| A model or prompt change has to pass the writer evaluation gate: the cases P01, P13, S05, R01, R07, R13, R14, P20 and N01 | [mobile/eval](mobile/eval/README.md) |
-| The writing core is published as a package you can use: `ownvoice-engine` 0.2.0, on npm since 22 Oct 2026 | [npm](https://www.npmjs.com/package/ownvoice-engine) |
-| Every screenshot on this page is an unedited capture of the real app, on a demo phone with demo text | [docs/readme](docs/readme) |
+- **Eleven releases in 24 days**, v1.0.2 on 1 Oct 2026 to v1.0.10 on 24 Oct 2026: [all releases](https://github.com/umeranjum17/ownvoice/releases).
+- **Every release ships `Ownvoice.apk` next to its `Ownvoice.apk.sha256`**, so you can check the file you installed: [v1.0.10](https://github.com/umeranjum17/ownvoice/releases/tag/v1.0.10).
+- **A model or prompt change has to pass the writer evaluation gate**, the cases P01, P13, S05, R01, R07, R13, R14, P20 and N01: [mobile/eval](mobile/eval/README.md).
+- **The writing core is published as a package you can use**, `ownvoice-engine` 0.2.0, on npm since 22 Oct 2026: [npm](https://www.npmjs.com/package/ownvoice-engine).
+- **Every screenshot on this page is an unedited capture of the real app**, on a demo phone with demo text: [docs/readme](docs/readme).
 
 Rerun the gate yourself from a copy of this repo:
 
 ```sh
-cd mobile/eval && EVAL_BACKEND=codex-cli ONLY=P01,P13,S05,R01,R07,R13,R14,P20,N01 \
-  node run.ts gate http://unused out/gate.json && node score.ts out/gate.json
+cd mobile/eval
+export EVAL_BACKEND=codex-cli
+export ONLY=P01,P13,S05,\
+R01,R07,R13,R14,P20,N01
+node run.ts gate \
+http://unused out/gate.json
+node score.ts out/gate.json
 ```
 
 With a local model server the same command runs the phone writer itself; the backend above runs the
@@ -162,12 +137,12 @@ come from feed apps with a readable post above the box.
 
 ## More
 
-- 📖 [User guide](docs/readme/guide.md): every screen and every check, in detail
-- 🧭 [Vision](VISION.md): who Ownvoice is for and where it is going
-- 🌱 <a id="your-growth"></a>[Your growth](docs/readme/guide.md#your-growth): keep track on your phone
-- 🛠️ [Android app](mobile/README.md): build it, test it, and how it writes
-- 🧩 [Writing core](packages/engine/README.md) and its [quality gate](mobile/eval/README.md)
-- 🎨 [Icons](docs/icons/README.md) · 📦 [All releases](https://github.com/umeranjum17/ownvoice/releases)
+- [User guide](docs/readme/guide.md): every screen and every check, in detail
+- [Vision](VISION.md): who Ownvoice is for and where it is going
+- [Your growth](docs/readme/guide.md#your-growth): keep track on your phone
+- [Android app](mobile/README.md): build it, test it, and how it writes
+- [Writing core](packages/engine/README.md) and its [quality gate](mobile/eval/README.md)
+- [Icons](docs/icons/README.md) and [all releases](https://github.com/umeranjum17/ownvoice/releases)
 - The original Kotlin app lives in [app/](app/README.md)
 
 ## Contributing
