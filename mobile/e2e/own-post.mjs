@@ -470,9 +470,14 @@ const noteLanded = async (screen, start) => {
     const seen = ocrLines(file).find(line => line.text[0]?.startsWith(start));
     let found = null;
     let foundBy = '';
-    if (said && painted(file, said.bounds)) { found = { text: said.text, box: said.bounds }; foundBy = 'tree+pixels'; }
+    // The bubble carries the note's text too, so its nearly square box is not a note: the pill is wide and short, and
+    // it lies beside the bubble rather than over it.
+    const wide = box => (box[2] - box[0]) >= 1.6 * (box[3] - box[1]);
+    const bubble = list.find(node => node.visible && node.windowType === 4 && (node.text ?? '').startsWith(start) && !wide(node.bounds));
+    const onBubble = !!bubble && !!said && overlaps(said.bounds, bubble.bounds);
+    if (said && wide(said.bounds) && !onBubble && painted(file, said.bounds)) { found = { text: [said.text], box: said.bounds }; foundBy = 'tree+pixels'; }
     else if (!said && seen) { found = seen; foundBy = 'ocr'; }
-    else if (said) console.error(`note laid out but not painted yet: ${said.text}`);
+    else if (said) console.error(`the note's text is on the bubble, not on a painted pill: ${said.text}`);
     if (found) {
       const field = list.find(node => node.className === 'android.widget.EditText' && node.editable)?.bounds;
       const post = list.find(node => /^(Post|Reply)$/.test(node.text ?? '') && node.app === fixturePkg)?.bounds;
