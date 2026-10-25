@@ -9,10 +9,10 @@ import { slipsLabel } from '../core/typingCheck';
 import { dashesFor } from '../core/drafts';
 import { DEFAULT_PLATFORM, platformForApp, type Platform } from '../core/platforms';
 import { prefillFor, prefillUrl } from '../core/prefill';
-import { replyPost } from '../core/feed';
+import { feedPosts, replyPost, type FeedPost } from '../core/feed';
 import { rate, REACH_UNKNOWN, type Ratings as CardRatings } from '../core/ratings';
 import { fitBackends, gptRoute } from '../chatgpt/settings';
-import { abstain, judgeFit, rated, type Fit, type FitKind } from '../grow/fit';
+import { abstain, clearsBar, judgeFit, rated, type Fit, type FitKind } from '../grow/fit';
 import { phoneFit } from '../grow/phoneFit';
 import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
@@ -79,15 +79,19 @@ const openPrefill = (platform: Platform, draft: Draft) => {
 
 const namesPlatform = (platform: Platform) => platform.id === 'x' || platform.id === 'linkedin' || platform.id === 'reddit';
 
-/** What the fit rates in this mode: a reply they grow, or their own new post and its versions; nothing elsewhere. */
-const fitKindOf = (mode: Mode | null): FitKind | null => mode === 'grow' ? 'reply' : mode === 'compose' ? 'post' : null;
+/** What the fit rates in this mode: a reply they grow, their own new post and its versions, or the reply written for the
+ *  best post of a "Worth a reply?" tap; nothing elsewhere. */
+const fitKindOf = (mode: Mode | null): FitKind | null => mode === 'grow' || mode === 'worth' ? 'reply' : mode === 'compose' ? 'post' : null;
 
 /** Their reply typed under a post on X, LinkedIn or Reddit (the places the fit can rate) grows: their own text stays as Yours
  *  and the replies, started from their point, are ranked for that place. With nothing typed the reply stays withheld.
  *  A blank composer in a feed app is his own post with nothing to write from, so it asks for the one line it
- *  needs; an empty box anywhere else stays the empty state, and a chat reply, or mail outside an open Gmail thread, is withheld. */
-const modeOf = (typed: string, written: string, hasField: boolean, feed: boolean, platform: Platform): Mode => {
+ *  needs; a feed with no box at all (X or Reddit, nobody typing) rates every post on screen when the screen shows
+ *  more than one, whatever text it carries; one post, or none readable, keeps the reply it always wrote. An empty
+ *  box anywhere else stays the empty state, and a chat reply, or mail outside an open Gmail thread, is withheld. */
+const modeOf = (typed: string, written: string, hasField: boolean, feed: boolean, platform: Platform, posts = 0): Mode => {
   if (typed.trim()) return Judge.replying(written) ? (namesPlatform(platform) ? 'grow' : 'polish') : 'compose';
+  if (!hasField && feed && posts > 1 && (platform.id === 'x' || platform.id === 'reddit')) return 'worth';
   if (Judge.replying(written)) return 'reply';
   return hasField && feed ? 'own' : 'empty';
 };
@@ -205,6 +209,9 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   };
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
+  // The posts of the last "Worth a reply?" tap, marked best first: the list the panel shows above the reply written
+  // for the best one. Empty in every other mode.
+  const [worth, setWorth] = useState<(FeedPost & { fit: Fit })[]>([]);
   // Panel mic: tap to listen on this phone, tap again (or silence) to finish into the field.
   const [listening, setListening] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
@@ -243,13 +250,39 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     } catch {}
   }, []);
 
+  // Every post of one "Worth a reply?" tap, rated in one judge call on the four levels a post already gets; marked
+  // best first, the screen's own order kept for ties. A writer that answers nothing (the phone ties every fit, or a
+  // refused account) leaves the posts honestly unrated: no level is invented, and the panel says why for the set.
+  const rateWorth = async (posts: FeedPost[], value: Capture): Promise<(FeedPost & { fit: Fit })[]> => {
+    let refusal: string | null = null;
+    const onPhone = !leaves.current || shownOnPhone.current;
+    const backends = !onPhone
+      ? fitBackends(value.app, { on: { ...readLog(value.id), refused: line => { refusal = line; } } })
+      : await phoneCanWrite() === 'cant' ? [] : [phoneFit()];
+    const found = await judgeFit({ post: '', candidates: posts.map(post => post.post), platform: platformOf.current, backends, voice: false, kind: 'post' })
+      .catch(() => posts.map(abstain));
+    const judged = posts.map((post, i) => {
+      const fit = found[i];
+      const why = fit.level != null ? null : refusal ? { refusal } : onPhone ? { onPhone: true } : null;
+      return { ...post, fit: why ? { ...fit, ...why } : fit };
+    });
+    const sorted = judged.slice().sort((a, b) => (b.fit.level ?? -1) - (a.fit.level ?? -1));
+    // Levels only, never the post text: what a proof reads from the device log.
+    console.log(`ownvoice-worth ${JSON.stringify(sorted.map(post => post.fit))}`);
+    setWorth(sorted);
+    return sorted;
+  };
+
   const start = useCallback((value: Capture, avoid?: string[]) => {
     const id = ++run.current;
     landedAny.current = false;
     setLimited(!!value.typingLimited);
     const rules = voice.current = loadVoice();
     const platform = platformForApp(value.app, value.nodes);
-    const nextMode = modeOf(value.typed, value.written, value.hasField, platform.kind === 'feed', platform);
+    // One tap rates every post on screen only when the screen shows more than one: a lone post (an open tweet, an
+    // image-only one) keeps the reply it always wrote, so no existing reply path changes behavior.
+    const posts = !value.hasField && platform.kind === 'feed' ? feedPosts(value.nodes, value.fieldTop) : [];
+    const nextMode = modeOf(value.typed, value.written, value.hasField, platform.kind === 'feed', platform, posts.length);
     const typed = value.typed.trim();
     const grow = nextMode === 'grow';
     const post = nextMode === 'compose';
@@ -275,6 +308,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setWhys(new Map());
     setEdit(null);
     kind.current = null;
+    setWorth([]);
     // Trimming must not turn a complete word followed by space into a cut edge.
     void findSlips(typed, id, !!value.typingLimited && !/\s$/.test(value.typed));
     if (nextMode === 'empty') {
@@ -310,6 +344,15 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       leaves.current = path.writer !== phoneWriter;
       // One selection per run: the writer's guide line and the fit call share these samples.
       const picked = selectedGuide(rules, post);
+      // Worth a reply: every post is rated first, and the reply is written only for the one that clears the bar, so
+      // nothing is written (and nothing is sent) when no post on screen is worth answering.
+      let parent = read;
+      if (nextMode === 'worth') {
+        const best = (await rateWorth(posts, value)).find(pick => clearsBar(pick.fit));
+        if (run.current !== id) return;
+        if (!best) { setNote(words.worthNone); setPhase('ready'); return; }
+        parent = postOf.current = best.post;
+      }
 
       try {
         const choice = await path.writer.write({
@@ -321,7 +364,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
           typed: grow ? '' : typed,
           point: grow ? typed : undefined,
           platform,
-          post: read || undefined,
+          post: parent || undefined,
           guide: picked.line,
           never: rules.never,
           samples: samplesOf.current = picked.samples,
@@ -613,6 +656,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     : mode === 'polish' ? (namesPlatform(platform) ? words.postTitle : words.polishTitle)
     : mode === 'compose' ? words.postTitle
     : mode === 'own' ? words.ownTitle
+    : mode === 'worth' ? words.worthTitle
     : mode === 'reply' || mode === 'grow' ? (who ? `Reply to ${who}` : words.replyTitle)
     : words.nothingYet;
   const placeTitle = namesPlatform(platform) && mode !== 'empty' && mode != null ? `${title} · ${platform.label}` : title;
@@ -621,12 +665,16 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   // An open Gmail thread has no box: the picked reply opens Gmail's own reply with it in the box.
   const opensReply = !hasField && !!capture?.opensReply && mode === 'reply';
   const canPut = hasField || opensReply;
+  // The modes whose cards answer a post: their empty and ready lines differ from a polish set's.
+  const replies = mode === 'reply' || mode === 'grow' || mode === 'worth';
+  // A worth tap has no box to tap into and its own line above the posts, so it carries no ready hint.
+  const replyHint = mode === 'worth' ? null : hasField ? words.readyReply : opensReply ? words.readyMail : words.noField;
   const mainNote = phase === 'failed' || phase === 'loading' ? note
     : phase === 'ready' && declined ? words.unclearPolish
     : phase === 'ready' && unchanged ? words.looksGoodNote
     : mode === 'own' ? words.ownNote
-    : phase === 'ready' && !shown.length ? (mode === 'reply' || mode === 'grow' ? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
-    : phase === 'ready' ? (mode === 'reply' || mode === 'grow' ? (hasField ? words.readyReply : opensReply ? words.readyMail : words.noField) : words.readyPolish)
+    : phase === 'ready' && !shown.length ? (replies ? note ?? words.noReplies : mode === 'empty' ? words.writeFirst : words.noVersions)
+    : phase === 'ready' ? (replies ? replyHint : words.readyPolish)
     : fraction != null ? words.gettingReady
     : slow ? (!leaves.current || shownOnPhone.current ? words.stillWorking : words.stillWorkingCloud)
     : words.writing;
@@ -636,7 +684,6 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
 
   const done = phase === 'ready' && unchanged;
   const empty = (phase === 'ready' || phase === 'failed') && !shown.length && !done && !!mainNote;
-  const replies = mode === 'reply' || mode === 'grow';
   const grow = mode === 'grow';
   // Where the fit rates the cards, its bar carries the level and the reach line moves to Why?.
   const fitted = fitKindOf(mode) != null;
@@ -675,6 +722,16 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       <Text style={[type.body, { color: t.muted, flex: 1 }]}>{listening ? (heard || words.dictateListening) : dictateMsg ?? words.dictateListen}</Text>
     </View> : null}
     {limited ? <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{words.typingLimited}</Text> : null}
+    {/* Worth a reply: the posts the tap rated, marked ones first. The reply written below answers the best of them. */}
+    {worth.length ? <View testID="worth-list" style={{ marginBottom: space.s }}>
+      <Text style={[type.note, { color: t.muted, marginBottom: space.m }]}>{words.worthNote}</Text>
+      {worth.map((pick, i) => <View key={i} style={{ marginBottom: space.m }}>
+        <Card variant={clearsBar(pick.fit) ? 'filled' : 'outlined'} label={clearsBar(pick.fit) ? (pick.author ? `${words.worthMark} · ${pick.author}` : words.worthMark) : pick.author}>
+          <Text style={[type.body, { color: t.text }]}>{pick.post}</Text>
+          <FitBar fit={pick.fit} ratings={null} />
+        </Card>
+      </View>)}
+    </View> : null}
     {phase === 'writing' && fraction != null ? <View style={{ marginBottom: space.m }}><Progress fraction={fraction} /></View> : null}
     {yours && slips.length ? <View style={{ marginBottom: space.m }}>
       <Card variant="outlined" label={words.slipsTitle}>
@@ -729,14 +786,15 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
             <Button kind="filled" label={insertLabel} disabled={!canPut || limited || insertBusy || !editing.text.trim()} onPress={() => { void put(editing.text, card.slot); }} />
             <Button kind="text" label={words.cancel} onPress={() => setEdit(null)} />
           </View> : <View style={styles.actions}>
-            <Button kind="filled" label={insertLabel} disabled={!canPut || limited || insertBusy} onPress={() => { void put(card.text, card.slot, cardFit, card.ratings); }} />
+            {/* Worth a reply has no box to fill and the card answers a post, not a new one: Copy is the way out. */}
+            {mode === 'worth' ? null : <Button kind="filled" label={insertLabel} disabled={!canPut || limited || insertBusy} onPress={() => { void put(card.text, card.slot, cardFit, card.ratings); }} />}
             {/* One main action; copy and hand-off stay quiet icons so the row never wraps. */}
             <IconButton icon={copied === card.text ? CheckIcon : CopyIcon} label={copied === card.text ? words.copied : words.copy} disabled={exportBlocked} onPress={() => copy(card)} />
-            <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />
+            {mode === 'worth' ? null : <IconButton icon={prefill.dest === 'share' ? ShareIcon : OpenIcon} label={prefill.label} disabled={exportBlocked} onPress={() => openPrefill(platform, card)} />}
             <View style={{ flex: 1 }} />
             {/* The edit field opens on a word boundary, so whatever the person types never
                 glues onto the card's last word: their words stay clearly theirs. */}
-            <Button kind="text" label={words.edit} onPress={() => setEdit({ slot: card.slot, text: /\s$/.test(card.text) ? card.text : `${card.text} ` })} />
+            {mode === 'worth' ? null : <Button kind="text" label={words.edit} onPress={() => setEdit({ slot: card.slot, text: /\s$/.test(card.text) ? card.text : `${card.text} ` })} />}
             <Button kind="text" label={words.why} onPress={() => openWhy(card)} />
           </View>}
         </Card>
@@ -746,7 +804,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       <Text style={[type.note, { color: t.muted }]}>{words.fitNeedsOnline}</Text>
       <Button kind="text" label={words.claudeChooseWriter} onPress={openSource} />
     </View> : null}
-    {phase === 'ready' && shown.length
+    {phase === 'ready' && shown.length && mode !== 'worth'
       ? <View style={{ alignItems: 'flex-end', marginBottom: space.m }}>
         <Button kind="text" label={words.writeNew} onPress={() => capture && start(capture, shown.map(draft => draft.text))} />
       </View>

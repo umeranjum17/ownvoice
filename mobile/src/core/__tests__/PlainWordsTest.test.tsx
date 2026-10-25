@@ -297,4 +297,6 @@ test('his own counts are the only digits, and only on the growth screen', async 
   } finally { kv.delete('growth-counts'); }
 });
 
+test('worthWords', () => { const keys = ['worthTitle', 'worthNote', 'worthMark', 'worthNone']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
+
 test('fitBarWords', () => { const keys = ['fitWhyStrong', 'fitWhyGood', 'fitWhyVague', 'fitWhySkipped', 'fitWhyUnsure', 'fitNeedsOnline']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });

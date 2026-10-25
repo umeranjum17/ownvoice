@@ -31,6 +31,15 @@ const fitWords = {
   fitNeedsOnline: 'Fit levels need an online writer, such as your ChatGPT. The writer on this phone can’t rate them.',
 } as const;
 
+// Worth a reply: one tap on a feed rates every post on screen, marks the ones over the bar, and writes the reply for
+// the best one. Plain words only, no numbers; the levels themselves stay in the fit bar.
+const worthWords = {
+  worthTitle: 'Posts on screen',
+  worthNote: 'Every post on screen is rated. The marked ones clear your bar.',
+  worthMark: 'Worth a reply',
+  worthNone: 'No post on screen clears your bar right now.',
+} as const;
+
 // Edit before insert: a card's text can be changed in the panel; Insert then uses the edited text.
 const editWords = {
   edit:'Edit',
@@ -251,7 +260,7 @@ const modelWords = {
 } as const;
 
 export const words = {
-  ...engineWords, ...modelWords, ...typingWords, ...fitWords, ...editWords, ...postsWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords,
+  ...engineWords, ...modelWords, ...typingWords, ...fitWords, ...worthWords, ...editWords, ...postsWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords,
   aboutTitle: 'About Ownvoice',
   aboutVersion: 'Version',
   aboutBuild: 'Build',

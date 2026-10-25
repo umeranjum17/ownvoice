@@ -214,6 +214,15 @@ journeys:
       echo "before exit=$c1 after exit=$c2" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ]
     timeout: 45m
 
+  worth-a-reply:
+    description: "Android (AA-13, AA-14, AA-15 on tap): one tap on the X feed fixture (three posts, no reply box) rates every post on screen, marks the one that clears the bar (Strong fit only) and writes the reply for the best one at 360, 390 and 445 dp in light and dark, with no Insert where there is no box. Levels come from a fixed-answer Jev stand-in through the real decide path; reply cards use the E2E writer stub; no real account, network or spend. Needs an explicit emulator allocation, JAVA_HOME, and a stub+GPT release APK built with EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455 EXPO_PUBLIC_E2E_JEV_BASE=http://10.0.2.2:18612 (APK)."
+    command: |
+      set -u; : "${APK:?path to release APK required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      S="$(mktemp -d)"; trap 'rm -rf -- "$S"' EXIT
+      node mobile/e2e/first-run.mjs "$APK" "$S/setup" >"$S/setup.log" 2>&1 || { tail -40 "$S/setup.log"; exit 1; }
+      node mobile/e2e/worth-reply.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 45m
+
   polish-talk-deadline:
     description: "Android: 'Looks nice' typed in the blank X-style composer on the stub phone writer; the Shorter version that talks to the person never shows, 'Still working' shows while a card is coming, and the missing card collapses at the phone's card deadline. Needs an explicit emulator allocation after first-run.mjs setup and APK env (stub+GPT release APK, built per mobile/README.md)."
     command: |

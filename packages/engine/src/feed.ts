@@ -3,6 +3,10 @@ import { CHROME_URL_BAR } from './platforms.ts';
 
 export type FeedCounts = Partial<Record<'replies' | 'likes' | 'reposts' | 'upvotes', number>>;
 export type FeedRead = { post: string; author?: string; age?: string; counts?: FeedCounts; subredditRules?: string[]; thread?: string[] };
+export type FeedPost = { post: string; author?: string };
+
+/** One tap rates at most this many posts, so it stays one bounded question per post. */
+export const MAX_POSTS = 6;
 
 const AGE = /\b(?:\d{1,3}\s*[mhd]|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2})\b/i;
 const ageOnly = (text: string) => new RegExp(`^${AGE.source}$`, 'i').test(text.trim());
@@ -106,6 +110,30 @@ export function feedRead(nodes: ScreenText[] = [], fieldTop?: number | null): Fe
   }
   if (thread.length) result.thread = thread;
   return result;
+}
+
+/** Every post the screen shows, top to bottom, for the tap-only "Worth a reply?": the same author-header and
+ *  block-gap rules feedRead uses, one entry per header with a readable body under it. An image-only post has
+ *  no body to answer, so it is skipped rather than rated as its own header line. Visible subreddit rules are
+ *  cut off above the post, never glued into its text. */
+export function feedPosts(nodes: ScreenText[] = [], fieldTop?: number | null): FeedPost[] {
+  const bound = fieldTop != null && Number.isFinite(fieldTop) ? fieldTop : null;
+  const shown = nodes.filter(n => (bound == null || n.bottom <= bound) && n.text.trim() && n.viewId !== CHROME_URL_BAR)
+    .slice().sort((a, b) => a.top - b.top || a.left - b.left);
+  const heading = shown.findIndex(n => /^(?:Subreddit )?Rules$/i.test(n.text.trim()));
+  const visible = heading >= 0 ? shown.slice(0, heading) : shown;
+  const headers = visible.filter(n => authorOf(n.text));
+  const bodies = visible.filter(n => !n.clickable && !authorOf(n.text) && !ageOnly(n.text));
+  const posts: FeedPost[] = [];
+  for (const [i, header] of headers.entries()) {
+    const end = headers[i + 1]?.top ?? bound ?? Math.max(...visible.map(n => n.bottom)) + 1;
+    const block = bodies.filter(n => n.top >= header.bottom && n.bottom <= end);
+    if (!block.length || block[0].top - header.bottom > 80) continue;
+    const post = latestMessage(block, end);
+    if (post) posts.push({ post, author: authorOf(header.text) });
+    if (posts.length >= MAX_POSTS) break;
+  }
+  return posts;
 }
 
 const REPLYING_TO = /^Replying to\b/i;
