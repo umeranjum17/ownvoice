@@ -3,7 +3,7 @@ import { cloudOf, getSource } from './source';
 import { store } from './store';
 import { selectedGuide } from './voice';
 import { loadVoice } from './voiceStore';
-import { cloudWords, noPhoneLine, type Choice, type WriterEvents } from './writers';
+import { causeOf, cloudWords, devlog, noPhoneLine, type Choice, type WriterEvents } from './writers';
 import { words } from './words';
 
 /** The made-up post the tour polishes: plain words, nobody real, and enough slips to give the writer
@@ -23,7 +23,13 @@ const KEY = 'tour';
 export const tourState = (): Saved => {
   try { return store.get<Saved>(KEY) ?? {}; } catch { return {}; }
 };
-const save = (next: Saved) => { try { store.set(KEY, next); } catch {} };
+// A failed write is not nothing: the tour would reopen as if it had not started (or offer itself again),
+// so the developer log says so. The person is never asked to fix it; nothing on screen changes.
+const save = (next: Saved) => {
+  try { store.set(KEY, next); } catch (error) {
+    devlog(`the tour could not save its place: ${causeOf(error)}`);
+  }
+};
 export const openTour = () => save({ ...tourState(), opened: true, pending: false });
 /** The person just picked which one writes from Home: the tour opens itself on the way back (once). */
 export const requestTour = () => save({ ...tourState(), pending: true });
