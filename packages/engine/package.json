@@ -2,7 +2,17 @@
   "name": "ownvoice-engine",
   "version": "0.2.0",
   "license": "Apache-2.0",
-  "description": "Ownvoice pure writing core (model-free checks, prompts and parsers). No store, source, readLog, switch, writers, chatgpt or native code.",
+  "description": "The writing core behind Ownvoice: voice rules, platform briefs, draft checks and reply parsing. No network, no models, no runtime dependencies.",
+  "keywords": [
+    "writing",
+    "replies",
+    "voice",
+    "plain-language",
+    "proofreading",
+    "local-first",
+    "typescript"
+  ],
+  "homepage": "https://github.com/umeranjum17/ownvoice",
   "type": "module",
   "bin": {
     "ownvoice-engine": "dist/cli.mjs"

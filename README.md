@@ -1,53 +1,94 @@
-<p align="center">
-  <img src="mobile/assets/icon/dot-icon.png" width="96" alt="Ownvoice icon: Dot, a smiling coral drop" />
-</p>
+<div align="center">
 
-<h1 align="center">Ownvoice</h1>
+<img src="mobile/assets/icon/dot-icon.png" width="88" alt="Dot, Ownvoice's smiling coral drop holding a pencil" />
 
-<p align="center">
-  <strong>Sound like yourself, just a little better.</strong><br />
-  A little bubble. Cleaner words. Right in your chats.
-</p>
+<h1>Ownvoice</h1>
 
-<p align="center">
-  <a href="https://github.com/umeranjum17/ownvoice/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/umeranjum17/ownvoice?style=flat-square&label=release&color=f2765f" /></a>
-  <img alt="Android 8 or later" src="https://img.shields.io/badge/Android-8%2B-3ddc84?style=flat-square" />
-  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache--2.0-8a8a8a?style=flat-square" /></a>
-</p>
+<strong>Tap the bubble. Pick the tidier version. Send it yourself.</strong>
 
-<p align="center">
-  <a href="https://github.com/umeranjum17/ownvoice/releases/latest/download/Ownvoice.apk"><img alt="Download for Android" src="https://img.shields.io/badge/Download_for_Android-f2765f?style=for-the-badge&logo=android&logoColor=white" /></a>
-</p>
+A small coral bubble sits beside the message box in your Android chats. Tap it for cleaner,
+shorter or friendlier versions of your own words, written on your phone or by the AI plan you
+already pay for. It never sends anything for you.
 
-<p align="center">
-  <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.webp" />
-    <img src="docs/readme/hero-light.webp" width="240" alt="Ownvoice in its practice chat: Cleaned up fixes dont and shoud; Shorter removes at the end of the day" />
-  </picture><br />
-  <sub>Spelling fixed. Filler trimmed in <strong>Shorter</strong>.</sub>
-</p>
+<picture>
+  <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/readme/hero-phone-dark.webp" />
+  <source media="(max-width: 600px)" srcset="docs/readme/hero-phone-light.webp" />
+  <source media="(prefers-color-scheme: dark)" srcset="docs/readme/hero-dark.webp" />
+  <img src="docs/readme/hero-light.webp" width="800" alt="Left: Ownvoice's panel over an X reply box, headed Suggested replies, with a card marked Nothing flagged and another flagged for stock wording, each with Insert, Edit and Why? Right: the Ownvoice home screen, ready to help, with its on switch." />
+</picture>
+
+[Download for Android](https://github.com/umeranjum17/ownvoice/releases/latest/download/Ownvoice.apk) ·
+[Quick start](#quick-start) ·
+[User guide](docs/readme/guide.md) ·
+[All releases](https://github.com/umeranjum17/ownvoice/releases)
+
+[![Latest release](https://img.shields.io/github/v/release/umeranjum17/ownvoice?style=flat-square&label=release&color=f2765f)](https://github.com/umeranjum17/ownvoice/releases/latest)
+<img alt="Android 8 or later" src="https://img.shields.io/badge/Android-8%2B-3ddc84?style=flat-square" />
+<a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache--2.0-8a8a8a?style=flat-square" /></a>
+
+</div>
+
+## Quick start
+
+1. **Install it.** On your Android phone, tap **Download for Android** above, then open the file and install. Android may ask you to allow installing from this source.
+2. **Say how it writes.** Open Ownvoice and pick **On this phone** (private, free, works without internet), or your own ChatGPT, Claude, OpenRouter or OpenCode Go. Then tap **Turn on** and switch on **Use Ownvoice**.
+3. **Use it in a chat.** Write your reply, tap the coral bubble, and pick the version you like. You press Send.
+
+From a terminal, the same install:
+
+```sh
+adb install -r Ownvoice.apk
+```
+
+<details>
+<summary>Android says the app was denied access, or the switch is greyed out?</summary>
+
+Android 13 and later blocks it for apps installed outside Google Play, and setup shows the way past it: tap the greyed **Ownvoice** row once and close Android's message, then in Ownvoice tap **Open App info**, tap **⋮** at the top right, choose **Allow restricted settings**, and come back to tap **Turn on**. On OPPO, OnePlus or Realme phones, also add Ownvoice to the security app's allowlist ([how](docs/readme/guide.md#download-and-install)).
+
+Step-by-step help for every screen is in the [user guide](docs/readme/guide.md#get-started).
+</details>
 
 ## Why Ownvoice
 
-You know what you want to say. Sometimes it just needs a little tidying. Ownvoice stays where you write, spots tired phrases, and offers cleaner versions of your words. Pick one you like. You always press Send yourself.
+| | Doing it by hand | With Ownvoice |
+| --- | --- | --- |
+| Catching slips | Read it again, and miss the "shoud" anyway | The panel marks the slip and offers the fix |
+| Trimming filler | Delete, retype, delete again | **Shorter** gives back the same points in fewer words |
+| Asking a chatbot to rewrite | Copy out, paste in, copy back, paste in | Never leaves the chat: **Insert** puts it in your box |
+| What it costs | A writing tool per seat, per month | Free on your phone, or the plan you already pay for |
+| What leaves your phone | — | Nothing, with **On this phone**. Nothing is sent unless you tap |
 
-## See it
+- **It never sends, posts or taps anything for you.** You read the version and press Send.
+- **It only reads when you tap.** The bubble shows in the apps you switch on, and **What Ownvoice read** lists every tap, without your text.
+- **It writes with what you already have.** Your phone, or the ChatGPT, Claude, OpenRouter or OpenCode Go plan you pay for, or the Claude on your own computer.
+
+## What you get
 
 <table>
   <tr>
     <td align="center" width="50%">
       <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/readme/polish-dark.webp" />
-        <img src="docs/readme/polish-light.webp" width="100%" alt="Polish your message: Cleaned up fixes dont and shoud, while Shorter rewrites the reply without the highlighted stock phrase" />
+        <source media="(prefers-color-scheme: dark)" srcset="docs/readme/panel-loop-dark.webp" />
+        <img src="docs/readme/panel-loop-light.webp" width="100%" alt="The panel in the practice chat, going from Writing to a Cleaned up line that fixes dont and shoud, and a Shorter line without the stock phrase" />
       </picture>
       <br /><strong>Polish what you wrote</strong><br />Fix slips. Trim filler with Shorter.
     </td>
+    <td align="center" width="50%">
+      <img src="docs/readme/reply-cards-light.webp" width="100%" alt="Suggested replies · X: Push back, kindly and Ask a question cards, each with Insert, Edit and Why?, and notes on how it reads on X" />
+      <br /><strong>Reply ideas on X</strong><br />Cards rated for the platform.
+    </td>
+  </tr>
+  <tr>
     <td align="center" width="50%">
       <picture>
         <source media="(prefers-color-scheme: dark)" srcset="docs/readme/rewrite-dark.webp" />
         <img src="docs/readme/rewrite-light.webp" width="100%" alt="Make it better: a selected sentence and its shorter version, with buttons for Shorter, Simpler, Fix spelling, Friendlier and Firmer" />
       </picture>
       <br /><strong>Make any text better</strong><br />Select text, choose Ownvoice.
+    </td>
+    <td align="center" width="50%">
+      <img src="docs/readme/speak-light.webp" width="100%" alt="Polish your message with the mic row, Listen, above your own text while new versions are being written" />
+      <br /><strong>Speak instead of typing</strong><br />Tap Listen and talk.
     </td>
   </tr>
   <tr>
@@ -59,87 +100,67 @@ You know what you want to say. Sometimes it just needs a little tidying. Ownvoic
       <br /><strong>Choose who writes</strong><br />On your phone, or your own plan.
     </td>
     <td align="center" width="50%">
-      <img src="docs/readme/chatgpt-light.webp" width="100%" alt="Sign in to ChatGPT: ChatGPT's page opens here. Approve there and you're back. Nothing to type. With an Open the ChatGPT page button" />
-      <br /><strong>ChatGPT in one tap</strong><br />Approve on its page. Nothing to type.
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <img src="docs/readme/reply-cards-light.webp" width="100%" alt="Suggested replies · X: Push back, kindly and Ask a question cards, each with Insert, Edit and Why?, and notes on how it reads on X" />
-      <br /><strong>Reply ideas on X</strong><br />Cards rated for the platform.
-    </td>
-    <td align="center" width="50%">
-      <img src="docs/readme/speak-light.webp" width="100%" alt="Polish your message with the mic row, Listen, above your own text while new versions are being written" />
-      <br /><strong>Speak instead of typing</strong><br />Tap Listen and talk.
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/readme/voice-dark.webp" />
-        <img src="docs/readme/voice-light.webp" width="100%" alt="Your voice: phrases you never say, and a note on how you like to write" />
-      </picture>
-      <br /><strong>Teach it your voice</strong><br />Words and habits that feel like you.
-    </td>
-    <td align="center" width="50%">
       <img src="docs/readme/computer-light.webp" width="100%" alt="Use my computer: your computer writes the drafts with your own Claude. Paste the code your computer shows, then Pair" />
       <br /><strong>Use my computer</strong><br />Your computer's Claude writes.
     </td>
   </tr>
 </table>
 
-## Quick start
+It also learns the words you never say and how you like to write, turns raw notes into posts, and
+follows your phone's colours, font, light and dark ([every screen](docs/readme/guide.md#everything-in-one-place)).
 
-1. **Get the app.** On your Android phone, [download Ownvoice](https://github.com/umeranjum17/ownvoice/releases/latest/download/Ownvoice.apk), then tap **Open** and **Install**.
-2. **Allow the bubble.** Open Ownvoice and choose how it writes. For ChatGPT, approve on ChatGPT's page and you're back, with nothing to type. Then tap **Turn on** and switch on **Use Ownvoice**.
-3. **Try it in a chat.** Start with the practice chat, then choose where the bubble shows. Write a reply, tap the bubble, and pick the version you like.
+## Proof
 
-Android says the app was denied access, or the switch is greyed out? Android 13 and later blocks it for apps installed outside Google Play, and setup shows the way past it: tap the greyed **Ownvoice** row once and close Android's message, then in Ownvoice tap **Open App info**, tap **⋮** at the top right, choose **Allow restricted settings**, and come back to tap **Turn on**. On OPPO, OnePlus or Realme phones, also add Ownvoice to the security app's allowlist ([how](docs/readme/guide.md#download-and-install)). Step-by-step help is in the [user guide](docs/readme/guide.md#get-started).
+Ownvoice is new, so there are no quotes or customer logos to show you yet. Here is what you can check yourself today.
 
-Want to build it yourself? See [Build and run](mobile/README.md#android-build-and-device-checks).
+| What | Where to check it |
+| --- | --- |
+| Eleven releases in 24 days, v1.0.2 on 1 Oct 2026 to v1.0.10 on 24 Oct 2026 | [All releases](https://github.com/umeranjum17/ownvoice/releases) |
+| Every release ships `Ownvoice.apk` next to its `Ownvoice.apk.sha256`, so you can check the file you installed | [v1.0.10](https://github.com/umeranjum17/ownvoice/releases/tag/v1.0.10) |
+| A model or prompt change has to pass the writer evaluation gate: the cases P01, P13, S05, R01, R07, R13, R14, P20 and N01 | [mobile/eval](mobile/eval/README.md) |
+| The writing core is published as a package you can use: `ownvoice-engine` 0.2.0, on npm since 22 Oct 2026 | [npm](https://www.npmjs.com/package/ownvoice-engine) |
+| Every screenshot on this page is an unedited capture of the real app, on a demo phone with demo text | [docs/readme](docs/readme) |
 
-## What it does
+Rerun the gate yourself from a copy of this repo:
 
-<a id="polish-what-you-wrote"></a><a id="start-a-post-from-a-blank-composer"></a><a id="honest-about-every-draft"></a>
+```sh
+cd mobile/eval && EVAL_BACKEND=codex-cli ONLY=P01,P13,S05,R01,R07,R13,R14,P20,N01 \
+  node run.ts gate http://unused out/gate.json && node score.ts out/gate.json
+```
 
-- 💬 **Suggests replies.** Tap the bubble in an empty reply box under a post on X, LinkedIn, Reddit, Threads or Bluesky for a few reply ideas, each rated for that platform.
-- ✨ **Polishes in place.** Marks stock phrases and fixes clear slips like "shoud" or "dont".
-- ✂️ **Rewrites any selection.** Shorter, simpler, friendlier or firmer, from any app.
-- 🗒️ **Turns your notes into posts.** Share raw notes and get three different posts for X in your voice, to edit and post yourself.
-- 🎙️ **Listens when you'd rather talk.** Tap the mic in the panel and speak; your words go into the box. It listens on your phone only.
-- 🔒 **Your choice of writer.** Private, free and offline on supported phones, or with your own ChatGPT, Claude, OpenRouter or OpenCode Go. ChatGPT signs in with one tap on its own page.
-- 💻 **Use my computer.** Pair your phone with your computer and the Claude you already use there writes your drafts ([how](docs/readme/guide.md#use-my-computer)).
-- 🗣️ **Learns your voice.** Your never-say list and writing rules shape every draft.
-- 👀 **Honest about every draft.** Plain notes on what it checked, never a score to chase.
-- 📱 **Only where you want it.** Pick the apps that show the bubble, or pause it any time.
-- 🌗 **Feels like your phone.** Your colours, your font, light and dark.
-
-## Your words stay yours
-
-- Ownvoice reads the screen **when you tap the bubble**, only in apps you switched on. Optional spelling help also checks your message as you type, on your phone.
-- It **never sends, posts or taps anything** for you.
-- With the phone writer, your words stay on your phone. With your own plan or key, text goes there when you ask for help. With **Use my computer**, it goes to your paired computer, then to its Claude.
-- The mic listens only after you tap it, on your phone. Your voice is never sent anywhere or recorded.
-- **What Ownvoice read** lists every tap (never your text), and **Wipe everything** clears it all.
-
-Full details: [Your words stay yours](docs/readme/guide.md#your-words-stay-yours).
+With a local model server the same command runs the phone writer itself; the backend above runs the
+same prompts and admission checks on a hosted writer. [How the eval works](mobile/eval/README.md).
 
 ## Known limits
 
 <a id="reply-ideas-are-unavailable-for-now"></a>
 
-Reply ideas work when the post can be read: an empty box over a readable post on X, LinkedIn, Reddit, Threads or Bluesky offers reply cards, each rated for that platform. A post with no text to ground on — an image-only post, a screen with nothing readable above the box — shows the plain note **Reply ideas are unavailable for now.** and nothing is invented. In Gmail, tap the bubble on an open email to get reply ideas; **Reply** on a card opens Gmail's reply with it in the box, and you press Send. Other chats keep the withhold for now ([details](docs/readme/guide.md#reply-ideas)).
+**Reply ideas need something to reply to.** An empty box over a readable post on X, LinkedIn, Reddit,
+Threads or Bluesky offers reply cards, each rated for that platform. A post with no text to ground on,
+an image-only post, or a screen with nothing readable above the box, shows the plain note **Reply ideas
+are unavailable for now.** and nothing is invented. In Gmail, tap the bubble on an open email to get
+reply ideas; **Reply** on a card opens Gmail's reply with it in the box, and you press Send. Other chats
+keep the withhold for now ([details](docs/readme/guide.md#reply-ideas)).
 
-## Learn more
+**The phone writer needs room.** If your phone needs the one-time writing download, it is about 2 to 3 GB,
+once, on Wi-Fi, and only after you say yes. **Free up space** in **How Ownvoice writes** deletes it again.
 
-- 📖 [User guide](docs/readme/guide.md): every screen and check in detail
+**Chats polish, feeds reply.** In a chat, tapping the bubble improves what you already wrote. Reply cards
+come from feed apps with a readable post above the box.
+
+## More
+
+- 📖 [User guide](docs/readme/guide.md): every screen and every check, in detail
 - 🧭 [Vision](VISION.md): who Ownvoice is for and where it is going
 - 🌱 <a id="your-growth"></a>[Your growth](docs/readme/guide.md#your-growth): keep track on your phone
-- 🛠️ [Android app](mobile/README.md): build, checks and how Ownvoice writes
+- 🛠️ [Android app](mobile/README.md): build it, test it, and how it writes
 - 🧩 [Writing core](packages/engine/README.md) and its [quality gate](mobile/eval/README.md)
-- 🎨 [Icons](docs/icons/README.md) · 🤖 [Agent notes](AGENTS.md) · 📦 [All releases](https://github.com/umeranjum17/ownvoice/releases)
-- The original Kotlin app lives in [app/](app/README.md).
+- 🎨 [Icons](docs/icons/README.md) · 📦 [All releases](https://github.com/umeranjum17/ownvoice/releases)
+- The original Kotlin app lives in [app/](app/README.md)
 
-## License
+## Contributing
+
+Issues and pull requests are welcome. Build and device checks are in [mobile/README.md](mobile/README.md#android-build-and-device-checks);
+the writing core builds and tests on its own, see [packages/engine](packages/engine/README.md#development-and-release).
 
 Apache-2.0. See [LICENSE](LICENSE).
