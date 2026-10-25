@@ -169,7 +169,9 @@ class OwnvoiceService : AccessibilityService() {
 
   data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false, val inserted: Boolean = false)
   data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean, val viewId: String? = null, val description: String? = null)
-  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String, val typingLimited: Boolean = false, val opensReply: Boolean = false)
+  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String, val typingLimited: Boolean = false, val opensReply: Boolean = false,
+    /** The field's box as it was when the reading was taken, so a note keeps off it after the node has been written to. */
+    val fieldBox: ClearRect? = null)
   private val main = Handler(Looper.getMainLooper())
   private var capture: Capture? = null
   private var tapSeq = 0
@@ -466,7 +468,7 @@ class OwnvoiceService : AccessibilityService() {
     val typed = focused?.text.orEmpty()
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val id = java.util.UUID.randomUUID().toString()
-    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id, typingTextLimited(app, typed, focused?.selection), opensReply)
+    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id, typingTextLimited(app, typed, focused?.selection), opensReply, if (fieldBounds.width() > 0 && fieldBounds.height() > 0) ClearRect(fieldBounds.left, fieldBounds.top, fieldBounds.width(), fieldBounds.height()) else null)
     val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), id)
     // commit() fsyncs, which on a slow disk can hold the main thread past the 5 s ANR line, so the save runs
     // on its own thread and the read carries on here once it answers; a forget() or newer tap in between drops it.
@@ -660,11 +662,11 @@ class OwnvoiceService : AccessibilityService() {
         val root = appRoot()
         val send = try { sendBounds(root) } finally { root?.recycle() }
         // The reading is cleared above, so its field box comes in from here.
-        say(if (send.isNotEmpty()) "Inserted. Send it yourself." else "Inserted", field = reading?.input)
+        say(if (send.isNotEmpty()) "Inserted. Send it yourself." else "Inserted", box = reading?.fieldBox)
       }
       else {
         if (result != "copied") copyDraft(text)
-        say("Copied, paste it in", field = reading?.input)
+        say("Copied, paste it in", box = reading?.fieldBox)
       }
     }
     if (ok && reading != null) {
@@ -736,11 +738,11 @@ class OwnvoiceService : AccessibilityService() {
     return out
   }
 
-  fun say(message: String, forMs: Long = 4000, field: AccessibilityNodeInfo? = null) {
-    if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs, field) }; return }
+  fun say(message: String, forMs: Long = 4000, box: ClearRect? = null) {
+    if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs, box) }; return }
     // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
     // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
-    val clear = clearBoxes(field)
+    val clear = clearBoxes(box)
     if (panelIsOpen && !practice) { pendingNote = Note(message, forMs, 0L, clear); Log.i(TAG, "note held for the panel to close: $message clear=${boxes(clear)}"); return }
     // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one.
     if (currentApp() == packageName && !practice) {
@@ -758,19 +760,21 @@ class OwnvoiceService : AccessibilityService() {
     bubbles?.say(message, moodFor(message), forMs, announce = true)
   }
 
+  private fun boxes(clear: List<ClearRect>) = clear.joinToString(";") { "${it.left},${it.top} ${it.width}x${it.height}" }.ifEmpty { "none" }
+
   /**
    * The box of the field just written to, with the screen's send controls: a note and the bubble keep off both. Measured
    * here rather than left to the kit's focused-field poll, which has no box once the panel has taken the focus, so the
    * note sat where the bubble rests, over the composer.
    */
-  private fun boxes(clear: List<ClearRect>) = clear.joinToString(";") { "${it.left},${it.top} ${it.width}x${it.height}" }.ifEmpty { "none" }
-
-  private fun clearBoxes(given: AccessibilityNodeInfo? = null): List<ClearRect> {
+  private fun clearBoxes(given: ClearRect? = null): List<ClearRect> {
     val out = mutableListOf<ClearRect>()
-    // The field the draft was read from, even after an insert has cleared the reading; else the live focus.
-    val field = given ?: capture?.takeIf { it.app == frontApp || panelIsOpen }?.input ?: focusedField()
-    val box = field?.let { Rect().also(it::getBoundsInScreen) }
-    if (box != null && box.width() > 0 && box.height() > 0) out += ClearRect(box.left, box.top, box.width(), box.height())
+    // The box of the field the draft was read from (measured then, so a written-to node cannot spoil it), else the
+    // live focus's box.
+    val read = given ?: capture?.takeIf { it.app == frontApp || panelIsOpen }?.fieldBox
+    val live = if (read == null) focusedField()?.let { Rect().also(it::getBoundsInScreen) } else null
+    val box = read ?: live?.takeIf { it.width() > 0 && it.height() > 0 }?.let { ClearRect(it.left, it.top, it.width(), it.height()) }
+    if (box != null) out += box
     val root = appRoot()
     try { out += sendBounds(root) } finally { root?.recycle() }
     return out
