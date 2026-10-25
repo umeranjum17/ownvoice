@@ -177,7 +177,8 @@ const connectOpenRouter = async tag => {
   for (let i = 0; i < 5 && !findText('with your openrouter'); i++) await swipeDown();
   const card = await waitText('with your openrouter', 30);
   const [cx, cy] = center(card); adb('shell', 'input', 'tap', String(Math.round(cx)), String(Math.round(cy)));
-  await waitText('paste your openrouter key', 30);
+  // At this phone's height the key field opens below the card, off screen, so scroll to it.
+  await awaitVisible(['paste your openrouter key'], 30);
   const field = find(n => (n.label || '').toLowerCase().includes('paste your openrouter key'));
   if (!field) throw new Error('The OpenRouter key field did not open.');
   const [fx, fy] = center(field); adb('shell', 'input', 'tap', String(Math.round(fx)), String(Math.round(fy))); await wait(700);
