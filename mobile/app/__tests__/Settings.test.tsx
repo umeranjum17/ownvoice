@@ -538,8 +538,10 @@ test('returning to Home refreshes voice, apps, and reads without backgrounding',
   kv.set('voice', JSON.stringify({ never: ['delve'], noDashes: false, statementEndings: false, note: '' }));
   native.takeTapFacts.mockResolvedValue([fact()]);
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.android.chrome'], off: ['com.google.android.gm', 'com.whatsapp'] });
-  const focus = (jest.requireMock('expo-router').useFocusEffect as jest.Mock).mock.calls.at(-1)[0];
-  await act(async () => { focus(); });
+  // Home registers more than one focus callback (its refresh, and the tour it may open): running them all
+  // is what coming back to Home does, and keeps this from depending on which was registered last.
+  const focus = (jest.requireMock('expo-router').useFocusEffect as jest.Mock).mock.calls.map(call => call[0] as () => void);
+  await act(async () => { for (const fn of focus) fn(); });
   expect(await screen.findByText('1 phrase you never say')).toBeTruthy();
   expect(screen.getByText(words.onceWeek)).toBeTruthy();
   expect(screen.getByText('Chrome')).toBeTruthy();
