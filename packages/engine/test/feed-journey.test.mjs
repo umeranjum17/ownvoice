@@ -62,3 +62,16 @@ test('a header-led post with no readable body reads as no post, so a reply canno
   assert.equal(context.post, '');
   assert.deepEqual(Feed.feedRead([node('Umer @umer · 2h', 40), node('18 replies', 80, true)], 250), { post: '' });
 });
+
+test('a feed screen segments into the posts one tap rates, skipping an image-only post', () => {
+  const screen = [
+    node('@umer · 2h', 20), node('Shipping a timer that pauses when Umer switches apps.', 60), node('12 likes', 100, true),
+    node('@sam · 5h', 140), node('Anyone found a timer that stays quiet in a meeting?', 180), node('4 replies', 220, true),
+  ];
+  assert.deepEqual(Feed.feedPosts(screen, 260).map(post => [post.author, post.post]), [
+    ['@umer', 'Shipping a timer that pauses when Umer switches apps.'],
+    ['@sam', 'Anyone found a timer that stays quiet in a meeting?'],
+  ]);
+  // Its author line is not a post to answer, and the visible reply count is never rated as one either.
+  assert.deepEqual(Feed.feedPosts([node('@umer · 2h', 20), node('231 likes', 60, true)], 300), []);
+});

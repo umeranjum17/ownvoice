@@ -7,7 +7,7 @@ export const KEEP_REPLIES = 'keep-replies';
 export const GROWTH_COUNTS = 'growth-counts';
 export type CheckinAnswer = 'replies' | 'likes' | 'nothing' | 'not-posted';
 /** The drafts panel mode an insert came from. Only reply contexts prompt a check-in. */
-export type PanelMode = 'reply' | 'polish' | 'compose' | 'own' | 'empty' | 'grow';
+export type PanelMode = 'reply' | 'polish' | 'compose' | 'own' | 'empty' | 'grow' | 'worth';
 export type Outcome = { id: string; platform: string; platformLabel: string; level: string | null; card: 'yours' | 'suggestion'; slot: number; at: number; mode?: PanelMode; text?: string; checkin?: CheckinAnswer; checkinAt?: number };
 export type GrowthCount = { at: number; x: string; reddit: string };
 /** Only reply-mode suggestion records are eligible; polished drafts, composed posts,

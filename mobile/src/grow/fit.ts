@@ -4,6 +4,12 @@ import type { Platform } from '../core/platforms';
 /** Lowest first, as decide's `score` wants. Plain words: no numbers, no "score". */
 export const LEVELS = ['Likely to be skipped', 'Might get a reply', 'Good fit here', 'Strong fit here'];
 export const UNSURE = 'Not sure about this one';
+/** The one place the "Worth a reply?" bar lives: the level a post must reach to be marked. Strong fit only is
+ *  today's default, so lowering it to "Good fit or better" is this one line. "Not sure" never passes, because an
+ *  abstention has no level at all. */
+export const BAR_LEVEL = LEVELS.length - 1;
+/** Whether a fit clears that bar: only a real level at or above it. */
+export const clearsBar = (fit: Fit | undefined): boolean => fit?.level != null && fit.level >= BAR_LEVEL;
 /** The plain abstention: no level, no probability, the unsure words. */
 export const abstain = (): Fit => ({ level: null, words: UNSURE, probability: null, voice: null });
 
