@@ -197,7 +197,7 @@ class OwnvoiceService : AccessibilityService() {
   /** A note said while the panel closes, such as "Copied.", shown once the app it closed over is back: text, how long
    * it shows, when it first showed (0 until then, so the note keeps its whole time on screen; it expires after it), and
    * the boxes of the field and send controls it keeps off. */
-  private data class Note(val text: String, val forMs: Long, val shownAt: Long, val clear: List<ClearRect>)
+  private data class Note(val text: String, val forMs: Long, val shownAt: Long, val clear: List<ClearRect>, val tries: Int = 0)
   private var pendingNote: Note? = null
   private var slipApp: String? = null
   private var slipCount = 0
@@ -743,14 +743,16 @@ class OwnvoiceService : AccessibilityService() {
     // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
     // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
     val clear = clearBoxes(box)
-    if (panelIsOpen && !practice) { pendingNote = Note(message, forMs, 0L, clear); Log.i(TAG, "note held for the panel to close: $message clear=${boxes(clear)}"); return }
     // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one.
     if (currentApp() == packageName && !practice) {
       Toast.makeText(this, message, Toast.LENGTH_LONG).show()
       return
     }
-    // Announced, so TalkBack reads the pill the way the old live region did.
-    showNote(message, forMs, clear)
+    // Held even when the panel already reads as closed: its activity can still be drawing over the app for a moment,
+    // and a note said then is hidden under it and spends its own time there. Announced once it is really on screen.
+    pendingNote = Note(message, forMs, 0L, clear)
+    Log.i(TAG, "note held: $message clear=${boxes(clear)}")
+    sayPending()
   }
 
   /** Says [message] with its time and the boxes it keeps off, so the kit moves the bubble and the note together. */
@@ -787,8 +789,14 @@ class OwnvoiceService : AccessibilityService() {
     main.post {
       val note = pendingNote ?: return@post
       val left = note.forMs - if (note.shownAt == 0L) 0L else SystemClock.uptimeMillis() - note.shownAt
-      if (left <= 0) { pendingNote = null; Log.i(TAG, "note expired before it showed: ${note.text}"); return@post }
-      if (panelIsOpen || frontApp == null || frontApp == packageName) return@post
+      if (left <= 0) { pendingNote = null; Log.i(TAG, "note expired: ${note.text}"); return@post }
+      if (panelIsOpen || frontApp == null || frontApp == packageName) {
+        // The panel's own state can lag its window by a moment; wait for it rather than drop the note.
+        if (note.tries >= 25) { pendingNote = null; Log.i(TAG, "note dropped, no screen to show it on: ${note.text}"); return@post }
+        pendingNote = note.copy(tries = note.tries + 1)
+        main.postDelayed({ sayPending() }, 200)
+        return@post
+      }
       showNote(note.text, left, note.clear)
       if (note.shownAt == 0L) {
         pendingNote = note.copy(shownAt = SystemClock.uptimeMillis())

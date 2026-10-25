@@ -19,7 +19,7 @@
 // Never UiAutomator: it would unbind the running Ownvoice service (e2e/accessibility.mjs).
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
@@ -423,14 +423,16 @@ const noteLanded = async (screen, start) => {
     // nobody sees: wait for the panel's own text to go (its window node lingers after the sheet has visibly gone),
     // then measure what the person actually gets.
     if (nodes().some(node => node.visible && node.app === pkg && node.windowType !== 4 && (node.text ?? '').trim())) { await wait(300); continue; }
-    const file = resolve(repoRoot, evidence('shot', 'ov-own-posts', screen, label, theme).trim());
+    // One file per try, so a miss's frame can never be overwritten by the try that found the note, and the frame a
+    // reading came from is named in the reading.
+    const file = resolve(repoRoot, evidence('shot', 'ov-own-posts', `${screen}-try${attempt}`, label, theme).trim());
     const list = nodes();
     // The note's own pill is a view in an overlay window, so it is in the tree; a system toast is not, and is read
     // by OCR instead. Either way its box comes from this screenshot's moment.
     const said = list.find(node => node.visible && node.windowType === 4 && (node.text ?? '').startsWith(start));
     let found = said && { text: [said.text], box: said.bounds };
     let foundBy = 'tree';
-    if (!found) {
+    if (!found) try {
       const lines = new Map();
       for (const row of execFileSync('tesseract', [file, 'stdout', 'tsv'], { encoding: 'utf8' }).split('\n').slice(1)) {
         const c = row.split('\t');
@@ -443,11 +445,14 @@ const noteLanded = async (screen, start) => {
       }
       found = [...lines.values()].find(line => line.text[0]?.startsWith(start));
       foundBy = 'ocr';
+    } catch (error) {
+      // No OCR on this host: the tree above is the primary reader, so a missing tesseract is a miss, not a crash.
+      console.error(`ocr skipped: ${error.message.split('\n')[0]}`);
     }
     if (found) {
       const field = list.find(node => node.className === 'android.widget.EditText' && node.editable)?.bounds;
       const post = list.find(node => /^(Post|Reply)$/.test(node.text ?? '') && node.app === fixturePkg)?.bounds;
-      const entry = { screen, label, theme, foundBy, note: found.text.join(' '), noteBox: found.box, field, post, coversField: !!field && overlaps(found.box, field), coversPost: !!post && overlaps(found.box, post) };
+      const entry = { screen, label, theme, foundBy, attempt, frame: basename(file), note: found.text.join(' '), noteBox: found.box, field, post, coversField: !!field && overlaps(found.box, field), coversPost: !!post && overlaps(found.box, post) };
       noteBoxes.push(entry);
       writeFileSync(resolve(out, `note-boxes-${label}-${theme}.json`), JSON.stringify(noteBoxes, null, 1));
       console.log(`note ${JSON.stringify(entry)}`);
