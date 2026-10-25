@@ -659,11 +659,12 @@ class OwnvoiceService : AccessibilityService() {
         // The note keeps off the field just written to and the send control (say measures them); the text names the send.
         val root = appRoot()
         val send = try { sendBounds(root) } finally { root?.recycle() }
-        say(if (send.isNotEmpty()) "Inserted. Send it yourself." else "Inserted")
+        // The reading is cleared above, so its field box comes in from here.
+        say(if (send.isNotEmpty()) "Inserted. Send it yourself." else "Inserted", field = reading?.input)
       }
       else {
         if (result != "copied") copyDraft(text)
-        say("Copied, paste it in")
+        say("Copied, paste it in", field = reading?.input)
       }
     }
     if (ok && reading != null) {
@@ -735,11 +736,11 @@ class OwnvoiceService : AccessibilityService() {
     return out
   }
 
-  fun say(message: String, forMs: Long = 4000) {
-    if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs) }; return }
+  fun say(message: String, forMs: Long = 4000, field: AccessibilityNodeInfo? = null) {
+    if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs, field) }; return }
     // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
     // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
-    val clear = clearBoxes()
+    val clear = clearBoxes(field)
     if (panelIsOpen && !practice) { pendingNote = Note(message, forMs, 0L, clear); Log.i(TAG, "note held for the panel to close: $message clear=${boxes(clear)}"); return }
     // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one.
     if (currentApp() == packageName && !practice) {
@@ -764,9 +765,10 @@ class OwnvoiceService : AccessibilityService() {
    */
   private fun boxes(clear: List<ClearRect>) = clear.joinToString(";") { "${it.left},${it.top} ${it.width}x${it.height}" }.ifEmpty { "none" }
 
-  private fun clearBoxes(): List<ClearRect> {
+  private fun clearBoxes(given: AccessibilityNodeInfo? = null): List<ClearRect> {
     val out = mutableListOf<ClearRect>()
-    val field = capture?.takeIf { it.app == frontApp || panelIsOpen }?.input ?: focusedField()
+    // The field the draft was read from, even after an insert has cleared the reading; else the live focus.
+    val field = given ?: capture?.takeIf { it.app == frontApp || panelIsOpen }?.input ?: focusedField()
     val box = field?.let { Rect().also(it::getBoundsInScreen) }
     if (box != null && box.width() > 0 && box.height() > 0) out += ClearRect(box.left, box.top, box.width(), box.height())
     val root = appRoot()

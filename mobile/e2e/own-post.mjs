@@ -420,8 +420,9 @@ const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a
 const noteLanded = async (screen, start) => {
   for (let attempt = 0; attempt < 20; attempt++) {
     // The note's own window draws behind the panel, so a box read while the panel is still up describes a screen
-    // nobody sees: wait for the panel to go first, then measure what the person actually gets.
-    if (nodes().some(node => node.visible && node.app === pkg && node.windowType === 1)) { await wait(300); continue; }
+    // nobody sees: wait for the panel's own text to go (its window node lingers after the sheet has visibly gone),
+    // then measure what the person actually gets.
+    if (nodes().some(node => node.visible && node.app === pkg && node.windowType !== 4 && (node.text ?? '').trim())) { await wait(300); continue; }
     const file = resolve(repoRoot, evidence('shot', 'ov-own-posts', screen, label, theme).trim());
     const list = nodes();
     // The note's own pill is a view in an overlay window, so it is in the tree; a system toast is not, and is read
