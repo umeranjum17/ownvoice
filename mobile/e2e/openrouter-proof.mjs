@@ -473,11 +473,12 @@ const refusalJourney = async () => {
 // The pick scenario (OPENROUTER_SCENARIOS=pick): each changed screen in light, dark and font 1.3. With PICK_BEFORE=1 it
 // captures the same screens on the build from before the list, for the before/after pair.
 const pickScreens = async (T, F) => {
+  // Home first, from a fresh process (the callers just force-stopped the app), so it is Home and not a screen left on top of it.
+  adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(2500);
+  await waitText('writes with your openrouter', 30);
+  snap(`home-${T}${F}`);
   await openSourceWait(); await revealOpenRouter();
   snap(`source-${T}${F}`);
-  adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(2500);
-  await waitText('how ownvoice writes', 30);
-  snap(`home-${T}${F}`);
 };
 const withFont = async (font, fn) => {
   adb('shell', 'settings', 'put', 'system', 'font_scale', font);
@@ -522,7 +523,18 @@ const pickJourney = async () => {
       await theme(false);
       adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://model?account=openrouter', pkg);
       await pickModel('final');
+      // Leaving the pick goes back to where the person came from: the card when opened from it, Home when opened by link.
+      const landed = await waitText(['openrouter is connected', 'writes with your openrouter'], 60);
+      log(`pick-final (opened by link, no screen behind it) landed on ${/openrouter is connected/i.test(`${landed.label} ${landed.text}`) ? 'the card' : 'Home'}`);
+    });
+    // Opened from inside the app, the pick returns to the card it was opened from (the link entry above has nothing behind it).
+    await run('pick-inapp', async () => {
+      await theme(false);
+      await openSourceWait(); await revealOpenRouter();
+      await tapText('which one writes', 20); await wait(1500);
+      await pickModel('inapp');
       await waitText('openrouter is connected', 60);
+      snap('card-after-inapp-pick');
     });
   }
   // 3. Picked: the card and Home in each theme, and at font 1.3.
