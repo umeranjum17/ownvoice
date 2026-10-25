@@ -260,12 +260,22 @@ try {
     if (r.post !== 'Anyone found a focus timer that stays silent when a meeting starts?') throw new Error(`A reply rating answered a different post: ${JSON.stringify(r.post)}.`);
     if (!r.instructions.every(line => line.includes(`An ${r.platform} reply`))) throw new Error(`A ${r.platform} rating did not use the reply rubric: ${r.instructions.join(' | ')}`);
   }
-  writeFileSync(resolve(out, 'steps.json'), JSON.stringify({ result: 'PASS', steps: [
-    'Open the X feed fixture (three posts, no reply box) and tap the bubble once',
-    'Read the panel: every post rated, the one that clears the bar marked, the reply written for the best',
-    'Repeat at 360, 390 and 445 dp in light and dark',
-  ], result_detail: 'one marked post per capture (Strong fit), the other two below the bar, no Insert without a box', postRatings: asks.length, replyRatings: replyAsks.length,
-  route: 'Jev fixed-answer HTTP fixture for the levels; reply cards from the E2E writer stub; no real account, network or spend' }, null, 2));
+  // The judge reads this shape: what was driven, from where, and what a user can see at the end.
+  const head = execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { cwd: repoRoot, encoding: 'utf8' }).trim();
+  writeFileSync(resolve(out, 'steps.json'), JSON.stringify({
+    target: { version: head },
+    start: 'setup already walked on this emulator (ChatGPT stand-in connected, Jev on with a synthetic key); the lab X feed fixture on screen: three posts and no reply box',
+    steps: [
+      'Open the X feed fixture (three posts, no reply box) and tap the bubble once',
+      'Read the panel: every post on screen rated, the one that clears the bar marked with its author, the reply written for that marked post, no Insert where there is no box',
+      'Repeat at 360, 390 and 445 dp in light and dark',
+    ],
+    result: 'Every post on screen carries a fit level, exactly one is marked Worth a reply (Strong fit here) and the other two sit below the bar, the reply cards answer the marked post, and nothing was sent or inserted',
+    postRatings: asks.length,
+    replyRatings: replyAsks.length,
+    limits: 'the levels come from a fixed-answer Jev stand-in through the real decide path and the reply cards from the E2E writer stub; Reddit shares the code path but is not shot; the natively drawn X app is not captured',
+    route: 'Jev fixed-answer HTTP fixture for the levels; reply cards from the E2E writer stub; no real account, network or spend',
+  }, null, 2));
   console.log(`worth-reply: PASS (${asks.length} post ratings, ${replyAsks.length} reply ratings). Shots and log in ${out}.`);
 } finally {
   standin.close();
