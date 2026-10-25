@@ -493,11 +493,11 @@ const withWidth = async (dp, fn) => {
   try { await fn(); } finally { adb('shell', 'wm', 'size', 'reset'); adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true); }
 };
 const pickJourney = async () => {
-  // RUN_ONLY re-runs steps on the emulator as the earlier run left it (connected, nothing picked yet).
-  if (!only) { await fresh(); await theme(false); await skipSetup(); await enableChrome(); }
+  // RUN_RESUME=1 continues on the emulator as the earlier run left it (connected, nothing picked yet); RUN_ONLY picks the steps.
+  if (!resume) { await fresh(); await theme(false); await skipSetup(); await enableChrome(); }
   // 1. Connected but nothing picked: the card, Home and the panel ask (after only; before there is nothing to ask).
-  if (!only) await connectOpenRouter('light', { pick: false });
-  if (!pickBefore && !only) {
+  if (!resume) await connectOpenRouter('light', { pick: false });
+  if (!pickBefore) {
     await run('panel-asks', async () => { const panel = await openPanelAny('panel-asks-light'); if (!panel.map(n => n.text).join(' ').toLowerCase().includes('choose which one writes first')) throw new Error('The panel did not ask which one writes.'); });
   }
   for (const dark of [false, true]) for (const dp of WIDTHS) {
@@ -550,6 +550,7 @@ const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessi
 const priorAccessibility = adb('shell', 'settings', 'get', 'secure', 'accessibility_enabled').trim();
 const priorFont = adb('shell', 'settings', 'get', 'system', 'font_scale').trim();
 let failed = 0;
+const resume = process.env.RUN_RESUME === '1';
 const only = process.env.RUN_ONLY ? new RegExp(process.env.RUN_ONLY) : null; // re-run just the steps whose name matches
 const run = async (name, fn) => { if (only && name !== 'pick' && !only.test(name)) return; log(`-- ${name}`); try { await fn(); } catch (e) { failed++; log(`FAILED ${name}: ${String((e && e.message) || e).slice(0, 220)}`); } };
 

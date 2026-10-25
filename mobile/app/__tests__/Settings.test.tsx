@@ -36,6 +36,7 @@ jest.mock('../../src/chatgpt/session', () => ({
   OPENROUTER_NAME: 'OpenRouter',
   GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
+  asksModel: () => true,
   nothing: { signedIn: false, waiting: false, code: null, url: null, note: null, resting: null },
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
   accountSessions: {
