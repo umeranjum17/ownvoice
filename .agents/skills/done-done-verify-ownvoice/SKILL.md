@@ -35,6 +35,7 @@ Harness: A shell. Each probe is a one-shot pipe: printf a JSON request into the 
 - [First-run writer choice (React Native app)](features/first-run-writer-choice.md): Nothing preselected; an explicit tap enables Continue; Home and a restored practice chat ask when no writer was chosen (`mobile/e2e/first-choice.mjs`, Android surface)
 - [First-run welcome promise (React Native app)](features/first-run-welcome-promise.md): A new user opens Ownvoice and reads what it does in which apps (`packages/engine/src/words.ts`, Android surface)
 - [Restricted-setting help (React Native app)](features/restricted-setting-help.md): A user who installed from a file on Android 13+ finds Use Ownvoice blocked; setup shows the App info steps, re-checks on each return and moves on once allowed (`mobile/src/ui/RestrictedHelp.tsx`, Android surface)
+- [Read the README first screen](features/readme-first-screen.md): A visitor decides from the first screen on the repo page; the outcome line comes first, then a real capture of the app, readable at 390 and 1280, in light and dark (`README.md`, `docs/readme/`)
 - [Reject bad requests with a readable error](features/reject-bad-requests-with-a-readable-erro.md): A caller sends a malformed or unknown request by mistake (`packages/engine/src/cli.mjs`)
 
 ## Evidence
