@@ -12,10 +12,14 @@
 // Set OWNVOICE_BEFORE=1 against the base build: it captures the same screens without the
 // own-post assertions, so before and after sit side by side in one evidence folder.
 // OWN_POST_TALK=1 runs only the 'Looks nice' polish leg (e2e/own-post-talk.mjs) into [outdir].
+// OWNVOICE_NOTE_CLEAR=1 also copies one draft before the edit and, after Copy and after Insert, logs where
+// the note ("Copied." / "Inserted. Send it yourself.") lands against the composer and its Post button
+// (note-boxes-<label>-<theme>.json) and fails when it covers either; OWNVOICE_NOTE_CLEAR=record only logs,
+// for the base build. OWNVOICE_LABEL names the shots instead of before/after.
 // Never UiAutomator: it would unbind the running Ownvoice service (e2e/accessibility.mjs).
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
 import { accessibilityProbe, center, emulatorName } from './accessibility.mjs';
@@ -37,11 +41,13 @@ if (phone) {
 const apk = process.argv[2];
 if (!apk) throw new Error('Pass the release APK path.');
 const before = process.env.OWNVOICE_BEFORE === '1';
-const label = before ? 'before' : 'after';
+const label = process.env.OWNVOICE_LABEL ?? (before ? 'before' : 'after');
+const noteClear = process.env.OWNVOICE_NOTE_CLEAR ?? '';
 const theme = process.env.OWNVOICE_THEME ?? 'light';
 // The live leg (done-done journey own-posts): the real writer connected through the app's own screens,
 // no stub text. OWN_POST_WRITER=opencode connects the OpenCode Go key; OWN_POST_WRITER=phone uses the
-// phone's own writer. OWN_POST_NARROW=1 runs the emulator round at 720x1280, font 1.3.
+// phone's own writer. OWN_POST_NARROW=1 runs the emulator round at 720x1280, font 1.3; OWN_POST_DP=<360|390|445>
+// runs it at that phone width in dp (the 1080 px screen's density set to match), font 1.3.
 const live = writer === 'opencode' || phone;
 const out = resolve(process.argv[3] ?? 'mobile/.own-post');
 mkdirSync(out, { recursive: true });
@@ -149,12 +155,24 @@ if (phone) {
   evidence('font', 'largest');
   adb('shell', 'wm', 'size', '720x1280');
   adb('shell', 'wm', 'density', '320');
+} else if (process.env.OWN_POST_DP) {
+  const dp = Number(process.env.OWN_POST_DP);
+  if (!(dp >= 320 && dp <= 600)) throw new Error(`OWN_POST_DP must be a phone width in dp, not ${process.env.OWN_POST_DP}.`);
+  evidence('font', 'largest');
+  adb('shell', 'wm', 'size', 'reset');
+  const width = Number(adb('shell', 'wm', 'size').match(/(\d+)x\d+/)[1]);
+  adb('shell', 'wm', 'density', String(Math.round(width * 160 / dp)));
 } else {
   evidence('font', 'default');
   adb('shell', 'wm', 'size', 'reset');
   adb('shell', 'wm', 'density', 'reset');
 }
-if (!phone) evidence('theme', theme);
+if (!phone) {
+  evidence('theme', theme);
+  // React Native reads the colour scheme at process start, so a running app keeps the old one; the service
+  // toggle below binds it again, and ensureConnected reconnects the in-memory sign-in stand-in.
+  adb('shell', 'am', 'force-stop', pkg);
+}
 const fixtureApk = buildFixture(out);
 if (phone) {
   // A real X on the phone is never replaced: only a fixture this run's adb installed may be.
@@ -284,6 +302,19 @@ if (process.env.OWNVOICE_OUTCOME_PROOF === '1') {
   process.exit(0);
 }
 
+// The note-clear legs write on the stub build's phone writer, chosen through the app's own writer list as
+// e2e/own-post-talk.mjs does: the ChatGPT stand-in keeps its sign-in in memory, and the force-stop above ends it.
+if (noteClear) {
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source');
+  await wait(5000);
+  const onPhone = nodes().find(node => node.clickable && node.label?.startsWith('On this phone,'));
+  if (!onPhone) throw new Error('The phone writer choice is not offered.');
+  nodes(onPhone.label);
+  await wait(1500);
+  key(4);
+  await wait(1000);
+}
+
 // 2. The blank X-style composer: focused, empty, nothing on it about the post.
 adb('shell', 'monkey', '-p', fixturePkg, '-c', 'android.intent.category.LAUNCHER', '1');
 await withNodes('the blank composer', list => !!list.find(node => node.className === 'android.widget.EditText' && node.editable), 20);
@@ -356,17 +387,137 @@ const retypeLine = async () => {
   key(4); // Drop the keyboard so the bubble tap cannot land on it.
   await wait(1500);
 };
+// Back or a closing panel can leave the composer unfocused, and the bubble then reads the line as the screen's
+// text, not his ("Nothing to reply to yet"): tap into it first, as a person would.
+const focusComposer = async () => {
+  const field = composer();
+  if (!field) throw new Error('The composer is gone.');
+  tap(field.bounds[0] + 40, field.bounds[1] + 40);
+  await wait(1500);
+};
 for (let attempt = 0; attempt < 3; attempt++) {
   if (attempt) await retypeLine();
+  await focusComposer();
   bubble();
   await wait(2500);
-  try { await withNodes('the drafts', useThis, 60); break; } catch { if (attempt === 2) { await ensureConnected(); await withNodes('the drafts', useThis, 90); } }
+  try { await withNodes('the drafts', useThis, 60); break; } catch {
+    // Keep what the panel showed instead, so a miss can be read from the record.
+    writeFileSync(resolve(out, `no-drafts-${attempt}.nodes.json`), JSON.stringify(nodes(), null, 1));
+    if (attempt === 2) { await ensureConnected(); await withNodes('the drafts', useThis, 90); }
+  }
 }
 await wait(2500);
 const cards = nodes().map(node => node.text).filter(Boolean);
 if (!useThis(nodes())) throw new Error(`The panel drafted nothing from his line.\n${cards.join(' | ')}`);
 if (cards.some(text => /^\?$/.test(text.trim()))) throw new Error('A question was offered as his post.');
 shot('drafts');
+
+// 4b. Where the note lands (AA-34): one screenshot per try until the note shows, its line's box read by OCR
+// (a system toast is not in the accessible tree), against the composer field and the Post button.
+// Whether the box holds a painted pill: one solid colour fills it (the pill and its text), which a region mixing the
+// mascot's colours, or plain app background, does not. Mean-vs-background alone passed the mascot, so the fill is read.
+// A painted pill is a solid colour filling its box (itself and the text) AND that colour differs from the app beside
+// it. Either test alone lied: the mascot's dark circle is solid but is not background-different, and blank composer
+// space is background-different but not solid. Both are read from the frame, never from the accessibility tree.
+const meanOf = (file, [x1, y1, x2, y2]) => {
+  const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
+  return Number(execFileSync('magick', [file, '-crop', `${w}x${h}+${x1}+${y1}`, '+repage', '-format', '%[fx:mean]', 'info:'], { encoding: 'utf8' }).trim());
+};
+const painted = (file, [x1, y1, x2, y2]) => {
+  try {
+    const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
+    const hist = execFileSync('magick', [file, '-crop', `${w}x${h}+${x1}+${y1}`, '+repage', '-colors', '6', '-format', '%c', 'histogram:info:-'], { encoding: 'utf8' });
+    const bins = hist.trim().split('\n').map(row => Number((row.match(/(\d+):\s*\(/) ?? [])[1] ?? 0));
+    const total = bins.reduce((a, b) => a + b, 0) || 1;
+    const solid = Math.max(...bins) / total >= 0.7;
+    const apart = Math.abs(meanOf(file, [x1, y1, x2, y2]) - meanOf(file, [x1, Math.max(0, y1 - h), x2, Math.max(1, y1 - 2)])) > 0.08;
+    return solid && apart;
+  } catch (error) {
+    console.error(`pixels skipped: ${error.message.split('\n')[0]}`);
+    return true; // no ImageMagick here: fall back to the tree reading rather than throw every leg away
+  }
+};
+// The note's own line boxes from the frame's pixels, so a reading can be tied to what the screen really shows.
+const ocrLines = file => {
+  try {
+    const lines = new Map();
+    for (const row of execFileSync('tesseract', [file, 'stdout', 'tsv'], { encoding: 'utf8' }).split('\n').slice(1)) {
+      const c = row.split('\t');
+      if (c[0] !== '5' || !c[11]?.trim()) continue;
+      const id = c.slice(1, 5).join('.'), [x, y, w, h] = c.slice(6, 10).map(Number);
+      const line = lines.get(id) ?? { text: [], box: [x, y, x + w, y + h] };
+      line.text.push(c[11].trim());
+      line.box = [Math.min(line.box[0], x), Math.min(line.box[1], y), Math.max(line.box[2], x + w), Math.max(line.box[3], y + h)];
+      lines.set(id, line);
+    }
+    return [...lines.values()];
+  } catch (error) {
+    console.error(`ocr skipped: ${error.message.split('\n')[0]}`);
+    return [];
+  }
+};
+const noteBoxes = [];
+const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
+// The note shows for about 4 s, so the screenshots start at once and the boxes are read after the note is found.
+const noteLanded = async (screen, start) => {
+  // The insert verifies for as long as its own retries take (half a minute at 445 dp), and the note is said only after
+  // that, so the wait is long and screenshots taken while the panel's text is still up do not use it up.
+  let waiting = 0;
+  for (let attempt = 0; attempt < 45; attempt++) {
+    // The note's own window draws behind the panel, so a box read while the panel is still up describes a screen
+    // nobody sees: wait for the panel's own text to go (its window node lingers after the sheet has visibly gone),
+    // then measure what the person actually gets.
+    if (nodes().some(node => node.visible && node.app === pkg && node.windowType !== 4 && (node.text ?? '').trim())) {
+      await wait(300);
+      if (waiting++ < 100) attempt--; // waiting for the panel is not a look at the screen
+      continue;
+    }
+    // One file per try, so a miss's frame can never be overwritten by the try that found the note, and the frame a
+    // reading came from is named in the reading.
+    const file = resolve(repoRoot, evidence('shot', 'ov-own-posts', `${screen}-try${attempt}`, label, theme).trim());
+    const list = nodes();
+    // The note's own pill is a view in an overlay window, so it is in the tree; a system toast is not, and is read
+    // by OCR instead. Either way its box comes from this screenshot's moment.
+    const said = list.find(node => node.visible && node.windowType === 4 && (node.text ?? '').startsWith(start));
+    // The tree carries the note's text from the moment it is laid out, a moment before the pill is painted (frames
+    // showed the bubble alone with the tree already saying "Inserted"), so a tree reading only counts when the pixels
+    // inside its box differ from the app's background there. OCR reads a system toast, which is in no tree.
+    const seen = ocrLines(file).find(line => line.text[0]?.startsWith(start));
+    let found = null;
+    let foundBy = '';
+    // The bubble carries the note's text too (and the mascot's own round label sat where a note was read before), so a
+    // note must be wide, must not sit over any round overlay label, and its box must be filled by a painted pill.
+    const wide = box => (box[2] - box[0]) >= 1.6 * (box[3] - box[1]);
+    const round = list.filter(node => node.visible && node.windowType === 4 && !wide(node.bounds));
+    const onMascot = !!said && round.some(node => overlaps(said.bounds, node.bounds));
+    if (said && wide(said.bounds) && !onMascot && painted(file, said.bounds)) { found = { text: [said.text], box: said.bounds }; foundBy = 'tree+pixels'; }
+    else if (!said && seen) { found = seen; foundBy = 'ocr'; }
+    else if (said) console.error(`the note's text is on the bubble, not on a painted pill: ${said.text}`);
+    if (found) {
+      const field = list.find(node => node.className === 'android.widget.EditText' && node.editable)?.bounds;
+      const post = list.find(node => /^(Post|Reply)$/.test(node.text ?? '') && node.app === fixturePkg)?.bounds;
+      const entry = { screen, label, theme, foundBy, attempt, frame: basename(file), note: found.text.join(' '), noteBox: found.box, field, post, coversField: !!field && overlaps(found.box, field), coversPost: !!post && overlaps(found.box, post) };
+      noteBoxes.push(entry);
+      writeFileSync(resolve(out, `note-boxes-${label}-${theme}.json`), JSON.stringify(noteBoxes, null, 1));
+      console.log(`note ${JSON.stringify(entry)}`);
+      if (noteClear === '1' && (entry.coversField || entry.coversPost)) throw new Error(`The note "${entry.note}" covers the ${entry.coversField ? 'composer' : 'Post button'}.`);
+      return;
+    }
+    await wait(300);
+  }
+  throw new Error(`The note starting "${start}" never showed after ${screen}.`);
+};
+if (noteClear) {
+  // The card's Copy only copies; the panel closes, the note shows over the composer, and the line stays.
+  nodes('Copy');
+  await noteLanded('copied', 'Copied');
+  await wait(4500);
+  if (composerText() !== LINE) throw new Error(`Copy changed the composer (saw "${composerText() || 'nothing'}").`);
+  await focusComposer();
+  bubble();
+  await withNodes('the drafts again', useThis, 60);
+  await wait(2500);
+}
 
 // 5. Edit one draft and insert exactly that text.
 evidence('motion-start', 'ov-own-posts', 'edit-and-insert');
@@ -389,9 +540,10 @@ if (nodes().find(node => node.editable && node.windowType !== 4)?.text !== EDITE
 // and only while the keyboard shows, since Back on the bare panel would close it.
 if (nodes().some(node => node.windowType === 2)) { key(4); await wait(1500); }
 nodes('Use this'); // The edited card's own Use this: it is the first one in the tree.
-await wait(3500);
+if (noteClear) await noteLanded('inserted', 'Inserted');
+else await wait(3500);
 } finally { evidence('motion-stop'); }
-shot('inserted');
+if (!noteClear) shot('inserted');
 
 // 5. The read-back: the composer holds exactly the edited text, and nothing was posted.
 if (panelTitle(nodes())) { key(4); await wait(2000); }

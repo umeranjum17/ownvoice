@@ -30,6 +30,7 @@ import android.view.accessibility.AccessibilityWindowInfo
 import android.widget.Toast
 import com.facebook.react.ReactApplication
 import io.github.umeranjum17.byokit.overlay.ByokitAccessibility
+import io.github.umeranjum17.byokit.overlay.ClearRect
 import io.github.umeranjum17.byokit.overlay.FieldIdentity
 import io.github.umeranjum17.byokit.overlay.FieldNode
 import io.github.umeranjum17.byokit.overlay.FieldSelection
@@ -168,7 +169,9 @@ class OwnvoiceService : AccessibilityService() {
 
   data class TapFact(val at: Long, val app: String, val label: String, val screen: Boolean, val typed: Boolean, val replying: Boolean, val id: String, val sent: Boolean = false, val inserted: Boolean = false)
   data class ScreenText(val text: String, val left: Int, val top: Int, val bottom: Int, val clickable: Boolean, val viewId: String? = null, val description: String? = null)
-  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String, val typingLimited: Boolean = false, val opensReply: Boolean = false)
+  data class Capture(val conversation: String, val written: String, val typed: String, val app: String, val label: String, val at: Long, val input: AccessibilityNodeInfo?, val insertField: FieldNode?, val nodes: List<ScreenText>, val fieldTop: Int?, val id: String, val typingLimited: Boolean = false, val opensReply: Boolean = false,
+    /** The field's box as it was when the reading was taken, so a note keeps off it after the node has been written to. */
+    val fieldBox: ClearRect? = null)
   private val main = Handler(Looper.getMainLooper())
   private var capture: Capture? = null
   private var tapSeq = 0
@@ -191,6 +194,11 @@ class OwnvoiceService : AccessibilityService() {
   private var checkedText: String? = null
   private var checkedApp: String? = null
   private var pausedAt = 0L
+  /** A note said while the panel closes, such as "Copied.", shown once the app it closed over is back: text, how long
+   * it shows, when it first showed (0 until then, so the note keeps its whole time on screen; it expires after it), and
+   * the boxes of the field and send controls it keeps off. */
+  private data class Note(val text: String, val forMs: Long, val shownAt: Long, val clear: List<ClearRect>, val tries: Int = 0)
+  private var pendingNote: Note? = null
   private var slipApp: String? = null
   private var slipCount = 0
   private var slipLabel = ""
@@ -207,7 +215,7 @@ class OwnvoiceService : AccessibilityService() {
   var panelOpen: Boolean
     get() = panelIsOpen
     // When the panel opens, put idle back (the bubble is hidden then), so closing it never leaves the tap mood on the bubble.
-    set(value) { panelIsOpen = value; if (value) restIdle(); refreshBubble() }
+    set(value) { panelIsOpen = value; if (value) restIdle(); refreshBubble(); if (!value) sayPending() }
 
   private fun px(dp: Int) = (dp * resources.displayMetrics.density).toInt()
   private fun kitRules() = Rules(paused, onApps.toList(), offApps.toList(), DEFAULT_ON.toList())
@@ -240,13 +248,13 @@ class OwnvoiceService : AccessibilityService() {
       bubbles = ServiceBubble(::moodDrawable, spots, ::reducedMotion, foregroundNow = { front })
       bubbles?.events?.add { e -> when (e) {
         OverlayEvent.Tap -> onBubbleTap()
+        OverlayEvent.Dismissed -> bubbleDismissed()
         else -> {}
       } }
     }
     unwatch?.invoke()
     unwatch = front.onChange { updateBubble() }
-    bubbles?.start(ServiceBubble.Config(mood = "idle", label = "Ownvoice", rules = effectiveRules(), perAppSpots = true))
-    bubbles?.setLabel(if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice")
+    startBubble()
     instance = this
     updateBubble()
     onServiceChange?.invoke("on")
@@ -375,6 +383,18 @@ class OwnvoiceService : AccessibilityService() {
     super.onDestroy()
   }
 
+  private fun startBubble() {
+    bubbles?.start(ServiceBubble.Config(mood = "idle", label = "Ownvoice", rules = effectiveRules(), perAppSpots = true))
+    bubbles?.setLabel(if (slipCount > 0) "Ownvoice, $slipLabel" else "Ownvoice")
+  }
+
+  /** Dropped on the kit's "turn it off" target, which already stopped it: pause as Home's Pause does, so Home shows it
+   * paused and Resume brings it back. */
+  private fun bubbleDismissed() {
+    setRules(true, onApps, offApps)
+    startBubble()
+  }
+
   private fun stopBubble() {
     readCue.stop()
     unwatch?.invoke()
@@ -390,6 +410,7 @@ class OwnvoiceService : AccessibilityService() {
     if (limitedApp != null && app != limitedApp && !panelIsOpen) { limitedApp = null; bubbles?.setLabel("Ownvoice") }
     if (slipCount > 0 && app != slipApp && !panelIsOpen) showSlips(app.orEmpty(), 0, "")
     refreshBubble()
+    sayPending()
     if (app != null && !panelIsOpen && effectiveRules().shows(app) && !prefs.getBoolean("tipShown", false)) {
       prefs.edit().putBoolean("tipShown", true).apply()
       say(TIP, 6000)
@@ -422,6 +443,9 @@ class OwnvoiceService : AccessibilityService() {
     main.removeCallbacks(openPanel)
     readCue.stop()
     forget()
+    // The send controls of an earlier insert may have moved since; the next insert measures them again.
+    bubbles?.keepClear(emptyList())
+    pendingNote = null
     val app = currentApp()?.takeIf(::allowed) ?: run { restIdle(); return }
     val field = focusedField()
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
@@ -444,7 +468,7 @@ class OwnvoiceService : AccessibilityService() {
     val typed = focused?.text.orEmpty()
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val id = java.util.UUID.randomUUID().toString()
-    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id, typingTextLimited(app, typed, focused?.selection), opensReply)
+    val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id, typingTextLimited(app, typed, focused?.selection), opensReply, if (fieldBounds.width() > 0 && fieldBounds.height() > 0) ClearRect(fieldBounds.left, fieldBounds.top, fieldBounds.width(), fieldBounds.height()) else null)
     val fact = TapFact(reading.at, app, label, lines.isNotEmpty(), typed.isNotEmpty(), typed.isEmpty() && written.isNotEmpty(), id)
     // commit() fsyncs, which on a slow disk can hold the main thread past the 5 s ANR line, so the save runs
     // on its own thread and the read carries on here once it answers; a forget() or newer tap in between drops it.
@@ -634,13 +658,15 @@ class OwnvoiceService : AccessibilityService() {
     if (!cancelled) {
       if (practice) restIdle()
       else if (ok) {
+        // The note keeps off the field just written to and the send control (say measures them); the text names the send.
         val root = appRoot()
-        val canSend = try { hasSendAction(root) } finally { root?.recycle() }
-        say(if (canSend) "Inserted. Send it yourself." else "Inserted")
+        val send = try { sendBounds(root) } finally { root?.recycle() }
+        // The reading is cleared above, so its field box comes in from here.
+        say(if (send.isNotEmpty()) "Inserted. Send it yourself." else "Inserted", box = reading?.fieldBox)
       }
       else {
         if (result != "copied") copyDraft(text)
-        say("Copied, paste it in")
+        say("Copied, paste it in", box = reading?.fieldBox)
       }
     }
     if (ok && reading != null) {
@@ -696,25 +722,125 @@ class OwnvoiceService : AccessibilityService() {
     }
   }
 
-  private fun hasSendAction(root: AccessibilityNodeInfo?): Boolean {
-    if (root == null || !root.isVisibleToUser) return false
+  /** Screen boxes of the visible send-like controls under [root]; empty when the screen has none to send with. */
+  private fun sendBounds(root: AccessibilityNodeInfo?, out: MutableList<ClearRect> = mutableListOf()): List<ClearRect> {
+    if (root == null || !root.isVisibleToUser) return out
     val label = (root.text?.takeIf { it.isNotBlank() } ?: root.contentDescription)?.toString()?.trim()?.lowercase()
-    if (root.isClickable && root.isEnabled && label in setOf("send", "send message", "send sms", "post", "reply", "publish", "tweet")) return true
+    if (root.isClickable && root.isEnabled && label in setOf("send", "send message", "send sms", "post", "reply", "publish", "tweet")) {
+      val box = Rect()
+      root.getBoundsInScreen(box)
+      out += ClearRect(box.left, box.top, box.width(), box.height())
+    }
     for (i in 0 until root.childCount) {
       val child = root.getChild(i) ?: continue
-      try { if (hasSendAction(child)) return true } finally { child.recycle() }
+      try { sendBounds(child, out) } finally { child.recycle() }
     }
-    return false
+    return out
   }
 
-  fun say(message: String, forMs: Long = 4000) {
-    if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs) }; return }
-    if (currentApp() == packageName && !practice) {
+  fun say(message: String, forMs: Long = 4000, box: ClearRect? = null) {
+    if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs, box) }; return }
+    // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
+    // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
+    val clear = clearBoxes(box)
+    // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens with no panel
+    // up (setup, practice) use one.
+    if (currentApp() == packageName && PanelActivity.current == null && !practice) {
       Toast.makeText(this, message, Toast.LENGTH_LONG).show()
       return
     }
-    // Announced, so TalkBack reads the pill the way the old live region did.
+    // Held until the panel's own activity is gone: the insert verifies after the sheet has visibly closed, and a note
+    // said while that activity is still finishing is laid out over the app but never painted (seen at 390 and 445 dp,
+    // where the wider sheet takes longer, while 360 dp painted). It is announced once it is really on screen.
+    pendingNote = Note(message, forMs, 0L, clear)
+    Log.i(TAG, "note held: $message clear=${boxes(clear)} panel=${PanelActivity.current != null} open=$panelIsOpen")
+    sayPending()
+  }
+
+  /** Says [message] with its time and the boxes it keeps off, so the kit moves the bubble and the note together. */
+  private fun showNote(message: String, forMs: Long, clear: List<ClearRect>) {
+    Log.i(TAG, "note clear=${boxes(clear)}")
+    if (clear.isNotEmpty()) bubbles?.keepClear(clear)
     bubbles?.say(message, moodFor(message), forMs, announce = true)
+  }
+
+  private fun boxes(clear: List<ClearRect>) = clear.joinToString(";") { "${it.left},${it.top} ${it.width}x${it.height}" }.ifEmpty { "none" }
+
+  /**
+   * The box of the field just written to, with the screen's send controls: a note and the bubble keep off both. Measured
+   * here rather than left to the kit's focused-field poll, which has no box once the panel has taken the focus, so the
+   * note sat where the bubble rests, over the composer.
+   */
+  private fun clearBoxes(given: ClearRect? = null): List<ClearRect> {
+    val out = mutableListOf<ClearRect>()
+    // The box of the field the draft was read from (measured then, so a written-to node cannot spoil it), else the
+    // live focus's box.
+    val read = given ?: capture?.takeIf { it.app == frontApp || panelIsOpen }?.fieldBox
+    val live = if (read == null) focusedField()?.let { Rect().also(it::getBoundsInScreen) } else null
+    val box = read ?: live?.takeIf { it.width() > 0 && it.height() > 0 }?.let { ClearRect(it.left, it.top, it.width(), it.height()) }
+    if (box != null) out += box
+    val root = appRoot()
+    try { out += sendBounds(root) } finally { root?.recycle() }
+    return out
+  }
+
+  /** Posted, so it runs after the kit has shown the bubble again for the app in front; it waits while the panel or an
+   * Ownvoice screen is in front, and says the note again on each front change until its own time runs out: the kit
+   * hides and re-shows the bubble as the panel closes, which drops a note given once at the wrong moment. */
+  private fun sayPending() {
+    main.post {
+      val note = pendingNote ?: return@post
+      val left = note.forMs - if (note.shownAt == 0L) 0L else SystemClock.uptimeMillis() - note.shownAt
+      if (left <= 0) { pendingNote = null; Log.i(TAG, "note expired: ${note.text}"); return@post }
+      if (panelIsOpen || PanelActivity.current != null || frontApp == null || frontApp == packageName) {
+        // The panel's own state and its window can lag each other by a moment; wait for both rather than drop the note.
+        if (note.tries >= 20) { pendingNote = null; Log.i(TAG, "note dropped, no screen to show it on: ${note.text}"); return@post }
+        pendingNote = note.copy(tries = note.tries + 1)
+        main.postDelayed({ sayPending() }, 150)
+        return@post
+      }
+      showNote(note.text, left, note.clear)
+      if (note.shownAt == 0L) {
+        pendingNote = note.copy(shownAt = SystemClock.uptimeMillis(), tries = 0)
+        // The kit drops these boxes as the panel's own activity finishes, a moment after the note is said, and puts the
+        // note back where the bubble rests (over the field): give them back over the note's first second.
+        renewClear(pendingNote!!, 8)
+        // A note said as one window gives way to another is laid out but never painted, so say it once more after the
+        // transition: the second show always paints, and it carries what is left of the note's own time.
+        main.postDelayed({
+          val again = pendingNote
+          val rest = if (again == null || again.shownAt == 0L) 0L else again.forMs - (SystemClock.uptimeMillis() - again.shownAt)
+          if (again != null && again.text == note.text && rest > 500) {
+            Log.i(TAG, "note said again after the panel's window settled: ${again.text} restMs=$rest")
+            showNote(again.text, rest, again.clear)
+          }
+        }, 350)
+      }
+      val said = note.text
+      main.postDelayed({ Log.i(TAG, "note drawn=${onScreen(said)} leftMs=$left clear=${note.clear.size} text=$said") }, 400)
+    }
+  }
+
+  /** Re-applies a showing note's boxes [ticks] times, 150 ms apart; stops when the note is gone or replaced. */
+  private fun renewClear(note: Note, ticks: Int) {
+    if (ticks <= 0) return
+    main.postDelayed({
+      val now = pendingNote
+      if (now == null || now.shownAt != note.shownAt) return@postDelayed
+      if (note.clear.isNotEmpty()) bubbles?.keepClear(note.clear)
+      renewClear(note, ticks - 1)
+    }, 150)
+  }
+
+  /** Whether a visible node on screen carries exactly [text], which a note handed to the kit does only when it draws. */
+  private fun onScreen(text: String): Boolean {
+    fun walk(node: AccessibilityNodeInfo?): Boolean {
+      if (node == null) return false
+      if (node.isVisibleToUser && node.text?.toString() == text) return true
+      for (i in 0 until node.childCount) if (walk(node.getChild(i))) return true
+      return false
+    }
+    return windows.any { walk(it.root) }
   }
 
   /** Idle again after a tap mood, so closing the panel never leaves the tap mood on the bubble. */
