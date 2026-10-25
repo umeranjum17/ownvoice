@@ -21,7 +21,8 @@
 // X_REPLIES_MOTION=1 to
 // record the tap-to-inserted motion, OPENCODE_WORKSPACE (default Working2) for a key with several workspaces, X_REPLIES_LEGS=refusal to run only the refusal legs, extreme one
 // included (a live writer is still connected, but no leg makes a writer request), X_REPLIES_LEGS=preflight to connect the writer and
-// prove one grounded, label-true generation answers, then stop. Args: <release-apk (no stub flags)> [task-slug].
+// prove one grounded, label-true generation answers, then stop, X_REPLIES_LEGS=fit for the rated reply passes only (the person's
+// own reply typed first, then the writer's fit word on every card, one pass per theme). Args: <release-apk (no stub flags)> [task-slug].
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -61,7 +62,13 @@ let piWriter = null;
 const startPiWriter = async () => {
   const logFile = `${root}/verify-artifacts/${task}/pi-writer.log`;
   mkdirSync(`${root}/verify-artifacts/${task}`, { recursive: true });
+  // A writer left behind by an earlier run still holds the port and would answer every ask while its own log
+  // goes elsewhere: refuse a busy port instead of silently proving another run's writer.
+  const busy = await fetch(`http://127.0.0.1:${piPort}/api/v1/models`, { signal: AbortSignal.timeout(1000) }).then(response => response.ok).catch(() => false);
+  if (busy) throw new Error(`Port ${piPort} already serves a writer, which would answer in place of this run's model: stop it and run again.`);
   piWriter = spawn('node', [`${root}/mobile/e2e/pi-writer.mjs`, 'serve', String(piPort), logFile], { cwd: root, stdio: 'inherit', env: process.env });
+  // Every exit path takes this run's writer down with it; a failed leg used to leave it running for the next run.
+  process.on('exit', () => piWriter?.kill());
   await until(`the host pi writer on :${piPort}`, async () => {
     try { return (await fetch(`http://127.0.0.1:${piPort}/api/v1/models`, { signal: AbortSignal.timeout(1000) })).ok; } catch { return false; }
   }, { seconds: 20, every: 500 });
@@ -284,7 +291,9 @@ await serviceOff();
 await openUntil('sound like you');
 adb('shell', 'input', 'keyevent', '4'); // Back on the welcome finishes setup with no writer
 await wait(2500);
-await openUntil('where the bubble shows');
+// Home's readiness card is the line that shows setup is done: Home has not carried "Where the bubble
+// shows" since #242, and #300's tour row pushed the old rows below the fold.
+await openUntil('choose how ownvoice writes');
 log(`setup: finished with no writer; choosing ${writer === 'opencode' ? 'OpenCode Go' : writer === 'pi' ? 'OpenRouter (host pi writer)' : 'OpenRouter'} on the writer list.`);
 
 const onScreen = phrase => nodeText().includes(phrase.toLowerCase());
@@ -321,7 +330,10 @@ const pickModel = async () => {
   type(`'${want.replace(/ /g, '%s')}'`);
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) adb('shell', 'input', 'keyevent', '4');
   await until('the keyboard to close', () => !/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method')), { seconds: 10 });
-  if (!(await tapButton(want.toLowerCase()))) throw new Error(`No row for ${want} in the list.`);
+  // The search field now holds the same words, and it is the first clickable node that matches, so the tap
+  // would land on the field and only reopen the keyboard: tap the row, never the field.
+  const row = await until(`the ${want} row in the list`, () => nodes().find(n => !n.editable && `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes(want.toLowerCase())), { seconds: 20 });
+  tap(...center(row));
 };
 const skipSetup = async () => {
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source');
@@ -396,9 +408,32 @@ const refusedOnly = process.env.X_REPLIES_LEGS === 'refused';
 // X_REPLIES_LEGS=rewrite-refused: only the rewrite sheet's refusal, light and dark. The sheet opens on the same
 // PROCESS_TEXT intent as the selection menu, so no page (and no X host) is needed; the reply cards need X.
 const rewriteOnly = process.env.X_REPLIES_LEGS === 'rewrite-refused';
+// X_REPLIES_LEGS=fit: only the fit passes, one per theme in one boot. A fit word is the app's own rating of a reply
+// it grew from the person's typed text, so this mode is the one that proves cards and fit words together.
+const fitOnly = process.env.X_REPLIES_LEGS === 'fit';
+// The pi writer has to answer before the account connects: the app asks a freshly connected route for its
+// own model list, so a route started later leaves the pick list empty and the proof stops there.
+const piLogFile = writer === 'pi' ? await startPiWriter() : null;
 if (writer === 'opencode') await connectOpenCode();
 else await connectOpenRouter();
 log(`setup finished (live ${writer === 'opencode' ? 'OpenCode Go' : writer === 'pi' ? 'DeepSeek Flash through the host pi writer' : 'OpenRouter'} writer connected${refusalOnly ? '; refusal legs only, no writer call' : ''}).`);
+
+// Ratings follow the writer only while Jev is off, and a fresh install has Jev on with no account of its own,
+// which leaves every card unrated. Switch it off through the app's own Ratings screen so each card's fit word
+// comes from the writer this proof is about.
+const writerRates = async () => {
+  const toggle = () => nodes().find(n => n.app === pkg && n.label === 'Use Jev for ratings' && n.checkable);
+  for (let i = 0; i < 6 && !toggle(); i++) {
+    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://ratings');
+    await wait(2000);
+  }
+  const now = await until('the Jev rating switch', toggle, { seconds: 30 });
+  if (!now.checked) { log('ratings: Jev is off, so the writer rates each card'); return; }
+  tap(...center(now));
+  await until('the Jev switch to read off', () => { const n = toggle(); return n && !n.checked; }, { seconds: 15, every: 500 });
+  log('ratings: Jev switched off on its own screen, so the picked writer rates each card');
+};
+if (!refusedOnly && !rewriteOnly) await writerRates();
 
 // ---- enable Chrome's bubble through the app's own UI ----
 const appRow = label => nodes().find(node => node.checkable && node.label === label);
@@ -581,8 +616,11 @@ const copyLeg = async (screen, theme) => {
 // What each X reply card is for (Panel.tsx TAGS.x); the writer's text on a card must match the
 // label the card shows. Judged in plain words, independent of the app's own guard.
 const preflightOnly = process.env.X_REPLIES_LEGS === 'preflight';
-const X_TAGS = ['agree', 'push back, kindly', 'ask a question'];
+const X_TAGS = ['agree', 'push back, kindly', 'ask a question', 'yours'];
 const LEVELS = ['Likely to be skipped', 'Might get a reply', 'Good fit here', 'Strong fit here'];
+// The app's own word for a rating that did not come back: a card can honestly abstain, so a fit read is either a
+// level or this line, never a guess.
+const UNSURE_FIT = 'Not sure about this one';
 const opensAgree = /^(?:yes|yeah|yep|yup|sure|okay|ok|definitely|absolutely|of course|sounds good|works for me|happy to|gladly|will do|no problem|consider it done)\b/i;
 const opensDecline = /^(?:no|nope|nah|sorry|afraid|unfortunately|can'?t|won'?t|couldn'?t|not able|never)\b/i;
 // Read the cards as (label, text) in reading order: a tag line opens a card; a fit level is a
@@ -596,7 +634,7 @@ const readCards = () => {
     const text = (n.text || '').trim();
     if (X_TAGS.includes(text.toLowerCase())) { current = { tag: text, texts: [], fit: null }; cards.push(current); continue; }
     if (!current) continue;
-    if (!current.fit && LEVELS.includes((n.label || '').trim())) { current.fit = n.label.trim(); continue; }
+    if (!current.fit && [...LEVELS, UNSURE_FIT].includes((n.label || '').trim())) { current.fit = n.label.trim(); continue; }
     if (text && !/^(edit|insert|copy|copied|why\?|use this|write new ones|share this text|open in x.*|post|reply)$/i.test(text)) current.texts.push(text);
   }
   for (const c of cards) c.text = c.texts.sort((a, b) => b.length - a.length)[0] ?? '';
@@ -680,6 +718,10 @@ const journey = async (screen, theme, { motion = false, copy = false, postShot =
     }
     await until('the panel to name the X platform', () => panelText('X'), { seconds: 10 });
     if (panelText('Reply ideas are unavailable')) throw new Error('The withhold note showed on a grounded post.');
+    // The fit word is a second call on the picked writer, so it lands after the cards themselves: wait for it
+    // before the capture, and record an abstention honestly (no level, never an invented one) instead of failing.
+    const fitted = await until('a fit word on every card', () => { const read = readCards(); return read.length > 0 && read.every(c => c.fit) && read; }, { seconds: 180, every: 1500 }).catch(() => null);
+    if (!fitted) log(`${screen}/${theme}: no fit word on every card (${readCards().map(c => `${c.tag}:${c.fit ?? 'none'}`).join(', ')})`);
     shot(screen, 'cards', theme);
     // The F6a wording check: every card's text must match the label the card shows.
     const cards = await until('labelled reply cards', () => { const read = readCards(); return read.length && read; }, { seconds: 15 });
@@ -863,6 +905,47 @@ const leg = async (name, fn, { needsWriter = false } = {}) => {
     if (error.writerRefused) writerRefused = true;
   }
 };
+// A bare tap on a post writes reply cards but asks the writer nothing about fit: the app rates only a reply it
+// grows from the person's own typed text (mode 'grow'). So the fit capture types the reply first, as a person
+// would, then waits for the writer's own fit word on every card before it keeps the screen.
+const TYPED_REPLY = 'Reading the screen once per tap is the part that makes this feel safe, and it is the bit I keep wanting in other tools.';
+const fitLeg = async (screen, theme) => {
+  await verifyFixtureLive();
+  await focusComposer();
+  type(TYPED_REPLY);
+  await wait(1200);
+  let cards = [];
+  for (let attempt = 0; attempt < 3 && !cards.length; attempt++) {
+    tap(...center(await bubble()));
+    cards = await until('the reply cards', () => { const read = readCards(); return read.length > 0 && read; }, { seconds: 120, every: 1000 }).catch(() => []);
+  }
+  if (!cards.length) throw new Error(`No reply cards appeared on ${screen}/${theme}.`);
+  // The fit words come with the writer's own judgement call; the panel scrolls, and on this phone the last card's
+  // word sits below the fold, so capture the top, scroll the panel, and read the cards again.
+  await until('a fit word on a card', () => readCards().some(c => c.fit), { seconds: 240, every: 1500 });
+  shot(screen, 'fit-cards', theme);
+  const top = readCards();
+  const [wide, high] = sizeNow();
+  cards = readCards();
+  for (let i = 0; i < 3 && cards.some(c => !c.fit); i++) {
+    adb('shell', 'input', 'swipe', String(Math.round(wide / 2)), String(Math.round(high * 0.8)), String(Math.round(wide / 2)), String(Math.round(high * 0.45)), '400');
+    await wait(1500);
+    cards = readCards();
+  }
+  shot(screen, 'fit-cards-end', theme);
+  // The panel scrolls, so each capture holds the cards it could show: join the two reads by tag, keeping a fit
+  // wherever either of them carried one.
+  const all = [...top];
+  for (const card of cards) {
+    const at = all.findIndex(seen => seen.tag === card.tag);
+    if (at < 0) all.push(card); else if (!all[at].fit && card.fit) all[at] = card;
+  }
+  mkdirSync(`${root}/verify-artifacts/${task}`, { recursive: true });
+  writeFileSync(`${root}/verify-artifacts/${task}/${screen}-fit-cards-${theme}.json`, JSON.stringify(all, null, 2) + '\n');
+  log(`${screen}/${theme}: ${all.map(c => `${c.tag.replace(/\W+/g, '-')}:${c.fit ?? 'no fit'}`).join(', ')}`);
+  adb('shell', 'input', 'keyevent', '4');
+  if (!all.length || all.some(c => !c.fit)) throw new Error(`No fit line on every card for ${screen}/${theme}`);
+};
 function setExtreme(on) {
   adb('shell', 'settings', 'put', 'system', 'font_scale', on ? '1.3' : '1.0');
   adb('shell', 'wm', 'density', on ? '320' : 'reset');
@@ -875,7 +958,6 @@ const extreme = async on => {
 };
 
 try {
-  const piLogFile = writer === 'pi' ? await startPiWriter() : null;
   if (refusedOnly) {
     await leg('refused-light', () => refusedLeg('x-refused', 'light'));
     await leg('refused-rewrite-light', () => rewriteRefused('light'));
@@ -894,6 +976,18 @@ try {
     await leg('refused-rewrite-dark', () => rewriteRefused('dark'));
   } else if (preflightOnly) {
     await leg('preflight', () => journey('x-preflight', 'light', {}), { needsWriter: true }); // stops after the label check
+  } else if (fitOnly) {
+    await leg('fit-light', () => fitLeg('x-reply', 'light'), { needsWriter: true });
+    evidence('theme', 'dark');
+    adb('shell', 'am', 'force-stop', 'com.android.chrome');
+    await killApp();
+    await rebind();
+    await leg('fit-dark', () => fitLeg('x-reply', 'dark'), { needsWriter: true });
+    await extreme(true);
+    adb('shell', 'am', 'force-stop', 'com.android.chrome');
+    await leg('fit-font-1.3', () => fitLeg('x-extreme', 'dark'), { needsWriter: true });
+    await extreme(false);
+    if (piLogFile) checkPiAnswers(piLogFile);
   } else {
   // Phase 1 (light): the refusal legs first, because they prove the withhold without any writer call
   // and must survive a later writer refusal.
@@ -903,6 +997,7 @@ try {
     // The light leg uses the fixture's longest text (the long post + quote); postShot captures the
     // screen that grounding came from before any panel covers it.
     await leg('light', () => journey('x-reply', 'light', { copy: true, motion, postShot: true }), { needsWriter: true });
+    await leg('fit-light', () => fitLeg('x-reply', 'light'), { needsWriter: true });
   }
 
   // ---- dark theme: the app process reads the colour scheme at start, Chrome at page load ----
@@ -915,6 +1010,7 @@ try {
   await leg('refusal-notext-dark', () => withhold('x-notext', 'dark', IMAGE_ONLY));
   await leg('refusal-labels-dark', () => withhold('x-labels', 'dark', LABELS_ONLY));
   if (!refusalOnly) await leg('dark', () => journey('x-reply', 'dark', {}), { needsWriter: true });
+  if (!refusalOnly) await leg('fit-dark', () => fitLeg('x-reply', 'dark'), { needsWriter: true });
 
   // ---- extreme: narrowest supported screen + font scale 1.3 over the long post + quote ----
   // The extreme refusal leg runs in refusal-only runs too: it is the leg the refusal-only run is
@@ -924,6 +1020,7 @@ try {
   if (!refusalOnly) {
     adb('shell', 'am', 'force-stop', 'com.android.chrome');
     await leg('font-1.3', () => journey('x-extreme', 'dark', {}), { needsWriter: true });
+    await leg('fit-font-1.3', () => fitLeg('x-extreme', 'dark'), { needsWriter: true });
   }
   await extreme(false);
   // The cards above came from the host writer's real model answers, not from a stand-in: record them.
@@ -938,6 +1035,8 @@ try {
   piWriter?.kill();
   rmSync(certDir, { recursive: true, force: true });
 }
+// A killed run (Ctrl-C, the supervisor's stop) must take this run's writer with it too: 'exit' alone does not fire.
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => { piWriter?.kill(); process.exit(1); });
 
 const failed = summary.filter(line => line.includes(': FAIL'));
 log(`X reply proof complete. Evidence in ${root}/verify-artifacts/${task}/. Failed legs: ${failed.length}${writerRefused ? ' (writer refused)' : ''}`);
