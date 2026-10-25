@@ -33,15 +33,27 @@ const component = `${pkg}/dev.ownvoice.bridge.OwnvoiceService`;
 const probe = accessibilityProbe(serial, out);
 // One probe serves every lookup for a moment: each probe is a fresh instrumentation, and a wait loop
 // asking twice a second would otherwise open hundreds of them.
-let seen = { at: 0, list: [] };
-const nodes = () => { if (Date.now() - seen.at > 600) seen = { at: Date.now(), list: probe() }; return seen.list; };
+let seen = { at: 0, list: [], why: '' };
+let probeReported = false;
+const nodes = () => {
+  if (Date.now() - seen.at > 600) {
+    try { seen = { at: Date.now(), list: probe(), why: '' }; } catch (error) {
+      // A window still coming up, or a probe the accessibility rebind killed, is not a finding: hand the
+      // wait loops an empty screen and let their own timeout name what never appeared.
+      const why = String((error && error.message) || error).replace(/\s+/g, ' ').slice(0, 140);
+      seen = { at: Date.now(), list: [], why };
+      if (!probeReported) { probeReported = true; log(`probe could not read the screen (${why}); carrying on`); }
+    }
+  }
+  return seen.list;
+};
 const adb = (...args) => execFileSync('adb', ['-s', serial, ...args], { encoding: 'utf8', maxBuffer: 12 * 1024 * 1024 });
 const wait = ms => new Promise(r => setTimeout(r, ms));
 const log = line => { const s = `${new Date().toISOString().slice(11, 19)} ${line}`; console.log(s); appendFileSync(resolve(out, 'tour-run.log'), s + '\n'); };
 const snap = name => { execFileSync('adb', ['-s', serial, 'exec-out', 'screencap', '-p'], { stdio: ['ignore', openSync(resolve(out, `${name}.png`), 'w'), 'inherit'] }); };
 const find = pred => nodes().find(pred);
 const findText = label => find(n => `${n.label} ${n.text}`.toLowerCase().includes(label.toLowerCase()));
-const screenWords = () => nodes().map(n => n.text || n.label).filter(Boolean).join(' | ').slice(0, 300);
+const screenWords = () => `${nodes().map(n => n.text || n.label).filter(Boolean).join(' | ').slice(0, 300)}${seen.why ? ` [probe: ${seen.why}]` : ''}`;
 const waitText = async (label, tries = 40) => {
   const wanted = Array.isArray(label) ? label : [label];
   for (let i = 0; i < tries; i++) { const n = wanted.map(findText).find(Boolean); if (n) return n; await wait(1000); }
@@ -114,9 +126,21 @@ const theme = async dark => {
   adb('shell', 'cmd', 'uimode', 'night', dark ? 'yes' : 'no');
   adb('shell', 'am', 'force-stop', pkg); await wait(1500);
   await setService(true);
-  adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(4000);
+  adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
+  await waitFocus();
 };
-const open = async route => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, pkg); await wait(1500); };
+const focused = () => {
+  try { return adb('shell', 'dumpsys', 'window').match(/mCurrentFocus=Window\{[^}]*\}\s+u0\s+([\w.]+)\//)?.[1] === pkg; } catch { return false; }
+};
+const waitFocus = async (tries = 25) => {
+  for (let i = 0; i < tries; i++) { if (focused()) return; await wait(1000); }
+  throw new Error(`The app window never came to the front: ${screenWords()}`);
+};
+const open = async route => {
+  try { adb('shell', 'cmd', 'statusbar', 'collapse'); } catch { /* not open */ }
+  adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', `ownvoice://${route}`, pkg);
+  await wait(1500);
+};
 // Setup is finished with no writer at all: hardware Back on the welcome completes it.
 const skipSetup = async () => { await waitText('sound like you', 40); adb('shell', 'input', 'keyevent', '4'); await wait(2500); };
 const home = async () => { await open('/'); await waitText('on x, reddit and linkedin', 30); };
