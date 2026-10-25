@@ -8,7 +8,7 @@
 
 A small coral bubble sits beside the message box in your Android chats. Tap it for cleaner,
 shorter or friendlier versions of your own words, written on your phone or by the AI plan you
-already pay for. It never sends anything for you.
+already pay for.
 
 <picture>
   <source media="(max-width: 600px) and (prefers-color-scheme: dark)" srcset="docs/readme/hero-phone-dark.webp" />
@@ -62,14 +62,22 @@ Step-by-step help for every screen is in the [user guide](docs/readme/guide.md#g
 - **It only reads when you tap.** The bubble shows in the apps you switch on, and **What Ownvoice read** lists every tap, without your text.
 - **It writes with what you already have.** Your phone, or the ChatGPT, Claude, OpenRouter or OpenCode Go plan you pay for, or the Claude on your own computer.
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/readme/panel-loop-dark.webp" />
+    <img src="docs/readme/panel-loop-light.webp" width="300" alt="A loop from the practice chat: the panel writes, then offers a Cleaned up line that fixes dont and shoud, and a Shorter line without the stock phrase" />
+  </picture><br />
+  <sub>A real run in the practice chat: it writes, then hands you a tidied line and a shorter one.</sub>
+</p>
+
 ## What you get
 
 <table>
   <tr>
     <td align="center" width="50%">
       <picture>
-        <source media="(prefers-color-scheme: dark)" srcset="docs/readme/panel-loop-dark.webp" />
-        <img src="docs/readme/panel-loop-light.webp" width="100%" alt="The panel in the practice chat, going from Writing to a Cleaned up line that fixes dont and shoud, and a Shorter line without the stock phrase" />
+        <source media="(prefers-color-scheme: dark)" srcset="docs/readme/polish-dark.webp" />
+        <img src="docs/readme/polish-light.webp" width="100%" alt="Polish your message: Cleaned up fixes dont and shoud, while Shorter rewrites the reply without the highlighted stock phrase" />
       </picture>
       <br /><strong>Polish what you wrote</strong><br />Fix slips. Trim filler with Shorter.
     </td>
