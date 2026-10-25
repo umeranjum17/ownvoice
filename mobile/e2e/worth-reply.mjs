@@ -257,7 +257,7 @@ try {
   }
   // The reply answers the post that cleared the bar, never another one on screen.
   for (const r of replyAsks) {
-    if (r.post !== 'Anyone found a focus timer that stays silent when a meeting starts?') throw new Error(`A reply rating answered a different post: ${JSON.stringify(r.post)}.`);
+    if (r.post !== 'Still on for Saturday? I can bring the stove if you get the tent.') throw new Error(`A reply rating answered a different post: ${JSON.stringify(r.post)}.`);
     if (!r.instructions.every(line => line.includes(`An ${r.platform} reply`))) throw new Error(`A ${r.platform} rating did not use the reply rubric: ${r.instructions.join(' | ')}`);
   }
   // The judge reads this shape: what was driven, from where, and what a user can see at the end.
@@ -273,7 +273,7 @@ try {
     result: 'Every post on screen carries a fit level, exactly one is marked Worth a reply (Strong fit here) and the other two sit below the bar, the reply cards answer the marked post, and nothing was sent or inserted',
     postRatings: asks.length,
     replyRatings: replyAsks.length,
-    limits: 'the levels come from a fixed-answer Jev stand-in through the real decide path and the reply cards from the E2E writer stub; Reddit shares the code path but is not shot; the natively drawn X app is not captured',
+    limits: 'the levels come from a fixed-answer Jev stand-in through the real decide path and the reply cards are the E2E writer stub\'s fixed lines, which is why the marked post on the lab fixture is the question those lines answer; generation itself is stubbed, the rating and the parent post are real. Reddit shares the code path but is not shot; the natively drawn X app is not captured',
     route: 'Jev fixed-answer HTTP fixture for the levels; reply cards from the E2E writer stub; no real account, network or spend',
   }, null, 2));
   console.log(`worth-reply: PASS (${asks.length} post ratings, ${replyAsks.length} reply ratings). Shots and log in ${out}.`);

@@ -18,10 +18,11 @@ import android.widget.TextView;
  * Reddit variant. Demo data only ("Umer"); it never posts and never reaches a network.
  */
 public class Composer extends Activity {
-  /** The posts a `feed` screen shows, author line then body, as a real feed lays them out. */
+  /** The posts a `feed` screen shows, author line then body, as a real feed lays them out. The middle one is the
+   *  question the E2E writer's fixed lines answer, so a shot shows a reply that fits the post it was opened for. */
   private static final String[][] FEED = {
     {"Umer Demo @umerdemo · 2h", "Shipped the break reminder today: a quiet sound now, no popup."},
-    {"Sam Rivera @samrivera · 4h", "Anyone found a focus timer that stays silent when a meeting starts?"},
+    {"Sam Rivera @samrivera · 4h", "Still on for Saturday? I can bring the stove if you get the tent."},
     {"Ada Lin @adalin · 6h", "What a week. So grateful to this community. Thoughts?"},
   };
 
