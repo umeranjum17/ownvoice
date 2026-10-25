@@ -334,16 +334,16 @@ try {
   //    The frame is the tour's top - title, disclosure, sample - which is what this size can break; the start
   //    button sits below the fold here, as it does for a person at this size.
   await run('opens-large-font', async () => {
-    // The scale reaches the system config a beat after the write; an app started inside that beat keeps
-    // the old one, which is how an earlier run captured a 1.3 frame that was not at 1.3.
-    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3'); await wait(3000);
+    // The emulator's `wm size`/`density` override pins the whole configuration, font scale included, so this
+    // frame is at the phone's own 360 dp: large text as a person sets it, which is what the rule is for.
     await theme(false);
-    await withWidth(390, async () => {
-      await openTourFromHome();
-      snap('tour-open-light-w390-font1.3');
-      adb('shell', 'input', 'keyevent', '4'); await wait(1200);
-    });
-    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0'); await wait(2000);
+    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0'); await wait(1500);
+    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3'); await wait(3000);
+    adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true);
+    await openTourFromHome();
+    snap('tour-open-light-font1.3');
+    adb('shell', 'input', 'keyevent', '4'); await wait(1200);
+    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0'); await wait(1500);
   });
 
   // 7. A tablet-sized window, where the same screen is reachable.
