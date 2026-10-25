@@ -740,7 +740,7 @@ class OwnvoiceService : AccessibilityService() {
     // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
     // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
     val clear = clearBoxes()
-    if (panelIsOpen && !practice) { pendingNote = Note(message, forMs, 0L, clear); Log.i(TAG, "note held for the panel to close: $message"); return }
+    if (panelIsOpen && !practice) { pendingNote = Note(message, forMs, 0L, clear); Log.i(TAG, "note held for the panel to close: $message clear=${boxes(clear)}"); return }
     // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one.
     if (currentApp() == packageName && !practice) {
       Toast.makeText(this, message, Toast.LENGTH_LONG).show()
@@ -752,6 +752,7 @@ class OwnvoiceService : AccessibilityService() {
 
   /** Says [message] with its time and the boxes it keeps off, so the kit moves the bubble and the note together. */
   private fun showNote(message: String, forMs: Long, clear: List<ClearRect>) {
+    Log.i(TAG, "note clear=${boxes(clear)}")
     if (clear.isNotEmpty()) bubbles?.keepClear(clear)
     bubbles?.say(message, moodFor(message), forMs, announce = true)
   }
@@ -761,6 +762,8 @@ class OwnvoiceService : AccessibilityService() {
    * here rather than left to the kit's focused-field poll, which has no box once the panel has taken the focus, so the
    * note sat where the bubble rests, over the composer.
    */
+  private fun boxes(clear: List<ClearRect>) = clear.joinToString(";") { "${it.left},${it.top} ${it.width}x${it.height}" }.ifEmpty { "none" }
+
   private fun clearBoxes(): List<ClearRect> {
     val out = mutableListOf<ClearRect>()
     val field = capture?.takeIf { it.app == frontApp || panelIsOpen }?.input ?: focusedField()
@@ -781,10 +784,26 @@ class OwnvoiceService : AccessibilityService() {
       if (left <= 0) { pendingNote = null; Log.i(TAG, "note expired before it showed: ${note.text}"); return@post }
       if (panelIsOpen || frontApp == null || frontApp == packageName) return@post
       showNote(note.text, left, note.clear)
-      if (note.shownAt == 0L) pendingNote = note.copy(shownAt = SystemClock.uptimeMillis())
+      if (note.shownAt == 0L) {
+        pendingNote = note.copy(shownAt = SystemClock.uptimeMillis())
+        // The kit drops these boxes as the panel's own activity finishes, a moment after the note is said, and puts the
+        // note back where the bubble rests (over the field): give them back over the note's first second.
+        renewClear(pendingNote!!, 8)
+      }
       val said = note.text
       main.postDelayed({ Log.i(TAG, "note drawn=${onScreen(said)} leftMs=$left clear=${note.clear.size} text=$said") }, 400)
     }
+  }
+
+  /** Re-applies a showing note's boxes [ticks] times, 150 ms apart; stops when the note is gone or replaced. */
+  private fun renewClear(note: Note, ticks: Int) {
+    if (ticks <= 0) return
+    main.postDelayed({
+      val now = pendingNote
+      if (now == null || now.shownAt != note.shownAt) return@postDelayed
+      if (note.clear.isNotEmpty()) bubbles?.keepClear(note.clear)
+      renewClear(note, ticks - 1)
+    }, 150)
   }
 
   /** Whether a visible node on screen carries exactly [text], which a note handed to the kit does only when it draws. */
