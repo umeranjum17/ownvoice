@@ -3,8 +3,8 @@
 // The writer is the host's own pi (real DeepSeek Flash, no provider key, no spend) served to the
 // emulator as an OpenAI-compatible endpoint; the APK under test is built with that one emulator-only
 // flag, EXPO_PUBLIC_E2E_OPENROUTER_BASE, so the app's real key route, model pick, prompts, acceptance
-// and tour screen all run for real. The failure leg cuts the network, keeps the person on the same
-// screen, restores it and taps Try again.
+// and tour screen all run for real. The failure leg stops the writer so the app's own request is
+// refused, keeps the person on the same screen, starts it again and taps Try again.
 // Env: ANDROID_SERIAL, OWNVOICE_AVD_NAME, OPENROUTER_KEY_FILE (a dummy sk- file is enough: the stand-in
 //      ignores it), PICK_MODEL (a row the stand-in lists), PI_WRITER_PORT (default 18799),
 //      TOUR_WRITER=live to use a real account instead (needs a working key),
@@ -61,9 +61,9 @@ const tapExact = async (label, tries = 20) => {
   }
   throw new Error(`Could not find the ${label} button: ${screenWords()}`);
 };
-const waitGone = async (label, tries = 30) => {
-  for (let i = 0; i < tries; i++) { if (!findText(label)) return; await wait(1000); }
-  throw new Error(`"${label}" never left the screen: ${screenWords()}`);
+const waitFor = async (tries, pred, what) => {
+  for (let i = 0; i < tries; i++) { const hit = pred(); if (hit) return hit; await wait(1000); }
+  throw new Error(`Never saw ${what || 'it'}: ${screenWords()}`);
 };
 
 const setService = async on => {
@@ -132,7 +132,10 @@ const pickModel = async tag => {
   const [fx, fy] = center(field); adb('shell', 'input', 'tap', String(Math.round(fx)), String(Math.round(fy))); await wait(700);
   adb('shell', 'input', 'text', `'${PICK_MODEL.replace(/ /g, '%s')}'`); await wait(900);
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
-  const row = await waitText(PICK_MODEL, 20);
+  // The search field now holds the same words, so tap the row, never the field.
+  let row = null;
+  for (let i = 0; i < 20 && !row; i++) { row = find(n => !n.editable && `${n.label} ${n.text}`.toLowerCase().includes(PICK_MODEL.toLowerCase())); if (!row) await wait(1000); }
+  if (!row) throw new Error(`The ${PICK_MODEL} row did not show: ${screenWords()}`);
   const [rx, ry] = center(row); adb('shell', 'input', 'tap', String(Math.round(rx)), String(Math.round(ry)));
   await wait(1500);
   log(`picked ${PICK_MODEL} (${tag})`);
@@ -141,24 +144,25 @@ const pickModel = async tag => {
 // The tour's own screen: title, the made-up post, and the one start button.
 const TOUR_TITLE = 'a quick look at ownvoice';
 const tourScreen = async tries => waitText(TOUR_TITLE, tries);
-const openTourFromHome = async () => { await home(); await swipeDown(); await tapText('take the tour', 20); await tourScreen(30); };
-
-/** Cut the phone's network, then put it back: the failure leg must stay on the tour screen and recover
- *  with Try again once the network returns. */
-const network = async on => {
-  // Two cuts, both off the app's own path: airplane mode where the emulator honours it, and a proxy
-  // pointed at a dead port, which the phone's HTTP stack follows. Restored the same way.
-  try { adb('shell', 'cmd', 'connectivity', 'airplane-mode', on ? 'enable' : 'disable'); } catch { /* not supported here */ }
-  adb('shell', 'settings', 'put', 'global', 'http_proxy', on ? '127.0.0.1:9' : ':0');
-  await wait(2500);
-  log(`network ${on ? 'cut' : 'restored'}`);
+// Home keeps the tour as a row below the fold on some widths, so scroll until it shows.
+const openTourFromHome = async () => {
+  await home();
+  for (let i = 0; i < 4 && !findText('take the tour'); i++) await swipeDown();
+  await tapText('take the tour', 20);
+  await tourScreen(30);
 };
 
 // The proof writer: the host's pi served to the emulator, unless a live account is being used.
 const writerPort = Number(process.env.PI_WRITER_PORT ?? 18799);
-const piWriter = process.env.TOUR_WRITER === 'live' ? null
-  : spawn(process.env.PI_BIN || 'node', ['e2e/pi-writer.mjs', 'serve', String(writerPort), resolve(out, 'pi-writer.log')],
-    { cwd: resolve(import.meta.dirname, '..'), stdio: 'inherit' });
+// The stand-in is a child this run owns: stopping it is the failed-call leg (a real refused request,
+// nothing else on the phone touched), and starting it again is the restore before Try again.
+const writerArgs = ['e2e/pi-writer.mjs', 'serve', String(writerPort), resolve(out, 'pi-writer.log')];
+const startWriter = () => spawn(process.env.PI_BIN || 'node', writerArgs, { cwd: resolve(import.meta.dirname, '..'), stdio: 'inherit' });
+let piWriter = process.env.TOUR_WRITER === 'live' ? null : startWriter();
+let writer = piWriter;
+const writerOff = async () => { if (!writer) throw new Error('The failed-call leg needs the stand-in writer.'); writer.kill(); writer = null; await wait(1500); };
+const writerOn = async () => { if (!writer) { writer = startWriter(); await wait(2500); } };
+void piWriter;
 
 const priorNight = adb('shell', 'cmd', 'uimode', 'night').trim();
 const priorFont = adb('shell', 'settings', 'get', 'system', 'font_scale').trim();
@@ -218,9 +222,8 @@ try {
     else { await tapText('polish the made-up post', 20); }
     await wait(1200);
     snap(`tour-writing-${tag}`);
-    // The versions land one by one; Done only shows once the writer answered.
-    await waitGone('still working', 90);
-    await waitText(['try another example', 'this one took too long'], 90);
+    // Try another example only shows once the writer answered and the versions landed.
+    await waitText(['try another example', 'this one took too long'], 180);
     if (findText('this one took too long')) throw new Error(`The writer failed instead of answering: ${screenWords()}`);
     await wait(1500);
     snap(`tour-versions-${tag}`);
@@ -231,29 +234,43 @@ try {
   await run('exercise-light', async () => { await theme(false); await writeOnce('light'); });
   await run('exercise-dark', async () => { await theme(true); await writeOnce('dark'); });
 
-  // 5. A failed call recovers in place: cut the network, keep the person on the tour screen, restore it
-  //    and tap Try again, and the versions land on that same screen.
+  // 5. A failed call recovers in place: stop the writer so the app's own request is refused, keep the
+  //    person on the tour screen, start it again and tap Try again, and the versions land on that screen.
   await run('failed-call-recovers', async () => {
     await theme(false);
-    await network(true);
     await openTourFromHome();
+    await writerOff();
     if (findText('try another example')) await tapText('try another example', 20);
-    else await tapText('polish the made-up post', 20);
-    const line = await waitText(['couldn', 'took too long', 'this one took too long'], 90);
-    await wait(1000);
+    else await tapExact('Polish the made-up post', 20);
+    await waitFor(90, () => findExact('Try again'), 'the plain line with Try again');
+    const rest = nodes().map(n => `${n.label} ${n.text}`.trim()).filter(Boolean).join(' ');
+    if (!/try again/i.test(rest)) throw new Error('No retry offered after a failed call.');
+    await wait(800);
     snap('tour-failed-light');
-    await network(false);
-    await tapText('try again', 20);
-    await waitGone('still working', 90);
-    await waitText(['try another example', 'done'], 90);
-    if (findText('took too long')) throw new Error(`The retry failed too: ${screenWords()}`);
+    const line = rest.split('Try again')[0].slice(0, 160);
+    await writerOn();
+    await tapExact('Try again', 20);
+    await waitText(['try another example', 'this one took too long'], 180);
+    if (findText('this one took too long')) throw new Error(`The retry failed too: ${screenWords()}`);
     await wait(1500);
     snap('tour-recovered-light');
-    log(`the failed call said "${`${line.label} ${line.text}`.trim().slice(0, 90)}" and Try again wrote on the same screen`);
+    log(`the failed call said "${line.trim()}" and Try again wrote on the same screen`);
     await tapExact('Done', 20); await home();
   });
 
-  // 6. A tablet-sized window, where the same screen is reachable.
+  // 6. The same screen at the largest text size the app supports (owner rule: 1.3 font alongside the widths).
+  await run('opens-large-font', async () => {
+    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
+    await theme(false);
+    await withWidth(390, async () => {
+      await openTourFromHome();
+      await waitText('polish the made-up post', 20);
+      snap('tour-open-light-w390-font1.3');
+      adb('shell', 'input', 'keyevent', '4'); await wait(1200);
+    });
+  });
+
+  // 7. A tablet-sized window, where the same screen is reachable.
   await run('opens-wide-window', async () => {
     await theme(false);
     adb('shell', 'wm', 'size', '1280x800'); adb('shell', 'wm', 'density', '160');
@@ -277,7 +294,8 @@ try {
       'Home asks which one writes; pick one from the account\'s own list and the tour opens by itself on the way back',
       'the tour at 360, 390 and 445 dp, light and dark, before anything is written',
       'run the made-up post exercise in light and dark: versions land on the tour screen, Done returns Home',
-      'cut the network, start the example, read the plain line, restore the network and tap Try again on the same screen',
+      'stop the writer, start the example, read the plain line, start the writer again and tap Try again on the same screen',
+      'the tour at 1.3 font on a 390 dp phone',
       'the tour in a 1280x800 window',
     ],
     result: 'the tour opens after the pick, one exercise completes, and a failed call recovers in place',
@@ -285,7 +303,7 @@ try {
   log(`tour proof saved to ${out}.`);
 } finally {
   // The writer this run started, and nothing else.
-  if (piWriter) { try { piWriter.kill(); } catch { /* already gone */ } }
+  if (writer) { try { writer.kill(); } catch { /* already gone */ } }
   try { adb('shell', 'cmd', 'connectivity', 'airplane-mode', 'disable'); } catch { /* best-effort restore */ }
   try { adb('shell', 'settings', 'put', 'global', 'http_proxy', priorProxy || ':0'); } catch { /* best-effort restore */ }
   adb('shell', 'cmd', 'uimode', 'night', priorNight || 'no');

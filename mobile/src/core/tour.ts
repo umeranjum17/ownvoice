@@ -43,6 +43,8 @@ export type TourRun = { kind: 'ready'; drafts: { text: string; label: string }[]
 /** One exercise: polish the made-up post on the account the person chose, and hand each version over as
  *  it lands. Every failure comes back as one plain line with the real cause, never a stuck card. */
 export async function polishSample(report: { landed: (text: string, label: string) => void; call: () => void }): Promise<TourRun> {
+  // The ceiling holds even if a screen still offers the button: nothing more is sent past 12 calls.
+  if ((tourState().calls ?? 0) >= TOUR_CALLS) return { kind: 'failed', line: words.tourEnough };
   const source = await getSource().catch(() => null);
   const key = cloudOf(source);
   // "On this phone", or nothing chosen yet: this exercise would write on the slow phone model, so it
