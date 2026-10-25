@@ -414,6 +414,21 @@ shot('drafts');
 
 // 4b. Where the note lands (AA-34): one screenshot per try until the note shows, its line's box read by OCR
 // (a system toast is not in the accessible tree), against the composer field and the Post button.
+// Whether the note's box differs from the app behind it: a laid-out pill that was never painted is exactly background.
+const meanOf = (file, [x1, y1, x2, y2]) => {
+  const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
+  return Number(execFileSync('magick', [file, '-crop', `${w}x${h}+${x1}+${y1}`, '+repage', '-format', '%[fx:mean]', 'info:'], { encoding: 'utf8' }).trim());
+};
+const painted = (file, box) => {
+  try {
+    const inside = meanOf(file, box);
+    const control = meanOf(file, [box[0], Math.max(0, box[1] - (box[3] - box[1])), box[2], Math.max(1, box[1] - 2)]);
+    return Math.abs(inside - control) > 0.08;
+  } catch (error) {
+    console.error(`pixels skipped: ${error.message.split('\n')[0]}`);
+    return true; // no ImageMagick here: fall back to the tree reading rather than throw every leg away
+  }
+};
 // The note's own line boxes from the frame's pixels, so a reading can be tied to what the screen really shows.
 const ocrLines = file => {
   try {
@@ -449,14 +464,13 @@ const noteLanded = async (screen, start) => {
     // The note's own pill is a view in an overlay window, so it is in the tree; a system toast is not, and is read
     // by OCR instead. Either way its box comes from this screenshot's moment.
     const said = list.find(node => node.visible && node.windowType === 4 && (node.text ?? '').startsWith(start));
-    // The tree carries the note's text from the moment it is laid out, a moment before the pill is painted (one frame
-    // showed the bubble alone with the tree already saying "Inserted"), so a frame is only taken as proof when the text
-    // is also readable in its pixels. OCR failure on this host leaves the tree reading as the only one, unpainted.
-    const lines = ocrLines(file);
-    const seen = lines.find(line => line.text[0]?.startsWith(start));
+    // The tree carries the note's text from the moment it is laid out, a moment before the pill is painted (frames
+    // showed the bubble alone with the tree already saying "Inserted"), so a tree reading only counts when the pixels
+    // inside its box differ from the app's background there. OCR reads a system toast, which is in no tree.
+    const seen = ocrLines(file).find(line => line.text[0]?.startsWith(start));
     let found = null;
     let foundBy = '';
-    if (said && seen) { found = { text: said.text, box: said.bounds }; foundBy = 'tree+ocr'; }
+    if (said && painted(file, said.bounds)) { found = { text: said.text, box: said.bounds }; foundBy = 'tree+pixels'; }
     else if (!said && seen) { found = seen; foundBy = 'ocr'; }
     else if (said) console.error(`note laid out but not painted yet: ${said.text}`);
     if (found) {
