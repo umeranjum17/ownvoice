@@ -147,11 +147,12 @@ const skipSetup = async () => {
   // Back on the welcome finishes setup; if the app lands back on it, press once more.
   for (let i = 0; i < 3; i++) { adb('shell', 'input', 'keyevent', '4'); await wait(2500); if (!findText('sound like you')) return; }
 };
-// Home only: the welcome screen shares its copy, so Home is the row the tour sits next to.
+// Home only: the welcome screen shares its copy, and a page left scrolled would hide Home's top card,
+// so the page comes back to the top and Home is proven by one of its own top lines.
 const home = async () => {
   await open('/'); await waitFocus();
-  for (let i = 0; i < 3 && !(findText('where the bubble shows') || await reveal('where the bubble shows')); i++) await wait(1500);
-  if (!findText('where the bubble shows')) throw new Error(`Home did not show its rows: ${screenWords()}`);
+  for (let i = 0; i < 2; i++) await swipeBy(false);
+  await awaitVisible(['choose which one writes', 'ownvoice on or off', 'writes with your', 'turn on'], 30);
 };
 const swipeDown = async () => { const [w, h] = size(); adb('shell', 'input', 'swipe', String(w / 2), String(h * .7), String(w / 2), String(h * .3), '300'); await wait(1200); };
 
@@ -255,7 +256,6 @@ try {
   // 2. The model pick from Home, and the tour opening by itself on the way back from it.
   await run('tour-opens-after-pick', async () => {
     await theme(false); await home();
-    await waitText('choose which one writes', 30);
     await tapExact('Choose', 30);
     await waitText('search the list', 90);
     await pickModel('home');
