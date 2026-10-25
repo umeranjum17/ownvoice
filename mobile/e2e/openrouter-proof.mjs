@@ -77,6 +77,10 @@ const waitText = async (label, tries = 40) => {
   for (let i = 0; i < tries; i++) { const n = wanted.map(findText).find(Boolean); if (n) return n; await wait(1000); }
   throw new Error(`Could not see "${wanted.join('" or "')}" on screen: ${screenWords()}`);
 };
+const until = async (found, label, tries = 20) => {
+  for (let i = 0; i < tries; i++) { const n = found(); if (n) return n; await wait(1000); }
+  throw new Error(`Could not find ${label}: ${screenWords()}`);
+};
 const tapText = async (label, tries = 20) => {
   for (let i = 0; i < tries; i++) { const n = findText(label); if (n) { tap(...center(n)); return n; } await wait(1000); }
   throw new Error(`Could not find visible ${label}: ${screenWords()}`);
@@ -170,7 +174,9 @@ const pickModel = async tag => {
   adb('shell', 'input', 'text', `'${PICK_MODEL.replace(/ /g, '%s')}'`); await wait(900);
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
   snap(`pick-search-${tag}`);
-  await tapText(PICK_MODEL.toLowerCase(), 20);
+  // The search field now holds the same words, so tap the row, never the field.
+  const row = await until(() => find(n => !n.editable && `${n.label} ${n.text}`.toLowerCase().includes(PICK_MODEL.toLowerCase())), 'the model row', 20);
+  tap(...center(row));
   await wait(1200);
 };
 const connectOpenRouter = async (tag, { pick = true } = {}) => {
@@ -486,10 +492,11 @@ const withWidth = async (dp, fn) => {
   try { await fn(); } finally { adb('shell', 'wm', 'size', 'reset'); adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true); }
 };
 const pickJourney = async () => {
-  await fresh(); await theme(false); await skipSetup(); await enableChrome();
+  // RUN_ONLY re-runs steps on the emulator as the earlier run left it (connected, nothing picked yet).
+  if (!only) { await fresh(); await theme(false); await skipSetup(); await enableChrome(); }
   // 1. Connected but nothing picked: the card, Home and the panel ask (after only; before there is nothing to ask).
-  await connectOpenRouter('light', { pick: false });
-  if (!pickBefore) {
+  if (!only) await connectOpenRouter('light', { pick: false });
+  if (!pickBefore && !only) {
     await run('panel-asks', async () => { const panel = await openPanelAny('panel-asks-light'); if (!panel.map(n => n.text).join(' ').toLowerCase().includes('choose which one writes first')) throw new Error('The panel did not ask which one writes.'); });
   }
   for (const dark of [false, true]) for (const dp of WIDTHS) {
@@ -511,10 +518,12 @@ const pickJourney = async () => {
       const T = dark ? 'dark' : 'light';
       await run(`pick-${T}-font1.3`, async () => { await theme(dark); await withFont('1.3', () => openList(`pick-list-${T}-font1.3`)); });
     }
-    await theme(false);
-    adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://model?account=openrouter', pkg);
-    await pickModel('final');
-    await waitText('openrouter is connected', 60);
+    await run('pick-final', async () => {
+      await theme(false);
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://model?account=openrouter', pkg);
+      await pickModel('final');
+      await waitText('openrouter is connected', 60);
+    });
   }
   // 3. Picked: the card and Home in each theme, and at font 1.3.
   for (const [T, F, dark, font] of [['dark', '', true, '1.0'], ['light', '', false, '1.0'], ['light', '-font1.3', false, '1.3']]) {
@@ -529,7 +538,8 @@ const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessi
 const priorAccessibility = adb('shell', 'settings', 'get', 'secure', 'accessibility_enabled').trim();
 const priorFont = adb('shell', 'settings', 'get', 'system', 'font_scale').trim();
 let failed = 0;
-const run = async (name, fn) => { log(`-- ${name}`); try { await fn(); } catch (e) { failed++; log(`FAILED ${name}: ${String((e && e.message) || e).slice(0, 220)}`); } };
+const only = process.env.RUN_ONLY ? new RegExp(process.env.RUN_ONLY) : null; // re-run just the steps whose name matches
+const run = async (name, fn) => { if (only && name !== 'pick' && !only.test(name)) return; log(`-- ${name}`); try { await fn(); } catch (e) { failed++; log(`FAILED ${name}: ${String((e && e.message) || e).slice(0, 220)}`); } };
 
 try {
   adb('shell', 'cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');

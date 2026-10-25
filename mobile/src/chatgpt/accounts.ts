@@ -1,4 +1,4 @@
-import { responseFetch } from './responseFetch';
+import { proofRoute, responseFetch } from './responseFetch';
 import * as SecureStore from 'expo-secure-store';
 import { Accounts, offered, portable, PROVIDERS, resolveModel, route, secureStore } from '@byokit/accounts';
 import { keys, withKeys } from '@byokit/accounts/keys';
@@ -131,7 +131,7 @@ function keyModel(key: 'openrouter' | 'opencode', id: string): Promise<Model<Api
       if (!resolved) throw new Error('This account lists no models.');
       // The plan's gateway turns away a request that carries no session (400 on activate), so the model opts into
       // the adapter's session-affinity headers through its own compat seam.
-      return key === 'opencode' ? { ...resolved.model, compat: { ...resolved.model.compat, sendSessionAffinityHeaders: true, sessionAffinityFormat: 'openai' as const } } as Model<Api> : resolved.model;
+      return key === 'opencode' ? { ...resolved.model, compat: { ...resolved.model.compat, sendSessionAffinityHeaders: true, sessionAffinityFormat: 'openai' as const } } as Model<Api> : { ...resolved.model, baseUrl: proofRoute(resolved.model.baseUrl) };
     })();
     keyModels.set(at, found);
     found.catch(() => keyModels.delete(at));
