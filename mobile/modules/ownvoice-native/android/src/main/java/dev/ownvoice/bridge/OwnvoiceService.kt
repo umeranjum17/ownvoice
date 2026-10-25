@@ -193,8 +193,10 @@ class OwnvoiceService : AccessibilityService() {
   private var checkedApp: String? = null
   private var pausedAt = 0L
   /** A note said while the panel closes, such as "Copied.", shown once the app it closed over is back: text, how long
-   * it shows, and when it first showed (0 until then, so the note keeps its whole time on screen; it expires after it). */
-  private var pendingNote: Triple<String, Long, Long>? = null
+   * it shows, when it first showed (0 until then, so the note keeps its whole time on screen; it expires after it), and
+   * the boxes of the field and send controls it keeps off. */
+  private data class Note(val text: String, val forMs: Long, val shownAt: Long, val clear: List<ClearRect>)
+  private var pendingNote: Note? = null
   private var slipApp: String? = null
   private var slipCount = 0
   private var slipLabel = ""
@@ -654,10 +656,9 @@ class OwnvoiceService : AccessibilityService() {
     if (!cancelled) {
       if (practice) restIdle()
       else if (ok) {
-        // The note keeps off the send control; the kit keeps it off the focused field (the inserted text) on its own.
+        // The note keeps off the field just written to and the send control (say measures them); the text names the send.
         val root = appRoot()
         val send = try { sendBounds(root) } finally { root?.recycle() }
-        bubbles?.keepClear(send)
         say(if (send.isNotEmpty()) "Inserted. Send it yourself." else "Inserted")
       }
       else {
@@ -738,14 +739,36 @@ class OwnvoiceService : AccessibilityService() {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs) }; return }
     // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
     // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
-    if (panelIsOpen && !practice) { pendingNote = Triple(message, forMs, 0L); Log.i(TAG, "note held for the panel to close: $message"); return }
+    val clear = clearBoxes()
+    if (panelIsOpen && !practice) { pendingNote = Note(message, forMs, 0L, clear); Log.i(TAG, "note held for the panel to close: $message"); return }
     // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one.
     if (currentApp() == packageName && !practice) {
       Toast.makeText(this, message, Toast.LENGTH_LONG).show()
       return
     }
     // Announced, so TalkBack reads the pill the way the old live region did.
+    showNote(message, forMs, clear)
+  }
+
+  /** Says [message] with its time and the boxes it keeps off, so the kit moves the bubble and the note together. */
+  private fun showNote(message: String, forMs: Long, clear: List<ClearRect>) {
+    if (clear.isNotEmpty()) bubbles?.keepClear(clear)
     bubbles?.say(message, moodFor(message), forMs, announce = true)
+  }
+
+  /**
+   * The box of the field just written to, with the screen's send controls: a note and the bubble keep off both. Measured
+   * here rather than left to the kit's focused-field poll, which has no box once the panel has taken the focus, so the
+   * note sat where the bubble rests, over the composer.
+   */
+  private fun clearBoxes(): List<ClearRect> {
+    val out = mutableListOf<ClearRect>()
+    val field = capture?.takeIf { it.app == frontApp || panelIsOpen }?.input ?: focusedField()
+    val box = field?.let { Rect().also(it::getBoundsInScreen) }
+    if (box != null && box.width() > 0 && box.height() > 0) out += ClearRect(box.left, box.top, box.width(), box.height())
+    val root = appRoot()
+    try { out += sendBounds(root) } finally { root?.recycle() }
+    return out
   }
 
   /** Posted, so it runs after the kit has shown the bubble again for the app in front; it waits while the panel or an
@@ -753,14 +776,14 @@ class OwnvoiceService : AccessibilityService() {
    * hides and re-shows the bubble as the panel closes, which drops a note given once at the wrong moment. */
   private fun sayPending() {
     main.post {
-      val (message, forMs, at) = pendingNote ?: return@post
-      val left = forMs - if (at == 0L) 0L else SystemClock.uptimeMillis() - at
-      if (left <= 0) { pendingNote = null; Log.i(TAG, "note expired before it showed: $message"); return@post }
+      val note = pendingNote ?: return@post
+      val left = note.forMs - if (note.shownAt == 0L) 0L else SystemClock.uptimeMillis() - note.shownAt
+      if (left <= 0) { pendingNote = null; Log.i(TAG, "note expired before it showed: ${note.text}"); return@post }
       if (panelIsOpen || frontApp == null || frontApp == packageName) return@post
-      bubbles?.say(message, moodFor(message), left, announce = true)
-      if (at == 0L) pendingNote = Triple(message, forMs, SystemClock.uptimeMillis())
-      val said = message
-      main.postDelayed({ Log.i(TAG, "note drawn=${onScreen(said)} leftMs=$left text=$said") }, 400)
+      showNote(note.text, left, note.clear)
+      if (note.shownAt == 0L) pendingNote = note.copy(shownAt = SystemClock.uptimeMillis())
+      val said = note.text
+      main.postDelayed({ Log.i(TAG, "note drawn=${onScreen(said)} leftMs=$left clear=${note.clear.size} text=$said") }, 400)
     }
   }
 
