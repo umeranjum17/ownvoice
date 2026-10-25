@@ -743,8 +743,10 @@ class OwnvoiceService : AccessibilityService() {
     // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
     // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
     val clear = clearBoxes(box)
-    // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one.
-    if (currentApp() == packageName && !practice) {
+    // The panel is an Ownvoice screen too, and the copy says its note before it finishes: only Ownvoice's own screens
+    // with no panel up (setup, practice) use a toast, which sits low over an app's message box.
+    val panelUp = panelIsOpen || PanelActivity.current != null
+    if (currentApp() == packageName && !panelUp && !practice) {
       Toast.makeText(this, message, Toast.LENGTH_LONG).show()
       return
     }
