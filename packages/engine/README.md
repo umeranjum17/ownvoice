@@ -4,6 +4,10 @@ Ownvoice's model-free writing core: voice rules, platform briefs, draft parsing,
 thread splitting and writing checks. It makes no network requests, downloads no
 models, and has no runtime dependencies. Apache-2.0 licensed.
 
+It is the core behind [Ownvoice](https://github.com/umeranjum17/ownvoice), an
+Android app that puts a small bubble beside the message you are writing and
+offers tidier versions of your own words.
+
 ```sh
 npm install ownvoice-engine
 ```
