@@ -416,13 +416,22 @@ shot('drafts');
 // (a system toast is not in the accessible tree), against the composer field and the Post button.
 // Whether the box holds a painted pill: one solid colour fills it (the pill and its text), which a region mixing the
 // mascot's colours, or plain app background, does not. Mean-vs-background alone passed the mascot, so the fill is read.
+// A painted pill is a solid colour filling its box (itself and the text) AND that colour differs from the app beside
+// it. Either test alone lied: the mascot's dark circle is solid but is not background-different, and blank composer
+// space is background-different but not solid. Both are read from the frame, never from the accessibility tree.
+const meanOf = (file, [x1, y1, x2, y2]) => {
+  const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
+  return Number(execFileSync('magick', [file, '-crop', `${w}x${h}+${x1}+${y1}`, '+repage', '-format', '%[fx:mean]', 'info:'], { encoding: 'utf8' }).trim());
+};
 const painted = (file, [x1, y1, x2, y2]) => {
   try {
     const w = Math.max(1, x2 - x1), h = Math.max(1, y2 - y1);
     const hist = execFileSync('magick', [file, '-crop', `${w}x${h}+${x1}+${y1}`, '+repage', '-colors', '6', '-format', '%c', 'histogram:info:-'], { encoding: 'utf8' });
     const bins = hist.trim().split('\n').map(row => Number((row.match(/(\d+):\s*\(/) ?? [])[1] ?? 0));
     const total = bins.reduce((a, b) => a + b, 0) || 1;
-    return Math.max(...bins) / total >= 0.7;
+    const solid = Math.max(...bins) / total >= 0.7;
+    const apart = Math.abs(meanOf(file, [x1, y1, x2, y2]) - meanOf(file, [x1, Math.max(0, y1 - h), x2, Math.max(1, y1 - 2)])) > 0.08;
+    return solid && apart;
   } catch (error) {
     console.error(`pixels skipped: ${error.message.split('\n')[0]}`);
     return true; // no ImageMagick here: fall back to the tree reading rather than throw every leg away
@@ -451,11 +460,18 @@ const noteBoxes = [];
 const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3];
 // The note shows for about 4 s, so the screenshots start at once and the boxes are read after the note is found.
 const noteLanded = async (screen, start) => {
-  for (let attempt = 0; attempt < 20; attempt++) {
+  // The insert verifies for as long as its own retries take (half a minute at 445 dp), and the note is said only after
+  // that, so the wait is long and screenshots taken while the panel's text is still up do not use it up.
+  let waiting = 0;
+  for (let attempt = 0; attempt < 45; attempt++) {
     // The note's own window draws behind the panel, so a box read while the panel is still up describes a screen
     // nobody sees: wait for the panel's own text to go (its window node lingers after the sheet has visibly gone),
     // then measure what the person actually gets.
-    if (nodes().some(node => node.visible && node.app === pkg && node.windowType !== 4 && (node.text ?? '').trim())) { await wait(300); continue; }
+    if (nodes().some(node => node.visible && node.app === pkg && node.windowType !== 4 && (node.text ?? '').trim())) {
+      await wait(300);
+      if (waiting++ < 100) attempt--; // waiting for the panel is not a look at the screen
+      continue;
+    }
     // One file per try, so a miss's frame can never be overwritten by the try that found the note, and the frame a
     // reading came from is named in the reading.
     const file = resolve(repoRoot, evidence('shot', 'ov-own-posts', `${screen}-try${attempt}`, label, theme).trim());
