@@ -338,7 +338,8 @@ test('a signed-in account with no pick: Home asks which one writes, never ready,
   expect(screen.getByText(words.needModelNote)).toBeTruthy();
   expect(screen.queryByText(words.statusReady)).toBeNull();
   await fireEvent.press(screen.getByText(words.modelChoose));
-  expect(router.push).toHaveBeenCalledWith('/model?account=chatgpt');
+  // tour=1: the pick made from this button is the newcomer path, and the tour opens on the way back.
+  expect(router.push).toHaveBeenCalledWith('/model?account=chatgpt&tour=1');
   expect(pickedModel('chatgpt')).toBeNull();
 });
 

@@ -172,6 +172,15 @@ journeys:
       node mobile/e2e/grow-reply-live.mjs mobile/e2e/grow-reply-cases.json "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 45m
 
+  onboarding-tour:
+    description: "Android: a newcomer connects the OpenRouter route, Home asks which one writes, the pick makes the short tour open by itself; the tour polishes one made-up post on that account into versions, Done returns Home with the Take the tour row kept, and a cut network keeps the person on the tour screen with a plain line whose Try again writes once it is back. Light and dark at 360, 390 and 445 dp, plus one 1280x800 window. The writer is the host's own pi served to the emulator (real DeepSeek Flash, no provider key, no spend), so the APK must be built with EXPO_PUBLIC_E2E_OPENROUTER_BASE=http://10.0.2.2:18799/api/v1 (emulator-only flag, per mobile/README.md) and a dummy OPENROUTER_KEY_FILE (sk-...) is enough; the driver starts the stand-in itself. TOUR_WRITER=live uses a real account instead. Needs an explicit emulator allocation, APK (path to that release APK) and PICK_MODEL (a row the stand-in lists)."
+    spends: "nothing: the writer is the host's own pi, no provider key and no paid model"
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; : "${PICK_MODEL:?the model id to pick required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      export PI_MODEL="${PI_MODEL:-commandcode/deepseek/deepseek-v4.1-flash}" PI_FALLBACK_MODEL="${PI_FALLBACK_MODEL:-commandcode/deepseek/deepseek-v4.1-flash}"
+      node mobile/e2e/tour.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 60m
+
   welcome-promise:
     description: "Android: the first-run welcome promises replies only on X, Reddit and LinkedIn and polish in other apps, never replies in any chat. Light and dark, default and largest font. Any release APK (no stub flags); OWNVOICE_BEFORE=1 captures the base build. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     command: |

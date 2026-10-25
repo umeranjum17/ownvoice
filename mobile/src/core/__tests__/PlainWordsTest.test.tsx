@@ -6,6 +6,7 @@ import { NOTE_POSTS } from '../notesPosts';
 import React from 'react';
 const renderToStaticMarkup: (element: React.ReactElement) => string = require('react-dom/server').renderToStaticMarkup;
 import Home from '../../../app/index';
+import Tour from '../../../app/tour';
 import { ModelPick } from '../../ui/ModelPick';
 import Growth from '../../../app/growth';
 import Source from '../../../app/source';
@@ -82,6 +83,13 @@ test('platformStyles', () => { const shown: string[] = []; for (const app of ['c
 test('markedPhrases', () => { const text = "Here's a reply: Great post! Let's delve in. It's not just fast, but fun — quick, simple, and fun. #one #two 😀😀😀 What do you think?"; const reasons = [...Slop.hits(text, { ...Slop.NO_RULES, noDashes: true }, true).map(h => h.reason), ...Slop.hits('Is it on?', { ...Slop.NO_RULES, statementEndings: true }, true).map(h => h.reason)]; assertPlain([...new Set([...reasons, ...Array.from({ length: 101 }, (_, i) => Slop.words(i))])]); });
 test('ratingWords', () => { const shown: string[] = []; for (const app of ['com.twitter.android', 'com.linkedin.android', 'com.reddit.frontpage', 'com.instagram.barcelona', 'xyz.blueskyweb.app']) for (const post of [null, '', 'Shipping one small fix beats polishing the launch.']) for (const draft of ['Great post! Thoughts?', 'Did retention show up before pricing changed?', 'Shipping one small fix beats polishing the launch.', 'See https://example.com @someone ' + 'x'.repeat(10001), "Let's circle back, delve in, and leverage it — #one #two"]) { const r = Ratings.rate(draft, Platform.platformForApp(app), post, { never: ['circle back'], noDashes: true, statementEndings: true, note: '' })!; shown.push(r.engagement.title, r.engagement.label, ...r.engagement.signals.map(x => x.text), ...r.engagement.unknown, r.stock.title, r.stock.label, ...r.stock.signals.map(x => x.text.replace(/^“[^”]*”: /, ''))); } expect(shown.join(' ')).not.toMatch(/viral|will get|score|helps|holds? it back|fewer|(?<!predict )reach\b|views/i); assertPlain([...new Set(shown)]); });
 test('readLog', () => { const shown = (['REPLY', 'COMPOSE', 'EMPTY'] as Judge.Mode[]).flatMap(mode => [['', ''], ['chat', ''], ['', 'hi'], ['chat', 'hi']].map(([c, t]) => Privacy.summary(mode, c, t))).concat(['Reply drafts. 117 characters on screen, 0 in your field.', 'Compose boost. 0 characters on screen, 12 in your field.', 'Nothing to work on. 0 characters on screen, 0 in your field.'].map(Privacy.plain)); assertPlain(shown); });
+test('tourScreenShowsOnlyPlainWords', () => {
+  const shown = renderToStaticMarkup(React.createElement(Tour));
+  for (const line of [words.tourTitle, words.tourNote, words.tourSample, words.tourSampleNote, words.tourStart, words.tourSkip]) expect(shown).toContain(line);
+  expect(shown).toContain('the week 12 post');
+  assertPlain([shown.replace(/<[^>]*>/g, '')]);
+});
+
 test('displayedHomeCopy', () => { const html = renderToStaticMarkup(React.createElement(Home)); expect(html).toContain(words.rowSource); expect(html).not.toContain(words.privacyPhone); expect(html).not.toContain(words.switchNote); assertPlain([html.replace(/<[^>]*>/g, ''), ...Object.values(words)]); });
 test('writingDetails', () => { const html = renderToStaticMarkup(React.createElement(Source)); for (const line of [words.rowSource, words.sourceNote, words.writingSection, words.readsNote]) expect(html).toContain(line); assertPlain([html.replace(/<[^>]*>/g, '')]); });
 test('offeredApps', () => { assertPlain(offeredApps(() => true).map(x => x[1])); });
@@ -105,6 +113,7 @@ test('openRouterAccountWords', () => { const keys = ['openrouterKeyNote', 'openr
 test('openCodeAccountWords', () => { const keys = ['openCodeKeyNote', 'openCodePasteField', 'openCodeConnect', 'openCodeSignOut', 'openCodeButton', 'openCodeKeyFailed', 'srcOpenCode', 'srcOpenCodeSub', 'rowSourceOpenCode', 'homeOpenCode', 'headOpenCode', 'privacyOpenCode', 'switchNoteOpenCode', 'openCodeSwitchTitle', 'openCodeSwitchBody', 'openCodeSwitchYes', 'openCodePhoneBackup', 'openCodeFailed', 'openCodeFallback', 'openCodeOff', 'openCodeOffNoPhone', 'openCodeNeedNote', 'openCodeSwitchUnavailable', 'openCodeCantWriteNote', 'openCodeCantWriteFix', 'openCodePhoneCantWhy']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
 test('jevConsentWords', () => assertPlain(Object.entries(words).filter(([key]) => key.startsWith('jev')).map(([, text]) => text)));
 test('modelPickerWords', () => { const keys = ['rowModel', 'rowModelNone', 'needModel', 'needModelNote', 'needModelPanel', 'modelTitle', 'modelNote', 'modelSearch', 'modelLoading', 'modelFailed', 'modelEmpty', 'modelMore', 'modelPicked', 'modelChoose', 'modelLimited', 'modelResting', 'modelSaveFailed']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
+test('tourWords', () => { const keys = ['tourRow', 'tourRowNote', 'tourTitle', 'tourNote', 'tourCostKey', 'tourSample', 'tourSampleNote', 'tourStart', 'tourSkip', 'tourFinish', 'tourAgain', 'tourDone', 'tourNoWriter', 'tourSlow', 'tourEnough']; expect(keys.filter(k => !(k in words))).toEqual([]); assertPlain(keys.map(k => words[k as keyof typeof words])); });
 // The one narrow exception: the rows of the Which one writes list are the vendor's own names, whatever they hold. Every other
 // line on that list stays plain, and the rule itself still catches those names anywhere else.
 test('theModelListShowsVendorNamesAndNothingElseTechnical', async () => {
