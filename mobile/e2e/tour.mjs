@@ -246,7 +246,8 @@ const writerOff = async () => { if (!writer) throw new Error('The failed-call le
 const writerOn = async () => { if (!writer) { writer = startWriter(); await wait(2500); } };
 void piWriter;
 
-const priorNight = adb('shell', 'cmd', 'uimode', 'night').trim();
+// The command answers "Night mode: no", so the mode itself is what follows the colon.
+const priorNight = (adb('shell', 'cmd', 'uimode', 'night').match(/\b(yes|no|auto|custom_schedule|custom_bedtime)\b/) || ['no'])[0];
 const priorFont = adb('shell', 'settings', 'get', 'system', 'font_scale').trim();
 const priorProxy = adb('shell', 'settings', 'get', 'global', 'http_proxy').trim();
 const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
@@ -390,7 +391,7 @@ try {
   if (writer) { try { writer.kill(); } catch { /* already gone */ } }
   try { adb('shell', 'cmd', 'connectivity', 'airplane-mode', 'disable'); } catch { /* best-effort restore */ }
   try { adb('shell', 'settings', 'put', 'global', 'http_proxy', priorProxy || ':0'); } catch { /* best-effort restore */ }
-  adb('shell', 'cmd', 'uimode', 'night', priorNight || 'no');
+  try { adb('shell', 'cmd', 'uimode', 'night', priorNight); } catch { /* best-effort restore */ }
   try { adb('shell', 'settings', 'put', 'system', 'font_scale', priorFont || '1.0'); } catch { /* best-effort restore */ }
   for (const [v, k] of [[priorServices, 'enabled_accessibility_services'], [priorAccessibility, 'accessibility_enabled']]) {
     try { adb('shell', 'settings', v === 'null' ? 'delete' : 'put', 'secure', k, ...(v === 'null' ? [] : [v])); } catch { /* best-effort restore */ }
