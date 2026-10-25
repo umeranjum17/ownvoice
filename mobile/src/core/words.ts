@@ -259,8 +259,28 @@ const modelWords = {
   modelSaveFailed: 'Couldn’t save your choice. Try again.',
 } as const;
 
+// The short guided tour after the person picks which one writes: one made-up example on their own
+// account, its cost said plainly, and every failure recoverable in place.
+const tourWords = {
+  tourRow:'Take the tour',
+  tourRowNote:'A short look at what Ownvoice does, on made-up text.',
+  tourTitle:'A quick look at Ownvoice',
+  tourNote:'Ownvoice writes a made-up example on your account here, never your chats. It is about as much as sending two short messages.',
+  tourCostKey:'On a pay-per-use key this is a fraction of a cent to a few cents.',
+  tourSample:'A made-up post',
+  tourSampleNote:'Nothing here is real or sent anywhere.',
+  tourStart:'Polish the made-up post',
+  tourSkip:'Skip the tour',
+  tourFinish:'Done',
+  tourAgain:'Try another example',
+  tourDone:'That is the useful part: your own post, in your own words, each version a little different.',
+  tourNoWriter:'This one needs an account. Skip for now, and choose a writer in How Ownvoice writes.',
+  tourSlow:'This one took too long. Try again, or skip for now.',
+  tourEnough:'That is enough examples for now.',
+} as const;
+
 export const words = {
-  ...engineWords, ...modelWords, ...typingWords, ...fitWords, ...worthWords, ...editWords, ...postsWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords,
+  ...engineWords, ...modelWords, ...typingWords, ...fitWords, ...worthWords, ...editWords, ...postsWords, ...dictateWords, ...growthWords, ...homeWords, ...claudeWords, ...openRouterWords, ...openCodeWords, ...mailWords, ...tourWords,
   aboutTitle: 'About Ownvoice',
   aboutVersion: 'Version',
   aboutBuild: 'Build',

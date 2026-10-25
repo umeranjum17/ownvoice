@@ -17,6 +17,8 @@ import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, store, t
 import { cloudOf, cloudSession, getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
 import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, asksModel, type GptState } from '../src/chatgpt/session';
 import { pickedModel } from '../src/core/model';
+import { openTour, tourState } from '../src/core/tour';
+import { devlog } from '../src/core/writers';
 import { openCodeReady, openRouterReady } from '../src/chatgpt/accounts';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
@@ -199,6 +201,19 @@ export default function Home() {
   const mood = needs || needsModel ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (cloudState?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : cantWrite ? 'check' : checking ? 'idle' : 'ready';
   const signIn = (needs && !phoneCan || on && !!cloud && !!cloudState && !cloudState.signedIn) && !((viaOpenRouter && !openRouterReady()) || (viaOpenCode && !openCodeReady()));
   const onCard = green ? t.onPrimaryContainer : t.text;
+  // The short tour opens itself once, right back from picking which one writes; after that Home offers
+  // it as a row, so a skipped tour is never forced again (scope report, decisions 1 and 5).
+  // The tour opens itself once, on the way back from picking which one writes (scope report, decisions 1
+  // and 5). Read at focus, not from render state: Home's reload usually sets the same values, so React
+  // often does not re-render on the way back and a render-time flag would stay stale. The push is not
+  // tied to this effect's lifetime, because Home setting state during the reload would cancel it.
+  useFocusEffect(useCallback(() => {
+    const due = tourState();
+    if (!due.pending || due.done || due.skipped) return;
+    devlog('tour pending: pushing the tour');
+    const late = setTimeout(() => { openTour(); router.push('/tour'); }, 400);
+    void late;
+  }, []));
   const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
   const shown = (apps ?? []).filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };
@@ -222,7 +237,7 @@ export default function Home() {
       {(needs || needsModel || signIn || on && (problem !== null || ask || !!cantWrite) || service !== 'on') && <View style={styles.statusActions}>
         {service === 'off' && !needs && !signIn && <Button kind="filled" label={words.turnOn} onPress={() => power(true)} />}
         {signIn && <Button kind="filled" label={cloud === 'claude' ? words.claudeButton : cloud === 'openrouter' ? words.openrouterButton : cloud === 'opencode' ? words.openCodeButton : words.gptButton} onPress={() => router.push(cloud === 'claude' ? '/source?start=claude' : cloud === 'openrouter' ? '/source?start=openrouter' : cloud === 'opencode' ? '/source?start=opencode' : '/source?start=chatgpt')} />}
-        {needsModel && cloud && <Button kind="filled" label={words.modelChoose} onPress={() => router.push(`/model?account=${cloud}`)} />}
+        {needsModel && cloud && <Button kind="filled" label={words.modelChoose} onPress={() => router.push(`/model?account=${cloud}&tour=1`)} />}
         {needs && phoneCan && <Button kind="filled" label={words.continueLabel} onPress={() => router.push('/source')} />}
         {!needs && on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
         {!needs && on && stopped && <Button kind="filled" label={words.tryAgain} onPress={() => start()} />}
@@ -262,6 +277,7 @@ export default function Home() {
     <View style={group}>
       <Row lead={icon(LockIcon)} title={words.rowSource} subtitle={viaPhone ? words.rowSourcePhone : viaGpt ? words.rowSourceGpt : viaClaude ? words.rowSourceClaude : viaOpenRouter ? words.rowSourceOpenRouter : viaOpenCode ? words.rowSourceOpenCode : source === 'computer' ? words.rowSourceComputer : words.rowSourceNone} onPress={() => router.push('/source')} />
       <Row lead={icon(CheckIcon)} title={words.jevTitle} onPress={() => router.push('/ratings')} />
+      {!!cloud && !needsModel && <Row lead={icon(PenIcon)} title={words.tourRow} subtitle={words.tourRowNote} onPress={() => router.push('/tour')} />}
       <Row lead={icon(ChatIcon)} title={words.rowComputer} subtitle={source === 'computer' ? words.rowSourceComputer : words.rowComputerNone} onPress={() => router.push('/computer')} />
       <Row lead={icon(GridIcon)} title={words.rowApps} subtitle={appsLine(shown)} onPress={() => router.push('/apps')} />
       <Row lead={icon(PenIcon)} title={words.rowVoice} subtitle={phrases === 0 ? words.noPhrases : phrases === 1 ? `1 ${words.phraseOne}` : `${phrases} ${words.phraseMany}`} onPress={() => router.push('/voice')} />

@@ -338,7 +338,8 @@ test('a signed-in account with no pick: Home asks which one writes, never ready,
   expect(screen.getByText(words.needModelNote)).toBeTruthy();
   expect(screen.queryByText(words.statusReady)).toBeNull();
   await fireEvent.press(screen.getByText(words.modelChoose));
-  expect(router.push).toHaveBeenCalledWith('/model?account=chatgpt');
+  // tour=1: the pick made from this button is the newcomer path, and the tour opens on the way back.
+  expect(router.push).toHaveBeenCalledWith('/model?account=chatgpt&tour=1');
   expect(pickedModel('chatgpt')).toBeNull();
 });
 
@@ -537,8 +538,10 @@ test('returning to Home refreshes voice, apps, and reads without backgrounding',
   kv.set('voice', JSON.stringify({ never: ['delve'], noDashes: false, statementEndings: false, note: '' }));
   native.takeTapFacts.mockResolvedValue([fact()]);
   native.bubbleRules.mockResolvedValue({ paused: false, on: ['com.android.chrome'], off: ['com.google.android.gm', 'com.whatsapp'] });
-  const focus = (jest.requireMock('expo-router').useFocusEffect as jest.Mock).mock.calls.at(-1)[0];
-  await act(async () => { focus(); });
+  // Home registers more than one focus callback (its refresh, and the tour it may open): running them all
+  // is what coming back to Home does, and keeps this from depending on which was registered last.
+  const focus = (jest.requireMock('expo-router').useFocusEffect as jest.Mock).mock.calls.map(call => call[0] as () => void);
+  await act(async () => { for (const fn of focus) fn(); });
   expect(await screen.findByText('1 phrase you never say')).toBeTruthy();
   expect(screen.getByText(words.onceWeek)).toBeTruthy();
   expect(screen.getByText('Chrome')).toBeTruthy();
