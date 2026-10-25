@@ -129,6 +129,15 @@ const theme = async dark => {
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
   await waitFocus();
 };
+// The text size a person sets in Settings: the write reaches the display config a while later, and an app
+// started before that keeps the old one, so wait for the config itself rather than for a fixed beat.
+const setFontScale = async scale => {
+  const now = () => adb('shell', 'dumpsys', 'activity', 'activities').match(/mGlobalConfig=\{([0-9.]+)/)?.[1];
+  adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0'); await wait(800);
+  adb('shell', 'settings', 'put', 'system', 'font_scale', scale);
+  for (let i = 0; i < 30; i++) { if (now() === scale) return; await wait(1000); }
+  throw new Error(`The system never took the ${scale} text size: ${String(now())}`);
+};
 const focused = () => {
   try { return adb('shell', 'dumpsys', 'window').match(/mCurrentFocus=Window\{[^}]*\bu0\s+([\w.]+)\//)?.[1] === pkg; } catch { return false; }
 };
@@ -337,13 +346,12 @@ try {
     // The emulator's `wm size`/`density` override pins the whole configuration, font scale included, so this
     // frame is at the phone's own 360 dp: large text as a person sets it, which is what the rule is for.
     await theme(false);
-    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0'); await wait(1500);
-    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3'); await wait(3000);
+    await setFontScale('1.3');
     adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true);
     await openTourFromHome();
     snap('tour-open-light-font1.3');
     adb('shell', 'input', 'keyevent', '4'); await wait(1200);
-    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0'); await wait(1500);
+    await setFontScale('1.0');
   });
 
   // 7. A tablet-sized window, where the same screen is reachable.
