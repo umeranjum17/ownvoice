@@ -43,6 +43,9 @@ const unavailableApk = process.argv[4];
 // appears as its result, and the injected unavailable-route counterfactual — with no paid generation.
 // The default (full) journey still needs a funded account for a real draft comparison.
 const negative = process.env.OPENROUTER_SCENARIOS === 'negative';
+const pickScenario = process.env.OPENROUTER_SCENARIOS === 'pick';
+// `OPENROUTER_SCENARIOS=livepick`: the one live pass: connect the key, pick PICK_MODEL (an explicit :free id) from the live list, and write once.
+const livePick = process.env.OPENROUTER_SCENARIOS === 'livepick';
 // The refusal panel legs only (any build without the phone stub): a refused key must show the
 // cloud writer's own plain line with a retry, light and dark, and the retry must re-run it.
 const refusal = process.env.OPENROUTER_REFUSAL === '1';
@@ -74,6 +77,10 @@ const waitText = async (label, tries = 40) => {
   for (let i = 0; i < tries; i++) { const n = wanted.map(findText).find(Boolean); if (n) return n; await wait(1000); }
   throw new Error(`Could not see "${wanted.join('" or "')}" on screen: ${screenWords()}`);
 };
+const until = async (found, label, tries = 20) => {
+  for (let i = 0; i < tries; i++) { const n = found(); if (n) return n; await wait(1000); }
+  throw new Error(`Could not find ${label}: ${screenWords()}`);
+};
 const tapText = async (label, tries = 20) => {
   for (let i = 0; i < tries; i++) { const n = findText(label); if (n) { tap(...center(n)); return n; } await wait(1000); }
   throw new Error(`Could not find visible ${label}: ${screenWords()}`);
@@ -104,7 +111,13 @@ const theme = async dark => {
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(4000);
 };
 // Setup is finished with no writer: hardware Back on the welcome completes it (the person can choose later).
-const skipSetup = async () => { await waitText('sound like you', 30); adb('shell', 'input', 'keyevent', '4'); await wait(2500); await waitText('where the bubble shows', 30); };
+const skipSetup = async () => { await waitText('sound like you', 30); adb('shell', 'input', 'keyevent', '4'); await wait(2500); await homeRows(); };
+// Home's lower rows can sit below the narrow viewport after setup or returning from Apps.
+const homeRows = async () => {
+  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
+  await wait(1200);
+  await waitText('where the bubble shows', 30);
+};
 const openSource = async () => { adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg); await waitText('with your openrouter', 30); };
 const revealOpenRouter = async () => {
   for (let i = 0; i < 5 && !findText('with your openrouter'); i++) {
@@ -133,10 +146,7 @@ const enableChrome = async () => {
   }
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice:///', pkg);
   await wait(1500);
-  // Home's lower rows can sit below the fold: scroll once before asserting the return.
-  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
-  await wait(1200);
-  await waitText('where the bubble shows', 30);
+  await homeRows();
 };
 
 // The writer list: OpenRouter card present (the kit reports its key route ready), then connect with the key.
@@ -149,7 +159,27 @@ const captureWriterList = async tag => {
   await wait(500);
   return card;
 };
-const connectOpenRouter = async tag => {
+// Right after the key connects the app asks which one writes: search the account's own list for PICK_MODEL (an explicit
+// model id, never openrouter/auto; a live run uses a :free id) and tap that row, as a person would.
+const PICK_MODEL = process.env.PICK_MODEL;
+// PICK_BEFORE=1 runs the pick scenario on a build from before the list existed: no pick screen to walk.
+const pickBefore = process.env.PICK_BEFORE === '1';
+const pickModel = async tag => {
+  if (!PICK_MODEL || /^openrouter\/auto$/.test(PICK_MODEL)) throw new Error('Set PICK_MODEL to the explicit model id to pick from the list.');
+  await waitText('search the list', 90); // the list is read from the account, so it can take a moment
+  snap(`pick-list-${tag}`);
+  const field = find(n => (n.label || '').toLowerCase().includes('search the list'));
+  if (!field) throw new Error('The model search field did not open.');
+  tap(...center(field)); await wait(700);
+  adb('shell', 'input', 'text', `'${PICK_MODEL.replace(/ /g, '%s')}'`); await wait(900);
+  if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); }
+  snap(`pick-search-${tag}`);
+  // The search field now holds the same words, so tap the row, never the field.
+  const row = await until(() => find(n => !n.editable && `${n.label} ${n.text}`.toLowerCase().includes(PICK_MODEL.toLowerCase())), 'the model row', 20);
+  tap(...center(row));
+  await wait(1200);
+};
+const connectOpenRouter = async (tag, { pick = true } = {}) => {
   const card = await captureWriterList(tag);
   tap(...center(card));
   await waitText('paste your openrouter key', 30); // The kit's own key field, inside the card.
@@ -159,7 +189,16 @@ const connectOpenRouter = async tag => {
   adb('shell', 'input', 'text', `'${key}'`); await wait(700); // never logged or screenshotted
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) { adb('shell', 'input', 'keyevent', '4'); await wait(900); } // hide the keyboard so Connect is visible
   await tapText('connect', 20);
-  await waitText('openrouter is connected', 60);
+  if (pick) {
+    await pickModel(tag);
+    await waitText('openrouter is connected', 60);
+  } else if (!pickBefore) {
+    // Left unpicked on purpose: the list shows, then Back leaves it, and the card says nothing is chosen yet.
+    await waitText('search the list', 90);
+    snap(`pick-list-${tag}`);
+    adb('shell', 'input', 'keyevent', '4'); await wait(1500);
+    await waitText('openrouter is connected', 60);
+  } else await waitText('openrouter is connected', 60);
   snap(`connected-${tag}`);
   log(`OpenRouter connected (${tag})`);
 };
@@ -331,7 +370,7 @@ const fixtureFixed = () => {
 // A failing cloud call can be slow: wait for a terminal state — drafts landing (the ready
 // subtitle) or the writer's failure line — instead of a fixed settle.
 const waitTerminal = async (tries = 120) => {
-  const terminal = ['pick one to use instead', "didn't answer", 'not connected', 'turned off', 'sign in', 'get this phone ready', 'nothing to reply', 'write a reply first'];
+  const terminal = ['pick one to use instead', "didn't answer", 'not connected', 'turned off', 'sign in', 'get this phone ready', 'nothing to reply', 'write a reply first', 'choose which one writes first'];
   for (let i = 0; i < tries && !terminal.some(t => findText(t)); i++) await wait(1000);
   await wait(1500); // let the failure line render
 };
@@ -431,12 +470,89 @@ const refusalJourney = async () => {
   }
 };
 
+// The pick scenario (OPENROUTER_SCENARIOS=pick): each changed screen in light, dark and font 1.3. With PICK_BEFORE=1 it
+// captures the same screens on the build from before the list, for the before/after pair.
+const pickScreens = async (T, F) => {
+  // Home first, from a fresh process (the callers just force-stopped the app), so it is Home and not a screen left on top of it.
+  adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`); await wait(2500);
+  await waitText('writes with your openrouter', 30);
+  snap(`home-${T}${F}`);
+  await openSourceWait(); await revealOpenRouter();
+  snap(`source-${T}${F}`);
+};
+const withFont = async (font, fn) => {
+  adb('shell', 'settings', 'put', 'system', 'font_scale', font);
+  adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true);
+  try { await fn(); } finally { adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0'); adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true); }
+};
+// The widths the owner's rule asks for, in dp at the emulator's density (420 dpi: 1 dp = 2.625 px).
+const WIDTHS = [360, 390, 445];
+const withWidth = async (dp, fn) => {
+  adb('shell', 'wm', 'size', `${Math.round(dp * 2.625)}x2400`);
+  adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true);
+  try { await fn(); } finally { adb('shell', 'wm', 'size', 'reset'); adb('shell', 'am', 'force-stop', pkg); await wait(1200); await setService(true); }
+};
+const pickJourney = async () => {
+  // RUN_RESUME=1 continues on the emulator as the earlier run left it (connected, nothing picked yet); RUN_ONLY picks the steps.
+  if (!resume) { await fresh(); await theme(false); await skipSetup(); await enableChrome(); }
+  // 1. Connected but nothing picked: the card, Home and the panel ask (after only; before there is nothing to ask).
+  if (!resume) await connectOpenRouter('light', { pick: false });
+  if (!pickBefore) {
+    await run('panel-asks', async () => { const panel = await openPanelAny('panel-asks-light'); if (!panel.map(n => n.text).join(' ').toLowerCase().includes('choose which one writes first')) throw new Error('The panel did not ask which one writes.'); });
+  }
+  for (const dark of [false, true]) for (const dp of WIDTHS) {
+    const T = dark ? 'dark' : 'light';
+    await run(`unpicked-${T}-w${dp}`, async () => { await theme(dark); await withWidth(dp, () => pickScreens(`${T}-unpicked`, `-w${dp}`)); });
+  }
+  // 2. The pick list (after only) at each width in each theme, and at font 1.3.
+  if (!pickBefore) {
+    const openList = async name => {
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://model?account=openrouter', pkg);
+      await waitText('search the list', 90);
+      snap(name);
+    };
+    for (const dark of [false, true]) for (const dp of WIDTHS) {
+      const T = dark ? 'dark' : 'light';
+      await run(`pick-${T}-w${dp}`, async () => { await theme(dark); await withWidth(dp, () => openList(`pick-list-${T}-w${dp}`)); });
+    }
+    for (const dark of [false, true]) {
+      const T = dark ? 'dark' : 'light';
+      await run(`pick-${T}-font1.3`, async () => { await theme(dark); await withFont('1.3', () => openList(`pick-list-${T}-font1.3`)); });
+    }
+    await run('pick-final', async () => {
+      await theme(false);
+      adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://model?account=openrouter', pkg);
+      await pickModel('final');
+      // Leaving the pick goes back to where the person came from: the card when opened from it, Home when opened by link.
+      const landed = await waitText(['openrouter is connected', 'writes with your openrouter'], 60);
+      log(`pick-final (opened by link, no screen behind it) landed on ${/openrouter is connected/i.test(`${landed.label} ${landed.text}`) ? 'the card' : 'Home'}`);
+    });
+    // Opened from inside the app, the pick returns to the card it was opened from (the link entry above has nothing behind it).
+    await run('pick-inapp', async () => {
+      await theme(false);
+      await openSourceWait(); await revealOpenRouter();
+      await tapText('which one writes', 20); await wait(1500);
+      await pickModel('inapp');
+      await waitText('openrouter is connected', 60);
+      snap('card-after-inapp-pick');
+    });
+  }
+  // 3. Picked: the card and Home in each theme, and at font 1.3.
+  for (const [T, F, dark, font] of [['dark', '', true, '1.0'], ['light', '', false, '1.0'], ['light', '-font1.3', false, '1.3']]) {
+    await run(`screens-${T}${F}`, async () => { await theme(dark); await withFont(font, () => pickScreens(`${T}-picked`, F)); });
+  }
+  await theme(false);
+  if (!pickBefore) await run('panel-picked', async () => { await realDraft('picked-light'); });
+};
+
 const priorNight = adb('shell', 'cmd', 'uimode', 'night').trim().replace('Night mode: ', '');
 const priorServices = adb('shell', 'settings', 'get', 'secure', 'enabled_accessibility_services').trim();
 const priorAccessibility = adb('shell', 'settings', 'get', 'secure', 'accessibility_enabled').trim();
 const priorFont = adb('shell', 'settings', 'get', 'system', 'font_scale').trim();
 let failed = 0;
-const run = async (name, fn) => { log(`-- ${name}`); try { await fn(); } catch (e) { failed++; log(`FAILED ${name}: ${String((e && e.message) || e).slice(0, 220)}`); } };
+const resume = process.env.RUN_RESUME === '1';
+const only = process.env.RUN_ONLY ? new RegExp(process.env.RUN_ONLY) : null; // re-run just the steps whose name matches
+const run = async (name, fn) => { if (only && name !== 'pick' && !only.test(name)) return; log(`-- ${name}`); try { await fn(); } catch (e) { failed++; log(`FAILED ${name}: ${String((e && e.message) || e).slice(0, 220)}`); } };
 
 try {
   adb('shell', 'cmd', 'uimode', 'night', 'custom_schedule', '-o', 'off');
@@ -444,7 +560,12 @@ try {
   let realDrafts = [];
   // Capture the displayed result. A different string is only an observation, not source provenance.
   const captureReal = async tag => realDraft(tag);
-  if (refusal) {
+  if (livePick) {
+    await run('live-pick', async () => { await fresh(); await theme(false); await skipSetup(); await enableChrome(); await connectOpenRouter('live'); await waitText('openrouter is connected', 60); });
+    await run('live-draft', async () => { await realDraft('live-light'); });
+  } else if (pickScenario) {
+    await run('pick', pickJourney);
+  } else if (refusal) {
     await run('refusal-panels', refusalJourney);
   } else if (negative) {
     await run('negative-cloud-choice', negativeJourney);

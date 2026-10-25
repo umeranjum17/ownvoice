@@ -53,6 +53,8 @@ test.each(['published', 'missing', 'invalid'] as const)('%s switch on a fresh in
     const { SWITCH_URL } = require('../../core/switch') as typeof import('../../core/switch');
     const { words } = require('../../core/words') as typeof import('../../core/words');
     const { chatgptBrain } = require('../chatgptBrain') as typeof import('../chatgptBrain');
+    // The person has picked which one writes (the app never picks one).
+    store.set('writer-models', { chatgpt: { id: 'vendor-model', name: 'Vendor Model' } });
     expect(store.get('chatgpt-switch')).toBeNull();
     const result = chatgptBrain().step('Write a greeting.', [], []);
     if (kind === 'published') {

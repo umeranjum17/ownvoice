@@ -16,9 +16,10 @@ import { ChatIcon, CheckIcon, ChevIcon, EyeIcon, LockIcon, PhoneIcon } from '../
 import { shape, space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { showsBubble } from '../src/core/privacy';
+import { pickedModel } from '../src/core/model';
 import { cloudSession, getSource, phoneOnly, setSource, type CloudKey, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
-import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, nothing, termsOf, type GptState } from '../src/chatgpt/session';
+import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, asksModel, nothing, termsOf, type GptState } from '../src/chatgpt/session';
 import { appsLine } from './index';
 import Native from '../modules/ownvoice-native';
 
@@ -52,6 +53,8 @@ export default function SourceScreen() {
   const [workspaces, setWorkspaces] = useState<OpenCodeGoWorkspace[] | null>(null);
   const goKey = useRef('');
   const [picking, setPicking] = useState(false);
+  // The pick screen saves to the store; looking again on focus shows what was chosen.
+  const [, again] = useState(0);
   const attempt = useRef(0);
   const started = useRef(false);
   const live = useRef(true);
@@ -64,6 +67,7 @@ export default function SourceScreen() {
   };
 
   const reload = useCallback(() => {
+    again(n => n + 1);
     void getSource().then(now => { if (live.current) setShown(now); }).catch(() => { if (live.current) setShown(null); });
     void phoneCanWrite().then(can => { if (live.current) setPhone(can); });
     void cloudSession('chatgpt').current().then(now => { if (live.current) setGpt(now); }).catch(() => { if (live.current) setGpt(nothing); });
@@ -90,8 +94,11 @@ export default function SourceScreen() {
   /** Answers from a sign-in the person has since left are dropped. */
   const shown = (key: CloudKey, at: number, next: GptState) => {
     if (!live.current || at !== attempt.current) return;
-    if (next.signedIn) { setSignIn(null); setState(key, next); choose(key); } else setSignIn({ key, state: next });
+    if (next.signedIn) { setSignIn(null); setState(key, next); choose(key); chooseModel(key); } else setSignIn({ key, state: next });
   };
+
+  /** A signed-in account with no pick yet: ask which one writes, right away (never a choice made for the person). */
+  const chooseModel = (key: CloudKey) => { if (asksModel(key) && !pickedModel(key)) router.push(`/model?account=${key}`); };
 
   const beginSignIn = (key: CloudKey) => {
     const at = ++attempt.current;
@@ -277,6 +284,9 @@ export default function SourceScreen() {
           <View style={styles.indent}><Button kind="filled" label={copy.button} onPress={() => beginSignIn(key)} /></View>
         </>}
       {phoneCan && indent(resting || !cloud?.signedIn ? words.restingPhone : copy.phoneBackup, t.muted)}
+      {cloud?.signedIn && asksModel(key) && <View style={[styles.inner, { backgroundColor: t.group }]}>
+        <Row title={words.rowModel} subtitle={pickedModel(key) ? words.modelPicked : words.rowModelNone} onPress={() => router.push(`/model?account=${key}`)} />
+      </View>}
       {key === 'chatgpt'
         ? <View style={[styles.inner, { backgroundColor: t.group }]}>
           <Row title={words.phoneOnlyApps} subtitle={stays ? appsLine(stays) : undefined} onPress={() => router.push('/phone-apps')} />
@@ -350,7 +360,7 @@ export default function SourceScreen() {
           <Text style={[type.body, { color: t.text }]}>{ACCOUNT_COPY[confirm].body}</Text>
           <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: ACCOUNT_COPY[confirm].name, company: ACCOUNT_COPY[confirm].company })}</Text>
           <View style={styles.sheetActions}>
-            <Button kind="filled" large label={ACCOUNT_COPY[confirm].yes} onPress={() => { choose(confirm); setConfirm(null); }} />
+            <Button kind="filled" large label={ACCOUNT_COPY[confirm].yes} onPress={() => { choose(confirm); chooseModel(confirm); setConfirm(null); }} />
             <Button kind="text" label={chosen === 'phone' ? words.switchNo : words.cancel} onPress={() => setConfirm(null)} />
           </View>
         </View>

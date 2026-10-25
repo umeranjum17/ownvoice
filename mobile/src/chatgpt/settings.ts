@@ -4,6 +4,7 @@ import { jev, type Backend } from '@byokit/decide';
 import Native from '../../modules/ownvoice-native';
 import { showsBubble } from '../core/privacy';
 import { cloudNow, cloudOf, cloudSession, getSource, isOwnApp, phoneListed, SOURCE_KEY, type CloudKey, type Source } from '../core/source';
+import { pickedModel } from '../core/model';
 import { phoneCanWrite } from '../core/phoneStatus';
 import { modelStatus } from '../core/phoneDownload';
 import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
@@ -11,7 +12,7 @@ import { store } from '../core/store';
 import { cloudWords, computerWords, needWriter, routeWriters, SendVeto, thrower, withPhoneFallback, type Writer, type WriterEvents, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
-import { mocked, signOutGuard } from './session';
+import { asksModel, mocked, signOutGuard } from './session';
 const stubbed = process.env.EXPO_PUBLIC_E2E_STUB === '1';
 type BubbleRules = Awaited<ReturnType<typeof Native.bubbleRules>>;
 let rulesNow: BubbleRules | null = null;
@@ -166,6 +167,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
     signedIn: state.signedIn,
     phoneOnlyApp: listed || !visible,
     enabled,
+    needsModel: asksModel(key) && !pickedModel(key),
     note: state.resting ?? (!state.signedIn ? state.note : null),
     phone,
     lines: cloudWords(key),

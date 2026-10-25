@@ -1,12 +1,13 @@
-import { responseFetch } from './responseFetch';
+import { proofRoute, responseFetch } from './responseFetch';
 import * as SecureStore from 'expo-secure-store';
-import { Accounts, offered, portable, PROVIDERS, route, secureStore } from '@byokit/accounts';
-import { withKeys } from '@byokit/accounts/keys';
+import { Accounts, offered, portable, PROVIDERS, resolveModel, route, secureStore } from '@byokit/accounts';
+import { keys, withKeys } from '@byokit/accounts/keys';
 import { nativeStore } from '@byokit/secrets/native';
 import { CryptoDigestAlgorithm, digest as sha256, getRandomValues } from 'expo-crypto';
 
 import type { CloudKey } from '../core/source';
-import type { Model, OpenCodeGoWorkspace } from '@byokit/accounts';
+import type { Api, Model, OpenCodeGoWorkspace } from '@byokit/accounts';
+import type { KeyRuntime } from '@byokit/accounts/keys';
 const member = 'owner';
 const store = secureStore(SecureStore, 'ownvoice.chatgpt.1');
 // API keys (billed per use) live only in the phone's own secure store, never in the account store.
@@ -109,33 +110,34 @@ export async function codexAuth(): Promise<{ access: string; accountId: string }
   return { access: auth.auth.apiKey, accountId: credential.accountId };
 }
 
-/** The model each provider writes with; the catalogue owns Claude's, as it does the plan's own naming. */
-export const CHATGPT_MODEL = 'gpt-6-sol';
-export const CLAUDE_MODEL = 'claude-opus-5-5'; // the kit's catalogue no longer names a model per provider (0.30.0), so the app names the one it always used
-/** OpenRouter's default writer: DeepSeek V4.1 Flash. A phone has no model catalogue, so the key route's
- *  full typed model (its api, provider, endpoint and size) is carried here; the kit's pinned adapter
- *  reads it. This is never shown to the person. `EXPO_PUBLIC_E2E_OPENROUTER_BASE` is an emulator-only
- *  override (never set in a distributable build): it points this route at the host's
- *  `e2e/pi-writer.mjs`, which answers through @byokit/decide's pi backend, so the live reply proof can
- *  run on the real route without the app carrying a provider key or a subscription sign-in. */
-export const OPENROUTER_MODEL = {
-  id: 'deepseek/deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', api: 'openai-completions',
-  provider: 'openrouter', baseUrl: process.env.EXPO_PUBLIC_E2E_OPENROUTER_BASE || 'https://openrouter.ai/api/v1', reasoning: false,
-  input: ['text'], cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-  contextWindow: 1048576, maxTokens: 384000,
-} as Model<'openai-completions'>;
-/** OpenCode Go's default writer: DeepSeek V4.1 Flash. The route is the plan's own, so the plan key is
- *  sent to the plan's endpoint and the model is carried here, typed, exactly as OpenRouter's is;
- *  the kit's pinned adapter reads it. The plan's gateway turns away a request that carries no
- *  session (400 on activate), so the model opts into the adapter's session-affinity headers through
- *  its own compat seam. This is never shown to the person. */
-export const OPENCODE_MODEL = {
-  id: 'deepseek-v4.1-flash', name: 'DeepSeek V4.1 Flash', api: 'openai-completions',
-  provider: 'opencode-go', baseUrl: 'https://opencode.ai/zen/go/v1', reasoning: false,
-  input: ['text'], cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0 },
-  contextWindow: 1000000, maxTokens: 384000,
-  compat: { sendSessionAffinityHeaders: true, sessionAffinityFormat: 'openai' as const },
-} as Model<'openai-completions'>;
+/** The vendor's own live list for one account: each row `{ id, name, available, why? }`, nothing kept in this app.
+ *  Empty when the account is not ready; a list the vendor won't give throws, so the screen can say so and offer to try again. */
+export const listModels = async (key: CloudKey) => getInstance().models(member, (await getInstance().status(member, accountRoute(key))).id);
+
+const keyModels = new Map<string, Promise<Model<Api>>>();
+let kitModels: Promise<ReturnType<KeyRuntime['createModels']>> | undefined;
+const models = () => kitModels ??= keys().then(({ createModels }) => createModels({ authContext: { env: async () => undefined, fileExists: async () => false } }));
+
+/** A key route's typed model for the id the person picked, resolved by the kit from the vendor's live list (limits and price
+ *  when it gives them, else the kit's documented defaults); this app keeps no model rows. This is never shown to the person.
+ *  `EXPO_PUBLIC_E2E_OPENROUTER_BASE` (emulator-only, see `proofRoute`) points OpenRouter's list and chat at the host's
+ *  `e2e/pi-writer.mjs`, so the live reply proof can run on the real route without a provider key. */
+function keyModel(key: 'openrouter' | 'opencode', id: string): Promise<Model<Api>> {
+  const at = `${key}:${id}`;
+  let found = keyModels.get(at);
+  if (!found) {
+    found = (async () => {
+      const resolved = await resolveModel(await models(), key === 'opencode' ? 'opencode-go' : 'openrouter', id, { apiKey: await getInstance().key(member, accountRoute(key)), fetch: responseFetch });
+      if (!resolved) throw new Error('This account lists no models.');
+      // The plan's gateway turns away a request that carries no session (400 on activate), so the model opts into
+      // the adapter's session-affinity headers through its own compat seam.
+      return key === 'opencode' ? { ...resolved.model, compat: { ...resolved.model.compat, sendSessionAffinityHeaders: true, sessionAffinityFormat: 'openai' as const } } as Model<Api> : { ...resolved.model, baseUrl: proofRoute(resolved.model.baseUrl) };
+    })();
+    keyModels.set(at, found);
+    found.catch(() => keyModels.delete(at));
+  }
+  return found;
+}
 
 /** One session id per app run, for the plan gateway's session-affinity headers. Random bytes from
  *  the phone's own source; nothing in it names the person or the message. */
@@ -157,7 +159,8 @@ function jsonBody(text: string): string {
 /** The one typed boundary every cloud ask goes through — the panel writer, the selection rewrite and
  *  the ratings backend — so a second provider is a branch here, not a fork in the callers. Sign-in,
  *  refresh, resting and sign-out stay the kit's; only the ask shape differs per provider. */
-export async function askCloud(key: CloudKey, ask: CloudAsk): Promise<string> {
+export type CloudTarget = { account: CloudKey; model: string };
+export async function askCloud({ account: key, model }: CloudTarget, ask: CloudAsk): Promise<string> {
   // Both key routes answer through the kit's own typed request: OpenRouter's per-use key, and
   // OpenCode Go's plan key on the plan's own endpoint (which also carries the run's session id,
   // so the adapter sends its session-affinity headers).
@@ -165,8 +168,8 @@ export async function askCloud(key: CloudKey, ask: CloudAsk): Promise<string> {
     // The adapter's SDK makes its own abort signal, so the app's per-request fetch is handed over explicitly:
     // its consent checks and the status it reads run on the real request.
     const plan = key === 'opencode'
-      ? { account: OPENCODE_ROUTE, model: OPENCODE_MODEL, options: { maxTokens: 8192, signal: ask.signal, sessionId: openCodeSessionId(), fetch: ask.fetch } }
-      : { account: 'openrouter', model: OPENROUTER_MODEL, options: { maxTokens: 8192, signal: ask.signal, fetch: ask.fetch } };
+      ? { account: OPENCODE_ROUTE, model: await keyModel(key, model), options: { maxTokens: 8192, signal: ask.signal, sessionId: openCodeSessionId(), fetch: ask.fetch } }
+      : { account: 'openrouter', model: await keyModel(key, model), options: { maxTokens: 8192, signal: ask.signal, fetch: ask.fetch } };
     let streamed = '';
     const result = await getInstance().respondKey(member, {
       ...plan,
@@ -177,13 +180,13 @@ export async function askCloud(key: CloudKey, ask: CloudAsk): Promise<string> {
     return ask.json ? jsonBody(text) : text;
   }
   if (key === 'claude') {
-    const text = await respond(member, { provider: 'claude', model: CLAUDE_MODEL, max_tokens: 8192,
+    const text = await respond(member, { provider: 'claude', model, max_tokens: 8192,
       system: ask.instructions, messages: [{ role: 'user', content: ask.input }], onText: ask.onText, signal: ask.signal });
     // Emulator proof builds only (EXPO_PUBLIC_E2E_CLAUDE_LOG=1): put the real Claude answer on
     // logcat so a live proof can read the answer, not just a stub. Never set in a distributable build.
     if (process.env.EXPO_PUBLIC_E2E_CLAUDE_LOG === '1') console.log(`Ownvoice claude answer: ${text}`);
     return ask.json ? jsonBody(text) : text;
   }
-  return respond(member, { instructions: ask.instructions, input: ask.input, model: CHATGPT_MODEL, signal: ask.signal, onText: ask.onText,
+  return respond(member, { instructions: ask.instructions, input: ask.input, model, signal: ask.signal, onText: ask.onText,
     text: ask.json ? { verbosity: 'low', format: { type: 'json_object' } } : { verbosity: 'low' } });
 }

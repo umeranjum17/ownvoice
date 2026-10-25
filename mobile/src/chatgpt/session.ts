@@ -13,6 +13,8 @@ export const OPENCODE_NAME = 'OpenCode Go';
 export const GPT_APPS_KEY = 'chatgpt-apps';
 
 export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
+/** Whether the person is asked which one writes. The emulator's ChatGPT stand-in (`mocked`) has no list to pick from; every other account has. */
+export const asksModel = (key: CloudKey) => !(mocked && key === 'chatgpt');
 const signingOut: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0, opencode: 0 };
 const signOutEpoch: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0, opencode: 0 };
 export const signOutGuard = (key: CloudKey) => ({ active: signingOut[key] > 0, epoch: signOutEpoch[key] });

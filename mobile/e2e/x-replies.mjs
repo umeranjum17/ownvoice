@@ -309,6 +309,20 @@ const pasteKey = async label => {
   if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) adb('shell', 'input', 'keyevent', '4');
   await until('the keyboard to close after the key', () => !/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method')), { seconds: 10 });
 };
+// The app asks which one writes right after an account connects: search that account's own list for PICK_MODEL
+// (an explicit model id, never openrouter/auto) and tap the row.
+const pickModel = async () => {
+  const want = process.env.PICK_MODEL;
+  if (!want || /^openrouter\/auto$/.test(want)) throw new Error('Set PICK_MODEL to the explicit model id to pick from the list.');
+  await waitForLine('search the list', 90);
+  const field = await until('the model search field', () => nodes().find(n => `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes('search the list')));
+  tap(...center(field));
+  await until('the keyboard on the model search', () => /mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method')), { seconds: 15 });
+  type(`'${want.replace(/ /g, '%s')}'`);
+  if (/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method'))) adb('shell', 'input', 'keyevent', '4');
+  await until('the keyboard to close', () => !/mInputShown=true/.test(adb('shell', 'dumpsys', 'input_method')), { seconds: 10 });
+  if (!(await tapButton(want.toLowerCase()))) throw new Error(`No row for ${want} in the list.`);
+};
 const skipSetup = async () => {
   adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source');
   await wait(2500);
@@ -321,6 +335,7 @@ const connectOpenRouter = async () => {
   await waitForLine('paste your openrouter key', 30);
   await pasteKey('paste your openrouter key');
   if (!(await tapButton('connect'))) log('the Connect control did not read as clickable; waiting for the result anyway');
+  await pickModel();
   // The kit saves the key and the app redraws the card: wait on that line as a condition, not a fixed count.
   await until('the OpenRouter connect result', () => {
     const text = nodeText();
@@ -351,14 +366,14 @@ const connectOpenCode = async () => {
   // The connect result is read fresh: the connected line wins over any earlier read of the screen. A key that
   // works with several workspaces shows the kit's pick instead; only then is the workspace tapped. Either
   // wait fails after 20 s with a screenshot of what is on screen.
-  const seen = await waitText(['more than one workspace', 'opencode go is connected', 'not accepted'], 40);
+  const seen = await waitText(['more than one workspace', 'search the list', 'opencode go is connected', 'not accepted'], 40);
   if (`${seen.label} ${seen.text}`.toLowerCase().includes('not accepted')) throw new Error(`OpenCode Go rejected the key. On screen: ${words()}`);
   await wait(1500);
   if (findText('not accepted')) throw new Error(`OpenCode Go rejected the key. On screen: ${words()}`);
-  if (!findText('opencode go is connected')) {
-    await until('the connected line or the workspace pick', () => findText('opencode go is connected') || findText('more than one workspace'), { seconds: 20, every: 1200 });
+  if (!findText('opencode go is connected') && !findText('search the list')) {
+    await until('the connected line, the model list or the workspace pick', () => findText('opencode go is connected') || findText('search the list') || findText('more than one workspace'), { seconds: 20, every: 1200 });
   }
-  if (!findText('opencode go is connected')) {
+  if (!findText('opencode go is connected') && !findText('search the list')) {
     const pick = await until(`the "${goWorkspace}" workspace in the pick`, () => {
       const node = nodes().find(n => (n.text || n.label || '').trim() === goWorkspace);
       if (!node) adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .3), '300');
@@ -366,8 +381,11 @@ const connectOpenCode = async () => {
     }, { seconds: 20, every: 1200 });
     log(`workspace pick: ${goWorkspace}`);
     tap(...center(pick));
-    await waitText(['opencode go is connected'], 60);
+    await waitText(['search the list'], 60);
   }
+  // Connected, the app asks which one writes: pick from the plan's own list.
+  await pickModel();
+  await waitText(['opencode go is connected'], 60);
   log("openCode Go writer connected through the app's own connect field.");
 };
 // A refusal leg makes no writer call, but the run still connects the live writer first: the

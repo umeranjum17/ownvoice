@@ -4,8 +4,8 @@ import { fetch as expoFetch } from 'expo/fetch';
 import { classify, IncompleteError, isFunctionCall, ResponseError } from '@byokit/accounts';
 import { codexAuth, reportFailure, respond } from '../chatgpt/accounts';
 import { withResponseFetch } from '../chatgpt/responseFetch';
-import { CHATGPT_MODEL } from '../chatgpt/responses';
 import { agentConsent } from '../chatgpt/settings';
+import { pickedModel } from '../core/model';
 import { getSource } from '../core/source';
 import { CHATGPT_OFF } from '../core/switch';
 import { words } from '../core/words';
@@ -26,12 +26,14 @@ export function chatgptBrain(o: {
   fetch?: typeof fetch;
 } = {}): Brain {
   const auth = o.auth ?? codexAuth;
-  const model = o.model ?? CHATGPT_MODEL;
   const doFetch = o.fetch ?? (expoFetch as typeof fetch);
   return {
     async step(instructions, items, tools, onText): Promise<Turn> {
       // Nothing is sent when any guard fails: the screen shows the plain line instead.
       if ((await getSource()) !== 'chatgpt') throw new Error(words.needWriterPanel);
+      // The one the person picked, never one chosen for them.
+      const model = o.model ?? pickedModel('chatgpt')?.id;
+      if (!model) throw new Error(words.needModelPanel);
       const consent = agentConsent('chatgpt');
       try {
         if (!(await consent.beforeSend())) throw new Error(words.chatgptFailed);

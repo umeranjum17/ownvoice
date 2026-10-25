@@ -10,6 +10,7 @@ import { scriptBrain } from '../script';
 import { checkVoice, shareNote } from '../tools';
 import { addedNumbers } from '../../core/slop';
 import * as Voice from '../../core/voice';
+import { setPickedModel } from '../../core/model';
 import * as Slop from '../../core/slop';
 import { technicalWords, words } from '../../core/words';
 import tasksJson from '../../../e2e/agent-tasks.json';
@@ -34,6 +35,8 @@ jest.mock('../../chatgpt/accounts', () => {
   };
 });
 jest.mock('expo/fetch', () => ({ fetch: (...args: Parameters<typeof fetch>) => (global.fetch as typeof fetch)(...args) }));
+
+beforeEach(() => setPickedModel('chatgpt', { id: 'vendor-model', name: 'Vendor Model' }));
 
 type Task = { id: number; task: string; names: string[]; mustKeep: string[]; approve: boolean; limit?: boolean };
 

@@ -4,6 +4,7 @@ import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { act, fireEvent, render, waitFor } from '@testing-library/react-native';
 import Native from '../../../modules/ownvoice-native';
+import { setPickedModel } from '../../core/model';
 import Rewrite from '../Rewrite';
 import { words } from '../../core/words';
 import { CHATGPT_OFF } from '../../core/switch';
@@ -68,7 +69,7 @@ const visibleStrings = (screen: { toJSON: () => unknown }): string[] => {
 
 const SELECTION = 'I think we should move the call to Tuesday. Really.';
 
-beforeEach(() => { jest.clearAllMocks(); wipeVoice(); store.set(SOURCE_KEY, null); mockState.mockResolvedValue({ phase: 'ready' }); native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: [] }); });
+beforeEach(() => { jest.clearAllMocks(); wipeVoice(); for (const account of ['chatgpt', 'claude', 'openrouter', 'opencode'] as const) setPickedModel(account, { id: 'vendor-model', name: 'Vendor Model' }); store.set(SOURCE_KEY, null); mockState.mockResolvedValue({ phase: 'ready' }); native.bubbleRules.mockResolvedValue({ paused: false, on: [], off: [] }); });
 
 const sse = (text: string) => new ReadableStream<Uint8Array>({ start(controller) {
   const enc = new TextEncoder();

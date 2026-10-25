@@ -10,9 +10,7 @@ import { canPolish, polishAcceptor } from '../core/polish';
 import { AccountRefused, cloudWords, PlanLimit, SendVeto, type Choice, type DraftRequest, type Writer, type WriterEvents } from '../core/writers';
 import type { CloudKey } from '../core/source';
 import { feedRead } from '../core/feed';
-
-/** The ChatGPT model both the panel writer and the lab agent brain send to. */
-export { CHATGPT_MODEL } from './accounts';
+import { pickedModel } from '../core/model';
 
 /** Epoch ms when the cloud account last said its limit resets, from a 429's retry-after; 0 when unknown. */
 let limitResetAt = 0;
@@ -31,6 +29,9 @@ const VERSION_INSTRUCTIONS = 'Return the requested rewrite versions as JSON.';
 /** Draft/version arrays must have exactly `count` nonblank strings. `text` returns trimmed plain text;
  *  `fit` returns trimmed JSON for decide to parse and resolve. */
 async function ask(cloud: CloudKey | 'computer', prompt: string, instructions: string, key: 'drafts' | 'versions' | 'text' | 'fit', count = 3, on?: WriterEvents, onText?: (text: string) => void, fetcher: typeof fetch = expoFetch as typeof fetch, signal?: AbortSignal): Promise<string[]> {
+  // The one the person picked writes, and so rates; with none picked nothing is sent and nothing is picked for them.
+  const picked = cloud === 'computer' ? null : pickedModel(cloud);
+  if (cloud !== 'computer' && !picked) throw new Error(words.needModelPanel);
   let started = false;
   let marked = false;
   let refused = false;
@@ -76,7 +77,7 @@ async function ask(cloud: CloudKey | 'computer', prompt: string, instructions: s
         await on?.sent?.();
         marked = true;
       });
-    } else text = await withResponseFetch(send, signal => askCloud(cloud, { instructions, input: prompt, json: key !== 'text', onText, signal, fetch: send }), signal);
+    } else text = await withResponseFetch(send, signal => askCloud({ account: cloud, model: picked!.id }, { instructions, input: prompt, json: key !== 'text', onText, signal, fetch: send }), signal);
     if (key === 'text' || key === 'fit') {
       const line = text.trim();
       if (!line) throw new Error(cloudWords(cloud).failedNoPhone);

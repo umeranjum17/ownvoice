@@ -2,6 +2,7 @@ import { PHONE_ONLY_KEY, SOURCE_KEY } from '../../core/source';
 import { store } from '../../core/store';
 import { fitBackends, jevEnabled, setJevEnabled } from '../settings';
 import { connectJev, disconnectJev, status } from '../accounts';
+import { pickedModel, setPickedModel } from '../../core/model';
 import * as Switch from '../../core/switch';
 import { answerer } from '@byokit/decide';
 import { judgeFit, rated, LEVELS, UNSURE } from '../../grow/fit';
@@ -64,6 +65,7 @@ beforeEach(async () => {
   (SecureStore.deleteItemAsync as jest.Mock).mockImplementation(async (key: string) => { secrets.delete(key); });
   await connectJev('fixture-jev-key');
   setJevEnabled(true);
+  setPickedModel('chatgpt', { id: 'vendor-model', name: 'Vendor Model' });
 });
 
 

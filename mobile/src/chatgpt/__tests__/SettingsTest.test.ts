@@ -1,6 +1,7 @@
 import { classify } from '@byokit/accounts';
 import { PHONE_ONLY_KEY, SOURCE_KEY, setSource } from '../../core/source';
 import { store } from '../../core/store';
+import { pickedModel, setPickedModel } from '../../core/model';
 import { saveBubbleRules, gptRoute } from '../settings';
 import { accounts, status } from '../accounts';
 import { CHATGPT_OFF } from '../../core/switch';
@@ -57,11 +58,25 @@ beforeEach(() => {
   mockState.mockResolvedValue({ phase: 'ready' });
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'ready', words: 'ChatGPT is connected.' });
   store.set(SOURCE_KEY, 'chatgpt');
+  setPickedModel('chatgpt', { id: 'vendor-model', name: 'Vendor Model' });
 });
 
 test('byokit treats undated rate limits as temporary', () => {
   expect(classify('429 Too many requests')).toMatchObject({ kind: 'rate_limit' });
   expect(classify('rate_limit_exceeded')).toMatchObject({ kind: 'rate_limit' });
+});
+
+test('a ready account with no pick asks which one writes: nothing is sent and nothing is picked for the person', async () => {
+  setPickedModel('chatgpt', null);
+  expect(pickedModel('chatgpt')).toBeNull();
+  const fetcher = jest.fn(offline);
+  const route = await gptRoute('com.twitter.android', fetcher);
+  expect(route.writer).not.toBe(phoneWriter);
+  await expect(route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).rejects.toThrow(words.needModelPanel);
+  // Only the remote switch is read; nothing is written, on the account or on the phone.
+  expect((fetcher.mock.calls as unknown as [string][]).every(([url]) => String(url).includes('switch/chatgpt.json'))).toBe(true);
+  expect(phoneWriter.write).not.toHaveBeenCalled();
+  expect(pickedModel('chatgpt')).toBeNull();
 });
 
 test('phone chosen means never ChatGPT, even when signed in', async () => {

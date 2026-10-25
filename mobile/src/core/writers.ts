@@ -34,7 +34,7 @@ export const thrower = (line: string): Writer => ({ write: async () => { throw n
 /** Whether a shown line is a cloud plan limit: the person can still pick another writer. */
 export const isPlanLimitLine = (line: string | null | undefined): boolean => !!line && line.startsWith(words.claudePlanLimit);
 /** Whether a shown line says the person's writer account needs another writer or a reconnect: the panel offers the switch. */
-export const isOtherWriterLine = (line: string | null | undefined): boolean => isPlanLimitLine(line) || line === words.openCodeRefused || line === words.openrouterRefused;
+export const isOtherWriterLine = (line: string | null | undefined): boolean => isPlanLimitLine(line) || line === words.openCodeRefused || line === words.openrouterRefused || line === words.needModelPanel;
 
 /** The plain lines one cloud provider's route says; ChatGPT's stay the exact shipped strings. */
 export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string; refused?: string; unasked?: string; unaskedNoPhone?: string };
@@ -122,7 +122,7 @@ export type WriterRoute = { writer: Writer; note: string | null };
  *  fallback only when it can; otherwise the panel gets the no-phone line for the failure. `note` is
  *  byokit's own line for resting or a plan that doesn't include this, or the sign-in line when signed
  *  out, and `lines` is the provider's own plain wording. */
-export function routeWriters(options: { source: Source; signedIn: boolean; phoneOnlyApp: boolean; enabled: boolean; note?: string | null; phone: PhoneCanWrite; chatgpt: () => Writer; phoneWriter: Writer; fallbackNote?: () => Promise<string | null>; lines: CloudWords }): WriterRoute {
+export function routeWriters(options: { source: Source; signedIn: boolean; phoneOnlyApp: boolean; enabled: boolean; needsModel?: boolean; note?: string | null; phone: PhoneCanWrite; chatgpt: () => Writer; phoneWriter: Writer; fallbackNote?: () => Promise<string | null>; lines: CloudWords }): WriterRoute {
   const { phoneWriter, lines } = options;
   if (options.source === 'phone') return { writer: phoneWriter, note: null };
   if (options.source == null) return { writer: needWriter, note: null };
@@ -139,5 +139,7 @@ export function routeWriters(options: { source: Source; signedIn: boolean; phone
   if (options.note) return options.phone === 'cant'
     ? { writer: thrower(options.note), note: null }
     : { writer: phoneWriter, note: options.note };
+  // The account is ready but the person has not picked which one writes: ask, never pick (not even the phone) for them.
+  if (options.needsModel) return { writer: thrower(words.needModelPanel), note: null };
   return { writer: { write: (request, on) => withPhoneFallback(options.chatgpt(), phoneWriter, request, lines, on, options.fallbackNote, options.phone) }, note: null };
 }

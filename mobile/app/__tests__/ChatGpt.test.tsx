@@ -18,6 +18,7 @@ jest.mock('../../src/chatgpt/session', () => ({
   OPENROUTER_NAME: 'OpenRouter',
   GPT_APPS_KEY: 'chatgpt-apps',
   mocked: false,
+  asksModel: () => true,
   nothing: { signedIn: false, waiting: false, code: null, url: null, note: null, resting: null },
   termsOf: (key: string) => key === 'chatgpt' ? 'Uses your ChatGPT plan.' : 'Uses your plan. It may change this at any time.',
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),

@@ -46,7 +46,7 @@ function draftOf(call: Call): string {
 
 /** The one plain line for a failed step, naming the chosen cloud account (none for the phone); never the error's own words. */
 function failLine(error: unknown, cloud: CloudKey | null): string {
-  if (error instanceof Error && error.message === words.needWriterPanel) return words.needWriterPanel;
+  if (error instanceof Error && (error.message === words.needWriterPanel || error.message === words.needModelPanel)) return error.message;
   if ((error as { kind?: unknown } | null)?.kind === 'network') return words.offlineNoPhone;
   return cloud ? noPhoneLine(error, cloudWords(cloud)) : words.failed;
 }
