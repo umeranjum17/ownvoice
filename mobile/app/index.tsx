@@ -18,6 +18,7 @@ import { cloudOf, cloudSession, getSource, isOwnApp, phoneListed, setSource, sto
 import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, asksModel, type GptState } from '../src/chatgpt/session';
 import { pickedModel } from '../src/core/model';
 import { openTour, tourState } from '../src/core/tour';
+import { devlog } from '../src/core/writers';
 import { openCodeReady, openRouterReady } from '../src/chatgpt/accounts';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
@@ -202,17 +203,17 @@ export default function Home() {
   const onCard = green ? t.onPrimaryContainer : t.text;
   // The short tour opens itself once, right back from picking which one writes; after that Home offers
   // it as a row, so a skipped tour is never forced again (scope report, decisions 1 and 5).
-  const tour = tourState();
-  const tourDue = !!tour.pending && !tour.done && !tour.skipped;
-  const tourPushed = useRef(false);
-  useEffect(() => {
-    if (!tourDue || tourPushed.current) return;
-    tourPushed.current = true;
-    // Deliberately not tied to this effect's lifetime: clearing the pending flag re-renders Home, and the
-    // cleanup would cancel the push, which left the person on Home with the tour marked as opened. The
-    // beat also lets the return from the pick settle before the tour goes on top of it.
-    setTimeout(() => { openTour(); router.push('/tour'); }, 400);
-  }, [tourDue]);
+  // The tour opens itself once, on the way back from picking which one writes (scope report, decisions 1
+  // and 5). Read at focus, not from render state: Home's reload usually sets the same values, so React
+  // often does not re-render on the way back and a render-time flag would stay stale. The push is not
+  // tied to this effect's lifetime, because Home setting state during the reload would cancel it.
+  useFocusEffect(useCallback(() => {
+    const due = tourState();
+    if (!due.pending || due.done || due.skipped) return;
+    devlog('tour pending: pushing the tour');
+    const late = setTimeout(() => { openTour(); router.push('/tour'); }, 400);
+    void late;
+  }, []));
   const icon = (Icon: typeof GridIcon) => <Badge><Icon size={22} color={t.onPrimaryContainer} /></Badge>;
   const shown = (apps ?? []).filter(({ app }) => showsBubble(rules, app)).map(({ label }) => label);
   const group = { borderRadius: shape.group, backgroundColor: t.group, overflow: 'hidden' as const, paddingVertical: space.xs };

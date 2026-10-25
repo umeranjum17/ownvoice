@@ -151,6 +151,10 @@ const skipSetup = async () => {
 // so the page comes back to the top and Home is proven by one of its own top lines.
 const home = async () => {
   await open('/'); await waitFocus();
+  // A pushed screen (the tour, the pick) can stay on top of the deep link: back out of it, then home.
+  for (let i = 0; i < 2 && !findText('ownvoice on or off') && !findText('choose which one writes') && !findText('writes with your'); i++) {
+    adb('shell', 'input', 'keyevent', '4'); await wait(1200); await open('/'); await waitFocus();
+  }
   for (let i = 0; i < 2; i++) await swipeBy(false);
   await awaitVisible(['choose which one writes', 'ownvoice on or off', 'writes with your', 'turn on'], 30);
 };
