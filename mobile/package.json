@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@byokit/accounts": "0.32.1",
-    "@byokit/decide": "0.14.1",
+    "@byokit/decide": "0.16.1",
     "@byokit/dictation": "0.5.2",
     "@byokit/infer": "^0.1.0",
     "@byokit/overlay": "0.3.0",
