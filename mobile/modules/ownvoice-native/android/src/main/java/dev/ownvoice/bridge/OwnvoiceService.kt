@@ -193,7 +193,7 @@ class OwnvoiceService : AccessibilityService() {
   private var checkedApp: String? = null
   private var pausedAt = 0L
   /** A note said while the panel closes, such as "Copied.", shown once the app it closed over is back: text, how long
-   * it shows, and when it was said (it expires after that long). */
+   * it shows, and when it first showed (0 until then, so the note keeps its whole time on screen; it expires after it). */
   private var pendingNote: Triple<String, Long, Long>? = null
   private var slipApp: String? = null
   private var slipCount = 0
@@ -738,7 +738,7 @@ class OwnvoiceService : AccessibilityService() {
     if (Looper.myLooper() != Looper.getMainLooper()) { main.post { say(message, forMs) }; return }
     // The bubble is hidden under the closing panel, and the kit drops its note when the app in front changes, so the
     // note waits for the app the panel closed over (sayPending), where the bubble shows it clear of the field.
-    if (panelIsOpen && !practice) { pendingNote = Triple(message, forMs, SystemClock.uptimeMillis()); return }
+    if (panelIsOpen && !practice) { pendingNote = Triple(message, forMs, 0L); Log.i(TAG, "note held for the panel to close: $message"); return }
     // A system toast sits low on the screen, over the app's message box, so only Ownvoice's own screens use one.
     if (currentApp() == packageName && !practice) {
       Toast.makeText(this, message, Toast.LENGTH_LONG).show()
@@ -749,16 +749,30 @@ class OwnvoiceService : AccessibilityService() {
   }
 
   /** Posted, so it runs after the kit has shown the bubble again for the app in front; it waits while the panel or an
-   * Ownvoice screen is in front, until it expires. */
+   * Ownvoice screen is in front, and says the note again on each front change until its own time runs out: the kit
+   * hides and re-shows the bubble as the panel closes, which drops a note given once at the wrong moment. */
   private fun sayPending() {
     main.post {
       val (message, forMs, at) = pendingNote ?: return@post
-      val left = forMs - (SystemClock.uptimeMillis() - at)
-      if (left <= 0) { pendingNote = null; return@post }
+      val left = forMs - if (at == 0L) 0L else SystemClock.uptimeMillis() - at
+      if (left <= 0) { pendingNote = null; Log.i(TAG, "note expired before it showed: $message"); return@post }
       if (panelIsOpen || frontApp == null || frontApp == packageName) return@post
-      pendingNote = null
       bubbles?.say(message, moodFor(message), left, announce = true)
+      if (at == 0L) pendingNote = Triple(message, forMs, SystemClock.uptimeMillis())
+      val said = message
+      main.postDelayed({ Log.i(TAG, "note drawn=${onScreen(said)} leftMs=$left text=$said") }, 400)
     }
+  }
+
+  /** Whether a visible node on screen carries exactly [text], which a note handed to the kit does only when it draws. */
+  private fun onScreen(text: String): Boolean {
+    fun walk(node: AccessibilityNodeInfo?): Boolean {
+      if (node == null) return false
+      if (node.isVisibleToUser && node.text?.toString() == text) return true
+      for (i in 0 until node.childCount) if (walk(node.getChild(i))) return true
+      return false
+    }
+    return windows.any { walk(it.root) }
   }
 
   /** Idle again after a tap mood, so closing the panel never leaves the tap mood on the bubble. */

@@ -420,22 +420,30 @@ const overlaps = (a, b) => a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a
 const noteLanded = async (screen, start) => {
   for (let attempt = 0; attempt < 12; attempt++) {
     const file = resolve(repoRoot, evidence('shot', 'ov-own-posts', screen, label, theme).trim());
-    const lines = new Map();
-    for (const row of execFileSync('tesseract', [file, 'stdout', 'tsv'], { encoding: 'utf8' }).split('\n').slice(1)) {
-      const c = row.split('\t');
-      if (c[0] !== '5' || !c[11]?.trim()) continue;
-      const id = c.slice(1, 5).join('.'), [x, y, w, h] = c.slice(6, 10).map(Number);
-      const line = lines.get(id) ?? { text: [], box: [x, y, x + w, y + h] };
-      line.text.push(c[11].trim());
-      line.box = [Math.min(line.box[0], x), Math.min(line.box[1], y), Math.max(line.box[2], x + w), Math.max(line.box[3], y + h)];
-      lines.set(id, line);
+    const list = nodes();
+    // The note's own pill is a view in an overlay window, so it is in the tree; a system toast is not, and is read
+    // by OCR instead. Either way its box comes from this screenshot's moment.
+    const said = list.find(node => node.visible && node.windowType === 4 && (node.text ?? '').startsWith(start));
+    let found = said && { text: [said.text], box: said.bounds };
+    let foundBy = 'tree';
+    if (!found) {
+      const lines = new Map();
+      for (const row of execFileSync('tesseract', [file, 'stdout', 'tsv'], { encoding: 'utf8' }).split('\n').slice(1)) {
+        const c = row.split('\t');
+        if (c[0] !== '5' || !c[11]?.trim()) continue;
+        const id = c.slice(1, 5).join('.'), [x, y, w, h] = c.slice(6, 10).map(Number);
+        const line = lines.get(id) ?? { text: [], box: [x, y, x + w, y + h] };
+        line.text.push(c[11].trim());
+        line.box = [Math.min(line.box[0], x), Math.min(line.box[1], y), Math.max(line.box[2], x + w), Math.max(line.box[3], y + h)];
+        lines.set(id, line);
+      }
+      found = [...lines.values()].find(line => line.text[0]?.startsWith(start));
+      foundBy = 'ocr';
     }
-    const found = [...lines.values()].find(line => line.text[0]?.startsWith(start));
     if (found) {
-      const list = nodes();
       const field = list.find(node => node.className === 'android.widget.EditText' && node.editable)?.bounds;
       const post = list.find(node => /^(Post|Reply)$/.test(node.text ?? '') && node.app === fixturePkg)?.bounds;
-      const entry = { screen, label, theme, note: found.text.join(' '), noteBox: found.box, field, post, coversField: !!field && overlaps(found.box, field), coversPost: !!post && overlaps(found.box, post) };
+      const entry = { screen, label, theme, foundBy, note: found.text.join(' '), noteBox: found.box, field, post, coversField: !!field && overlaps(found.box, field), coversPost: !!post && overlaps(found.box, post) };
       noteBoxes.push(entry);
       writeFileSync(resolve(out, `note-boxes-${label}-${theme}.json`), JSON.stringify(noteBoxes, null, 1));
       console.log(`note ${JSON.stringify(entry)}`);
