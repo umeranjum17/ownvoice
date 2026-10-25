@@ -334,13 +334,16 @@ try {
   //    The frame is the tour's top - title, disclosure, sample - which is what this size can break; the start
   //    button sits below the fold here, as it does for a person at this size.
   await run('opens-large-font', async () => {
-    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3');
+    // The scale reaches the system config a beat after the write; an app started inside that beat keeps
+    // the old one, which is how an earlier run captured a 1.3 frame that was not at 1.3.
+    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.3'); await wait(3000);
     await theme(false);
     await withWidth(390, async () => {
       await openTourFromHome();
       snap('tour-open-light-w390-font1.3');
       adb('shell', 'input', 'keyevent', '4'); await wait(1200);
     });
+    adb('shell', 'settings', 'put', 'system', 'font_scale', '1.0'); await wait(2000);
   });
 
   // 7. A tablet-sized window, where the same screen is reachable.
