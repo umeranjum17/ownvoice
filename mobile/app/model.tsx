@@ -8,7 +8,6 @@ import { words } from '../src/core/words';
 import { cloudOf } from '../src/core/source';
 import { pickedModel, setPickedModel, type PickedModel } from '../src/core/model';
 import { requestTour } from '../src/core/tour';
-import { devlog } from '../src/core/writers';
 
 /** Which one writes: the person's own pick from the signed-in account's list, saved on this phone and used for every draft and rating. */
 export default function ModelScreen() {
@@ -18,12 +17,7 @@ export default function ModelScreen() {
   const [failed, setFailed] = useState(false);
   const pick = (model: PickedModel) => {
     if (!key) return;
-    try {
-      setPickedModel(key, model);
-      if (tour === '1') requestTour();
-      devlog(`tour param ${String(tour)}, pending ${String(tour === '1')}, back now`);
-      router.back();
-    } catch { setFailed(true); }
+    try { setPickedModel(key, model); if (tour === '1') requestTour(); router.back(); } catch { setFailed(true); }
   };
   return <Page title={words.modelTitle} note={words.modelNote} stickyTop onBack={() => router.back()}>
     {key && <ModelPick account={key} picked={pickedModel(key)?.id ?? null} onPick={pick} />}
