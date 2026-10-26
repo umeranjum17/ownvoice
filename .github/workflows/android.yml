@@ -5,10 +5,11 @@ on:
     branches: [main]
   pull_request:
 
-# A superseded push/PR run is cancelled so a queue of them does not hold runners.
+# A superseded PR run is cancelled so a queue of them does not hold runners.
+# main pushes carry no PR number, so they get their own group and are never cancelled.
 concurrency:
-  group: android-${{ github.ref }}
-  cancel-in-progress: true
+  group: android-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Path filter: docs, evidence and engine-only changes cannot affect the legacy
