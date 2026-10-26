@@ -20,6 +20,7 @@ import { pickedModel } from '../src/core/model';
 import { openTour, tourState } from '../src/core/tour';
 import { devlog } from '../src/core/writers';
 import { nameOf, readyOnPhone } from '../src/chatgpt/cards';
+import { genericWords } from '../src/core/accountWords';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
 import { readLog, syncReadLog } from '../src/core/readLog';
@@ -63,10 +64,8 @@ export default function Home() {
   const [retry, setRetry] = useState<(() => void) | null>(null);
   const [typing, setTyping] = useState<boolean | null>(null);
   const [source, setShownSource] = useState<Source | undefined>(storedSource);
-  const [gpt, setGpt] = useState<GptState | null>(null);
-  const [claude, setClaude] = useState<GptState | null>(null);
-  const [openrouter, setOpenRouter] = useState<GptState | null>(null);
-  const [openCode, setOpenCode] = useState<GptState | null>(null);
+  // The chosen cloud account's state: whichever card the person picked, the first four or any route the kit lists.
+  const [states, setStates] = useState<Record<string, GptState>>({});
   // Growth check-in (F6b): one quiet line per due insert, answered onto its own outcome record.
   const [checkin, setCheckin] = useState<Outcome | null>(null);
   const [weekly, setWeekly] = useState(false);
@@ -81,10 +80,8 @@ export default function Home() {
     void Native.bubbleRules().then(setRules).catch(() => {});
     void Native.typingCheck().then(setTyping).catch(() => {});
     void getSource().then(setShownSource).catch(() => {});
-    void cloudSession('chatgpt').current().then(setGpt).catch(() => {});
-    void cloudSession('claude').current().then(setClaude).catch(() => {});
-    void cloudSession('openrouter').current().then(setOpenRouter).catch(() => {});
-    void cloudSession('opencode').current().then(setOpenCode).catch(() => {});
+    const chosen = cloudOf(storedSource());
+    if (chosen) void cloudSession(chosen).current().then(next => setStates(prev => ({ ...prev, [chosen]: next }))).catch(() => {});
     void Native.launcherApps(null).then(setApps).catch(() => {});
     setPhrases(loadVoice().never.length);
     try {
@@ -172,8 +169,9 @@ export default function Home() {
   const viaOpenRouter = cloud === 'openrouter';
   const viaOpenCode = cloud === 'opencode';
   const viaPhone = source === 'phone';
-  const cloudState = viaClaude ? claude : viaOpenRouter ? openrouter : viaOpenCode ? openCode : gpt;
-  const cloudName = nameOf(cloud ?? 'chatgpt');
+  const own = genericWords(cloud);
+  const cloudState = cloud ? states[cloud] ?? null : null;
+  const cloudName = cloud ? nameOf(cloud) : nameOf('chatgpt');
   // A cloud account chosen but not writing right now: signed out, or resting (in byokit's own words).
   const gptLine = cloud && cloudState ? (!cloudState.signedIn ? say('status.needsAgain', { name: cloudName }) : cloudState.resting) : null;
   // Apps the bubble shows in that stay on this phone while a cloud account writes: they need this phone's writer.
@@ -188,10 +186,10 @@ export default function Home() {
   const problem = stopped ? words.readyStopped : null;
   // No writer at all for those apps: this phone really can't write (the panel says phoneOnlyCant there). Unknown is not can't.
   const cantWrite = model?.phase === 'unsupported' ? keptLine : null;
-  const cantWriteNote = viaClaude ? words.claudeCantWriteNote : viaOpenRouter ? words.openrouterCantWriteNote : viaOpenCode ? words.openCodeCantWriteNote : words.cantWriteNote;
-  const cantWriteFix = viaClaude ? words.claudeCantWriteFix : viaOpenRouter ? words.openrouterCantWriteFix : viaOpenCode ? words.openCodeCantWriteFix : words.cantWriteFix;
+  const cantWriteNote = own?.cantWriteNote ?? (viaClaude ? words.claudeCantWriteNote : viaOpenRouter ? words.openrouterCantWriteNote : viaOpenCode ? words.openCodeCantWriteNote : words.cantWriteNote);
+  const cantWriteFix = own?.cantWriteFix ?? (viaClaude ? words.claudeCantWriteFix : viaOpenRouter ? words.openrouterCantWriteFix : viaOpenCode ? words.openCodeCantWriteFix : words.cantWriteFix);
   // Never ready from missing data: wait until the writer, its apps and this phone's answer are known.
-  const checking = source === undefined || rules === null || viaPhone && model === null || viaGpt && (gpt === null || apps === null || model === null) || viaClaude && (claude === null || apps === null || model === null) || viaOpenRouter && (openrouter === null || apps === null || model === null) || viaOpenCode && (openCode === null || apps === null || model === null);
+  const checking = source === undefined || rules === null || viaPhone && model === null || !!cloud && (cloudState === null || apps === null || model === null);
   // Signed in and ready, but the person has not picked which one writes: ask, never pick for them.
   const needsModel = !!cloud && !gptLine && asksModel(cloud) && !pickedModel(cloud);
   const green = !needs && !needsModel && on && !paused && problem === null && !ask && !gptLine && !cantWrite && !checking;
@@ -220,7 +218,7 @@ export default function Home() {
 
   return <View style={{ flex: 1, backgroundColor: t.sheet, paddingTop: inset + space.xl }}><ScrollView style={{ flex: 1, backgroundColor: t.sheet }} contentContainerStyle={styles.page}>
     <Text accessibilityRole="header" style={[type.display, { color: t.text }]}>{words.homeTitle}</Text>
-    <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{viaPhone ? words.homePhone : viaGpt ? words.homeGpt : viaClaude ? words.homeClaude : viaOpenRouter ? words.homeOpenRouter : viaOpenCode ? words.homeOpenCode : words.welcomeNote}</Text>
+    <Text style={[type.body, { color: t.muted, marginBottom: space.m }]}>{viaPhone ? words.homePhone : own ? own.home : viaGpt ? words.homeGpt : viaClaude ? words.homeClaude : viaOpenRouter ? words.homeOpenRouter : viaOpenCode ? words.homeOpenCode : words.welcomeNote}</Text>
 
     <View style={[styles.status, { backgroundColor: green ? t.primaryContainer : t.group }]}>
       <View style={styles.statusHead}>
@@ -236,7 +234,7 @@ export default function Home() {
       </View>}
       {(needs || needsModel || signIn || on && (problem !== null || ask || !!cantWrite) || service !== 'on') && <View style={styles.statusActions}>
         {service === 'off' && !needs && !signIn && <Button kind="filled" label={words.turnOn} onPress={() => power(true)} />}
-        {signIn && <Button kind="filled" label={cloud === 'claude' ? words.claudeButton : cloud === 'openrouter' ? words.openrouterButton : cloud === 'opencode' ? words.openCodeButton : words.gptButton} onPress={() => router.push(cloud === 'claude' ? '/source?start=claude' : cloud === 'openrouter' ? '/source?start=openrouter' : cloud === 'opencode' ? '/source?start=opencode' : '/source?start=chatgpt')} />}
+        {signIn && <Button kind="filled" label={own ? own.button : cloud === 'claude' ? words.claudeButton : cloud === 'openrouter' ? words.openrouterButton : cloud === 'opencode' ? words.openCodeButton : words.gptButton} onPress={() => router.push(cloud && !['chatgpt', 'claude', 'openrouter', 'opencode'].includes(cloud) ? `/source?start=${encodeURIComponent(cloud)}` : cloud === 'claude' ? '/source?start=claude' : cloud === 'openrouter' ? '/source?start=openrouter' : cloud === 'opencode' ? '/source?start=opencode' : '/source?start=chatgpt')} />}
         {needsModel && cloud && <Button kind="filled" label={words.modelChoose} onPress={() => router.push(`/model?account=${cloud}&tour=1`)} />}
         {needs && phoneCan && <Button kind="filled" label={words.continueLabel} onPress={() => router.push('/source')} />}
         {!needs && on && ask && <Button kind="filled" label={words.getReady} onPress={() => start()} />}
@@ -275,7 +273,7 @@ export default function Home() {
     </View>}
 
     <View style={group}>
-      <Row lead={icon(LockIcon)} title={words.rowSource} subtitle={viaPhone ? words.rowSourcePhone : viaGpt ? words.rowSourceGpt : viaClaude ? words.rowSourceClaude : viaOpenRouter ? words.rowSourceOpenRouter : viaOpenCode ? words.rowSourceOpenCode : source === 'computer' ? words.rowSourceComputer : words.rowSourceNone} onPress={() => router.push('/source')} />
+      <Row lead={icon(LockIcon)} title={words.rowSource} subtitle={viaPhone ? words.rowSourcePhone : own ? `With your ${own.name}` : viaGpt ? words.rowSourceGpt : viaClaude ? words.rowSourceClaude : viaOpenRouter ? words.rowSourceOpenRouter : viaOpenCode ? words.rowSourceOpenCode : source === 'computer' ? words.rowSourceComputer : words.rowSourceNone} onPress={() => router.push('/source')} />
       <Row lead={icon(CheckIcon)} title={words.jevTitle} onPress={() => router.push('/ratings')} />
       {!!cloud && !needsModel && <Row lead={icon(PenIcon)} title={words.tourRow} subtitle={words.tourRowNote} onPress={() => router.push('/tour')} />}
       <Row lead={icon(ChatIcon)} title={words.rowComputer} subtitle={source === 'computer' ? words.rowSourceComputer : words.rowComputerNone} onPress={() => router.push('/computer')} />

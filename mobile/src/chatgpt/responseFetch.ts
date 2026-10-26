@@ -1,4 +1,5 @@
 import { fetch as expoFetch } from 'expo/fetch';
+import { route } from '@byokit/accounts';
 import { checkAddress } from '../core/plainAddress';
 
 // Accounts resolves sign-in asynchronously. Its public fetch + signal seams let
@@ -6,9 +7,17 @@ import { checkAddress } from '../core/plainAddress';
 /** Emulator-only stand-in (EXPO_PUBLIC_E2E_OPENROUTER_BASE, never set in a distributable build): OpenRouter's address
  *  becomes the host's `e2e/pi-writer.mjs`, for the list the kit reads as well as for the chat. */
 const OPENROUTER = 'https://openrouter.ai/api/v1';
+/** The same for any one other kit route (EXPO_PUBLIC_E2E_ROUTE_ID, a kit route id, with EXPO_PUBLIC_E2E_ROUTE_BASE): that
+ *  route's own list and chat address become the host stand-in, so a route the app never hard-coded can be proven with no key. */
+const routeBase = (): string | undefined => {
+  try { return route(process.env.EXPO_PUBLIC_E2E_ROUTE_ID ?? '', { platform: 'rn' }).models?.baseUrl; } catch { return undefined; }
+};
 export const proofRoute = (url: string): string => {
   const base = process.env.EXPO_PUBLIC_E2E_OPENROUTER_BASE;
-  return base && url.startsWith(OPENROUTER) ? base + url.slice(OPENROUTER.length) : url;
+  if (base && url.startsWith(OPENROUTER)) return base + url.slice(OPENROUTER.length);
+  const other = process.env.EXPO_PUBLIC_E2E_ROUTE_BASE;
+  const from = other ? routeBase() : undefined;
+  return other && from && url.startsWith(from) ? other + url.slice(from.length) : url;
 };
 
 const requests = new WeakMap<AbortSignal, typeof fetch>();

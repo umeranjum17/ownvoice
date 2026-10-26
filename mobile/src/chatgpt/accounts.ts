@@ -1,11 +1,11 @@
 import { proofRoute, responseFetch } from './responseFetch';
 import * as SecureStore from 'expo-secure-store';
-import { Accounts, offered, portable, resolveModel, secureStore } from '@byokit/accounts';
+import { Accounts, offered, portable, resolveModel, routes, secureStore } from '@byokit/accounts';
 import { keys, withKeys } from '@byokit/accounts/keys';
 import { nativeStore } from '@byokit/secrets/native';
 import { CryptoDigestAlgorithm, digest as sha256, getRandomValues } from 'expo-crypto';
 
-import { accountOf, isKeyCard, readyOnPhone, routeOf, upstreamOf, viaOf, type CloudKey } from './cards';
+import { accountOf, billingOf, cardOfRoute, connectsHere, hasOwnScreen, isKeyCard, readyOnPhone, routeOf, upstreamOf, viaOf, type CloudKey } from './cards';
 import type { Api, Model, OpenCodeGoWorkspace } from '@byokit/accounts';
 import type { KeyRuntime } from '@byokit/accounts/keys';
 const member = 'owner';
@@ -39,12 +39,23 @@ export const openCodeReady = () => readyOnPhone('opencode');
  *  ask calls accept. */
 export const accountRoute = accountOf;
 
+/** The accounts the kit signs in by a code on this phone (Kimi, Copilot, Grok, MiniMax), beyond its default plans: each is
+ *  offered by name so the person can pick it from the list. Empty when the kit's route table can't be read yet. */
+function codeAccounts(): string[] {
+  try {
+    return routes({ platform: 'rn' }).filter(r => r.readiness === 'ready' && r.via === 'code' && connectsHere(cardOfRoute(r.id))).map(r => accountOf(cardOfRoute(r.id)));
+  } catch {
+    return [];
+  }
+}
+
 function kitInstance(): Accounts | undefined {
   if (realInstance) return realInstance;
   try {
     const plans = offered().map(p => p.key);
     if (!plans.length) return undefined;
-    const planOrder = plans.includes('claude') ? ['claude', ...plans.filter(k => k !== 'claude')] : plans;
+    const wanted = [...new Set([...plans, ...codeAccounts()])];
+    const planOrder = wanted.includes('claude') ? ['claude', ...wanted.filter(k => k !== 'claude')] : wanted;
     const offer = openRouterReady() ? [...planOrder, 'openrouter'] : planOrder;
     realInstance = new Accounts({ offer: [...offer, 'typesafe'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase} : {}) }, withKeys(portable));
     return realInstance;
@@ -87,6 +98,12 @@ export const connectOpenRouter = (secret: string) => getInstance().saveKey(membe
 /** Sign one card's account out (the kit revokes it and forgets its key). */
 export const signOutAccount = (card: CloudKey) => getInstance().logout(member, accountOf(card));
 export const signOutOpenRouter = () => signOutAccount('openrouter');
+/** Any other key route the kit lists (a plan key or a per-use key): the kit saves it as that route's account, billed the
+ *  way the route is. Each add() saves a new account, so an earlier one is signed out first: the route keeps one account. */
+export const connectKey = async (card: CloudKey, secret: string) => {
+  await signOutAccount(card).catch(() => {});
+  await getInstance().add(member, routeOf(card), { key: secret.trim(), ...(billingOf(card) === 'api' ? { billedPerUse: true as const } : {}) });
+};
 // Jev is a separate, explicitly billed account; never a writing source or automatic fallback.
 export const connectJev = (secret: string) => getInstance().saveKey(member, 'typesafe', secret.trim(), { billedPerUse: true });
 export const jevKey = () => getInstance().key(member, 'typesafe');
@@ -125,7 +142,9 @@ function keyModel(key: CloudKey, id: string): Promise<Model<Api>> {
   let found = keyModels.get(at);
   if (!found) {
     found = (async () => {
-      const resolved = await resolveModel(await models(), upstreamOf(key), id, { apiKey: await getInstance().key(member, accountOf(key)), fetch: responseFetch });
+      // A page or code sign-in has no key to read: the kit's pinned request auth is used, and the list is read without one.
+      const apiKey = isKeyCard(key) ? await getInstance().key(member, accountOf(key)) : '';
+      const resolved = await resolveModel(await models(), upstreamOf(key), id, { apiKey, fetch: responseFetch });
       if (!resolved) throw new Error('This account lists no models.');
       // The plan's gateway turns away a request that carries no session (400 on activate), so the model opts into
       // the adapter's session-affinity headers through its own compat seam.
@@ -162,7 +181,7 @@ export async function askCloud({ account: key, model }: CloudTarget, ask: CloudA
   // Both key routes answer through the kit's own typed request: OpenRouter's per-use key, and
   // OpenCode Go's plan key on the plan's own endpoint (which also carries the run's session id,
   // so the adapter sends its session-affinity headers).
-  if (isKeyCard(key)) {
+  if (isKeyCard(key) || !hasOwnScreen(key)) {
     // The adapter's SDK makes its own abort signal, so the app's per-request fetch is handed over explicitly:
     // its consent checks and the status it reads run on the real request.
     const plan = key === 'opencode'

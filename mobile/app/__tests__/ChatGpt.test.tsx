@@ -6,6 +6,7 @@ import Source from '../source';
 import { accountSessions, nothing, type GptState } from '../../src/chatgpt/session';
 const session = accountSessions.chatgpt.session;
 import { setSource, storedSource } from '../../src/core/source';
+import { connectGroups } from '../../src/chatgpt/connect';
 import { CHATGPT_TERMS, words, technicalWords } from '../../src/core/words';
 import Native from '../../modules/ownvoice-native';
 
@@ -53,6 +54,11 @@ const fake = session as jest.Mocked<typeof session>;
 const native = Native as jest.Mocked<typeof Native>;
 jest.mock('../../src/core/localModel', () => ({ localModelState: jest.fn(), agreedToDownload: jest.fn(() => false) }));
 import { localModelState } from '../../src/core/localModel';
+
+/** The kit's own words in its connect list: group notes and each row's name (a vendor's name) with its billing, method and status lines. */
+const kitWords = new Set(connectGroups().flatMap(g => [g.title, g.note, ...g.rows.flatMap(r => [r.name, `${r.billingWords}. ${r.method}.`, `${r.billingWords}. ${r.status}`])]));
+/** The kit's ChatGPT row that signs in here: its billing words, then how it signs in. */
+const CHATGPT_CODE = 'Uses your ChatGPT plan. Sign in with a code.';
 const mockState = localModelState as jest.MockedFunction<typeof localModelState>;
 const signedIn: GptState = { ...nothing, signedIn: true, note: 'ChatGPT is connected.' };
 const waiting: GptState = { ...nothing, waiting: true, code: 'KQPT-MXVD', url: 'https://chatgpt.com/code', note: 'Sign in on the ChatGPT page that just opened.' };
@@ -73,8 +79,7 @@ const open = async (source: 'phone' | 'chatgpt' | null, state: GptState = nothin
   reports = state;
   fake.current.mockImplementation(async () => reports);
   const screen = await render(<Source />);
-  await screen.findByText(words.srcGpt);
-  await waitFor(() => expect(fake.current).toHaveBeenCalled());
+  await screen.findByText(CHATGPT_CODE);
   await act(async () => { await Promise.resolve(); });
   return screen;
 };
@@ -92,7 +97,7 @@ beforeEach(() => {
 test('switching to ChatGPT signs in right on the page, and ChatGPT writes once connected', async () => {
   const screen = await open('phone');
   fake.start.mockImplementation(async () => (reports = waiting));
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   expect(await screen.findByText('KQPT-MXVD')).toBeTruthy();
   expect(screen.getByText(words.signInNote)).toBeTruthy();
   expect(screen.getByText(CHATGPT_TERMS)).toBeTruthy();
@@ -111,7 +116,7 @@ test('switching to ChatGPT signs in right on the page, and ChatGPT writes once c
   expect(screen.getByText(words.privacyGpt)).toBeTruthy();
   expect(screen.getByText(words.headGpt)).toBeTruthy();
   expect(screen.getByText(words.headSwitch)).toBeTruthy();
-  expect(visible(screen.toJSON()).filter(text => technicalWords.test(text))).toEqual([]);
+  expect(visible(screen.toJSON()).filter(text => !kitWords.has(text) && technicalWords.test(text))).toEqual([]);
   await fireEvent.press(screen.getByText(words.headReads));
   expect(router.push).toHaveBeenCalledWith('/reads');
 });
@@ -119,7 +124,7 @@ test('switching to ChatGPT signs in right on the page, and ChatGPT writes once c
 test('one button opens ChatGPT\u2019s page here, the approval there finishes it, and nothing is typed or copied', async () => {
   const screen = await open('phone');
   fake.start.mockImplementation(async () => (reports = { ...nothing, waiting: true, url: 'https://auth.openai.com/oauth/authorize?x=1', note: 'Opening ChatGPT\u2026' }));
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   expect(await screen.findByText(words.pageNote)).toBeTruthy();
   expect(screen.queryByTestId('sign-in-code')).toBeNull();
   expect(screen.queryByText(words.copyAndOpen)).toBeNull();
@@ -139,7 +144,7 @@ test('one button opens ChatGPT\u2019s page here, the approval there finishes it,
 test('a page sign-in that fails shows the plain line and Try again starts the redirect again', async () => {
   const screen = await open('phone');
   fake.start.mockImplementation(async () => (reports = { ...nothing, waiting: true, url: 'https://auth.openai.com/oauth/authorize?x=1', note: 'Opening ChatGPT\u2026' }));
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   await screen.findByText(words.pageNote);
   (completeSignIn as jest.Mock).mockRejectedValueOnce(new Error('kit detail'));
   const web = (globalThis as { __web?: { onShouldStartLoadWithRequest: (r: { url: string }) => boolean } }).__web!;
@@ -156,7 +161,7 @@ test('Cancel drops the waiting code and keeps this phone writing', async () => {
   const screen = await open('phone');
   fake.start.mockImplementation(async () => (reports = waiting));
   fake.cancel.mockImplementation(async () => (reports = nothing));
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   await screen.findByText('KQPT-MXVD');
   await fireEvent.press(screen.getByText(words.gptCancel));
   expect(fake.cancel).toHaveBeenCalled();
@@ -168,7 +173,7 @@ test('Cancel drops the waiting code and keeps this phone writing', async () => {
 test('leaving the page mid sign-in keeps nothing', async () => {
   const screen = await open('phone');
   fake.start.mockImplementation(async () => (reports = waiting));
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   await screen.findByText('KQPT-MXVD');
   await act(async () => { await screen.unmount(); });
   expect(fake.cancel).toHaveBeenCalled();
@@ -179,11 +184,11 @@ test('a slow first code cancelled and replaced never cancels the newer sign-in',
   const screen = await open('phone');
   let first!: (state: GptState) => void;
   fake.start.mockImplementationOnce(() => new Promise(done => { first = done; }));
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   await fireEvent.press(screen.getByText(words.gptCancel));
   expect(fake.cancel).toHaveBeenCalledTimes(1);
   fake.start.mockImplementation(async () => (reports = waiting));
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   expect(await screen.findByText('KQPT-MXVD')).toBeTruthy();
   await act(async () => { first(waiting); });
   expect(fake.cancel).toHaveBeenCalledTimes(1);
@@ -194,7 +199,7 @@ test('a slow code for a sign-in the person left is dropped', async () => {
   const screen = await open('phone');
   let first!: (state: GptState) => void;
   fake.start.mockImplementationOnce(() => new Promise(done => { first = done; }));
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   await fireEvent.press(screen.getByText(words.srcPhone));
   await act(async () => { first(waiting); });
   expect(fake.cancel).toHaveBeenCalledTimes(2);
@@ -205,7 +210,7 @@ test('a slow code for a sign-in the person left is dropped', async () => {
 test('a failed sign-in says what happened and offers Try again', async () => {
   const screen = await open('phone');
   fake.start.mockResolvedValue({ ...nothing, note: 'The code expired before it was used.' });
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   expect(await screen.findByText('The code expired before it was used.')).toBeTruthy();
   fake.start.mockImplementation(async () => (reports = waiting));
   await fireEvent.press(screen.getByText(words.tryAgain));
@@ -215,14 +220,14 @@ test('a failed sign-in says what happened and offers Try again', async () => {
 
 test('already signed in: switching asks first, and Keep it on this phone changes nothing', async () => {
   const screen = await open('phone', signedIn);
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   expect(screen.getByText(words.switchTitle)).toBeTruthy();
   expect(screen.getByText(words.switchBody)).toBeTruthy();
   await fireEvent.press(screen.getByText(words.switchNo));
   expect(screen.queryByText(words.switchTitle)).toBeNull();
   expect(chosen()).toBe('phone');
   expect(fake.start).not.toHaveBeenCalled();
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   await fireEvent.press(screen.getByText(words.switchYes));
   expect(chosen()).toBe('chatgpt');
   expect(screen.queryByText(words.switchTitle)).toBeNull();
@@ -267,7 +272,7 @@ test('a phone that stopped writing reads as not chosen, with no promise about wh
   await fireEvent.press(screen.getByText(words.srcPhone));
   expect(screen.getByText(words.phoneCantWhy)).toBeTruthy();
   expect(chosen()).toBe('phone');
-  await fireEvent.press(screen.getByText(words.srcGpt));
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   expect(screen.getByText(words.cancel)).toBeTruthy();
   expect(screen.queryByText(words.switchNo)).toBeNull();
 });

@@ -112,7 +112,7 @@ const openKeyField = async () => {
   setSource('phone');
   const screen = await render(<Source />);
   await screen.findByText(words.srcPhone);
-  await tapAndWait(screen, () => fireEvent.press(screen.getByText(words.srcOpenCode)), [words.openCodeKeyNote]);
+  await tapAndWait(screen, () => fireEvent.press(screen.getByText('OpenCode Go')), [words.openCodeKeyNote]);
   return { screen, field: await screen.findByLabelText(words.openCodePasteField) };
 };
 
@@ -173,7 +173,7 @@ test('leaving the pick keeps nothing: a fresh paste connects with no pick and no
   expect(screen.queryByText(PICK_LINE)).toBeNull();
 
   // The card opens again on a fresh key field, never the stale pick or the dropped key.
-  await tapAndWait(screen, () => fireEvent.press(screen.getByText(words.srcOpenCode)), [words.openCodeKeyNote]);
+  await tapAndWait(screen, () => fireEvent.press(screen.getByText('OpenCode Go')), [words.openCodeKeyNote]);
   const fresh = await screen.findByLabelText(words.openCodePasteField);
 
   // A different key that needs no pick connects straight through; the old list never comes back.
