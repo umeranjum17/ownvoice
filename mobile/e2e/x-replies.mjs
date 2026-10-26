@@ -357,6 +357,34 @@ const connectOpenRouter = async () => {
   }, { seconds: 120, every: 1000 });
   if (/not accepted/.test(nodeText())) throw new Error('OpenRouter rejected the key.');
 };
+// X_REPLIES_ROUTE=<row name>: a plan-key route the old four cards did not have, connected from the kit's own connect
+// list. The list is captured as it opens (nothing selected, no Auto row, plans first, then pay per use), the row is
+// tapped, the key pasted through the app's field, and the writer is picked from that account's own list.
+const routeName = process.env.X_REPLIES_ROUTE;
+const connectRoute = async () => {
+  await skipSetup();
+  await waitForLine('plans', 30);
+  shot('connect-list', 'plans-open', 'light');
+  if (/\bauto\b/.test(nodeText())) throw new Error('The connect list shows an Auto row.');
+  if (nodes().some(n => n.selected)) throw new Error('A row of the connect list is selected on open.');
+  await scrollWriterList('pay per use');
+  shot('connect-list', 'pay-per-use', 'light');
+  await scrollWriterList(routeName);
+  shot('connect-list', 'the-new-row', 'light');
+  if (!(await tapButton(routeName))) throw new Error(`The ${routeName} row did not read as clickable.`);
+  await waitForLine(`paste your ${routeName.toLowerCase()} key`, 30);
+  shot('connect-list', 'key-field', 'light');
+  await pasteKey(`paste your ${routeName.toLowerCase()} key`);
+  if (!(await tapButton('connect'))) log('the Connect control did not read as clickable; waiting for the result anyway');
+  await pickModel();
+  await until(`the ${routeName} connect result`, () => {
+    const text = nodeText();
+    if (text.includes(`${routeName.toLowerCase()} is connected`)) return true;
+    if (/not accepted/.test(text)) return 'refused';
+    return false;
+  }, { seconds: 120, every: 1000 });
+  shot('connect-list', 'connected', 'light');
+};
 // OpenCode Go: the plan-key route from PR 209, connected with the desktop login's own key through
 // the app's connect field. The key is never printed, logged or written; the app masks it and keeps
 // it only in its secure store.
@@ -415,6 +443,7 @@ const fitOnly = process.env.X_REPLIES_LEGS === 'fit';
 // own model list, so a route started later leaves the pick list empty and the proof stops there.
 const piLogFile = writer === 'pi' ? await startPiWriter() : null;
 if (writer === 'opencode') await connectOpenCode();
+else if (routeName) await connectRoute();
 else await connectOpenRouter();
 log(`setup finished (live ${writer === 'opencode' ? 'OpenCode Go' : writer === 'pi' ? 'DeepSeek Flash through the host pi writer' : 'OpenRouter'} writer connected${refusalOnly ? '; refusal legs only, no writer call' : ''}).`);
 
