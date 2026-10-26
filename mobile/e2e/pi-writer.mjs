@@ -11,6 +11,8 @@
 import { createServer } from 'node:http';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { pi } from '@byokit/decide/pi';
 
 const [mode, portArg, logPath] = process.argv.slice(2);
@@ -33,7 +35,11 @@ const log = line => { if (logPath) appendFileSync(logPath, `${new Date().toISOSt
 // lean on, so the model's whole answer travels in one object field. The schema stays open: a model that
 // answers `{"drafts":[...]}` directly is passed through unchanged instead of failing validation.
 const ANSWER = { type: 'object' };
-const backends = [pi({ bin, model, timeoutMs }), pi({ bin, model: fallback, timeoutMs })];
+// decide 0.16.3 wants the selected account's environment named: the installed pi finds its own account from these;
+// nothing is read, printed or copied here.
+const home = homedir();
+const env = { ...process.env, HOME: home, PI_CODING_AGENT_DIR: process.env.PI_CODING_AGENT_DIR ?? join(home, '.pi', 'agent') };
+const backends = [pi({ bin, model, timeoutMs, env }), pi({ bin, model: fallback, timeoutMs, env })];
 
 /** The app's wire message list as one system line and one prompt; the kit's own backends take both. */
 const textOf = content => Array.isArray(content)
