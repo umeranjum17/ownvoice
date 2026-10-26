@@ -141,6 +141,14 @@ journeys:
       echo "claude exit=$c1 openrouter exit=$c2 opencode exit=$c3" | tee "$E/driver.log"; [ $c1 -eq 0 ] && [ $c2 -eq 0 ] && [ $c3 -eq 0 ]
     timeout: 45m
 
+  account-layer:
+    description: "Android: the account layer behind the four cards. The OpenRouter card connects through the app's own paste field, the person picks which one writes from the card's list, and the reply cards under an X post come from that account, with every call going through the kit's route and account ids (mobile/src/chatgpt/cards.ts). The writer is the host stand-in (mobile/e2e/pi-writer.mjs on port 18761: no provider key, no spend), so the APK must be built with EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_OPENROUTER_BASE=http://10.0.2.2:18761/api/v1 and a dummy sk- OPENROUTER_KEY_FILE is enough. Needs an explicit emulator allocation, APK env (path to that release APK) and PICK_MODEL (a row the stand-in lists)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; : "${PICK_MODEL:?the model id to pick required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      X_REPLIES_WRITER=pi X_REPLIES_LEGS=preflight PI_WRITER_PORT=18761 node mobile/e2e/x-replies.mjs "$APK" "dd-${RUN_ID}" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"
+      cp verify-artifacts/"dd-${RUN_ID}"/*.png verify-artifacts/"dd-${RUN_ID}"/*.txt verify-artifacts/"dd-${RUN_ID}"/*.json "$E"/ 2>/dev/null; exit $code
+    timeout: 45m
+
   rewrite-selection:
     description: "Android: process-text/share rewrite sheet via direct intents (chips, copy-only sheet, warned number, hidden bubble, verdict note), light and dark. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     command: |

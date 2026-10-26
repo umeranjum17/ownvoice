@@ -15,11 +15,11 @@ import { words } from '../src/core/words';
 import { showsBubble as bubbleInApp } from '../src/core/privacy';
 import { answerOutcome, growthCounts, needsWeeklyCount, pendingCheckin, store, type CheckinAnswer, type Outcome } from '../src/core/store';
 import { cloudOf, cloudSession, getSource, isOwnApp, phoneListed, setSource, storedSource, type Source } from '../src/core/source';
-import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, asksModel, type GptState } from '../src/chatgpt/session';
+import { asksModel, type GptState } from '../src/chatgpt/session';
 import { pickedModel } from '../src/core/model';
 import { openTour, tourState } from '../src/core/tour';
 import { devlog } from '../src/core/writers';
-import { openCodeReady, openRouterReady } from '../src/chatgpt/accounts';
+import { nameOf, readyOnPhone } from '../src/chatgpt/cards';
 import { say } from '@byokit/accounts';
 import { agreed, downloading, getReady, modelStatus, resume, watch } from '../src/core/phoneDownload';
 import { readLog, syncReadLog } from '../src/core/readLog';
@@ -173,7 +173,7 @@ export default function Home() {
   const viaOpenCode = cloud === 'opencode';
   const viaPhone = source === 'phone';
   const cloudState = viaClaude ? claude : viaOpenRouter ? openrouter : viaOpenCode ? openCode : gpt;
-  const cloudName = viaClaude ? CLAUDE_NAME : viaOpenRouter ? OPENROUTER_NAME : viaOpenCode ? OPENCODE_NAME : NAME;
+  const cloudName = nameOf(cloud ?? 'chatgpt');
   // A cloud account chosen but not writing right now: signed out, or resting (in byokit's own words).
   const gptLine = cloud && cloudState ? (!cloudState.signedIn ? say('status.needsAgain', { name: cloudName }) : cloudState.resting) : null;
   // Apps the bubble shows in that stay on this phone while a cloud account writes: they need this phone's writer.
@@ -199,7 +199,7 @@ export default function Home() {
   const detail = needs ? (phoneCan ? words.sourceNote : words.needWriterNote) : needsModel ? words.needModelNote : !on ? words.statusOffNote : ask ? (keptLine ? words.cantWriteReadyNote : words.readyNote) : problem
     ?? (gptLine ? (phoneCan ? words.restingPhone : null) : getting ? words.gettingReady : paused ? words.statusPausedNote : cantWrite ? cantWriteNote : checking ? null : words.statusReadyNote);
   const mood = needs || needsModel ? 'check' : !on ? 'idle' : ask ? 'hello' : problem ? 'check' : gptLine ? (cloudState?.signedIn ? 'idle' : 'check') : getting ? 'thinking' : paused ? 'idle' : cantWrite ? 'check' : checking ? 'idle' : 'ready';
-  const signIn = (needs && !phoneCan || on && !!cloud && !!cloudState && !cloudState.signedIn) && !((viaOpenRouter && !openRouterReady()) || (viaOpenCode && !openCodeReady()));
+  const signIn = (needs && !phoneCan || on && !!cloud && !!cloudState && !cloudState.signedIn) && !((cloud && !readyOnPhone(cloud)));
   const onCard = green ? t.onPrimaryContainer : t.text;
   // The short tour opens itself once, right back from picking which one writes; after that Home offers
   // it as a row, so a skipped tour is never forced again (scope report, decisions 1 and 5).

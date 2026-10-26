@@ -147,7 +147,7 @@ test('the emulator stand-in drafts without marking a send', async () => {
   const originalFetch = global.fetch;
   const start = Date.now();
   let mockRoute!: typeof gptRoute;
-  let mockSession!: typeof import('../session').accountSessions.chatgpt.session;
+  let mockSession!: import('../session').Session;
   try {
     process.env.EXPO_PUBLIC_E2E_GPT = '1';
     jest.isolateModules(() => {

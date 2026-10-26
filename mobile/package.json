@@ -11,11 +11,11 @@
     "floor": "node ../scripts/floor-guard.mjs"
   },
   "dependencies": {
-    "@byokit/accounts": "0.32.1",
-    "@byokit/decide": "0.16.1",
+    "@byokit/accounts": "0.34.0",
+    "@byokit/decide": "0.16.3",
     "@byokit/dictation": "0.5.2",
     "@byokit/infer": "^0.1.0",
-    "@byokit/pair": "0.10.4",
+    "@byokit/pair": "0.10.5",
     "@byokit/seal": "0.3.0",
     "@byokit/secrets": "0.5.0",
     "@dr.pogodin/react-native-fs": "^2.40.3",
