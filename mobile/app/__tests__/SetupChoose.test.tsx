@@ -48,6 +48,9 @@ test('nothing is selected on arrival and Continue waits for a tap', async () => 
   await screen.findByText(words.chooseTitle);
   expect(await screen.findByText(CHATGPT_CODE)).toBeTruthy();
   expect(off(screen, words.continueLabel)).toBe(true);
+  // The kit's own list: its plan and pay-per-use groups, routes beyond the old four, and no row selected or added.
+  for (const line of ['Plans', 'Pay per use', 'Z.AI']) expect(screen.queryAllByText(new RegExp(line)).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/Auto/)).toBeNull();
   await fireEvent.press(screen.getByText(CHATGPT_CODE));
   expect(off(screen, words.continueLabel)).toBe(false);
   expect(storedSource()).toBeUndefined();
