@@ -29,6 +29,7 @@ already pay for.
 [![Latest release](https://img.shields.io/github/v/release/umeranjum17/ownvoice?style=flat-square&label=release&color=f2765f)](https://github.com/umeranjum17/ownvoice/releases/latest)
 <img alt="Android 8 or later" src="https://img.shields.io/badge/Android-8%2B-3ddc84?style=flat-square" />
 <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/badge/license-Apache--2.0-8a8a8a?style=flat-square" /></a>
+[![X @umership](https://img.shields.io/badge/X-%40umership-000000?style=flat-square&logo=x&logoColor=white)](https://x.com/umership)
 
 </div>
 
