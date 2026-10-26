@@ -60,21 +60,29 @@ const lines = (image, [width, height]) => {
 // "Ownvoice 1.0.11-dev" as one comparison; OCR's separators between the words don't matter.
 const flat = text => text.toLowerCase().replace(/[^a-z0-9.]+/g, ' ').trim();
 
-const [versionName] = adb('shell', 'dumpsys', 'package', pkg).match(/versionName=(\S+)/)?.slice(1) ?? [];
-const want = flat(`Ownvoice ${versionName}-dev`);
+// Read from the installed build below, after this run installs it: a fresh emulator has no package yet.
+let versionName = '';
+let want = '';
 const priorMode = adb('shell', 'cmd', 'uimode', 'night').trim().replace('Night mode: ', '');
 const priorFont = adb('shell', 'settings', 'get', 'system', 'font_scale').trim();
 const sizes = [[360, 720, 1280, 320], [390, 780, 1280, 320], [445, 890, 1280, 320]];
-const steps = [];
+// done-done's step record: steps are the user steps, one string each; the per-shot detail rides in captures.
+const steps = ['clear the app, leave setup at the writer choice so it lands on Home'];
+const captures = [];
+let result = '';
 const saveSteps = () => writeFileSync(resolve(out, 'steps.json'), JSON.stringify({
   target: { version: versionName, surface: 'Android release APK, Home footer' },
   start: 'Cleared app for each width and theme; setup left at the writer choice, so the app lands on Home with no writer.',
   steps,
-  result: steps.at(-1)?.result,
+  result,
+  captures,
 }, null, 2));
 
 try {
   execFileSync('adb', ['-s', serial, 'install', '-r', apk], { stdio: 'inherit' });
+  [versionName] = adb('shell', 'dumpsys', 'package', pkg).match(/versionName=(\S+)/)?.slice(1) ?? [];
+  if (!versionName) throw new Error(`The installed build reports no versionName: ${adb('shell', 'dumpsys', 'package', pkg).slice(0, 300)}`);
+  want = flat(`Ownvoice ${versionName}-dev`);
   adb('shell', 'svc', 'wifi', 'disable'); // No network is needed; the shared netsimd packet stream stays idle.
   adb('shell', 'settings', 'put', 'secure', 'ui_night_mode_custom_type', '-1'); // The twilight schedule must not flip the theme back.
   for (const [dp, width, height, density] of sizes) for (const mode of ['light', 'dark']) {
@@ -121,10 +129,12 @@ try {
     if (line.top < 0 || line.bottom > height || line.left < 0 || line.right > width) throw new Error(`${tag}: footer box ${JSON.stringify(line)} is off screen.`);
     if (!footer) throw new Error(`${tag}: the footer is on screen but the app reports no version label there.`);
     console.log(`${tag}: "${line.text}"`);
-    steps.push({ screenshot: `${tag}-home-footer.png`, geometry: { dp, width, height, density, mode }, result: `Home footer reads "${line.text}": one marker, no second pre-release marker.`, at: new Date().toISOString() });
+    steps.push(`set ${dp} dp ${mode} and capture the Home footer`);
+    captures.push({ screenshot: `${tag}-home-footer.png`, geometry: { dp, width, height, density, mode }, result: `Home footer reads "${line.text}": one marker, no second pre-release marker.`, at: new Date().toISOString() });
+    result = `Home footer reads "${line.text}" at 360, 390 and 445 dp in light and dark: one marker, no second pre-release marker.`;
     saveSteps();
   }
-  console.log(`PASS: ${steps.length} footer captures at 360, 390 and 445 dp in light and dark, one -dev marker each.`);
+  console.log(`PASS: ${captures.length} footer captures at 360, 390 and 445 dp in light and dark, one -dev marker each.`);
 } finally {
   adb('shell', 'am', 'force-stop', pkg);
   adb('shell', 'wm', 'size', 'reset');
