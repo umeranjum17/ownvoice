@@ -12,3 +12,4 @@ The repo's maintained verification map; a proof that drives one entry point is i
 - [First-run welcome promise](first-run-welcome-promise.md): A new user opens Ownvoice and reads what it will do in which apps
 - [Reject bad requests with a readable error](reject-bad-requests-with-a-readable-erro.md): A caller sends a malformed or unknown request by mistake
 - [The note and bubble keep clear of the message box](note-keeps-clear.md): After Copy or Insert, the note never covers the composer or its Post button
+- [Connect an account through the kit's account layer](connect-an-account-through-the-kit.md): A user connects one of the four cards and gets reply cards from it; the app asks the kit's routes and accounts through one module (`mobile/src/chatgpt/cards.ts`, Android surface)
