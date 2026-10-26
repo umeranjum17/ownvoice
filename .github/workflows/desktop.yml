@@ -7,6 +7,12 @@ on:
   pull_request:
     paths: ['desktop/**', 'packages/engine/src/**', '.github/workflows/desktop.yml']
 
+# A superseded PR run is cancelled so a queue of them does not hold runners.
+# main pushes carry no PR number, so they get their own group and are never cancelled.
+concurrency:
+  group: desktop-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
