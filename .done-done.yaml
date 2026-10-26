@@ -187,6 +187,13 @@ journeys:
       node mobile/e2e/welcome.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 15m
 
+  app-version-label:
+    description: "Android: Home's footer shows one version marker -- the -dev one on a build that is not a tagged release -- and no second pre-release marker beside it, at 360, 390 and 445 dp in light and dark. The driver reads the footer off the screen with OCR and compares it with the installed build's own versionName. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/version-label.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 30m
+
   restricted-setting-help:
     description: "Android: the permission step on an app Android blocks, installed the way a person does (Downloads, Files, Android's installer): the card with the greyed-row try first, Android's denied-access message, the card re-checked on return, Open App info and its three-dot Allow restricted settings, then Turn on, Use Ownvoice, Allow and setup moving on. Light at font 1.0, dark at 1.3. Needs an explicit emulator allocation and APK env (a release APK built with EXPO_PUBLIC_E2E_DOWNLOAD=1, per mobile/README.md)."
     command: |
