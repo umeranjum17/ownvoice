@@ -1,22 +1,22 @@
 import { say } from '@byokit/accounts';
 import type { SignIn, Status } from '@byokit/accounts';
-import type { CloudKey } from '../core/source';
+import { accountOf, cardIds, isKeyCard, nameOf, viaOf, type CloudKey } from './cards';
 import { store } from '../core/store';
 import { CHATGPT_TERMS, words } from '../core/words';
 
-export const NAME = 'ChatGPT';
+export const NAME = nameOf('chatgpt');
 /** The grey line under a sign-in: the kit's, except ChatGPT's, which says only what it uses. */
 export const termsOf = (key: string, name: string, company: string) => key === 'chatgpt' ? CHATGPT_TERMS : say('terms.grey', { name, company });
-export const CLAUDE_NAME = 'Claude';
-export const OPENROUTER_NAME = 'OpenRouter';
-export const OPENCODE_NAME = 'OpenCode Go';
+export const CLAUDE_NAME = nameOf('claude');
+export const OPENROUTER_NAME = nameOf('openrouter');
+export const OPENCODE_NAME = nameOf('opencode');
 export const GPT_APPS_KEY = 'chatgpt-apps';
 
 export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
 /** Whether the person is asked which one writes. The emulator's ChatGPT stand-in (`mocked`) has no list to pick from; every other account has. */
 export const asksModel = (key: CloudKey) => !(mocked && key === 'chatgpt');
-const signingOut: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0, opencode: 0 };
-const signOutEpoch: Record<CloudKey, number> = { chatgpt: 0, claude: 0, openrouter: 0, opencode: 0 };
+const signingOut: Record<CloudKey, number> = Object.fromEntries(cardIds.map(id => [id, 0]));
+const signOutEpoch: Record<CloudKey, number> = Object.fromEntries(cardIds.map(id => [id, 0]));
 export const signOutGuard = (key: CloudKey) => ({ active: signingOut[key] > 0, epoch: signOutEpoch[key] });
 const leaving = async (key: CloudKey, run: () => Promise<GptState>): Promise<GptState> => {
   signingOut[key]++;
@@ -96,7 +96,7 @@ const connected = (): GptState => ({ signedIn: !!connectedAt, waiting: false, co
 // Each account's sign-in is the kit's own, keyed by provider; Claude's is the paste-back flow, and
 // it has no stand-in, so it is always the real one even in stub builds.
 const accountSession = (key: CloudKey): Session => {
-  const name = key === 'claude' ? CLAUDE_NAME : NAME;
+  const name = nameOf(key);
   const readState = async (a: ReturnType<typeof live>) => stateOf(a.signInState(key), await a.status(key).catch(() => null), name, key === 'claude' ? words.claudeSignInNote : undefined);
   return {
     current: async () => {
@@ -109,7 +109,7 @@ const accountSession = (key: CloudKey): Session => {
     start: async () => {
       if (key === 'chatgpt') store.set(GPT_APPS_KEY, null);
       const a = live();
-      await (key === 'claude' ? a.signInClaude() : a.signIn('chatgpt'));
+      await (viaOf(key) === 'paste' ? a.signInClaude() : a.signIn(accountOf(key)));
       return readState(a);
     },
     cancel: async () => {
@@ -138,45 +138,37 @@ const tracked = (underlying: Session) => {
   return { session, now: () => last };
 };
 
-// OpenRouter is a key route, not a plan sign-in: the person pastes their own key here and the kit
-// checks it on the first request. There is no page to open, no code and nothing to wait for.
-const openRouterSession = (): Session => ({
-  current: async () => {
-    if (signingOut.openrouter) return nothing;
-    const a = live();
-    await a.refresh().catch(() => {});
-    const state = stateOf(null, await a.status('openrouter').catch(() => null), OPENROUTER_NAME);
-    return signingOut.openrouter ? nothing : state;
-  },
-  start: async () => ({ ...nothing, waiting: true, note: words.openrouterKeyNote }),
-  cancel: async () => ({ ...nothing, note: say('signIn.cancelled', { name: OPENROUTER_NAME }) }),
-  signOut: () => leaving('openrouter', async () => {
-    await live().signOutOpenRouter();
-    return { ...nothing, note: say('status.signedOut', { name: OPENROUTER_NAME }) };
-  }),
-});
-
-// OpenCode Go is a plan key route: the person pastes the key their OpenCode Go plan gave them, and
-// the kit keeps it as that plan's account. As with OpenRouter there is no page, code or wait.
-const openCodeSession = (): Session => ({
-  current: async () => {
-    if (signingOut.opencode) return nothing;
-    const a = live();
-    await a.refresh().catch(() => {});
-    const state = stateOf(null, await a.status(live().OPENCODE_ROUTE).catch(() => null), OPENCODE_NAME);
-    return signingOut.opencode ? nothing : state;
-  },
-  start: async () => ({ ...nothing, waiting: true, note: words.openCodeKeyNote }),
-  cancel: async () => ({ ...nothing, note: say('signIn.cancelled', { name: OPENCODE_NAME }) }),
-  signOut: () => leaving('opencode', async () => {
-    await live().signOutOpenCode();
-    return { ...nothing, note: say('status.signedOut', { name: OPENCODE_NAME }) };
-  }),
-});
-
-export const accountSessions: Record<CloudKey, { session: Session; now: () => GptState }> = {
-  chatgpt: tracked(mocked ? mock : accountSession('chatgpt')),
-  claude: tracked(accountSession('claude')),
-  openrouter: tracked(openRouterSession()),
-  opencode: tracked(openCodeSession()),
+// A key card (OpenRouter's key, OpenCode Go's plan key) is not a page sign-in: the person pastes the key their
+// account gave them and the kit keeps it as that account. There is no page to open, no code and nothing to wait for.
+const keySession = (key: CloudKey, note: string): Session => {
+  const name = nameOf(key);
+  return {
+    current: async () => {
+      if (signingOut[key]) return nothing;
+      const a = live();
+      await a.refresh().catch(() => {});
+      const state = stateOf(null, await a.status(accountOf(key)).catch(() => null), name);
+      return signingOut[key] ? nothing : state;
+    },
+    start: async () => ({ ...nothing, waiting: true, note }),
+    cancel: async () => ({ ...nothing, note: say('signIn.cancelled', { name }) }),
+    signOut: () => leaving(key, async () => {
+      await live().signOutAccount(key);
+      return { ...nothing, note: say('status.signedOut', { name }) };
+    }),
+  };
 };
+
+// The kit's route table is read when a session is first used, never while the app loads.
+const onUse = (make: () => Session): Session => {
+  let session: Session | undefined;
+  const use = () => session ??= make();
+  return { current: () => use().current(), start: () => use().start(), cancel: () => use().cancel(), signOut: () => use().signOut() };
+};
+
+const keyNotes: Record<CloudKey, string> = { openrouter: words.openrouterKeyNote, opencode: words.openCodeKeyNote };
+
+export const accountSessions: Record<CloudKey, { session: Session; now: () => GptState }> = Object.fromEntries(cardIds.map(key => [
+  key,
+  tracked(onUse(() => mocked && key === 'chatgpt' ? mock : isKeyCard(key) ? keySession(key, keyNotes[key]) : accountSession(key))),
+]));

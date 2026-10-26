@@ -19,7 +19,8 @@ import { showsBubble } from '../src/core/privacy';
 import { pickedModel } from '../src/core/model';
 import { cloudSession, getSource, phoneOnly, setSource, type CloudKey, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
-import { CLAUDE_NAME, NAME, OPENCODE_NAME, OPENROUTER_NAME, asksModel, nothing, termsOf, type GptState } from '../src/chatgpt/session';
+import { companyOf, nameOf, readyOnPhone } from '../src/chatgpt/cards';
+import { asksModel, nothing, termsOf, type GptState } from '../src/chatgpt/session';
 import { appsLine } from './index';
 import Native from '../modules/ownvoice-native';
 
@@ -28,10 +29,10 @@ import Native from '../modules/ownvoice-native';
  *  account asks first (or signs in right here), switching back to the phone is immediate.
  *  `start=chatgpt|claude|openrouter|opencode` (from Home's card) begins that switch on arrival. */
 const ACCOUNT_COPY: Record<CloudKey, { title: string; body: string; name: string; company: string; yes: string; button: string; signOut: string; phoneBackup: string; ready: string }> = {
-  chatgpt: { title: words.switchTitle, body: words.switchBody, name: NAME, company: 'OpenAI', yes: words.switchYes, button: words.gptButton, signOut: words.gptSignOut, phoneBackup: words.phoneBackup, ready: words.gptSignedInNow },
-  claude: { title: words.claudeSwitchTitle, body: words.claudeSwitchBody, name: CLAUDE_NAME, company: 'Anthropic', yes: words.claudeSwitchYes, button: words.claudeButton, signOut: words.claudeSignOut, phoneBackup: words.claudePhoneBackup, ready: say('status.ready', { name: CLAUDE_NAME }) },
-  openrouter: { title: words.openrouterSwitchTitle, body: words.openrouterSwitchBody, name: OPENROUTER_NAME, company: 'OpenRouter', yes: words.openrouterSwitchYes, button: words.openrouterButton, signOut: words.openrouterSignOut, phoneBackup: words.openrouterPhoneBackup, ready: say('status.ready', { name: OPENROUTER_NAME }) },
-  opencode: { title: words.openCodeSwitchTitle, body: words.openCodeSwitchBody, name: OPENCODE_NAME, company: 'OpenCode Go', yes: words.openCodeSwitchYes, button: words.openCodeButton, signOut: words.openCodeSignOut, phoneBackup: words.openCodePhoneBackup, ready: say('status.ready', { name: OPENCODE_NAME }) },
+  chatgpt: { title: words.switchTitle, body: words.switchBody, name: nameOf('chatgpt'), company: companyOf('chatgpt'), yes: words.switchYes, button: words.gptButton, signOut: words.gptSignOut, phoneBackup: words.phoneBackup, ready: words.gptSignedInNow },
+  claude: { title: words.claudeSwitchTitle, body: words.claudeSwitchBody, name: nameOf('claude'), company: companyOf('claude'), yes: words.claudeSwitchYes, button: words.claudeButton, signOut: words.claudeSignOut, phoneBackup: words.claudePhoneBackup, ready: say('status.ready', { name: nameOf('claude') }) },
+  openrouter: { title: words.openrouterSwitchTitle, body: words.openrouterSwitchBody, name: nameOf('openrouter'), company: companyOf('openrouter'), yes: words.openrouterSwitchYes, button: words.openrouterButton, signOut: words.openrouterSignOut, phoneBackup: words.openrouterPhoneBackup, ready: say('status.ready', { name: nameOf('openrouter') }) },
+  opencode: { title: words.openCodeSwitchTitle, body: words.openCodeSwitchBody, name: nameOf('opencode'), company: companyOf('opencode'), yes: words.openCodeSwitchYes, button: words.openCodeButton, signOut: words.openCodeSignOut, phoneBackup: words.openCodePhoneBackup, ready: say('status.ready', { name: nameOf('opencode') }) },
 };
 
 export default function SourceScreen() {
@@ -183,8 +184,8 @@ export default function SourceScreen() {
     if (source !== 'phone') choose('phone');
   };
 
-  const openRouterOffered: boolean = require('../src/chatgpt/accounts').openRouterReady();
-  const openCodeOffered: boolean = require('../src/chatgpt/accounts').openCodeReady();
+  const openRouterOffered = readyOnPhone('openrouter');
+  const openCodeOffered = readyOnPhone('opencode');
 
   useEffect(() => {
     const requested = start === 'claude' || start === 'chatgpt' || start === 'openrouter' || start === 'opencode' ? start : null;

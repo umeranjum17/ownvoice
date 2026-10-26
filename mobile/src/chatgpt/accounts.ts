@@ -1,11 +1,11 @@
 import { proofRoute, responseFetch } from './responseFetch';
 import * as SecureStore from 'expo-secure-store';
-import { Accounts, offered, portable, PROVIDERS, resolveModel, route, secureStore } from '@byokit/accounts';
+import { Accounts, offered, portable, resolveModel, secureStore } from '@byokit/accounts';
 import { keys, withKeys } from '@byokit/accounts/keys';
 import { nativeStore } from '@byokit/secrets/native';
 import { CryptoDigestAlgorithm, digest as sha256, getRandomValues } from 'expo-crypto';
 
-import type { CloudKey } from '../core/source';
+import { accountOf, isKeyCard, readyOnPhone, routeOf, upstreamOf, viaOf, type CloudKey } from './cards';
 import type { Api, Model, OpenCodeGoWorkspace } from '@byokit/accounts';
 import type { KeyRuntime } from '@byokit/accounts/keys';
 const member = 'owner';
@@ -24,24 +24,20 @@ const claudePlan = { crypto: { getRandomValues, subtle: { digest: (_algorithm: s
 const fallback = new Accounts({ offer: ['claude', 'chatgpt', 'typesafe'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase } : {}) }, withKeys(portable));
 let realInstance: Accounts | undefined;
 
-/** Whether the kit reports this phone's OpenRouter key route ready. Offered only then; the kit decides, not Ownvoice.
- *  `EXPO_PUBLIC_E2E_OPENROUTER_OFF=1` is an emulator-only injected capability counterfactual (never a distributable
- *  build): it forces the not-ready branch so the proof can show the app hides the card and Home action. */
-export const openRouterReady = () => process.env.EXPO_PUBLIC_E2E_OPENROUTER_OFF === '1'
-  ? false
-  : route('openrouter:key', { platform: 'rn' }).readiness === 'ready';
+/** Whether the kit reports this phone's OpenRouter key route ready (the card layer asks the kit). */
+export const openRouterReady = () => readyOnPhone('openrouter');
 
 /** OpenCode Go's route in the kit: a plan key on the person's own plan, billed as that plan rather than per use.
  *  The route id is the account id the kit keeps the plan key under, so every ask names it exactly. */
-export const OPENCODE_ROUTE = 'opencode:plan_key:opencode-go';
+export const OPENCODE_ROUTE = routeOf('opencode');
 
-/** Whether the kit reports this phone's OpenCode Go route ready. Offered only then; the kit decides, not Ownvoice. */
-export const openCodeReady = () => route(OPENCODE_ROUTE, { platform: 'rn' }).readiness === 'ready';
+/** Whether the kit reports this phone's OpenCode Go route ready. */
+export const openCodeReady = () => readyOnPhone('opencode');
 
 /** The kit's account id for one writer: plain providers are named as they are, while OpenCode Go is its
  *  plan-key route id (the plan's own account), which is the only name the kit's status, sign-out and
  *  ask calls accept. */
-export const accountRoute = (key: CloudKey): string => key === 'opencode' ? OPENCODE_ROUTE : key;
+export const accountRoute = accountOf;
 
 function kitInstance(): Accounts | undefined {
   if (realInstance) return realInstance;
@@ -87,8 +83,10 @@ export const paste = (provider: string, text: string) => getInstance().paste(mem
 export const signInClaude = () => getInstance().login(member, 'claude');
 // OpenRouter is a key route: the person pastes their own OpenRouter key, which the kit keeps only in
 // this phone's secure store. A phone has no OpenRouter OAuth sign-in, so there is no code to open or paste back.
-export const connectOpenRouter = (secret: string) => getInstance().saveKey(member, 'openrouter', secret.trim(), { billedPerUse: true });
-export const signOutOpenRouter = () => getInstance().logout(member, 'openrouter');
+export const connectOpenRouter = (secret: string) => getInstance().saveKey(member, accountOf('openrouter'), secret.trim(), { billedPerUse: true });
+/** Sign one card's account out (the kit revokes it and forgets its key). */
+export const signOutAccount = (card: CloudKey) => getInstance().logout(member, accountOf(card));
+export const signOutOpenRouter = () => signOutAccount('openrouter');
 // Jev is a separate, explicitly billed account; never a writing source or automatic fallback.
 export const connectJev = (secret: string) => getInstance().saveKey(member, 'typesafe', secret.trim(), { billedPerUse: true });
 export const jevKey = () => getInstance().key(member, 'typesafe');
@@ -98,10 +96,10 @@ export const disconnectJev = () => getInstance().logout(member, 'typesafe');
 // hands back the kit's list so the person picks one; connecting again with that workspace saves it.
 // Each add() saves a new account, so an earlier one is signed out first: the route keeps one Go account.
 export const connectOpenCode = async (secret: string, workspace?: string): Promise<OpenCodeGoWorkspace[] | undefined> => {
-  await getInstance().logout(member, OPENCODE_ROUTE).catch(() => {});
-  return (await getInstance().add(member, OPENCODE_ROUTE, { key: secret.trim(), ...(workspace ? { workspace } : {}) })).workspaces;
+  await signOutAccount('opencode').catch(() => {});
+  return (await getInstance().add(member, routeOf('opencode'), { key: secret.trim(), ...(workspace ? { workspace } : {}) })).workspaces;
 };
-export const signOutOpenCode = () => getInstance().logout(member, OPENCODE_ROUTE);
+export const signOutOpenCode = () => signOutAccount('opencode');
 export async function codexAuth(): Promise<{ access: string; accountId: string }> {
   const runtime = await getInstance().runtime(member);
   const auth = await runtime.getAuth('openai-codex');
@@ -122,12 +120,12 @@ const models = () => kitModels ??= keys().then(({ createModels }) => createModel
  *  when it gives them, else the kit's documented defaults); this app keeps no model rows. This is never shown to the person.
  *  `EXPO_PUBLIC_E2E_OPENROUTER_BASE` (emulator-only, see `proofRoute`) points OpenRouter's list and chat at the host's
  *  `e2e/pi-writer.mjs`, so the live reply proof can run on the real route without a provider key. */
-function keyModel(key: 'openrouter' | 'opencode', id: string): Promise<Model<Api>> {
+function keyModel(key: CloudKey, id: string): Promise<Model<Api>> {
   const at = `${key}:${id}`;
   let found = keyModels.get(at);
   if (!found) {
     found = (async () => {
-      const resolved = await resolveModel(await models(), key === 'opencode' ? 'opencode-go' : 'openrouter', id, { apiKey: await getInstance().key(member, accountRoute(key)), fetch: responseFetch });
+      const resolved = await resolveModel(await models(), upstreamOf(key), id, { apiKey: await getInstance().key(member, accountOf(key)), fetch: responseFetch });
       if (!resolved) throw new Error('This account lists no models.');
       // The plan's gateway turns away a request that carries no session (400 on activate), so the model opts into
       // the adapter's session-affinity headers through its own compat seam.
@@ -164,12 +162,12 @@ export async function askCloud({ account: key, model }: CloudTarget, ask: CloudA
   // Both key routes answer through the kit's own typed request: OpenRouter's per-use key, and
   // OpenCode Go's plan key on the plan's own endpoint (which also carries the run's session id,
   // so the adapter sends its session-affinity headers).
-  if (key === 'openrouter' || key === 'opencode') {
+  if (isKeyCard(key)) {
     // The adapter's SDK makes its own abort signal, so the app's per-request fetch is handed over explicitly:
     // its consent checks and the status it reads run on the real request.
     const plan = key === 'opencode'
-      ? { account: OPENCODE_ROUTE, model: await keyModel(key, model), options: { maxTokens: 8192, signal: ask.signal, sessionId: openCodeSessionId(), fetch: ask.fetch } }
-      : { account: 'openrouter', model: await keyModel(key, model), options: { maxTokens: 8192, signal: ask.signal, fetch: ask.fetch } };
+      ? { account: accountOf(key), model: await keyModel(key, model), options: { maxTokens: 8192, signal: ask.signal, sessionId: openCodeSessionId(), fetch: ask.fetch } }
+      : { account: accountOf(key), model: await keyModel(key, model), options: { maxTokens: 8192, signal: ask.signal, fetch: ask.fetch } };
     let streamed = '';
     const result = await getInstance().respondKey(member, {
       ...plan,
@@ -179,7 +177,7 @@ export async function askCloud({ account: key, model }: CloudTarget, ask: CloudA
     const text = streamed || result.content.map(part => part.type === 'text' ? part.text : '').join('');
     return ask.json ? jsonBody(text) : text;
   }
-  if (key === 'claude') {
+  if (viaOf(key) === 'paste') {
     const text = await respond(member, { provider: 'claude', model, max_tokens: 8192,
       system: ask.instructions, messages: [{ role: 'user', content: ask.input }], onText: ask.onText, signal: ask.signal });
     // Emulator proof builds only (EXPO_PUBLIC_E2E_CLAUDE_LOG=1): put the real Claude answer on
