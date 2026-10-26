@@ -372,9 +372,12 @@ const connectRoute = async () => {
   await scrollWriterList(routeName);
   shot('connect-list', 'the-new-row', 'light');
   if (!(await tapButton(routeName))) throw new Error(`The ${routeName} row did not read as clickable.`);
-  await waitForLine(`paste your ${routeName.toLowerCase()} key`, 30);
+  await scrollWriterList(`paste your ${routeName.toLowerCase()} key`);
+  await until(`the ${routeName} key field`, () => onScreen(`paste your ${routeName} key`), { seconds: 30 });
   shot('connect-list', 'key-field', 'light');
   await pasteKey(`paste your ${routeName.toLowerCase()} key`);
+  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .4), '300');
+  await wait(1200);
   if (!(await tapButton('connect'))) log('the Connect control did not read as clickable; waiting for the result anyway');
   await pickModel();
   await until(`the ${routeName} connect result`, () => {
