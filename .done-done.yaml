@@ -188,7 +188,7 @@ journeys:
     timeout: 15m
 
   app-version-label:
-    description: "Android: Home's footer shows one version marker -- the -dev one on a build that is not a tagged release -- and no second pre-release marker beside it, at 360, 390 and 445 dp in light and dark. The driver reads the footer off the screen with OCR and compares it with the installed build's own versionName. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
+    description: "Android: Home's footer shows one version marker -- the -dev one on a build that is not a tagged release -- and no second pre-release marker beside it, at 360, 390 and 445 dp in light and dark. The driver reads the footer off the screen with OCR and compares it with the installed build's own versionName. Needs an explicit emulator allocation, JAVA_HOME, and APK env (path to the release APK, built per mobile/README.md)."
     command: |
       set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       node mobile/e2e/version-label.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
