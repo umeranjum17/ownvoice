@@ -12,6 +12,8 @@ Harness: an owned Android emulator, no spend (the host stand-in answers, no prov
 
 1. Host: `cd mobile && npx tsc --noEmit && npx jest --runInBand` (`SetupChoose`, `ChatGpt`, `OpenCodeConnect` walk the list).
 2. Journey `connect-list` in `.done-done.yaml`: build the release APK with `EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_ROUTE_ID=zai:plan_key EXPO_PUBLIC_E2E_ROUTE_BASE=http://10.0.2.2:18761/api/v4`, then `X_REPLIES_WRITER=pi X_REPLIES_ROUTE=Z.AI X_REPLIES_LEGS=preflight node mobile/e2e/x-replies.mjs <apk> <task>` with `PICK_MODEL` set.
-3. Pass means the captures show the list open with no row selected, the pay-per-use group, the Z.AI row, its key field, "Z.AI is connected", and reply cards under an X post whose labels match their wording.
+3. Pass means the captures show the list open with no row selected, the pay-per-use group, the Z.AI row, its key field and "Z.AI is connected" with the model chosen.
 
-Not proven here: device-code sign-ins of the new vendors (Grok, Copilot, Kimi, MiniMax) beyond the kit's own fixtures; no live vendor call is made.
+Not proven here: reply cards from the new route. The driver's X step (`preflight`) failed on the emulator because the harness read no focused field in Chrome with the keyboard open (the withhold note shows before any writer runs); the same writer path is proven by the account-layer journey in 5bb4359.
+
+Also not proven: device-code sign-ins of the new vendors (Grok, Copilot, Kimi, MiniMax) beyond the kit's own fixtures; no live vendor call is made.
