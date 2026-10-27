@@ -56,6 +56,13 @@ const open = async (options: Pick<Parameters<typeof routeWriters>[0], 'chatgpt'>
 };
 const shown = (screen: { toJSON: () => unknown }) => JSON.stringify(screen.toJSON());
 const sentTap = () => native.markTapSent.mock.calls.map(([id]) => id);
+// The account could not be reached: the person is asked, the phone has written nothing yet, and only this tap runs it.
+const choosePhone = async (screen: ReturnType<typeof render> extends Promise<infer T> ? T : never) => {
+  await waitFor(() => expect(screen.getByText(words.phoneThisTime)).toBeTruthy());
+  expect(screen.getByText(words.tryAgain)).toBeTruthy();
+  expect(shown(screen)).not.toContain('Phone one');
+  fireEvent.press(screen.getByText(words.phoneThisTime));
+};
 const times = (text: string, needle: string) => text.split(needle).length - 1;
 
 beforeEach(() => { kv.clear(); jest.clearAllMocks(); });
@@ -74,6 +81,7 @@ test('one tap keeps one native fact after a repeated send and phone fallback', a
   native.markTapSent.mockImplementation(async id => { const fact = facts.find(f => f.id === id); if (fact) fact.sent = true; });
   native.takeTapFacts.mockImplementation(async () => facts);
   const screen = await open({ chatgpt: () => broken });
+  await choosePhone(screen);
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   const rows = await syncReadLog();
   expect(rows).toHaveLength(1);
@@ -85,10 +93,22 @@ test('one tap keeps one native fact after a repeated send and phone fallback', a
 
 test('when ChatGPT cannot write, the phone does and the panel says so once', async () => {
   const screen = await open({ chatgpt: () => broken });
+  await choosePhone(screen);
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(times(shown(screen), words.fallback)).toBe(1);
   expect(sentTap()).toEqual(['tap-1']);
   expect(kv.has('reads')).toBe(false);
+});
+
+test('Try again stays with the account: nothing is written on the phone, and the second answer is the account\'s', async () => {
+  let calls = 0;
+  const flaky: Writer = { write: (request, on) => ++calls === 1 ? broken.write(request, on) : writer('ChatGPT').write(request, on) };
+  const screen = await open({ chatgpt: () => flaky });
+  await waitFor(() => expect(screen.getByText(words.phoneThisTime)).toBeTruthy());
+  fireEvent.press(screen.getByText(words.tryAgain));
+  await waitFor(() => expect(shown(screen)).toContain('ChatGPT one'));
+  expect(shown(screen)).not.toContain('Phone one');
+  expect(shown(screen)).not.toContain(words.phoneThisTime);
 });
 
 test('a pending request records the send before it finishes', async () => {
@@ -98,12 +118,14 @@ test('a pending request records the send before it finishes', async () => {
   await waitFor(() => expect(sentTap()).toEqual(['tap-1']));
   expect(kv.has('reads')).toBe(false);
   finish({ drafts: [] });
+  await choosePhone(screen);
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(sentTap()).toEqual(['tap-1']);
 });
 
-test('a failed route selection uses the phone and leaves Writing', async () => {
+test('a failed route selection asks, and the phone writes only on the tap', async () => {
   const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => { throw new Error('switch store failed'); });
+  await choosePhone(screen);
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(shown(screen)).toContain(words.phoneWrote);
   expect(shown(screen)).not.toContain(words.fallback);
@@ -113,6 +135,7 @@ test('a failed route selection uses the phone and leaves Writing', async () => {
 test('a failed native sent mark keeps drafting on the phone', async () => {
   native.markTapSent.mockRejectedValueOnce(new Error('full'));
   const screen = await open({ chatgpt: () => writer('ChatGPT') });
+  await choosePhone(screen);
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(shown(screen)).not.toContain('ChatGPT one');
   expect(shown(screen)).toContain(words.phoneWrote);
@@ -127,6 +150,7 @@ test('a final veto unmarks the native tap before phone fallback', async () => {
   native.takeTapFacts.mockImplementation(async () => facts);
   const veto: Writer = { write: async (_request, on) => { await on?.sent?.(); await on?.unsent?.(); throw new Error(words.phoneWrote); } };
   const screen = await open({ chatgpt: () => veto });
+  await choosePhone(screen);
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect((await syncReadLog())[0].summary).not.toContain('Sent to your AI account');
   expect(native.unmarkTapSent).toHaveBeenCalledWith('tap-1');
@@ -143,12 +167,14 @@ test('a veto on Write new does not erase an earlier send for the same tap', asyn
   const screen = await open({ chatgpt: () => retry });
   await waitFor(() => expect(shown(screen)).toContain('First draft'));
   fireEvent.press(screen.getByText(words.writeNew));
+  await choosePhone(screen);
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(native.unmarkTapSent).not.toHaveBeenCalled();
 });
 
 test('the off switch keeps the drafts on the phone and says which wrote them', async () => {
   const screen = await open({ chatgpt: () => writer('ChatGPT'), enabled: false });
+  await choosePhone(screen);
   await waitFor(() => expect(shown(screen)).toContain('Phone one'));
   expect(shown(screen)).not.toContain('ChatGPT one');
   expect(times(shown(screen), CHATGPT_OFF)).toBe(1);

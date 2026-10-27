@@ -656,16 +656,16 @@ test('an unclear point check does not expose a local cleanup card', async () => 
   } finally { global.fetch = originalFetch; }
 });
 
-test('an unreadable point check remains a transient failure, allowing fallback rather than false semantic refusal', async () => {
+test('an unreadable point check remains a transient failure, asking rather than a false semantic refusal', async () => {
   jest.requireMock('../../core/polish').canPolish.mockImplementation(jest.requireActual('../../core/polish').canPolish);
   const originalFetch = global.fetch;
   global.fetch = fetcher(body(event({ type: 'response.output_text.delta', delta: 'not sure' }) + '\n\n' + event({ type: 'response.completed' })));
   const phone = { write: jest.fn(async () => ({ drafts: ['autosave locally. Make export easy.'] })) };
   try {
     const choice = await withPhoneFallback(chatgptWriter, phone, { typed: 'autosave locally and make export easy.', conversation: '', written: '' }, cloudWords('chatgpt'));
-    expect(choice).toEqual({ drafts: ['autosave locally. Make export easy.'], reason: words.fallback });
+    expect(choice).toEqual({ drafts: [], ask: { line: words.gptFailedNoPhone, reason: words.fallback } });
     expect(choice.declined).toBeUndefined();
-    expect(phone.write).toHaveBeenCalledTimes(1);
+    expect(phone.write).not.toHaveBeenCalled();
     expect(global.fetch).toHaveBeenCalledTimes(2);
   } finally { global.fetch = originalFetch; }
 });

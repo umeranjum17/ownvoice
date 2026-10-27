@@ -9,7 +9,7 @@ import { phoneCanWrite } from '../core/phoneStatus';
 import { modelStatus } from '../core/phoneDownload';
 import { chatgptEnabled, currentSwitch, type SwitchState } from '../core/switch';
 import { store } from '../core/store';
-import { cloudWords, computerWords, needWriter, routeWriters, SendVeto, thrower, withPhoneFallback, type Writer, type WriterEvents, type WriterRoute } from '../core/writers';
+import { asker, cloudWords, computerWords, needWriter, offersPhone, routeWriters, SendVeto, thrower, withPhoneFallback, type Writer, type WriterEvents, type WriterRoute } from '../core/writers';
 import { phoneWriter } from '../panel/phoneWriter';
 import { words } from '../core/words';
 import { asksModel, mocked, signOutGuard } from './session';
@@ -159,9 +159,7 @@ export async function gptRoute(app: string, fetcher?: typeof fetch): Promise<Wri
   const enabled = state.signedIn && !listed && visible && (mocked || await chatgptEnabled(switchStore, fetcher).catch(() => { switchFailed = true; return false; }));
   if (enabled && !mocked) switchNow = await currentSwitch(switchStore).catch(() => null);
   const phone = await phoneCanWrite();
-  if (switchFailed) return phone === 'cant'
-    ? { writer: thrower(cloudWords(key).failedNoPhone), note: null }
-    : { writer: phoneWriter, note: cloudWords(key).switchUnavailable };
+  if (switchFailed) return { writer: offersPhone(phone) ? asker({ line: cloudWords(key).failedNoPhone, reason: cloudWords(key).switchUnavailable }) : thrower(cloudWords(key).failedNoPhone), note: null };
   const route = routeWriters({
     source,
     signedIn: state.signedIn,

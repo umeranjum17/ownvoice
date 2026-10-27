@@ -157,6 +157,16 @@ journeys:
       cp verify-artifacts/"dd-${RUN_ID}"/*.png verify-artifacts/"dd-${RUN_ID}"/*.txt verify-artifacts/"dd-${RUN_ID}"/*.json "$E"/ 2>/dev/null; test -s "$E/connect-list-connected-light.png" && exit "$code"
     timeout: 45m
 
+
+  account-unreachable:
+    description: "Android: the chosen account cannot be reached, so the panel asks instead of writing on the phone. Z.AI is connected from the kit's connect list through the app's own paste field and the host stand-in writer (mobile/e2e/pi-writer.mjs on port 18771; build the APK with EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_ROUTE_ID=zai:plan_key EXPO_PUBLIC_E2E_ROUTE_BASE=http://10.0.2.2:18771/api/v4) is then taken down. Tapping the bubble under an X post shows the plain line with two choices, Try again and Write on this phone this time, and no card; the stand-in's log shows no further ask. Taking the phone choice writes reply cards on the phone once, with the line that the phone wrote them. A second pass brings the stand-in back and presses Try again: the cards come from the account and the phone is not used. Light, dark and the 1.3 font at 720x1280. The APK must be built with EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_OPENROUTER_BASE=http://10.0.2.2:18771/api/v1 (the stub build's phone writer writes the phone cards, so this proves the choice and the routing, not the quality of the on-device model); a dummy sk- key is enough. Needs an explicit emulator allocation, APK env and PICK_MODEL (a row the stand-in lists)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; : "${PICK_MODEL:?the model id to pick required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      X_REPLIES_WRITER=pi X_REPLIES_ROUTE=Z.AI X_REPLIES_LEGS=unreachable PI_WRITER_PORT=18771 node mobile/e2e/x-replies.mjs "$APK" "dd-${RUN_ID}" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"
+      cp verify-artifacts/"dd-${RUN_ID}"/*.png verify-artifacts/"dd-${RUN_ID}"/*.txt verify-artifacts/"dd-${RUN_ID}"/*.json "$E"/ 2>/dev/null
+      printf '%s\n' '{"target":{"version":"'"$(git rev-parse --short HEAD)"'"},"start":"setup finished, Z.AI connected from the connect list through its paste field to the host stand-in writer, X-style lab composer in Chrome","steps":["take the stand-in writer down so the chosen account cannot be reached","tap the bubble under the post: the panel shows the plain line with Try again and Write on this phone this time, and no card","tap Write on this phone this time: reply cards appear with the line that this phone wrote them, and the stand-in log shows no ask after it went down","bring the stand-in back, take it down again for the next pass, tap the bubble, bring it back and tap Try again: the cards come from the account and the phone line never shows","repeat in dark and at the 1.3 font"],"result":"filled in from the run"}' > "$E/steps.json"; exit $code
+    timeout: 45m
+
   rewrite-selection:
     description: "Android: process-text/share rewrite sheet via direct intents (chips, copy-only sheet, warned number, hidden bubble, verdict note), light and dark. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     command: |

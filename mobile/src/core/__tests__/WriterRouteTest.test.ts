@@ -12,7 +12,9 @@ const mockLogDev = (Native as unknown as { logDev: jest.Mock }).logDev;
 const phoneDrafts = ['phone one', 'phone two', 'phone three'];
 const gptDrafts = ['gpt one', 'gpt two', 'gpt three'];
 const request = { conversation: '', written: '', typed: '' };
-const phone: Writer = { write: async () => ({ drafts: phoneDrafts }) };
+const phoneRan = jest.fn(async () => ({ drafts: phoneDrafts }));
+const phone: Writer = { write: phoneRan };
+beforeEach(() => phoneRan.mockClear());
 const resting = 'ChatGPT is resting until 3:40pm.';
 const signIn = "ChatGPT isn't signed in yet.";
 const limit = 'ChatGPT is resting until 3:40pm.';
@@ -32,7 +34,7 @@ const chatgptFor = (kind: ErrorKind): (() => Writer) => () => {
 type Row = {
   label: string; source: Source; signedIn: boolean; phoneOnly: boolean; enabled: boolean;
   note?: string | null; phone: PhoneCanWrite; error: ErrorKind; limitNote?: boolean;
-  want: { from: 'phone' | 'chatgpt' | 'throw'; line: string | null };
+  want: { from: 'phone' | 'chatgpt' | 'throw' | 'ask'; line: string | null; reason?: string };
 };
 // Every section 5 routing row: source × sign-in × phone status × switch × error kind × phone-only membership.
 const rows: Row[] = [
@@ -42,22 +44,22 @@ const rows: Row[] = [
   { label: 'no source tells the panel to choose first on a phone that cannot write either', source: null, signedIn: false, phoneOnly: false, enabled: true, phone: 'cant', error: 'ok', want: { from: 'throw', line: words.needWriterPanel } },
   { label: 'an app that stays on this phone never reaches ChatGPT', source: 'chatgpt', signedIn: true, phoneOnly: true, enabled: true, phone: 'ready', error: 'ok', want: { from: 'phone', line: null } },
   { label: 'an app that stays on a phone that cannot write says how to change it, and never reaches ChatGPT', source: 'chatgpt', signedIn: true, phoneOnly: true, enabled: true, phone: 'cant', error: 'ok', want: { from: 'throw', line: words.phoneOnlyCant } },
-  { label: 'signed out falls back to the phone when it can write', source: 'chatgpt', signedIn: false, phoneOnly: false, enabled: true, note: signIn, phone: 'ready', error: 'ok', want: { from: 'phone', line: null } },
+  { label: 'signed out asks before the phone writes', source: 'chatgpt', signedIn: false, phoneOnly: false, enabled: true, note: signIn, phone: 'ready', error: 'ok', want: { from: 'ask', line: signIn, reason: signIn } },
   { label: 'signed out on a phone that cannot write says to sign in', source: 'chatgpt', signedIn: false, phoneOnly: false, enabled: true, note: signIn, phone: 'cant', error: 'ok', want: { from: 'throw', line: signIn } },
   { label: 'signed out on a phone that cannot write says to sign in even with no note from the session', source: 'chatgpt', signedIn: false, phoneOnly: false, enabled: true, phone: 'cant', error: 'ok', want: { from: 'throw', line: words.needWriterNote } },
-  { label: 'the off switch hands the writing to the phone, with the reason said once', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: false, phone: 'ready', error: 'ok', want: { from: 'phone', line: CHATGPT_OFF } },
+  { label: 'the off switch asks before the phone writes', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: false, phone: 'ready', error: 'ok', want: { from: 'ask', line: words.gptOffNoPhone, reason: CHATGPT_OFF } },
   { label: 'the off switch on a phone that cannot write says to try later', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: false, phone: 'cant', error: 'ok', want: { from: 'throw', line: words.gptOffNoPhone } },
-  { label: 'a resting plan hands the writing to the phone, with byokits line said once', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, note: resting, phone: 'ready', error: 'ok', want: { from: 'phone', line: resting } },
+  { label: 'a resting plan asks, with byokits line, before the phone writes', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, note: resting, phone: 'ready', error: 'ok', want: { from: 'ask', line: resting, reason: resting } },
   { label: 'a resting plan on a phone that cannot write says when it rests', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, note: resting, phone: 'cant', error: 'ok', want: { from: 'throw', line: resting } },
   { label: 'ChatGPT is the main writer when chosen, signed in and switched on', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'ok', want: { from: 'chatgpt', line: null } },
-  { label: 'a phone that is still getting ready falls back like a ready one', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'preparing', error: 'network', want: { from: 'phone', line: words.offlinePhone } },
-  { label: 'no internet means the phone writes, and the panel says why once', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'network', want: { from: 'phone', line: words.offlinePhone } },
+  { label: 'a phone that is still getting ready is offered like a ready one', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'preparing', error: 'network', want: { from: 'ask', line: words.offlineNoPhone, reason: words.offlinePhone } },
+  { label: 'no internet asks before the phone writes', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'network', want: { from: 'ask', line: words.offlineNoPhone, reason: words.offlinePhone } },
   { label: 'no internet on a phone that cannot write says to connect first', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'cant', error: 'network', want: { from: 'throw', line: words.offlineNoPhone } },
-  { label: 'ChatGPT failing means the phone writes, and the panel is told why once', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'account', want: { from: 'phone', line: words.fallback } },
-  { label: 'a short answer is a failure too, so the panel never shows two drafts and a gap', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'short', want: { from: 'phone', line: words.fallback } },
+  { label: 'ChatGPT failing asks before the phone writes', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'account', want: { from: 'ask', line: words.gptFailedNoPhone, reason: words.fallback } },
+  { label: 'a short answer is a failure too, so it asks and never shows two drafts and a gap', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'short', want: { from: 'ask', line: words.gptFailedNoPhone, reason: words.fallback } },
   { label: 'ChatGPT failing on a phone that cannot write says it did not answer', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'cant', error: 'account', want: { from: 'throw', line: words.gptFailedNoPhone } },
-  { label: 'a limit gives the same tap byokits words over phone drafts', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'account', limitNote: true, want: { from: 'phone', line: limit } },
-  { label: 'withdrawn consent means the phone writes, with the veto said once', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'veto', want: { from: 'phone', line: words.phoneWrote } },
+  { label: 'a limit asks with byokits words', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'account', limitNote: true, want: { from: 'ask', line: limit, reason: limit } },
+  { label: 'withdrawn consent asks before the phone writes', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'ready', error: 'veto', want: { from: 'ask', line: words.gptFailedNoPhone, reason: words.phoneWrote } },
   { label: 'withdrawn consent on a phone that cannot write says it did not answer', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'cant', error: 'veto', want: { from: 'throw', line: words.gptFailedNoPhone } },
   { label: 'a switch that turns off mid-send on a phone that cannot write says to try later', source: 'chatgpt', signedIn: true, phoneOnly: false, enabled: true, phone: 'cant', error: 'offVeto', want: { from: 'throw', line: words.gptOffNoPhone } },
 ];
@@ -73,6 +75,11 @@ test.each(rows)('$label', async row => {
     return;
   }
   const choice = await route.writer.write(request);
+  if (row.want.from === 'ask') {
+    expect(choice).toEqual({ drafts: [], ask: { line: row.want.line, reason: row.want.reason } });
+    expect(phoneRan).not.toHaveBeenCalled();
+    return;
+  }
   expect(choice.drafts).toEqual(row.want.from === 'phone' ? phoneDrafts : gptDrafts);
   expect(choice.reason ?? route.note).toBe(row.want.line);
 });
@@ -91,20 +98,26 @@ test('ChatGPT is the main writer when it is chosen, signed in and not switched o
   expect(await route.writer.write(request)).toEqual({ drafts: gptDrafts });
 });
 
-test('the off switch and a resting plan both hand the writing to the phone, with the reason said once', async () => {
+test('the off switch and a resting plan never hand the writing to the phone', async () => {
   const base = { source: 'chatgpt' as Source, signedIn: true, phoneOnlyApp: false, phone: 'ready' as PhoneCanWrite, chatgpt: chatgptFor('ok'), phoneWriter: phone, lines: cloudWords('chatgpt') };
-  expect(routeWriters({ ...base, enabled: false })).toEqual({ writer: phone, note: CHATGPT_OFF });
-  expect(routeWriters({ ...base, enabled: true, note: resting })).toEqual({ writer: phone, note: resting });
+  for (const route of [routeWriters({ ...base, enabled: false }), routeWriters({ ...base, enabled: true, note: resting })]) {
+    expect(route.writer).not.toBe(phone);
+    expect(route.note).toBeNull();
+  }
 });
 
-test('a cloud failure stays the cloud failure when the phone cannot get ready either', async () => {
+test('a cloud failure asks first, and says only the cloud failure when the phone is not offered', async () => {
   const cloud: Writer = { write: async () => { throw new Error(words.chatgptFailed); } };
-  const unready: Writer = { write: async () => { throw new Error(words.readyPanel); } };
-  for (const status of ['ready', 'preparing', 'needsDownload', undefined] as const) {
+  const unready: Writer = { write: jest.fn(async () => { throw new Error(words.readyPanel); }) };
+  for (const status of ['ready', 'preparing', undefined] as const) {
+    expect(await withPhoneFallback(cloud, unready, request, cloudWords('chatgpt'), undefined, undefined, status)).toEqual({ drafts: [], ask: { line: words.gptFailedNoPhone, reason: words.fallback } });
+  }
+  for (const status of ['needsDownload', 'cant'] as const) {
     const line = await withPhoneFallback(cloud, unready, request, cloudWords('chatgpt'), undefined, undefined, status).then(() => null, error => (error as Error).message);
     expect(line).toBe(words.gptFailedNoPhone);
     expect(line).not.toContain('get this phone ready');
   }
+  expect(unready.write).not.toHaveBeenCalled();
   for (const key of ['claude', 'openrouter', 'opencode'] as const) {
     const lines = cloudWords(key);
     const line = await withPhoneFallback(cloud, unready, request, lines, undefined, undefined, 'needsDownload').then(() => null, error => (error as Error).message);
@@ -112,7 +125,7 @@ test('a cloud failure stays the cloud failure when the phone cannot get ready ei
   }
 });
 
-test('a buried cloud cause reaches the developer log with the phone failure', async () => {
+test('a buried cloud cause reaches the developer log', async () => {
   mockLogDev.mockClear();
   const veto = new SendVeto(words.phoneWrote, { cause: new TypeError('undefined is not a function') });
   const cloud: Writer = { write: async () => { throw veto; } };
@@ -122,12 +135,12 @@ test('a buried cloud cause reaches the developer log with the phone failure', as
   const logged = String(mockLogDev.mock.calls[0][0]);
   expect(logged).toContain(words.phoneWrote);
   expect(logged).toContain('undefined is not a function');
-  expect(logged).toContain(words.readyPanel);
 });
 
-test('without a phone status the fallback still reaches the phone', async () => {
+test('without a phone status the person is still asked, never handed to the phone', async () => {
   const short: Writer = { write: async () => ({ drafts: ['only one'] }) };
-  expect(await withPhoneFallback(short, phone, request, cloudWords('chatgpt'))).toEqual({ drafts: phoneDrafts, reason: words.fallback });
+  expect(await withPhoneFallback(short, phone, request, cloudWords('chatgpt'))).toEqual({ drafts: [], ask: { line: words.gptFailedNoPhone, reason: words.fallback } });
+  expect(phoneRan).not.toHaveBeenCalled();
 });
 
 test('an unchanged answer from ChatGPT is kept, not passed to the phone as a failure', async () => {
@@ -135,7 +148,7 @@ test('an unchanged answer from ChatGPT is kept, not passed to the phone as a fai
   const failing: Writer = { write: async () => { throw new Error(words.chatgptFailed); } };
   expect(await withPhoneFallback(same, failing, request, cloudWords('chatgpt'))).toEqual({ drafts: [], unchanged: true });
   const none: Writer = { write: async () => ({ drafts: [] }) };
-  expect(await withPhoneFallback(none, phone, request, cloudWords('chatgpt'))).toEqual({ drafts: (await phone.write(request)).drafts, reason: words.fallback });
+  expect(await withPhoneFallback(none, phone, request, cloudWords('chatgpt'))).toEqual({ drafts: [], ask: { line: words.gptFailedNoPhone, reason: words.fallback } });
 });
 
 test('the read log says when a screen went to ChatGPT, and never says what it said', () => {
@@ -160,16 +173,16 @@ test.each([1, 2, 3])('polish retains %i usable primary cards without phone fallb
 
 test('a computer that was never asked says so on both phone states, never that it did not answer', async () => {
   const unasked: Writer = { write: async () => { throw new SendVeto(words.computerUnasked); } };
-  expect(await withPhoneFallback(unasked, phone, request, computerWords, undefined, undefined, 'ready')).toEqual({ drafts: phoneDrafts, reason: words.computerUnasked });
+  expect(await withPhoneFallback(unasked, phone, request, computerWords, undefined, undefined, 'ready')).toEqual({ drafts: [], ask: { line: words.computerUnaskedNoPhone, reason: words.computerUnasked } });
   await expect(withPhoneFallback(unasked, phone, request, computerWords, undefined, undefined, 'cant')).rejects.toThrow(words.computerUnaskedNoPhone);
 });
 
-test('empty or blank polish still falls back and partial replies stay incomplete', async () => {
+test('empty or blank polish still asks and partial replies stay incomplete', async () => {
   const primary = (drafts: string[]): Writer => ({ write: async () => ({ drafts }) });
   for (const drafts of [[], ['good', ' ']]) {
-    expect((await withPhoneFallback(primary(drafts), phone, { ...request, typed: 'Please bring the stove.' }, cloudWords('chatgpt'))).reason).toBe(words.fallback);
+    expect((await withPhoneFallback(primary(drafts), phone, { ...request, typed: 'Please bring the stove.' }, cloudWords('chatgpt'))).ask?.reason).toBe(words.fallback);
   }
   for (const typed of ['', '  ']) {
-    expect((await withPhoneFallback(primary(['one', 'two']), phone, { ...request, typed }, cloudWords('chatgpt'))).reason).toBe(words.fallback);
+    expect((await withPhoneFallback(primary(['one', 'two']), phone, { ...request, typed }, cloudWords('chatgpt'))).ask?.reason).toBe(words.fallback);
   }
 });

@@ -22,7 +22,8 @@
 // record the tap-to-inserted motion, OPENCODE_WORKSPACE (default Working2) for a key with several workspaces, X_REPLIES_LEGS=refusal to run only the refusal legs, extreme one
 // included (a live writer is still connected, but no leg makes a writer request), X_REPLIES_LEGS=preflight to connect the writer and
 // prove one grounded, label-true generation answers, then stop, X_REPLIES_LEGS=fit for the rated reply passes only (the person's
-// own reply typed first, then the writer's fit word on every card, one pass per theme). Args: <release-apk (no stub flags)> [task-slug].
+// own reply typed first, then the writer's fit word on every card, one pass per theme), X_REPLIES_LEGS=unreachable for the account that cannot be reached
+// (needs X_REPLIES_WRITER=pi and the stub build: the panel asks, the phone writes only on the tap, Try again stays with the account). Args: <release-apk (no stub flags)> [task-slug].
 import { execFileSync, spawn } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -449,6 +450,8 @@ const rewriteOnly = process.env.X_REPLIES_LEGS === 'rewrite-refused';
 // X_REPLIES_LEGS=fit: only the fit passes, one per theme in one boot. A fit word is the app's own rating of a reply
 // it grew from the person's typed text, so this mode is the one that proves cards and fit words together.
 const fitOnly = process.env.X_REPLIES_LEGS === 'fit';
+// X_REPLIES_LEGS=unreachable: the connected account is taken down; the panel asks, and the phone writes only when chosen.
+const unreachableOnly = process.env.X_REPLIES_LEGS === 'unreachable';
 // The pi writer has to answer before the account connects: the app asks a freshly connected route for its
 // own model list, so a route started later leaves the pick list empty and the proof stops there.
 const piLogFile = writer === 'pi' ? await startPiWriter() : null;
@@ -990,6 +993,54 @@ function setExtreme(on) {
   adb('shell', 'wm', 'density', on ? '320' : 'reset');
   adb('shell', 'wm', 'size', on ? '720x1280' : 'reset');
 }
+// ---- the chosen account cannot be reached: the panel asks, and the phone writes only on the person's tap ----
+// The host writer is taken down, so the connected account fails. The panel must show two choices and no card, and the
+// writer's own log must show no further ask. Taking the phone writes cards once; Try again, with the writer back up,
+// stays with the account.
+const ASK_PHONE = 'Write on this phone this time';
+const askCount = () => (readFileSync(piLogFile, 'utf8').match(/ ask model=/g) ?? []).length;
+const writerUp = () => fetch(`http://127.0.0.1:${piPort}/api/v1/models`, { signal: AbortSignal.timeout(1000) }).then(r => r.ok).catch(() => false);
+const takeWriterDown = async () => {
+  piWriter?.kill();
+  await until('the host writer to stop answering', async () => !(await writerUp()), { seconds: 15, every: 500 });
+};
+const unreachableLeg = async (screen, theme, choice) => {
+  if (!piLogFile) throw new Error('The unreachable legs need X_REPLIES_WRITER=pi, so the account can be taken down and its log read.');
+  await verifyFixtureLive();
+  await focusComposer();
+  await takeWriterDown();
+  let asked = askCount();
+  tap(...center(await bubble()));
+  await until('the two choices', () => nodeText().includes('try again') && nodeText().includes(ASK_PHONE.toLowerCase()), { seconds: 120, every: 1000 });
+  if (readCards().length) throw new Error('A reply card showed before the person chose.');
+  if (panelText('This phone wrote')) throw new Error('The panel said the phone wrote before the person chose.');
+  if (askCount() !== asked) throw new Error('The account was asked again while it was down.');
+  shot(screen, 'asks', theme);
+  const lines = nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ');
+  mkdirSync(`${root}/verify-artifacts/${task}`, { recursive: true });
+  writeFileSync(`${root}/verify-artifacts/${task}/${screen}-asks-${theme}.txt`, lines + '\n');
+  if (choice === 'phone') {
+    await click(ASK_PHONE);
+    await until('reply cards written on the phone', () => readCards().length > 0, { seconds: 240, every: 1000 });
+    if (askCount() !== asked) throw new Error('The account was asked after the person chose the phone.');
+    shot(screen, 'phone-cards', theme);
+    // The reason sits under the cards: scroll the panel down to it.
+    for (let i = 0; i < 10 && !panelText('This phone wrote these'); i++) { const [w, h] = adb('shell', 'wm', 'size').trim().split('\n').pop().match(/(\d+)x(\d+)/).slice(1).map(Number); adb('shell', 'input', 'swipe', String(w / 2), String(h * .8), String(w / 2), String(h * .3), '300'); await wait(900); }
+    if (!panelText('This phone wrote these')) throw new Error('The line saying the phone wrote them never showed under the cards.');
+    shot(screen, 'phone-reason', theme);
+  } else {
+    piWriter = null;
+    await startPiWriter();
+    asked = 0; // the restarted writer starts its log afresh
+    await click('Try again');
+    await until('reply cards from the account', () => readCards().length > 0, { seconds: 240, every: 1000 });
+    if (panelText('This phone wrote')) throw new Error('Try again wrote on the phone.');
+    if (askCount() <= asked) throw new Error('Try again did not ask the account.');
+    shot(screen, 'account-cards', theme);
+  }
+  adb('shell', 'input', 'keyevent', '4');
+  log(`${screen}/${theme}: asked first; ${choice === 'phone' ? 'the phone wrote once, on the tap' : 'Try again stayed with the account'}.`);
+};
 const extreme = async on => {
   setExtreme(on);
   await until(`the display ${on ? 'at 720x1280' : 'back to its own size'}`, () => /Override size/.test(adb('shell', 'wm', 'size')) === on, { seconds: 15 });
@@ -1013,6 +1064,37 @@ try {
     await killApp();
     await rebind();
     await leg('refused-rewrite-dark', () => rewriteRefused('dark'));
+  } else if (unreachableOnly) {
+    // X_REPLIES_DP=<360|390|445>: only the phone-choice leg, light then dark, at that phone width in dp (the 1080 px screen's density set to match).
+    const dp = Number(process.env.X_REPLIES_DP ?? 0);
+    if (dp) {
+      if (!(dp >= 320 && dp <= 600)) throw new Error(`X_REPLIES_DP must be a phone width in dp, not ${process.env.X_REPLIES_DP}.`);
+      adb('shell', 'wm', 'size', 'reset');
+      adb('shell', 'wm', 'density', String(Math.round(Number(adb('shell', 'wm', 'size').match(/(\d+)x\d+/)[1]) * 160 / dp)));
+      adb('shell', 'am', 'force-stop', 'com.android.chrome');
+      await killApp();
+      await rebind();
+      await leg(`unreachable-phone-light-${dp}dp`, () => unreachableLeg(`x-unreachable-${dp}dp`, 'light', 'phone'));
+      evidence('theme', 'dark');
+      adb('shell', 'am', 'force-stop', 'com.android.chrome');
+      await killApp();
+      await rebind();
+      await leg(`unreachable-phone-dark-${dp}dp`, () => unreachableLeg(`x-unreachable-${dp}dp`, 'dark', 'phone'));
+      adb('shell', 'wm', 'density', 'reset');
+    } else {
+    await leg('unreachable-phone-light', () => unreachableLeg('x-unreachable', 'light', 'phone'));
+    await leg('unreachable-retry-light', () => unreachableLeg('x-unreachable-retry', 'light', 'retry'));
+    evidence('theme', 'dark');
+    adb('shell', 'am', 'force-stop', 'com.android.chrome');
+    await killApp();
+    await rebind();
+    await leg('unreachable-phone-dark', () => unreachableLeg('x-unreachable', 'dark', 'phone'));
+    await leg('unreachable-retry-dark', () => unreachableLeg('x-unreachable-retry', 'dark', 'retry'));
+    await extreme(true);
+    adb('shell', 'am', 'force-stop', 'com.android.chrome');
+    await leg('unreachable-phone-font-1.3', () => unreachableLeg('x-unreachable-extreme', 'dark', 'phone'));
+    await extreme(false);
+    }
   } else if (preflightOnly) {
     await leg('preflight', () => journey('x-preflight', 'light', {}), { needsWriter: true }); // stops after the label check
   } else if (fitOnly) {

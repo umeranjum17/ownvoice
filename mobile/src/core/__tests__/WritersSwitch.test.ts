@@ -33,16 +33,18 @@ test('seal verifies noble-signed flags byte-compatibly; tampered payload and wro
   expect(await verify(flag, other, 8)).toBe(false);
 });
 
-test('phone fallback reports a readable reason and preserves the primary on success', async () => {
+test('a failed account asks with a readable line and never runs the phone; a good answer is kept', async () => {
   const req = { conversation: '', written: '', typed: '' };
-  const phone: Writer = { write: async () => ({ drafts: ['phone draft'] }) };
+  const phoneRan = jest.fn(async () => ({ drafts: ['phone draft'] }));
+  const phone: Writer = { write: phoneRan };
   const failed = await withPhoneFallback({ write: async () => { throw Error('secret'); } }, phone, req, cloudWords('chatgpt'));
-  expect(failed).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
-  expect(await withPhoneFallback({ write: async () => ({ drafts: ['main'] }) }, phone, req, cloudWords('chatgpt'))).toEqual({ drafts: ['phone draft'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
+  expect(failed).toEqual({ drafts: [], ask: { line: "ChatGPT didn't answer this time.", reason: "ChatGPT didn't answer. This phone wrote these instead." } });
+  expect(await withPhoneFallback({ write: async () => ({ drafts: ['main'] }) }, phone, req, cloudWords('chatgpt'))).toEqual({ drafts: [], ask: { line: "ChatGPT didn't answer this time.", reason: "ChatGPT didn't answer. This phone wrote these instead." } });
+  expect(phoneRan).not.toHaveBeenCalled();
   expect(await withPhoneFallback({ write: async () => ({ drafts: ['one', 'two', 'three'] }) }, phone, req, cloudWords('chatgpt'))).toEqual({ drafts: ['one', 'two', 'three'] });
 });
 
-test('fallback replaces partial primary cards before showing phone cards', async () => {
+test('partial primary cards are cleared when the account is asked about, and the phone stays unused', async () => {
   const req = { conversation: '', written: '', typed: '' };
   const cards: (string | null)[] = [null, null, null];
   const events = {
@@ -54,12 +56,10 @@ test('fallback replaces partial primary cards before showing phone cards', async
     on?.landed?.('remote two', 1);
     return { drafts: ['remote one', 'remote two'] };
   } };
-  const phone: Writer = { write: async (_request, on) => {
-    on?.landed?.('phone one', 0);
-    return { drafts: ['phone one'] };
-  } };
-  expect(await withPhoneFallback(primary, phone, req, cloudWords('chatgpt'), events)).toEqual({ drafts: ['phone one'], reason: "ChatGPT didn't answer. This phone wrote these instead." });
-  expect(cards).toEqual(['phone one', null, null]);
+  const phone: Writer = { write: jest.fn(async () => ({ drafts: ['phone one'] })) };
+  expect(await withPhoneFallback(primary, phone, req, cloudWords('chatgpt'), events)).toEqual({ drafts: [], ask: { line: "ChatGPT didn't answer this time.", reason: "ChatGPT didn't answer. This phone wrote these instead." } });
+  expect(cards).toEqual([null, null, null]);
+  expect(phone.write).not.toHaveBeenCalled();
 });
 
 test('remote switch vectors: valid, signature, app, rollback, version; failures keep last; first run is on', async () => {

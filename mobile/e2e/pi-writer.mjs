@@ -7,7 +7,7 @@
 // boundary, label renderer and insert path are the app's real ones; only the model call is here.
 // Usage: node e2e/pi-writer.mjs serve <port> <log-file>   (bound on 0.0.0.0, device at 10.0.2.2)
 // Env: PI_BIN (default: `pi` on PATH), PI_MODEL (default deepseek/deepseek-flash),
-// PI_FALLBACK_MODEL (default haiku), PI_TIMEOUT_MS (default 120000).
+// PI_FALLBACK_MODEL (default haiku), PI_TIMEOUT_MS (default 120000), PI_FIXED=1 (fixed drafts, no model).
 import { createServer } from 'node:http';
 import { appendFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -55,6 +55,8 @@ const parts = messages => {
 const contentOf = data => (typeof data?.text === 'string' ? data.text : JSON.stringify(data));
 
 const answer = async (body, signal) => {
+  // PI_FIXED=1: fixed drafts and no model, for a host where pi has no account; the proof then shows routing, not writing.
+  if (process.env.PI_FIXED === '1') return JSON.stringify({ drafts: ['Yes, still on! I\'ll bring the chairs.', 'Saturday is tricky for me. Could we do Sunday instead?', 'Sounds good. What time were you thinking?'] });
   const { system, prompt } = parts(Array.isArray(body.messages) ? body.messages : []);
   if (!prompt) throw new Error('no prompt');
   // Each ask is a fresh pi run, so a shown card is a real model answer, never a cache hit. A malformed
