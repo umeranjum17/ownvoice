@@ -715,7 +715,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     footer={empty && mainNote
       ? <Empty text={mainNote}>
         {phase === 'ready' && !declined && mode !== 'empty' && mode !== 'own' || phase === 'failed' && (ask || retryLines.has(mainNote)) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
-        {phase === 'failed' && ask ? <Button kind="filled" label={words.phoneThisTime} onPress={() => capture && start(capture, undefined, ask.reason)} /> : null}
+        {phase === 'failed' && ask ? <Button kind="filled" wrap label={words.phoneThisTime} onPress={() => capture && start(capture, undefined, ask.reason)} /> : null}
         {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
         {phase === 'failed' && isOtherWriterLine(mainNote) ?<Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
         {otherWriter.has(mainNote) ? <Button kind="text" label={words.claudeChooseWriter} onPress={openSource} /> : null}
