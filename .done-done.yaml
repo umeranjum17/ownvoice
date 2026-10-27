@@ -154,7 +154,7 @@ journeys:
     command: |
       set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; : "${PICK_MODEL:?the model id to pick required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
       X_REPLIES_WRITER=pi X_REPLIES_ROUTE=Z.AI X_REPLIES_LEGS=preflight PI_WRITER_PORT=18761 node mobile/e2e/x-replies.mjs "$APK" "dd-${RUN_ID}" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code (the connect frames decide this journey; the reply-card step is in the log)" >>"$E/driver.log"
-      cp verify-artifacts/"dd-${RUN_ID}"/*.png verify-artifacts/"dd-${RUN_ID}"/*.txt verify-artifacts/"dd-${RUN_ID}"/*.json "$E"/ 2>/dev/null; test -s "$E/connect-list-connected-light.png"
+      cp verify-artifacts/"dd-${RUN_ID}"/*.png verify-artifacts/"dd-${RUN_ID}"/*.txt verify-artifacts/"dd-${RUN_ID}"/*.json "$E"/ 2>/dev/null; test -s "$E/connect-list-connected-light.png" && exit "$code"
     timeout: 45m
 
   rewrite-selection:
