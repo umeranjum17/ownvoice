@@ -1009,7 +1009,7 @@ const unreachableLeg = async (screen, theme, choice) => {
   await verifyFixtureLive();
   await focusComposer();
   await takeWriterDown();
-  const asked = askCount();
+  let asked = askCount();
   tap(...center(await bubble()));
   await until('the two choices', () => nodeText().includes('try again') && nodeText().includes(ASK_PHONE.toLowerCase()), { seconds: 120, every: 1000 });
   if (readCards().length) throw new Error('A reply card showed before the person chose.');
@@ -1022,12 +1022,16 @@ const unreachableLeg = async (screen, theme, choice) => {
   if (choice === 'phone') {
     await click(ASK_PHONE);
     await until('reply cards written on the phone', () => readCards().length > 0, { seconds: 240, every: 1000 });
-    await until('the line saying the phone wrote them', () => panelText('This phone wrote these'), { seconds: 30 });
     if (askCount() !== asked) throw new Error('The account was asked after the person chose the phone.');
     shot(screen, 'phone-cards', theme);
+    // The reason sits under the cards: scroll the panel down to it.
+    for (let i = 0; i < 10 && !panelText('This phone wrote these'); i++) { const [w, h] = adb('shell', 'wm', 'size').trim().split('\n').pop().match(/(\d+)x(\d+)/).slice(1).map(Number); adb('shell', 'input', 'swipe', String(w / 2), String(h * .8), String(w / 2), String(h * .3), '300'); await wait(900); }
+    if (!panelText('This phone wrote these')) throw new Error('The line saying the phone wrote them never showed under the cards.');
+    shot(screen, 'phone-reason', theme);
   } else {
     piWriter = null;
     await startPiWriter();
+    asked = 0; // the restarted writer starts its log afresh
     await click('Try again');
     await until('reply cards from the account', () => readCards().length > 0, { seconds: 240, every: 1000 });
     if (panelText('This phone wrote')) throw new Error('Try again wrote on the phone.');
@@ -1061,6 +1065,23 @@ try {
     await rebind();
     await leg('refused-rewrite-dark', () => rewriteRefused('dark'));
   } else if (unreachableOnly) {
+    // X_REPLIES_DP=<360|390|445>: only the phone-choice leg, light then dark, at that phone width in dp (the 1080 px screen's density set to match).
+    const dp = Number(process.env.X_REPLIES_DP ?? 0);
+    if (dp) {
+      if (!(dp >= 320 && dp <= 600)) throw new Error(`X_REPLIES_DP must be a phone width in dp, not ${process.env.X_REPLIES_DP}.`);
+      adb('shell', 'wm', 'size', 'reset');
+      adb('shell', 'wm', 'density', String(Math.round(Number(adb('shell', 'wm', 'size').match(/(\d+)x\d+/)[1]) * 160 / dp)));
+      adb('shell', 'am', 'force-stop', 'com.android.chrome');
+      await killApp();
+      await rebind();
+      await leg(`unreachable-phone-light-${dp}dp`, () => unreachableLeg(`x-unreachable-${dp}dp`, 'light', 'phone'));
+      evidence('theme', 'dark');
+      adb('shell', 'am', 'force-stop', 'com.android.chrome');
+      await killApp();
+      await rebind();
+      await leg(`unreachable-phone-dark-${dp}dp`, () => unreachableLeg(`x-unreachable-${dp}dp`, 'dark', 'phone'));
+      adb('shell', 'wm', 'density', 'reset');
+    } else {
     await leg('unreachable-phone-light', () => unreachableLeg('x-unreachable', 'light', 'phone'));
     await leg('unreachable-retry-light', () => unreachableLeg('x-unreachable-retry', 'light', 'retry'));
     evidence('theme', 'dark');
@@ -1073,6 +1094,7 @@ try {
     adb('shell', 'am', 'force-stop', 'com.android.chrome');
     await leg('unreachable-phone-font-1.3', () => unreachableLeg('x-unreachable-extreme', 'dark', 'phone'));
     await extreme(false);
+    }
   } else if (preflightOnly) {
     await leg('preflight', () => journey('x-preflight', 'light', {}), { needsWriter: true }); // stops after the label check
   } else if (fitOnly) {
