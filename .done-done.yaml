@@ -149,6 +149,14 @@ journeys:
       cp verify-artifacts/"dd-${RUN_ID}"/*.png verify-artifacts/"dd-${RUN_ID}"/*.txt verify-artifacts/"dd-${RUN_ID}"/*.json "$E"/ 2>/dev/null; exit $code
     timeout: 45m
 
+  connect-list:
+    description: "Android: How Ownvoice writes draws the kit's own connect list (Plans, then Pay per use, and the rest) instead of four fixed cards. The run opens it with nothing selected and no Auto row, scrolls past the old four to the pay-per-use group and to Z.AI (a plan the app had no card for), connects Z.AI by pasting a key into the app's field, and picks which one writes from that account's own list. (The driver goes on to ask for reply cards under an X post from that account; on the emulator that step has failed on the harness's read of Chrome's focused field with the keyboard open, so the journey passes on the connect frames and driver.log records the reply-card result.) The writer is the host stand-in (mobile/e2e/pi-writer.mjs on port 18761: no provider key, no spend), so the APK must be built with EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_ROUTE_ID=zai:plan_key EXPO_PUBLIC_E2E_ROUTE_BASE=http://10.0.2.2:18761/api/v4. Needs an explicit emulator allocation, APK env (path to that release APK) and PICK_MODEL (a row the stand-in lists)."
+    command: |
+      set -u; : "${APK:?path to release APK required, built per mobile/README.md}"; : "${PICK_MODEL:?the model id to pick required}"; E="$DONE_DONE_EVIDENCE_ROOT"; mkdir -p "$E"; cd "$(git rev-parse --show-toplevel)"
+      X_REPLIES_WRITER=pi X_REPLIES_ROUTE=Z.AI X_REPLIES_LEGS=preflight PI_WRITER_PORT=18761 node mobile/e2e/x-replies.mjs "$APK" "dd-${RUN_ID}" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code (the connect frames decide this journey; the reply-card step is in the log)" >>"$E/driver.log"
+      cp verify-artifacts/"dd-${RUN_ID}"/*.png verify-artifacts/"dd-${RUN_ID}"/*.txt verify-artifacts/"dd-${RUN_ID}"/*.json "$E"/ 2>/dev/null; test -s "$E/connect-list-connected-light.png"
+    timeout: 45m
+
   rewrite-selection:
     description: "Android: process-text/share rewrite sheet via direct intents (chips, copy-only sheet, warned number, hidden bubble, verdict note), light and dark. Needs an explicit emulator allocation and APK env (path to the release APK, built per mobile/README.md)."
     command: |

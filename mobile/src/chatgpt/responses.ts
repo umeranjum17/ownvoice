@@ -1,3 +1,4 @@
+import { cardOf, isKeyCard } from './cards';
 import { answerer, type Backend } from '@byokit/decide';
 import { fetch as expoFetch } from 'expo/fetch';
 import { classify, IncompleteError, ResponseError } from '@byokit/accounts';
@@ -60,7 +61,7 @@ async function ask(cloud: CloudKey | 'computer', prompt: string, instructions: s
         ? new Response('{"error":"Workspace access denied"}', { status: 403, headers: { 'content-type': 'application/json' } })
         : await fetcher(url, init);
       // A key route's refusal reaches the kit as an untyped failure, so the status is read here, where it arrives.
-      if ((cloud === 'opencode' || cloud === 'openrouter') && (response.status === 401 || response.status === 403)) refused = true;
+      if (!!cloud && !!cardOf(cloud) && isKeyCard(cloud) && (response.status === 401 || response.status === 403)) refused = true;
       if (cloud === 'claude' && response.status === 429) {
         const retryAfter = Number(response.headers.get('retry-after'));
         limitResetAt = Number.isFinite(retryAfter) && retryAfter > 0 ? Date.now() + retryAfter * 1000 : 0;

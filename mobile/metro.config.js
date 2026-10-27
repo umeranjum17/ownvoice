@@ -4,7 +4,7 @@ const config = getDefaultConfig(__dirname);
 config.watchFolders = [...(config.watchFolders || []), path.resolve(__dirname, '../packages/engine')];
 config.resolver.nodeModulesPaths = [...(config.resolver.nodeModulesPaths || []), path.resolve(__dirname, 'node_modules')];
 // Build flags are inlined at transform time, and Metro's cache doesn't key on them: without this a normal build can reuse a lab or e2e build's code.
-config.cacheVersion = ['EXPO_PUBLIC_E2E_STUB', 'EXPO_PUBLIC_E2E_GPT', 'EXPO_PUBLIC_E2E_CLAUDE_429', 'EXPO_PUBLIC_E2E_CLAUDE_LOG', 'EXPO_PUBLIC_E2E_DOWNLOAD', 'EXPO_PUBLIC_E2E_DICTATION_WAV', 'EXPO_PUBLIC_E2E_OPENROUTER_OFF', 'EXPO_PUBLIC_E2E_OPENROUTER_BASE', 'EXPO_PUBLIC_PHONE_AGENT', 'EXPO_PUBLIC_DEMO_PLATFORM', 'EXPO_PUBLIC_E2E_AUTH_BASE', 'EXPO_PUBLIC_E2E_JEV_BASE', 'EXPO_PUBLIC_E2E_OPENCODE_403', 'EXPO_PUBLIC_OWNVOICE_RELEASE'].map(k => `${k}=${process.env[k] ?? ''}`).join(';');
+config.cacheVersion = ['EXPO_PUBLIC_E2E_STUB', 'EXPO_PUBLIC_E2E_GPT', 'EXPO_PUBLIC_E2E_CLAUDE_429', 'EXPO_PUBLIC_E2E_CLAUDE_LOG', 'EXPO_PUBLIC_E2E_DOWNLOAD', 'EXPO_PUBLIC_E2E_DICTATION_WAV', 'EXPO_PUBLIC_E2E_OPENROUTER_OFF', 'EXPO_PUBLIC_E2E_OPENROUTER_BASE', 'EXPO_PUBLIC_E2E_ROUTE_ID', 'EXPO_PUBLIC_E2E_ROUTE_BASE', 'EXPO_PUBLIC_PHONE_AGENT', 'EXPO_PUBLIC_DEMO_PLATFORM', 'EXPO_PUBLIC_E2E_AUTH_BASE', 'EXPO_PUBLIC_E2E_JEV_BASE', 'EXPO_PUBLIC_E2E_OPENCODE_403', 'EXPO_PUBLIC_OWNVOICE_RELEASE'].map(k => `${k}=${process.env[k] ?? ''}`).join(';');
 // The typing check's spelling dictionary ships as two plain files (src/core/speller.ts).
 config.resolver.assetExts.push('aff', 'dic');
 module.exports = config;

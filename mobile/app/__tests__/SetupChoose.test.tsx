@@ -7,6 +7,9 @@ import Setup from '../setup';
 import { storedSource } from '../../src/core/source';
 import { words } from '../../src/core/words';
 
+/** The kit's ChatGPT row that signs in here: its billing words, then how it signs in. */
+const CHATGPT_CODE = 'Uses your ChatGPT plan. Sign in with a code.';
+
 jest.mock('../../src/chatgpt/session', () => ({
   GPT_APPS_KEY: 'chatgpt-apps', mocked: false,
   signOutGuard: jest.fn(() => ({ active: false, epoch: 0 })),
@@ -43,16 +46,19 @@ const off = (screen: Awaited<ReturnType<typeof render>>, label: string) => scree
 test('nothing is selected on arrival and Continue waits for a tap', async () => {
   const screen = await render(<Setup />);
   await screen.findByText(words.chooseTitle);
-  expect(await screen.findByText(words.srcPlan.replace('{name}', 'ChatGPT'))).toBeTruthy();
+  expect(await screen.findByText(CHATGPT_CODE)).toBeTruthy();
   expect(off(screen, words.continueLabel)).toBe(true);
-  await fireEvent.press(screen.getByText(words.srcPlan.replace('{name}', 'ChatGPT')));
+  // The kit's own list: its plan and pay-per-use groups, routes beyond the old four, and no row selected or added.
+  for (const line of ['Plans', 'Pay per use', 'Z.AI']) expect(screen.queryAllByText(new RegExp(line)).length).toBeGreaterThan(0);
+  expect(screen.queryByText(/Auto/)).toBeNull();
+  await fireEvent.press(screen.getByText(CHATGPT_CODE));
   expect(off(screen, words.continueLabel)).toBe(false);
   expect(storedSource()).toBeUndefined();
 });
 
 test('signing in does not choose an account until the person continues', async () => {
   const screen = await render(<Setup />);
-  await fireEvent.press(await screen.findByText(words.srcPlan.replace('{name}', 'ChatGPT')));
+  await fireEvent.press(await screen.findByText(CHATGPT_CODE));
   await act(async () => { fireEvent.press(screen.getByText(words.continueLabel)); });
   await waitFor(() => expect(screen.getByText(words.signedInTo.replace('{name}', 'ChatGPT'))).toBeTruthy());
   expect(storedSource()).toBeUndefined();

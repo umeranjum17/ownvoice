@@ -8,6 +8,7 @@ import { Placeholder } from '../src/ui/Placeholder';
 import { space, type, useTheme } from '../src/ui/theme';
 import { words } from '../src/core/words';
 import { cloudOf, getSource } from '../src/core/source';
+import { billingOf } from '../src/chatgpt/cards';
 import { SAMPLE_POST, TOUR_CALLS, countCall, finishTour, markDone, openTour, polishSample, tourState } from '../src/core/tour';
 
 type Version = { text: string; label: string };
@@ -32,7 +33,7 @@ export default function Tour() {
 
   useEffect(() => {
     openTour();
-    void getSource().then(source => { if (mounted.current) setPerUse(cloudOf(source) === 'openrouter'); }).catch(() => {});
+    void getSource().then(source => { if (mounted.current) setPerUse(cloudOf(source) !== null && billingOf(cloudOf(source)!) === 'api'); }).catch(() => {});
     return () => { mounted.current = false; };
   }, []);
 

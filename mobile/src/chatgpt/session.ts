@@ -1,6 +1,7 @@
 import { say } from '@byokit/accounts';
 import type { SignIn, Status } from '@byokit/accounts';
-import { accountOf, cardIds, isKeyCard, nameOf, viaOf, type CloudKey } from './cards';
+import { accountOf, isKeyCard, nameOf, viaOf, type CloudKey } from './cards';
+import { accountWords } from '../core/accountWords';
 import { store } from '../core/store';
 import { CHATGPT_TERMS, words } from '../core/words';
 
@@ -15,12 +16,13 @@ export const GPT_APPS_KEY = 'chatgpt-apps';
 export const mocked = process.env.EXPO_PUBLIC_E2E_GPT === '1';
 /** Whether the person is asked which one writes. The emulator's ChatGPT stand-in (`mocked`) has no list to pick from; every other account has. */
 export const asksModel = (key: CloudKey) => !(mocked && key === 'chatgpt');
-const signingOut: Record<CloudKey, number> = Object.fromEntries(cardIds.map(id => [id, 0]));
-const signOutEpoch: Record<CloudKey, number> = Object.fromEntries(cardIds.map(id => [id, 0]));
-export const signOutGuard = (key: CloudKey) => ({ active: signingOut[key] > 0, epoch: signOutEpoch[key] });
+// Any card the kit lists can be signed out of, so these count from zero on first use.
+const signingOut: Record<CloudKey, number> = {};
+const signOutEpoch: Record<CloudKey, number> = {};
+export const signOutGuard = (key: CloudKey) => ({ active: (signingOut[key] ?? 0) > 0, epoch: signOutEpoch[key] ?? 0 });
 const leaving = async (key: CloudKey, run: () => Promise<GptState>): Promise<GptState> => {
-  signingOut[key]++;
-  signOutEpoch[key]++;
+  signingOut[key] = (signingOut[key] ?? 0) + 1;
+  signOutEpoch[key] = (signOutEpoch[key] ?? 0) + 1;
   try { return await run(); } finally { signingOut[key]--; }
 };
 const MOCK_CODE = 'KQPT-MXVD';
@@ -97,7 +99,7 @@ const connected = (): GptState => ({ signedIn: !!connectedAt, waiting: false, co
 // it has no stand-in, so it is always the real one even in stub builds.
 const accountSession = (key: CloudKey): Session => {
   const name = nameOf(key);
-  const readState = async (a: ReturnType<typeof live>) => stateOf(a.signInState(key), await a.status(key).catch(() => null), name, key === 'claude' ? words.claudeSignInNote : undefined);
+  const readState = async (a: ReturnType<typeof live>) => stateOf(a.signInState(accountOf(key)), await a.status(accountOf(key)).catch(() => null), name, key === 'claude' ? words.claudeSignInNote : undefined);
   return {
     current: async () => {
       if (signingOut[key]) return nothing;
@@ -113,7 +115,7 @@ const accountSession = (key: CloudKey): Session => {
       return readState(a);
     },
     cancel: async () => {
-      live().cancelSignIn(key);
+      live().cancelSignIn(accountOf(key));
       return { ...nothing, note: say('signIn.cancelled', { name }) };
     },
     signOut: () => leaving(key, async () => {
@@ -166,9 +168,11 @@ const onUse = (make: () => Session): Session => {
   return { current: () => use().current(), start: () => use().start(), cancel: () => use().cancel(), signOut: () => use().signOut() };
 };
 
-const keyNotes: Record<CloudKey, string> = { openrouter: words.openrouterKeyNote, opencode: words.openCodeKeyNote };
+/** The line under a key form: the first two have their own words, every other key route uses the generic ones. */
+const keyNote = (key: CloudKey) => key === 'openrouter' ? words.openrouterKeyNote : key === 'opencode' ? words.openCodeKeyNote : accountWords(key).keyNote;
 
-export const accountSessions: Record<CloudKey, { session: Session; now: () => GptState }> = Object.fromEntries(cardIds.map(key => [
-  key,
-  tracked(onUse(() => mocked && key === 'chatgpt' ? mock : isKeyCard(key) ? keySession(key, keyNotes[key]) : accountSession(key))),
-]));
+const sessions: Record<CloudKey, { session: Session; now: () => GptState }> = {};
+const sessionOf = (key: CloudKey) => sessions[key] ??= tracked(onUse(() => mocked && key === 'chatgpt' ? mock : isKeyCard(key) ? keySession(key, keyNote(key)) : accountSession(key)));
+
+/** Each card's session, made the first time it is asked for (any route the kit lists is a card). */
+export const accountSessions: Record<CloudKey, { session: Session; now: () => GptState }> = new Proxy(sessions, { get: (_, key) => typeof key === 'string' ? sessionOf(key) : undefined });

@@ -4,6 +4,7 @@ import { words } from './words';
 import type { ScreenText } from './drafts';
 import type { Platform } from './platforms';
 import type { PhoneCanWrite } from './phoneStatus';
+import { genericWords } from './accountWords';
 import type { CloudKey, Source } from './source';
 
 /** `point`: in grow mode, what they typed; replies start from it while `typed` stays empty. */
@@ -31,21 +32,31 @@ export const retryLines: Set<string> = new Set([words.gptFailedNoPhone, words.of
 /** A writer that never drafts: the panel shows its line instead. */
 export const thrower = (line: string): Writer => ({ write: async () => { throw new Error(line); } });
 
+/** The refusal lines of the accounts worded by their name: added as an account's words are made, so a line shown is always in it. */
+const refusedLines = new Set<string>();
+
 /** Whether a shown line is a cloud plan limit: the person can still pick another writer. */
 export const isPlanLimitLine = (line: string | null | undefined): boolean => !!line && line.startsWith(words.claudePlanLimit);
 /** Whether a shown line says the person's writer account needs another writer or a reconnect: the panel offers the switch. */
-export const isOtherWriterLine = (line: string | null | undefined): boolean => isPlanLimitLine(line) || line === words.openCodeRefused || line === words.openrouterRefused || line === words.needModelPanel;
+export const isOtherWriterLine = (line: string | null | undefined): boolean => isPlanLimitLine(line) || line === words.openCodeRefused || refusedLines.has(line ?? '') || line === words.openrouterRefused || line === words.needModelPanel;
 
 /** The plain lines one cloud provider's route says; ChatGPT's stay the exact shipped strings. */
 export type CloudWords = { off: string; offNoPhone: string; failedNoPhone: string; fallback: string; needNote: string; switchUnavailable: string; planLimit?: string; refused?: string; unasked?: string; unaskedNoPhone?: string };
 export const computerWords: CloudWords = { off: words.computerOff, offNoPhone: words.computerOffNoPhone, failedNoPhone: words.computerFailed, fallback: words.computerFallback, needNote: words.computerNone, switchUnavailable: words.computerUnasked, unasked: words.computerUnasked, unaskedNoPhone: words.computerUnaskedNoPhone };
-export const cloudWords = (key: CloudKey | 'computer'): CloudWords => key === 'computer' ? computerWords : key === 'claude'
+export const cloudWords = (key: CloudKey | 'computer'): CloudWords => key === 'computer' ? computerWords : genericCloud(key) ?? (key === 'claude'
   ? { off: words.claudeOff, offNoPhone: words.claudeOffNoPhone, failedNoPhone: words.claudeFailed, fallback: words.claudeFallback, needNote: words.claudeNeedNote, switchUnavailable: words.claudeSwitchUnavailable, planLimit: words.claudePlanLimit }
   : key === 'openrouter'
   ? { off: words.openrouterOff, offNoPhone: words.openrouterOffNoPhone, failedNoPhone: words.openrouterFailed, fallback: words.openrouterFallback, needNote: words.openrouterNeedNote, switchUnavailable: words.openrouterSwitchUnavailable, refused: words.openrouterRefused }
   : key === 'opencode'
   ? { off: words.openCodeOff, offNoPhone: words.openCodeOffNoPhone, failedNoPhone: words.openCodeFailed, fallback: words.openCodeFallback, needNote: words.openCodeNeedNote, switchUnavailable: words.openCodeSwitchUnavailable, refused: words.openCodeRefused }
-  : { off: CHATGPT_OFF, offNoPhone: words.gptOffNoPhone, failedNoPhone: words.gptFailedNoPhone, fallback: words.fallback, needNote: words.needWriterNote, switchUnavailable: words.switchUnavailable };
+  : { off: CHATGPT_OFF, offNoPhone: words.gptOffNoPhone, failedNoPhone: words.gptFailedNoPhone, fallback: words.fallback, needNote: words.needWriterNote, switchUnavailable: words.switchUnavailable });
+
+/** Any other account the kit lists is worded by its name, the way OpenRouter and OpenCode Go are. */
+function genericCloud(key: CloudKey): CloudWords | null {
+  const generic = genericWords(key);
+  if (generic) { retryLines.add(generic.failed); retryLines.add(generic.offNoPhone); refusedLines.add(generic.refused); }
+  return generic && { off: generic.off, offNoPhone: generic.offNoPhone, failedNoPhone: generic.failed, fallback: generic.fallback, needNote: generic.needNote, switchUnavailable: generic.switchUnavailable, refused: generic.refused };
+}
 
 /** The one plain line for a failed cloud call on a phone that cannot write instead. */
 export function noPhoneLine(error: unknown, lines: CloudWords): string {

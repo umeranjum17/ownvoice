@@ -206,6 +206,7 @@ const openCodeWords = {
   openCodeSignOut: 'Sign out of OpenCode Go',
   openCodeButton: 'Connect with OpenCode Go',
   openCodeKeyFailed: 'That key was not accepted. Check it and try again.',
+  connectSection: 'Or connect your own plan or key',
   srcOpenCode: 'With your OpenCode Go',
   srcOpenCodeSub: 'Your own plan, already paid for',
   rowSourceOpenCode: 'With your OpenCode Go',

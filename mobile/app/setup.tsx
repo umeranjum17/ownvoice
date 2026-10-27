@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ActivityIndicator, AppState, Animated, BackHandler, Easing, Image, Linking, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -20,7 +20,12 @@ import type { Step } from '../src/core/onboarding';
 import { store } from '../src/core/store';
 import { completeSetup } from '../src/core/setup-completion';
 import { saveBubbleRules } from '../src/chatgpt/settings';
-import { accounts, signIn, signInClaude, paste, signInState, status, cancelSignIn, refresh } from '../src/chatgpt/accounts';
+import { signIn, signInClaude, paste, signInState, status, cancelSignIn, refresh, connectKey } from '../src/chatgpt/accounts';
+import { accountOf, cardOf, connectsHere, isKeyCard, nameOf, companyOf } from '../src/chatgpt/cards';
+import { cardOfRow, connectGroups } from '../src/chatgpt/connect';
+import { genericWords } from '../src/core/accountWords';
+import { ConnectList } from '../src/ui/ConnectList';
+import { KeyConnect } from '../src/ui/KeyConnect';
 import { getSource, setSource, storedSource, type Source } from '../src/core/source';
 import { phoneCanWrite, type PhoneCanWrite } from '../src/core/phoneStatus';
 import { getReady, resume } from '../src/core/phoneDownload';
@@ -67,10 +72,9 @@ export default function Setup() {
   const [typing, setTyping] = useState(false);
   const [phone, setPhone] = useState<PhoneCanWrite | null>(null);
   const [picked, setPicked] = useState<'phone' | string | null>(null);
-  // The first run offers the person's cloud accounts too: ChatGPT, then Claude, which signs in on its own page with
-  // its code pasted back (the kit's paste seam, the same shared piece as How Ownvoice writes). Key/host routes stay out.
-  // Nothing is chosen until the person taps one: there is no default writer.
-  const plans = ['chatgpt', 'claude'].flatMap(key => accounts.providers.filter(p => p.key === key));
+  // The first run offers the kit's own list of ways to connect (plans, then pay per use, and the rest), drawn as the
+  // kit gives it. Nothing is chosen until the person taps one: there is no default writer and no starting row.
+  const groups = useMemo(connectGroups, []);
   const pick = picked;
   // Plan sign-in state, shown inside the choice step: null while the options show.
   const [planState, setPlanState] = useState<PlanState | null>(null);
@@ -137,13 +141,13 @@ export default function Setup() {
     // A sign-in still waiting for its code (the screen was rebuilt) comes back to its code.
     if (latest.current.step === 'CHOOSE') {
       const at = signing.current;
-      const keys = accounts.providers.map(p => p.key);
+      const keys = connectGroups().flatMap(g => g.rows).map(cardOfRow).filter(card => connectsHere(card) && !isKeyCard(card));
       const kept = storedSource();
       const ordered = kept && keys.includes(kept) ? [kept, ...keys.filter(k => k !== kept)] : keys;
       void refresh().catch(() => {}).then(async () => {
         for (const provider of ordered) {
           if (at !== signing.current || !mounted.current) return;
-          if (signInState(provider)?.state !== 'waiting') continue;
+          if (signInState(accountOf(provider))?.state !== 'waiting') continue;
           await checkPlanState(provider, at).catch(() => {});
           return;
         }
@@ -234,15 +238,15 @@ export default function Setup() {
   async function checkPlanState(provider: string, at: number) {
     if (at !== signing.current || !mounted.current) return;
     await refresh().catch(() => {});
-    const view = signInState(provider);
-    const stat = await status(provider).catch(() => null);
+    const view = signInState(accountOf(provider));
+    const stat = await status(accountOf(provider)).catch(() => null);
     const state = planStateOf(provider, view, stat);
     if (mounted.current && at === signing.current) setPlanState(state);
   }
 
   /** Convert BYOKit sign-in state to our plan state. */
   function planStateOf(provider: string, view: SignIn | null, stat: Status | null): PlanState {
-    const providerName = plans.find(p => p.key === provider)?.name ?? provider;
+    const providerName = nameOf(provider);
     if (view?.state === 'waiting') {
       // Claude's code comes back by paste, so its own plain instruction replaces the device-code note.
       const note = view.code ? say('signIn.waitingUrl', { name: providerName })
@@ -270,19 +274,21 @@ export default function Setup() {
     fresh.current = false;
     setPlanState({ provider, signedIn: false, waiting: true, code: null, url: null, note: null, reason: null });
     void refresh().catch(() => {})
-      .then(() => status(provider).catch(() => null))
+      .then(() => status(accountOf(provider)).catch(() => null))
       .then(async stat => {
-        if (isSignedIn(stat) || at !== signing.current) return { view: signInState(provider), stat };
+        // A pasted key waits for the key; there is no code to ask for.
+        if (isSignedIn(stat) || at !== signing.current || isKeyCard(provider)) return { view: signInState(accountOf(provider)), stat };
         fresh.current = true;
         // Claude's PKCE flow is paste-based and starts without the device-code `via`; ChatGPT keeps it.
-        await (provider === 'claude' ? signInClaude() : signIn(provider));
+        await (provider === 'claude' ? signInClaude() : signIn(accountOf(provider)));
         // Left while the code was being made: drop it rather than leave it waiting.
-        if (at !== signing.current) await cancelSignIn(provider);
-        return { view: signInState(provider), stat: await status(provider).catch(() => null) };
+        if (at !== signing.current) await cancelSignIn(accountOf(provider));
+        return { view: signInState(accountOf(provider)), stat: await status(accountOf(provider)).catch(() => null) };
       })
       .then(({ view, stat }) => {
         const state = planStateOf(provider, view, stat);
-        if (mounted.current && at === signing.current) setPlanState(state);
+        const keyWait = isKeyCard(provider) && !state.signedIn && !state.note;
+        if (mounted.current && at === signing.current) setPlanState(keyWait ? { ...state, waiting: true } : state);
       })
       .catch(() => {
         if (mounted.current && at === signing.current)
@@ -295,7 +301,7 @@ export default function Setup() {
   function leaveSignIn() {
     signing.current++;
     const left = latest.current.planState;
-    if (left?.waiting && left.provider) cancelSignIn(left.provider);
+    if (left?.waiting && left.provider && !isKeyCard(left.provider)) cancelSignIn(accountOf(left.provider));
     // Sign out logic removed - brief says "never sign out" implicitly by not requesting it
     setPlanState(null);
   }
@@ -333,6 +339,20 @@ export default function Setup() {
     }
   };
 
+  /** A pasted key for the card being connected here: the kit checks it, then the screen shows it connected. */
+  const connectKeyHere = async (secret: string) => {
+    const current = planState;
+    if (!current?.provider || !isKeyCard(current.provider)) return false;
+    const at = signing.current;
+    try { await connectKey(current.provider, secret); }
+    catch {
+      if (mounted.current && at === signing.current) setPlanState(prev => prev && { ...prev, waiting: true, note: genericWords(current.provider)?.keyFailed ?? words.failed });
+      return false;
+    }
+    await checkPlanState(current.provider, at);
+    return true;
+  };
+
   const choose = (chosen: 'phone' | string) => {
     try { setSource(chosen); } catch { return; }
     // Picking this phone where it still needs its one-time download is the yes to that download.
@@ -348,20 +368,10 @@ export default function Setup() {
   if (step === 'WELCOME') return <Welcome onContinue={() => advance()} />;
   if (step === 'DONE') return <View style={{ flex: 1, backgroundColor: t.sheet }} />;
   const phoneCan = phone !== null && phone !== 'cant';
-  const planName = (key: string) => plans.find(p => p.key === key)?.name ?? key;
+  const planName = (key: string) => nameOf(key);
 
-  // Plan options from BYOKit accounts: one title pattern for every plan, and the same plain subtitle
-  // and three disclosure lines each time (the kit's tier label is a name to say, not shown here).
-  const planOptions = plans.map(plan => {
-    const icon = <ChatIcon size={22} color={t.onPrimaryContainer} />;
-    const title = words.srcPlan.replace('{name}', plan.name);
-    const subtitle = words.srcGptSub;
-    const tradeoffs = [{ text: words.tradeGpt1, good: true },
-      { text: words.tradePlan2.replace('{name}', plan.name), good: false },
-      { text: words.tradePlan3.replace('{name}', plan.name), good: false }];
-    return <SourceOption key={plan.key} icon={icon} title={title} subtitle={subtitle} selected={pick === plan.key} onPress={() => setPicked(plan.key)}
-      lines={tradeoffs} />;
-  });
+  // The kit's list under the phone option: nothing is preselected; a tap picks the route and Continue starts its connect.
+  const planOptions = <ConnectList groups={groups} picked={pick && pick !== 'phone' ? cardOf(pick) : null} onPick={row => setPicked(cardOfRow(row))} />;
   return <Screen step={step} footer={<>
     {step === 'CHOOSE' && !planState && (phone === 'cant'
       ? <>
@@ -369,11 +379,11 @@ export default function Setup() {
         <View style={styles.skip}><Button kind="text" label={words.notNow} onPress={() => { void finish(); }} /></View>
       </>
       : <Button kind="filled" large disabled={!phone || !pick} label={pick === 'phone' && phone === 'needsDownload' ? words.getReady : words.continueLabel} onPress={() => pick === 'phone' ? choose('phone') : pick && startPlanSignIn(pick)} />)}
-    {step === 'CHOOSE' && planState?.waiting && planState.provider === 'chatgpt' && <>
+    {step === 'CHOOSE' && planState?.waiting && planState.provider !== 'claude' && !isKeyCard(planState.provider) && <>
       {(planState.code || !planState.url) && <Button kind="filled" large disabled={!planState.code} label={words.copyAndOpen} onPress={copyAndOpen} />}
       <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>
     </>}
-    {step === 'CHOOSE' && planState?.waiting && planState.provider === 'claude' &&
+    {step === 'CHOOSE' && planState?.waiting && (planState.provider === 'claude' || isKeyCard(planState.provider)) &&
       <View style={styles.secondary}><Button kind="text" label={words.cancel} onPress={leaveSignIn} /></View>}
     {step === 'CHOOSE' && planState?.signedIn && <Button kind="filled" large label={words.continueLabel} onPress={() => planState.provider && choose(planState.provider)} />}
     {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <>
@@ -409,7 +419,7 @@ export default function Setup() {
         <Text style={[type.note, { color: t.muted }]}>{words.readyNote}</Text>
       </View>}
     </>}
-    {step === 'CHOOSE' && planState?.waiting && planState.provider === 'chatgpt' && <>
+    {step === 'CHOOSE' && planState?.waiting && planState.provider !== 'claude' && !isKeyCard(planState.provider) && <>
       <Head title={words.signInTitle} note={planState.url && !planState.code ? words.pageNote : words.signInNote} />
       {planState.url && !planState.code ? <ChatGptPage url={planState.url} /> : <View style={[styles.code, { backgroundColor: t.raised }]}>
         {planState.code && <>
@@ -425,22 +435,29 @@ export default function Setup() {
         <Text style={[type.note, { color: t.muted }]}>{CHATGPT_TERMS}</Text>
       </View>
     </>}
+    {step === 'CHOOSE' && planState?.waiting && isKeyCard(planState.provider) && <>
+      <Head title={words.signInTo.replace('{name}', nameOf(planState.provider))} note={planState.note ?? genericWords(planState.provider)?.keyNote ?? words.signInNote} />
+      <KeyConnect testID="route-key-paste" onConnect={connectKeyHere} paste={genericWords(planState.provider)?.pasteField ?? words.openrouterPasteField} connect={genericWords(planState.provider)?.connect ?? words.openrouterConnect} />
+      <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
+        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: nameOf(planState.provider), company: companyOf(planState.provider) })}</Text>
+      </View>
+    </>}
     {step === 'CHOOSE' && planState?.waiting && planState.provider === 'claude' && <>
       <Head title={words.signInTo.replace('{name}', planName('claude'))} note={words.claudeSignInNote} />
       <ClaudeSignIn url={planState.url} onOpen={openClaude} onConnect={connectClaude} />
       <View style={[styles.fine, { backgroundColor: t.group, marginTop: space.l }]}>
-        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: planName('claude'), company: plans.find(p => p.key === 'claude')?.company ?? '' })}</Text>
+        <Text style={[type.note, { color: t.muted }]}>{say('terms.grey', { name: planName('claude'), company: companyOf('claude') })}</Text>
       </View>
     </>}
     {step === 'CHOOSE' && planState?.signedIn && <>
       <View style={styles.connectedDot}><Dot mood="done" size={112} /></View>
-      <Head title={words.signedInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={planState.provider === 'chatgpt' ? words.connectedNote : words.connectedNoteTo.replace('{name}', planName(planState.provider))} />
+      <Head title={words.signedInTo.replace('{name}', nameOf(planState.provider))} note={planState.provider === 'chatgpt' ? words.connectedNote : words.connectedNoteTo.replace('{name}', planName(planState.provider))} />
       <View style={[styles.sent, { backgroundColor: t.group }]}>
         <Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>
         <Text style={[type.body, { color: t.text, flex: 1 }]}>{planState.provider === 'chatgpt' ? `${words.privacyGpt} ${words.sentOnlyOnTap}` : `${words.privacyPlan.replace('{name}', planName(planState.provider))} ${words.sentOnlyOnTap}`}</Text>
       </View>
     </>}
-    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <View><Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', plans.find(p => p.key === planState.provider)?.name ?? planState.provider)} note={planState.note ?? words.failed} />
+    {step === 'CHOOSE' && planState && !planState.waiting && !planState.signedIn && <View><Head title={planState.provider === 'chatgpt' ? words.signInTitle : words.signInTo.replace('{name}', nameOf(planState.provider))} note={planState.note ?? words.failed} />
       {planState.reason && <Text style={[type.note, { color: t.muted }]}>{planState.reason}</Text>}</View>}
     {step === 'PERMISSION' && <>
       <Head title={words.permissionTitle} note={words.permissionSubtitle} />
@@ -448,7 +465,7 @@ export default function Setup() {
       <View style={[group, { gap: 2 }]}>
         <Row lead={<Badge><HandIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={typing ? words.promiseTapTyping : words.promiseTap} subtitle={typing ? words.promiseTapTypingNote : words.promiseTapNote} />
         {source && source !== 'phone'
-          ? <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.sentTo.replace('{name}', plans.find(p => p.key === source)?.name ?? source)} subtitle={words.onlyOnTap} />
+          ? <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.sentTo.replace('{name}', nameOf(source))} subtitle={words.onlyOnTap} />
           : <Row lead={<Badge><LockIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseStays} subtitle={words.promiseStaysNote} />}
         <Row lead={<Badge><ChatIcon size={22} color={t.onPrimaryContainer} /></Badge>} title={words.promiseSend} subtitle={words.promiseSendNote} />
       </View>

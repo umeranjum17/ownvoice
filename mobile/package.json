@@ -18,6 +18,7 @@
     "@byokit/pair": "0.10.5",
     "@byokit/seal": "0.3.0",
     "@byokit/secrets": "0.5.0",
+    "@byokit/ui": "1.1.0",
     "@dr.pogodin/react-native-fs": "^2.40.3",
     "@platform-kits/overlay": "0.3.3",
     "expo": "~57.0.0",
