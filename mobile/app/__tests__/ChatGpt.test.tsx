@@ -81,6 +81,8 @@ const open = async (source: 'phone' | 'chatgpt' | null, state: GptState = nothin
   const screen = await render(<Source />);
   await screen.findByText(CHATGPT_CODE);
   await act(async () => { await Promise.resolve(); });
+  // The kit's list never offers an Auto row, whichever way the page opens.
+  expect(screen.queryByText(/^Auto\b/)).toBeNull();
   return screen;
 };
 
