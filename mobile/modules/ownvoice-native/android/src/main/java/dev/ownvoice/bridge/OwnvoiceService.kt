@@ -447,7 +447,8 @@ class OwnvoiceService : AccessibilityService() {
     bubbles?.keepClear(emptyList())
     pendingNote = null
     val app = currentApp()?.takeIf(::allowed) ?: run { restIdle(); return }
-    val field = focusedField()
+    // The kit looks in every window; only a box of the app in front counts, like the typed text below.
+    val field = focusedField()?.takeIf { it.packageName?.toString() == app }
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     val nodes = mutableListOf<ScreenText>()
     val boxes = mutableListOf<Rect>()
@@ -464,7 +465,8 @@ class OwnvoiceService : AccessibilityService() {
     if (cue) readCue.play(bubbleBounds(), drawable)
     val fieldBounds = Rect()
     field?.getBoundsInScreen(fieldBounds)
-    val focused = FocusedFields.read(this)?.takeIf { it.app == app }
+    // No box found above: the full read would only wait out its pauses again, on this thread.
+    val focused = if (field != null) FocusedFields.read(this)?.takeIf { it.app == app } else null
     val typed = focused?.text.orEmpty()
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val id = java.util.UUID.randomUUID().toString()
