@@ -371,21 +371,28 @@ const connectRoute = async () => {
   shot('connect-list', 'pay-per-use', 'light');
   await scrollWriterList(routeName);
   shot('connect-list', 'the-new-row', 'light');
-  if (!(await tapButton(routeName))) throw new Error(`The ${routeName} row did not read as clickable.`);
+  // The row itself, not a longer name that starts with it (Z.AI, not Z.AI Coding CN).
+  const rowOf = () => nodes().find(n => n.clickable && new RegExp(`^${routeName.toLowerCase().replace(/\./g, '\\.')}(?! coding)(?! token)`).test((n.label ?? n.text ?? '').toLowerCase()));
+  await wait(1500);
+  const row = await until(`the ${routeName} row`, rowOf, { seconds: 20 });
+  tap(...center(row));
+  await wait(1500);
+  if (!nodes().some(n => (n.text ?? n.label ?? '').toLowerCase().includes(`paste your ${routeName.toLowerCase()} key`)) && rowOf()) tap(...center(rowOf()));
   await scrollWriterList(`paste your ${routeName.toLowerCase()} key`);
   await until(`the ${routeName} key field`, () => onScreen(`paste your ${routeName} key`), { seconds: 30 });
   shot('connect-list', 'key-field', 'light');
   await pasteKey(`paste your ${routeName.toLowerCase()} key`);
-  adb('shell', 'input', 'swipe', String(width / 2), String(height * .7), String(width / 2), String(height * .4), '300');
-  await wait(1200);
   if (!(await tapButton('connect'))) log('the Connect control did not read as clickable; waiting for the result anyway');
   await pickModel();
   await until(`the ${routeName} connect result`, () => {
     const text = nodeText();
-    if (text.includes(`${routeName.toLowerCase()} is connected`)) return true;
+    if (text.includes(`${routeName.toLowerCase()} is connected`) || text.includes(`sign out of ${routeName.toLowerCase()}`)) return true;
     if (/not accepted/.test(text)) return 'refused';
     return false;
   }, { seconds: 120, every: 1000 });
+  // Bring the connected card back into view: it says it can sign out of the account it holds.
+  for (let i = 0; i < 12 && !onScreen(`sign out of ${routeName.toLowerCase()}`); i++) { adb('shell', 'input', 'swipe', String(width / 2), String(height * .35), String(width / 2), String(height * .6), '300'); await wait(900); }
+  log(`connected: ${onScreen(`sign out of ${routeName.toLowerCase()}`)}; ${nodes().map(n => (n.text || n.label || '').trim()).filter(Boolean).join(' | ').slice(0, 260)}`);
   shot('connect-list', 'connected', 'light');
 };
 // OpenCode Go: the plan-key route from PR 209, connected with the desktop login's own key through
