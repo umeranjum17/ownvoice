@@ -17,11 +17,15 @@ const keyStore = nativeStore({ secureStore: SecureStore, prefix: 'ownvoice.keys'
 // in a distributable build, where sign-in always goes to OpenAI itself.
 const authBase = process.env.EXPO_PUBLIC_E2E_AUTH_BASE || undefined;
 // Claude's and ChatGPT's page sign-ins (PKCE) need secure random bytes and SHA-256, which React Native lacks; expo-crypto supplies both.
+// How long a sign-in may wait for the person: Claude's code is read on another device and pasted back, which
+// routinely takes well over the kit's 15 minute default. A day is "until they come back" in practice; the kit's
+// timer must stay under 2^31 ms, so there is no true "never".
+const SIGN_IN_MS = 24 * 60 * 60_000;
 const claudePlan = { crypto: { getRandomValues, subtle: { digest: (_algorithm: string, data: BufferSource) => sha256(CryptoDigestAlgorithm.SHA256, data) } } as unknown as Crypto };
 
 // Start with hardcoded list to avoid calling offered() at module scope (RN crash).
 // Wrapper functions will delegate to a lazily-initialized instance with kit-driven list.
-const fallback = new Accounts({ offer: ['claude', 'chatgpt', 'typesafe'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase } : {}) }, withKeys(portable));
+const fallback = new Accounts({ offer: ['claude', 'chatgpt', 'typesafe'], app: 'Ownvoice', signInMs: SIGN_IN_MS, store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase } : {}) }, withKeys(portable));
 let realInstance: Accounts | undefined;
 
 /** Whether the kit reports this phone's OpenRouter key route ready (the card layer asks the kit). */
@@ -57,7 +61,7 @@ function kitInstance(): Accounts | undefined {
     const wanted = [...new Set([...plans, ...codeAccounts()])];
     const planOrder = wanted.includes('claude') ? ['claude', ...wanted.filter(k => k !== 'claude')] : wanted;
     const offer = openRouterReady() ? [...planOrder, 'openrouter'] : planOrder;
-    realInstance = new Accounts({ offer: [...offer, 'typesafe'], app: 'Ownvoice', store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase} : {}) }, withKeys(portable));
+    realInstance = new Accounts({ offer: [...offer, 'typesafe'], app: 'Ownvoice', signInMs: SIGN_IN_MS, store: () => store, keyStore: () => keyStore, fetch: responseFetch, originator: 'ownvoice', claudePlan, crypto: claudePlan.crypto, ...(authBase ? { authBase} : {}) }, withKeys(portable));
     return realInstance;
   } catch {
     return undefined;
