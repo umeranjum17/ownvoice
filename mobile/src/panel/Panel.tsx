@@ -18,7 +18,7 @@ import { guide as voiceGuide, selectedGuide } from '../core/voice';
 import { loadVoice } from '../core/voiceStore';
 import { words } from '../core/words';
 import type { Check, Scores, Verdict } from '../core/judge';
-import { isOtherWriterLine, retryLines, type Writer, type WriterRoute } from '../core/writers';
+import { asker, isOtherWriterLine, retryLines, type PhoneAsk, type Writer, type WriterRoute } from '../core/writers';
 import { Button, IconButton } from '../ui/Button';
 import { armProofWav, ensureMic, ensurePack, dictateReady, listenForDictation, messageForDictationError, proofWavPath, settledWithin } from './dictate';
 import type { DictationHandle } from '@byokit/dictation';
@@ -164,6 +164,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const [beat, setBeat] = useState(0);
   const downloading = useRef(false);
   const [reason, setReason] = useState<string | null>(null);
+  const [ask, setAsk] = useState<PhoneAsk | null>(null);
   const [who, setWho] = useState<string | null>(null);
   const [yours, setYours] = useState<Draft | null>(null);
   const [unchanged, setUnchanged] = useState(false);
@@ -273,7 +274,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     return sorted;
   };
 
-  const start = useCallback((value: Capture, avoid?: string[]) => {
+  const start = useCallback((value: Capture, avoid?: string[], onPhone?: string) => {
     const id = ++run.current;
     landedAny.current = false;
     setLimited(!!value.typingLimited);
@@ -301,6 +302,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     setUnchanged(false);
     setDeclined(false);
     setReason(null);
+    setAsk(null);
     setFraction(null);
     setSlow(false);
     downloading.current = false;
@@ -338,8 +340,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (typed) setYours({ text: typed, slot: -1, scores: Judge.scoreDraft(typed, null, !publicScreen, rules, post, person, platform), meaning: null, ratings: rate(typed, platform, shownPost, rules) });
     void (async () => {
       let path: WriterRoute;
-      try { path = writer ? { writer, note: null } : await select(value.app); }
-      catch { path = { writer: phoneWriter, note: words.phoneWrote }; }
+      try { path = onPhone != null ? { writer: phoneWriter, note: onPhone } : writer ? { writer, note: null } : await select(value.app); }
+      catch { path = { writer: asker({ line: words.failed, reason: words.phoneWrote }), note: null }; }
       if (run.current !== id) return;
       leaves.current = path.writer !== phoneWriter;
       // One selection per run: the writer's guide line and the fit call share these samples.
@@ -397,6 +399,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         });
         if (run.current !== id) return;
         setFraction(null);
+        // The chosen account could not be reached: nothing was written. The person picks, and only the phone button runs the phone.
+        if (choice.ask) { setAsk(choice.ask); setNote(choice.ask.line); setPhase('failed'); return; }
         setUnchanged(!!choice.unchanged && !choice.drafts.length);
         setDeclined(!!choice.declined);
         setReason(choice.reason ?? path.note);
@@ -467,7 +471,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   // fit read instead of the panel showing only the writer's fallback line (the 2026-10-01 failure). ----
   useEffect(() => {
     const fitKind = fitKindOf(mode);
-    if ((phase !== 'ready' && phase !== 'failed') || !fitKind || !capture || !rated(platformOf.current, fitKind)) return;
+    if ((phase !== 'ready' && phase !== 'failed') || ask || !fitKind || !capture || !rated(platformOf.current, fitKind)) return;
     const id = run.current;
     if (fitFor.current === id) return;
     const texts = [...(yours?.text ? [yours.text] : []), ...shown.map(draft => draft.text)];
@@ -710,7 +714,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     } : undefined}
     footer={empty && mainNote
       ? <Empty text={mainNote}>
-        {phase === 'ready' && !declined && mode !== 'empty' && mode !== 'own' || phase === 'failed' && retryLines.has(mainNote) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
+        {phase === 'ready' && !declined && mode !== 'empty' && mode !== 'own' || phase === 'failed' && (ask || retryLines.has(mainNote)) ? <Button kind="filled" label={words.tryAgain} onPress={() => capture && start(capture)} /> : null}
+        {phase === 'failed' && ask ? <Button kind="filled" label={words.phoneThisTime} onPress={() => capture && start(capture, undefined, ask.reason)} /> : null}
         {phase === 'failed' && opensApp.has(mainNote) ? <Button kind="filled" label={words.openOwnvoice} onPress={openOwnvoice} /> : null}
         {phase === 'failed' && isOtherWriterLine(mainNote) ?<Button kind="filled" label={words.claudeChooseWriter} onPress={openSource} /> : null}
         {otherWriter.has(mainNote) ? <Button kind="text" label={words.claudeChooseWriter} onPress={openSource} /> : null}

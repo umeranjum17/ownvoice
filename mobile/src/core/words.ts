@@ -246,6 +246,8 @@ const modelWords = {
   needModel: 'Choose which one writes',
   needModelNote: 'Your account is ready. Pick which one writes for you.',
   needModelPanel: 'Choose which one writes first.',
+  signedOutAsk: "You're signed out of the account you chose.",
+  phoneThisTime: 'Write on this phone this time',
   modelTitle: 'Which one writes',
   modelNote: 'This is your account’s own list. Ownvoice never picks for you.',
   modelSearch: 'Search the list',

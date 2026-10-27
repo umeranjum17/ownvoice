@@ -207,7 +207,7 @@ test('a phone-only list that turns unreadable mid-send blocks the send', async (
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   try {
-    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.phoneWrote }) });
     expect(global.fetch).not.toHaveBeenCalled();
   } finally {
     global.fetch = originalFetch;
@@ -229,12 +229,13 @@ test('a paused bubble does not check the switch', async () => {
   expect(fetcher).not.toHaveBeenCalled();
 });
 
-test('the off switch means the phone writes, with the one plain line', async () => {
+test('the off switch asks before the phone writes, with the one plain line', async () => {
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
-  expect((await gptRoute('com.twitter.android', offline)).note).toBe(CHATGPT_OFF);
+  const route = await gptRoute('com.twitter.android', offline);
+  expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: [], ask: { line: words.gptOffNoPhone, reason: CHATGPT_OFF } });
 });
 
-test.each([1, 2])('an unreadable switch on read %i uses the phone without losing a verified off choice', async failedRead => {
+test.each([1, 2])('an unreadable switch on read %i asks before the phone writes, without losing a verified off choice', async failedRead => {
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: 0 });
   const storage = jest.requireMock('expo-sqlite/kv-store').default;
   let reads = 0;
@@ -245,14 +246,15 @@ test.each([1, 2])('an unreadable switch on read %i uses the phone without losing
   const fetcher = jest.fn(offline);
   try {
     const route = await gptRoute('com.twitter.android', fetcher);
-    expect(route.writer).toBe(phoneWriter);
-    expect(route.note).toBe(words.switchUnavailable);
+    expect(route.writer).not.toBe(phoneWriter);
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: [], ask: { line: words.gptFailedNoPhone, reason: words.switchUnavailable } });
     expect(fetcher).toHaveBeenCalledTimes(failedRead === 1 ? 0 : 1);
     expect(kv.get('chatgpt-switch')).toEqual(JSON.stringify({ seq: 1, chatgpt: 'off', fetchedAt: 0 }));
   } finally {
     get.mockRestore();
   }
-  expect((await gptRoute('com.twitter.android', offline)).note).toBe(CHATGPT_OFF);
+  const after = await gptRoute('com.twitter.android', offline);
+  expect(await after.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toMatchObject({ drafts: [], ask: { reason: CHATGPT_OFF } });
 });
 
 test('a switch read failure during verification cannot reuse an earlier on choice', async () => {
@@ -267,8 +269,8 @@ test('a switch read failure during verification cannot reuse an earlier on choic
   try {
     const route = await gptRoute('com.twitter.android', fetcher);
     expect(fetcher).toHaveBeenCalledTimes(1);
-    expect(route.writer).toBe(phoneWriter);
-    expect(route.note).toBe(words.switchUnavailable);
+    expect(route.writer).not.toBe(phoneWriter);
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toMatchObject({ drafts: [], ask: { reason: words.switchUnavailable } });
   } finally {
     get.mockRestore();
   }
@@ -278,7 +280,7 @@ test('the off switch stops the paired computer too: nothing is asked and the pho
   store.set(SOURCE_KEY, 'computer');
   store.set('chatgpt-switch', { seq: 1, chatgpt: 'off', fetchedAt: Date.now() });
   const route = await gptRoute('com.twitter.android', offline);
-  expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.computerOff });
+  expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.computerOff }) });
   expect(jest.requireMock('../../computer/link').askComputer).not.toHaveBeenCalled();
 });
 
@@ -301,7 +303,7 @@ test('an unreadable switch names the computer as not asked, and the phone writes
   });
   try {
     const route = await gptRoute('com.twitter.android', offline);
-    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.computerUnasked });
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.computerUnasked }) });
     expect(jest.requireMock('../../computer/link').askComputer).not.toHaveBeenCalled();
   } finally {
     get.mockRestore();
@@ -321,8 +323,8 @@ test.each(['off', 'unreadable'])('a switch turning %s after routing blocks the R
   global.fetch = jest.fn();
   try {
     expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({
-      drafts: ['phone one', 'phone two', 'phone three'],
-      reason: mode === 'off' ? CHATGPT_OFF : words.switchUnavailable,
+      drafts: [],
+      ask: expect.objectContaining({ reason: mode === 'off' ? CHATGPT_OFF : words.switchUnavailable }),
     });
     expect(global.fetch).not.toHaveBeenCalled();
   } finally {
@@ -339,8 +341,8 @@ test('an unreadable switch without a verified off choice uses a neutral phone re
   });
   try {
     const route = await gptRoute('com.twitter.android', offline);
-    expect(route.writer).toBe(phoneWriter);
-    expect(route.note).toBe(words.switchUnavailable);
+    expect(route.writer).not.toBe(phoneWriter);
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toMatchObject({ drafts: [], ask: { reason: words.switchUnavailable } });
   } finally { get.mockRestore(); }
 });
 
@@ -378,7 +380,7 @@ test('pending logout blocks a credentialed send even with ready status', async (
     const leaving = session.signOut();
     clear.mockRestore();
     releaseAuth({ access: 'fixture-access', accountId: 'fixture-account' });
-    expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(await writing).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.phoneWrote }) });
     expect(global.fetch).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
     releaseLogout();
@@ -410,7 +412,7 @@ test('sign-out blocks an in-flight send even when clearing app choices fails', a
     } finally { clear.mockRestore(); }
     expect(signOut).toHaveBeenCalledTimes(1);
     release({ access: 'fixture-access', accountId: 'fixture-account' });
-    expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(await writing).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.phoneWrote }) });
     expect(global.fetch).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
@@ -428,7 +430,7 @@ test('a choice withdrawn before dispatch gives a phone-only reason and marks not
     const writing = route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent, unsent });
     store.set(PHONE_ONLY_KEY, ['com.twitter.android']);
     release({ access: 'fixture-access', accountId: 'fixture-account' });
-    expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(await writing).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.phoneWrote }) });
     expect(sent).not.toHaveBeenCalled();
     expect(unsent).not.toHaveBeenCalled();
     expect(global.fetch).not.toHaveBeenCalled();
@@ -454,7 +456,7 @@ test('a saved pause before dispatch vetoes the send and marks nothing', async ()
     await started;
     await saveBubbleRules({ ...oldRules, paused: true });
     finish(oldRules);
-    expect(await writing).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(await writing).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.phoneWrote }) });
     expect(sent).not.toHaveBeenCalled();
     expect(unsent).not.toHaveBeenCalled();
     expect(global.fetch).not.toHaveBeenCalled();
@@ -466,7 +468,7 @@ test('an offline send falls back to the phone with the offline line', async () =
   const originalFetch = global.fetch;
   global.fetch = jest.fn(async () => { throw new Error('fetch failed'); });
   try {
-    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.offlinePhone });
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.offlinePhone }) });
     expect(global.fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
@@ -488,7 +490,7 @@ test('an offline sign-in refresh before the send falls back with the offline lin
   global.fetch = jest.fn();
   const sent = jest.fn(async () => {});
   try {
-    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.offlinePhone });
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent })).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.offlinePhone }) });
     expect(global.fetch).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
@@ -506,14 +508,15 @@ test('a newer off choice blocks a later reply request', async () => {
     } }) } as Response;
   });
   try {
-    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toMatchObject({ drafts: ['phone one', 'phone two', 'phone three'] });
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toMatchObject({ drafts: [], ask: {} });
     expect(global.fetch).toHaveBeenCalledTimes(1);
   } finally { global.fetch = originalFetch; }
 });
 
-test('a resting ChatGPT says so instead of trying to write', async () => {
+test('a resting ChatGPT says so and asks instead of trying to write', async () => {
   ready.mockResolvedValue({ account: 'owner', name: 'ChatGPT', state: 'resting', until: 1, words: 'ChatGPT is resting until 3:40pm.' });
-  expect((await gptRoute('com.twitter.android', offline)).note).toBe('ChatGPT is resting until 3:40pm.');
+  const route = await gptRoute('com.twitter.android', offline);
+  expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' })).toEqual({ drafts: [], ask: { line: 'ChatGPT is resting until 3:40pm.', reason: 'ChatGPT is resting until 3:40pm.' } });
 });
 
 test('choice withdrawn during the switch wait is rechecked before sending', async () => {
@@ -529,7 +532,7 @@ test('choice withdrawn during the switch wait is rechecked before sending', asyn
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   try {
-    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.phoneWrote }) });
     expect(global.fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
@@ -543,7 +546,7 @@ test.each([
   const originalFetch = global.fetch;
   global.fetch = jest.fn();
   try {
-    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.phoneWrote }) });
     expect(global.fetch).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }
 });
@@ -557,7 +560,7 @@ test('a limit gives the same tap byokits words over phone drafts', async () => {
   const originalFetch = global.fetch;
   global.fetch = jest.fn(async () => ({ ok: false, status: 429, text: async () => 'Too many requests', body: null } as Response));
   try {
-    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: 'ChatGPT is resting until 3:40pm.' });
+    expect(await route.writer.write({ conversation: '', written: '', typed: 'hello' })).toEqual({ drafts: [], ask: expect.objectContaining({ reason: 'ChatGPT is resting until 3:40pm.' }) });
     // The hosted point check and rewrite are dispatched together for first-card latency.
     expect(accounts.failed).toHaveBeenCalledTimes(2);
     expect(reportFailure).not.toHaveBeenCalled();
@@ -580,7 +583,7 @@ test('switching the source to the phone after routing prevents any ChatGPT fetch
   global.fetch = jest.fn();
   const sent = jest.fn();
   try {
-    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent })).toEqual({ drafts: ['phone one', 'phone two', 'phone three'], reason: words.phoneWrote });
+    expect(await route.writer.write({ conversation: 'Sam: hi', written: 'Sam: hi', typed: '' }, { sent })).toEqual({ drafts: [], ask: expect.objectContaining({ reason: words.phoneWrote }) });
     expect(global.fetch).not.toHaveBeenCalled();
     expect(sent).not.toHaveBeenCalled();
   } finally { global.fetch = originalFetch; }

@@ -202,14 +202,18 @@ describe('grow fit bar', () => {
     } finally { spy.mockRestore(); }
   });
 
-  test('after a ChatGPT failure the phone-written drafts are judged on the phone, and the typed reply too', async () => {
+  test('after a ChatGPT failure and the person choosing the phone, the phone-written drafts are judged on the phone, and the typed reply too', async () => {
     const failing: Writer = { write: async () => { throw new Error('ChatGPT could not answer.'); } };
-    const phone: Writer = { write: async (_request, on) => { CLEAN.forEach((text, slot) => on?.landed?.(text, slot)); return { drafts: [...CLEAN] }; } };
+    const phone: Writer = phoneWriter;
+    const writes = jest.spyOn(phoneWriter, 'write').mockImplementation(async (_request, on) => { CLEAN.forEach((text, slot) => on?.landed?.(text, slot)); return { drafts: [...CLEAN] }; });
     const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
     phoneModel('ready');
     askLocalMock.mockResolvedValue('');
     try {
       const screen = await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, cloudWords('chatgpt'), on, undefined, 'ready') });
+      await waitFor(() => expect(screen.getByText(words.phoneThisTime)).toBeTruthy());
+      expect(writes).not.toHaveBeenCalled();
+      fireEvent.press(screen.getByText(words.phoneThisTime));
       await waitFor(() => expect(screen.getAllByTestId('fit-bar')).toHaveLength(CLEAN.length + 1));
       expect(spy).toHaveBeenCalledTimes(1);
       expect(spy.mock.calls[0][0].candidates).toEqual([TYPED, ...CLEAN]);
@@ -217,20 +221,23 @@ describe('grow fit bar', () => {
       expect(spy.mock.calls[0][0].voice).toBe(false);
       expect(screen.getAllByLabelText(LEVELS[2])).toHaveLength(CLEAN.length + 1);
       expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
-    } finally { spy.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
+    } finally { spy.mockRestore(); writes.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
 
-  test('a phone write that fails after landing a draft still judges that draft on the phone', async () => {
+  test('a phone write the person chose that fails after landing a draft still judges that draft on the phone', async () => {
     const failing: Writer = { write: async () => { throw new Error('ChatGPT could not answer.'); } };
-    const phone: Writer = { write: async (_request, on) => { on?.landed?.(CLEAN[0], 0); throw new Error('phone model stopped'); } };
+    const phone: Writer = phoneWriter;
+    const writes = jest.spyOn(phoneWriter, 'write').mockImplementation(async (_request, on) => { on?.landed?.(CLEAN[0], 0); throw new Error('phone model stopped'); });
     const spy = jest.spyOn(FitModule, 'judgeFit').mockImplementation(async o => o.candidates.map(() => fit({ level: 2, words: LEVELS[2] })));
     phoneModel('ready');
     try {
-      await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, cloudWords('chatgpt'), on, undefined, 'ready') });
+      const screen = await open(capture(), CLEAN, { write: (request, on) => withPhoneFallback(failing, phone, request, cloudWords('chatgpt'), on, undefined, 'ready') });
+      await waitFor(() => expect(screen.getByText(words.phoneThisTime)).toBeTruthy());
+      fireEvent.press(screen.getByText(words.phoneThisTime));
       await waitFor(() => expect(spy).toHaveBeenCalledTimes(1));
       expect(spy.mock.calls[0][0].candidates).toEqual([TYPED, CLEAN[0]]);
       expect(spy.mock.calls[0][0].backends.map(backend => backend.name)).toEqual(['phone']);
-    } finally { spy.mockRestore(); phoneModel('unsupported'); }
+    } finally { spy.mockRestore(); writes.mockRestore(); phoneModel('unsupported'); }
   });
 
   test('an abstained card says it is not sure, with an empty bar', async () => {
