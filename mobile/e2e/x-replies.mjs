@@ -1061,6 +1061,8 @@ try {
     await rebind();
     await leg('refused-rewrite-dark', () => rewriteRefused('dark'));
   } else if (unreachableOnly) {
+    // The soft keyboard is what makes Chrome's focused-field read drop the post; the key is already pasted, so keep it hidden for the legs.
+    adb('shell', 'settings', 'put', 'secure', 'show_ime_with_hard_keyboard', '0');
     await leg('unreachable-phone-light', () => unreachableLeg('x-unreachable', 'light', 'phone'));
     await leg('unreachable-retry-light', () => unreachableLeg('x-unreachable-retry', 'light', 'retry'));
     evidence('theme', 'dark');
