@@ -321,7 +321,8 @@ const pasteKey = async label => {
 // The app asks which one writes right after an account connects: search that account's own list for PICK_MODEL
 // (an explicit model id, never openrouter/auto) and tap the row.
 const pickModel = async () => {
-  const want = process.env.PICK_MODEL;
+  // The pi stand-in route lists deepseek/deepseek-v4.1-flash first (pi-writer.mjs STAND_IN_LIST).
+  const want = process.env.PICK_MODEL ?? (writer === 'pi' ? 'deepseek/deepseek-v4.1-flash' : undefined);
   if (!want || /^openrouter\/auto$/.test(want)) throw new Error('Set PICK_MODEL to the explicit model id to pick from the list.');
   await waitForLine('search the list', 90);
   const field = await until('the model search field', () => nodes().find(n => `${n.text ?? ''} ${n.label ?? ''}`.toLowerCase().includes('search the list')));
