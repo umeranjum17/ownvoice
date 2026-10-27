@@ -14,6 +14,6 @@ Harness: an owned Android emulator, no spend (the host stand-in answers, no prov
 2. Journey `connect-list` in `.done-done.yaml`: build the release APK with `EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_ROUTE_ID=zai:plan_key EXPO_PUBLIC_E2E_ROUTE_BASE=http://10.0.2.2:18761/api/v4`, then `X_REPLIES_WRITER=pi X_REPLIES_ROUTE=Z.AI X_REPLIES_LEGS=preflight node mobile/e2e/x-replies.mjs <apk> <task>` with `PICK_MODEL` set.
 3. Pass means the captures show the list open with no row selected, the pay-per-use group, the Z.AI row, its key field and "Z.AI is connected" with the model chosen.
 
-Not proven here: reply cards from the new route. The driver's X step (`preflight`) failed on the emulator because the harness read no focused field in Chrome with the keyboard open (the withhold note shows before any writer runs); the same writer path is proven by the account-layer journey in 5bb4359.
+Reply cards from the new route: the driver's X step (`preflight`) reaches the writer on the emulator now that the app's focused-field read goes through the kit (it used to find no field in Chrome while Gboard's toolbar held input focus, and the withhold note showed before any writer ran). A stand-in answer needs `PI_MODEL`/`PI_FALLBACK_MODEL` to name a pi model the host can run.
 
 Also not proven: device-code sign-ins of the new vendors (Grok, Copilot, Kimi, MiniMax) beyond the kit's own fixtures; no live vendor call is made.

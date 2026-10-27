@@ -499,7 +499,9 @@ class OwnvoiceService : AccessibilityService() {
     .filter { it.width() in 1 until resources.displayMetrics.widthPixels / 2 }
     .minByOrNull { it.width() * it.height() }
 
-  private fun focusedField(): AccessibilityNodeInfo? = findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.let(::editableIn)
+  /** The kit's reader, like the typed text beside it: it looks in every window and at accessibility focus too, because with
+   * Gboard's toolbar up the active window's input focus can be a Gboard view and Chrome's focused box is then missed. */
+  private fun focusedField(): AccessibilityNodeInfo? = FocusedFields.focusedNode(this)
 
   /** [focus] when it is the editable, else its focused editable child: Chrome's input focus is the page, not the textarea. */
   private fun editableIn(focus: AccessibilityNodeInfo): AccessibilityNodeInfo? {
