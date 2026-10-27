@@ -448,6 +448,7 @@ class OwnvoiceService : AccessibilityService() {
     pendingNote = null
     val app = currentApp()?.takeIf(::allowed) ?: run { restIdle(); return }
     // The kit looks in every window; only a box of the app in front counts, like the typed text below.
+    val readStart = SystemClock.elapsedRealtime()
     val field = focusedField()?.takeIf { it.packageName?.toString() == app }
     val lines = mutableListOf<String>(); val written = mutableListOf<String>()
     val nodes = mutableListOf<ScreenText>()
@@ -468,6 +469,7 @@ class OwnvoiceService : AccessibilityService() {
     // No box found above: the full read would only wait out its pauses again, on this thread.
     val focused = if (field != null) FocusedFields.read(this)?.takeIf { it.app == app } else null
     val typed = focused?.text.orEmpty()
+    Log.d(TAG, "field reads ms=${SystemClock.elapsedRealtime() - readStart} field=${field != null}")
     val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(app, 0)).toString() }.getOrDefault(app)
     val id = java.util.UUID.randomUUID().toString()
     val reading = Capture(lines.joinToString("\n"), written.joinToString("\n"), typed, app, label, System.currentTimeMillis(), field, field?.let { FieldNode.of(it, this) }, nodes, if (field != null) (fieldBounds.top / resources.displayMetrics.density).roundToInt() else null, id, typingTextLimited(app, typed, focused?.selection), opensReply, if (fieldBounds.width() > 0 && fieldBounds.height() > 0) ClearRect(fieldBounds.left, fieldBounds.top, fieldBounds.width(), fieldBounds.height()) else null)
