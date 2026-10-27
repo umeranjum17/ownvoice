@@ -503,18 +503,6 @@ class OwnvoiceService : AccessibilityService() {
    * Gboard's toolbar up the active window's input focus can be a Gboard view and Chrome's focused box is then missed. */
   private fun focusedField(): AccessibilityNodeInfo? = FocusedFields.focusedNode(this)
 
-  /** [focus] when it is the editable, else its focused editable child: Chrome's input focus is the page, not the textarea. */
-  private fun editableIn(focus: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-    if (focus.isPassword) return null
-    if (focus.isEditable) return focus
-    fun find(node: AccessibilityNodeInfo): AccessibilityNodeInfo? {
-      if (node.isPassword) return null
-      if (node.isFocused && node.isEditable) return node
-      for (i in 0 until node.childCount) node.getChild(i)?.let(::find)?.let { return it }
-      return null
-    }
-    return find(focus)
-  }
   private fun visibleText(root: AccessibilityNodeInfo, skip: AccessibilityNodeInfo?, lines: MutableList<String>, written: MutableList<String>, nodes: MutableList<ScreenText>, boxes: MutableList<Rect>, practice: Boolean) {
     fun walk(node: AccessibilityNodeInfo, buttonAncestor: Boolean) {
       if (node == skip || !node.isVisibleToUser) return
@@ -549,12 +537,9 @@ class OwnvoiceService : AccessibilityService() {
   }
   fun clearTapFacts() = clearSavedFacts(this)
 
-  /** The focused editable in the other apps' windows: where a Replace sheet was opened from. Null when none has focus. */
-  fun editableBehindSheet(): AccessibilityNodeInfo? = windows.asSequence()
-    .filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }
-    .mapNotNull { it.root?.takeIf { root -> root.packageName != packageName } }
-    .mapNotNull { it.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.let(::editableIn) }
-    .firstOrNull()
+  /** The focused editable in the other apps' windows: where a Replace sheet was opened from. Null when none has focus.
+   *  The kit's reader, as [focusedField]: with Gboard's toolbar up the front window's input focus can be a Gboard view. */
+  fun editableBehindSheet(): AccessibilityNodeInfo? = focusedField()?.takeIf { it.packageName != packageName }
 
   /** Replace: sets [field] to [whole] off the main thread; the retries wait out the sheet closing. The caller composes
    *  [whole] from the selection read when the sheet opened, since Chrome drops its selection once the sheet is in front. */
