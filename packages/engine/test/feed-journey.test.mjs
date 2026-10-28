@@ -75,3 +75,17 @@ test('a feed screen segments into the posts one tap rates, skipping an image-onl
   // Its author line is not a post to answer, and the visible reply count is never rated as one either.
   assert.deepEqual(Feed.feedPosts([node('@umer · 2h', 20), node('231 likes', 60, true)], 300), []);
 });
+
+test('a phone writer that echoes the slot instructions shows no echo, and plain answers still show', () => {
+  const point = 'honestly no worries, take your time';
+  const x = Platforms.platformForApp('com.twitter.android').slots;
+  const accept = (candidates, p = point, slots = x) => Drafts.acceptReplies(candidates, [], 3, 'remove', [], [], p, slots);
+  const echo = ['1. Agree and add one concrete detail from the post.', '2. Push back kindly, with one reason from the post.', '3. Ask one sharp question about the post.'].join('\n');
+  assert.deepEqual(accept([echo]), []);
+  assert.deepEqual(accept(['Ask one follow up question.'], point, Platforms.platformForApp('com.linkedin.android').slots), []);
+  assert.deepEqual(accept(['great point, thanks.\nagree and add one concrete detail from the post.']), []);
+  const [card] = accept(['Sure, here is the address: 12 Elm St.'], "what's your address?");
+  assert.equal(card, 'Sure, here is the address: 12 Elm St.');
+  const clean = "honestly, let's push the call to friday. my morning is full.";
+  assert.equal(accept([clean])[0], clean);
+});

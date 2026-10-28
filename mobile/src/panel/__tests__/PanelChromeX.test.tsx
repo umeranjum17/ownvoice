@@ -105,3 +105,34 @@ test('native X with only an author line on screen (an image-only tweet) still wi
   await waitFor(() => expect(screen.getByText(words.replyWithheld)).toBeTruthy());
   expect(write).not.toHaveBeenCalled();
 });
+
+// Reddit's own comment context: the typed point grows into replies, named for the place.
+test('Chrome Reddit comment grows from their point with Reddit context and names the place', async () => {
+  (Native.capture as jest.Mock).mockResolvedValue({ conversation: 'Demo author: What should I build first?', written: 'Demo author: What should I build first?', nodes: [{ text: 'reddit.com/r/demo/comments/1', left: 0, top: 0, bottom: 30, clickable: false, viewId: 'com.android.chrome:id/url_bar' }], fieldTop: null, typed: 'i would start with reliable offline saving.', app: 'com.android.chrome', label: 'Chrome', at: 0, id: 'reddit-web', hasField: true });
+  const write = jest.fn(async (_request: unknown, on?: { landed?: (text: string, slot: number) => void }) => {
+    on?.landed?.('reliable offline saving comes first.', 1);
+    return { drafts: ['reliable offline saving comes first.'] };
+  });
+  const screen = await render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}><Panel writer={{ write }} /></SafeAreaProvider>);
+  await waitFor(() => expect(screen.getByText('Suggested replies · Reddit')).toBeTruthy());
+  expect(write.mock.calls[0][0]).toMatchObject({ platform: { id: 'reddit', limit: 10000 }, typed: '', point: 'i would start with reliable offline saving.' });
+  expect(screen.getByText('Yours')).toBeTruthy();
+  expect(screen.getByText('Disagree')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Share this text' })).toBeTruthy();
+});
+
+// Replies are for a post on a feed app only: a chat with a readable message above the box
+// withholds and never calls a writer.
+test('a Slack reply with a readable message above still withholds', async () => {
+  const SAM = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
+  (Native.capture as jest.Mock).mockResolvedValue({
+    conversation: SAM, written: SAM,
+    nodes: [{ text: 'I can bring the tent if you bring the stove.', left: 8, top: 40, bottom: 80, clickable: false }],
+    fieldTop: 200, typed: '', app: 'com.Slack', label: 'Slack', at: 0, id: 'slack-chat', hasField: true,
+  });
+  const write = jest.fn(async () => ({ drafts: ['Yes.'] }));
+  const screen = await render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}><Panel writer={{ write }} /></SafeAreaProvider>);
+  await waitFor(() => expect(screen.getByText(words.replyWithheld)).toBeTruthy());
+  expect(write).not.toHaveBeenCalled();
+  for (const tag of [words.tagConfirm, words.tagBlocker, words.tagUnclear, words.replyYes]) expect(screen.queryByText(tag)).toBeNull();
+});

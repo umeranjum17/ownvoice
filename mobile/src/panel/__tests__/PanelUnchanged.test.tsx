@@ -84,7 +84,7 @@ test('declined keyboard mash offers no made-up spelling fixes', async () => {
   try {
     const screen = await renderPanel({ declined: true }, 'asdf qwer zxcv');
     await waitFor(() => expect(screen.getByText(words.unclearPolish)).toBeTruthy());
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+    await act(async () => { for (let i = 0; i < 20; i++) await Promise.resolve(); });
     for (const guess of ['and', 'ewer', 'xxv']) expect(screen.queryByText(guess)).toBeNull();
     expect(screen.queryByText(words.slipsTitle)).toBeNull();
     expect(screen.queryByRole('button', { name: words.fix })).toBeNull();

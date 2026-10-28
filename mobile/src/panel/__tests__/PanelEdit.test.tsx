@@ -3,7 +3,7 @@
 // the panel never offers to send or post.
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { fireEvent, render, waitFor, within } from '@testing-library/react-native';
+import { act, fireEvent, render, waitFor, within } from '@testing-library/react-native';
 import Panel from '../Panel';
 import { words } from '../../core/words';
 import type { DraftRequest, WriterEvents } from '../../core/writers';
@@ -33,7 +33,7 @@ const X: Capture = { conversation: `Dana Lee @danabuilds · 2h\n${POST}`, writte
 const open = async () => {
   native.capture.mockResolvedValue(X);
   const write = async (_request: DraftRequest, on: WriterEvents = {}) => {
-    await new Promise(resolve => setTimeout(resolve, 1));
+    await Promise.resolve();
     DRAFTS.forEach((text, slot) => on.landed?.(text, slot));
     return { drafts: [...DRAFTS] };
   };
@@ -72,7 +72,7 @@ test('Cancel inserts nothing and brings back the original card and its rating', 
   expect(screen.queryByLabelText('Edit this draft')).toBeNull();
   expect(firstRating(screen)).toBe(before);
   expect(JSON.stringify(screen.toJSON())).toContain(DRAFTS[0]);
-  await new Promise(resolve => setTimeout(resolve, 20));
+  await act(async () => { await Promise.resolve(); });
   expect(native.insert).not.toHaveBeenCalled();
 });
 
@@ -81,7 +81,7 @@ test('an emptied edit cannot be inserted, and nothing offers to send or post', a
   await fireEvent.press(screen.getAllByRole('button', { name: 'Edit' })[0]);
   await fireEvent.changeText(screen.getByLabelText('Edit this draft'), '   ');
   await fireEvent.press(editing(screen).getByRole('button', { name: words.useThis }));
-  await new Promise(resolve => setTimeout(resolve, 20));
+  await act(async () => { await Promise.resolve(); });
   expect(native.insert).not.toHaveBeenCalled();
   expect(screen.queryAllByRole('button', { name: /^(send|post|reply|tweet)\b/i })).toEqual([]);
 });

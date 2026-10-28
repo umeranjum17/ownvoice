@@ -1,5 +1,4 @@
-// OV-3 protocol tests: one case per verb, reusing the mobile suite's
-// expectations (SlopTest, VoiceTest, DraftsTest, PlatformsTest, ThreadsTest).
+// OV-3 protocol tests: one case per verb, driven through the real CLI.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -29,21 +28,21 @@ test('hello carries protocol 2 and the package version', () => {
   assert.equal(PROTOCOL, 2);
 });
 
-test('voice.parse imports never-say bullets and rules (VoiceTest)', () => {
+test('voice.parse imports never-say bullets and rules', () => {
   const res = ask({ verb: 'voice.parse', markdown: '**Never say:**\n* per my last email\n\nZero em-dashes, ever.' });
   assert.deepEqual(res.rules.never, ['per my last email']);
   assert.equal(res.rules.noDashes, true);
   assert.equal(typeof res.skipped, 'number');
 });
 
-test('voice.guide is short and skips endings in replies (VoiceTest)', () => {
+test('voice.guide is short and skips endings in replies', () => {
   const rules = { never: [], noDashes: true, statementEndings: true, note: 'short, lowercase' };
   assert.equal(ask({ verb: 'voice.guide', rules, post: false }).line, 'No em dashes. How they write: short, lowercase');
   assert.equal(ask({ verb: 'voice.guide', rules, post: true }).line, 'No em dashes. End on a statement, not a question. How they write: short, lowercase');
   assert.equal(ask({ verb: 'voice.guide', rules: { never: [], noDashes: false, statementEndings: false, note: '' }, post: true }).line, '');
 });
 
-test('platforms lists the six places with slots and polish (PlatformsTest)', () => {
+test('platforms lists the six places with slots and polish', () => {
   const res = ask({ verb: 'platforms' });
   assert.deepEqual(res.map(p => p.id), ['x', 'linkedin', 'reddit', 'slack', 'whatsapp', 'gmail']);
   const byId = Object.fromEntries(res.map(p => [p.id, p]));
@@ -73,7 +72,7 @@ test('brief reply carries the platform slots; polish carries its polish rule', (
   assert.ok(thread.lines.some(l => l.includes('10000')));
 });
 
-test('check flags stock phrasing and fits the cap (SlopTest, PlatformsTest)', () => {
+test('check flags stock phrasing and fits the cap', () => {
   const [clean] = ask({ verb: 'check', drafts: ["Saturday works.\nI'll bring the stove."], platform: 'x' });
   assert.equal(clean.fits, true);
   assert.equal(clean.length, "Saturday works.\nI'll bring the stove.".length);
@@ -108,7 +107,7 @@ test('check names rule breaks and kept/dropped facts in plain words', () => {
   assert.equal(layout.layoutKept, false);
 });
 
-test('split threads a long post under the cap (ThreadsTest)', () => {
+test('split threads a long post under the cap', () => {
   const short = ask({ verb: 'split', text: 'Shipped the fix today.', platform: 'x' });
   assert.deepEqual(short.posts, ['Shipped the fix today.']);
   const typed = 'Shipped our offline notes app today after six months of weekend work. It keeps everything in SQLite on the phone, so there is no account and no sign-in. Search is instant even with ten thousand notes, and it works on a plane. Backups are plain files you can read anywhere. The whole app is under five megabytes.';

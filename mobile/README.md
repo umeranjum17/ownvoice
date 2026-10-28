@@ -44,7 +44,7 @@ Cleaned up never uses a writer rewrite; protected-word and written-time fallback
 
 On the practice screen the native capture limits conversation to tagged chat lines; elsewhere it excludes Button-class nodes and their descendants, not arbitrary clickable message rows. Captured button labels are removed only when they appear as an exact draft line. `OwnvoiceNative` debug logs record first-token and full-response milliseconds, and the JS log records first-card milliseconds. The stand-in stream test simulates a first card at 2.4 s and a full response at 23 s; these are not real-model measurements.
 
-The ported core checks are in `src/core/__tests__/`; the phone writer has checks in `src/panel/__tests__/`, setup and settings in `app/__tests__/`, and the draft-quality rules in `src/core/__tests__/DraftsTest.test.ts`. The ChatGPT response and switch helpers have tests in `src/chatgpt/__tests__/` and `src/core/__tests__`. Run the commands above for the current suite.
+The Jest suite keeps one integration test per journey and no unit tests: the bubble panel in `src/panel/__tests__/`, rewrite in `src/rewrite/__tests__/`, setup, settings and growth in `app/__tests__/`, the account sign-in and connect routes in `src/chatgpt/__tests__/`. The device journeys are in `.done-done.yaml`. Run the commands above for the current suite.
 
 ## Android build and device checks
 

@@ -61,7 +61,7 @@ const capture = (over: Partial<Capture> = {}): Capture => ({
 });
 
 const open = async (value: Capture, drafts = DRAFTS, writer: Writer = { write: async (_request: DraftRequest, on: WriterEvents = {}) => {
-    await new Promise(resolve => setTimeout(resolve, 1));
+    await new Promise(resolve => setImmediate(resolve));
     drafts.forEach((text, slot) => on.landed?.(text, slot));
     return { drafts: [...drafts] };
   } }) => {
@@ -431,7 +431,7 @@ describe('grow fit bar', () => {
       await waitFor(() => expect(readyChecks.length).toBeGreaterThan(0));
       screen.unmount();
       readyChecks.forEach(ready => ready());
-      await new Promise(resolve => setTimeout(resolve, 50));
+      for (let i = 0; i < 5; i++) await new Promise(resolve => setImmediate(resolve));
       expect(prompts).toEqual([]);
     } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
