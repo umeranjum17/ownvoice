@@ -10,7 +10,7 @@ Home > How Ownvoice writes (and the first-run Choose step). Under "This phone" t
 
 Harness: an owned Android emulator, no spend (the host stand-in answers, no provider key).
 
-1. Host: `cd mobile && npx tsc --noEmit && npx jest --runInBand` (`SetupChoose`, `ChatGpt`, `OpenCodeConnect` walk the list).
+1. Host: `cd mobile && npx tsc --noEmit && npx jest --runInBand` (`SetupChoose`, `ChatGpt`, `OpenCodeRoute` walk the list).
 2. Journey `connect-list` in `.done-done.yaml`: build the release APK with `EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_ROUTE_ID=zai:plan_key EXPO_PUBLIC_E2E_ROUTE_BASE=http://10.0.2.2:18761/api/v4`, then `X_REPLIES_WRITER=pi X_REPLIES_ROUTE=Z.AI X_REPLIES_LEGS=preflight node mobile/e2e/x-replies.mjs <apk> <task>` with `PICK_MODEL` set.
 3. Pass means the captures show the list open with no row selected, the pay-per-use group, the Z.AI row, its key field and "Z.AI is connected" with the model chosen.
 

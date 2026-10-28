@@ -243,7 +243,6 @@ describe('panel copy', () => {
 
   test('a phone that cannot write shows only the plain line, not the insert hint', async () => {
     const screen = await renderPanel(stubWriter({ fail: true }), { typed: 'hello there', hasField: false });
-    await act(async () => { await new Promise(resolve => setTimeout(resolve, 280)); });
     await waitFor(() => expect(JSON.stringify(screen.toJSON())).toContain(words.unsupported));
     const text = JSON.stringify(screen.toJSON());
     expect(text).not.toContain(words.noField);

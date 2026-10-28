@@ -17,11 +17,14 @@ const res = (status: number, body: unknown) => ({ status, text: async () => JSON
  *  pending until approved, then completes (or refuses when denied). */
 const script = ({ drops, deny }: { drops: number; deny?: boolean }) => {
   let polls = 0, approved = false;
+  let polledEnough!: () => void;
+  const polled = new Promise<void>(resolve => { polledEnough = resolve; });
   const fetch = jest.fn(async (url: string, init?: { body?: string }) => {
     if (String(url).endsWith('/api/accounts/deviceauth/usercode'))
       return res(200, { device_auth_id: 'da_1', user_code: 'ABCD-EFGH', interval: '1' });
     if (String(url).endsWith('/api/accounts/deviceauth/token')) {
-      if (++polls <= drops) throw new TypeError('fetch failed');
+      if (++polls > 3) polledEnough();
+      if (polls <= drops) throw new TypeError('fetch failed');
       if (deny) return res(400, { error: { code: 'access_denied' } });
       return approved
         ? res(200, { authorization_code: 'ac_1', code_verifier: 'cv' })
@@ -31,7 +34,7 @@ const script = ({ drops, deny }: { drops: number; deny?: boolean }) => {
       return res(200, { access_token: jwt(), refresh_token: 'rt_1', expires_in: 86_400 });
     throw new Error(`unexpected fetch ${url}`);
   });
-  return { fetch, approve: () => { approved = true; } };
+  return { fetch, polled, approve: () => { approved = true; } };
 };
 
 const realFetch = global.fetch;
@@ -39,19 +42,15 @@ const realFetch = global.fetch;
 afterEach(() => { global.fetch = realFetch; });
 
 test('dropped polls while the code waits do not fail the sign-in', async () => {
-  const { fetch, approve } = script({ drops: 3 });
+  const { fetch, polled, approve } = script({ drops: 3 });
   global.fetch = fetch as unknown as typeof global.fetch;
   const byokit = new Accounts({ offer: ['chatgpt'], signInMs: 25_000, store: () => memoryStore() });
   const shown = await byokit.login('owner', 'chatgpt', { via: 'code' });
   expect(shown?.state).toBe('waiting');
   expect(shown?.code).toBe('ABCD-EFGH');
   // The person is still typing the code in the browser; polls keep failing meanwhile.
-  // Wait on the condition (the dropped polls were actually attempted), never a fixed sleep.
-  for (let i = 0; i < 200; i++) {
-    const polls = fetch.mock.calls.filter(([url]) => String(url).endsWith('/api/accounts/deviceauth/token')).length;
-    if (polls > 3) break;
-    await new Promise((r) => setTimeout(r, 25));
-  }
+  // Wait on the condition: the dropped polls were actually attempted.
+  await polled;
   expect(byokit.view('owner', 'chatgpt')?.state).toBe('waiting');
   approve();
   await byokit.finished('owner', 'chatgpt');

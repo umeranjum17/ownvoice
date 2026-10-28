@@ -4,7 +4,7 @@
 # plus the Jest tests related to the files changed since origin/main.
 # The full suites stay in the required CI checks on the PR, never twice:
 # full mobile Jest, engine tests, the floor guard journey and the Expo
-# prebuild run in `mobile`; native JVM tests and the Android build in `native`.
+# prebuild run in `mobile`; the Android build runs in `native`.
 commands:
   prepare: cd mobile && npm ci && cd ../packages/engine && npm ci
   test: cd mobile && npm run lint && npm run typecheck && npx jest --runInBand --ci --passWithNoTests --changedSince=origin/main && cd ../packages/engine && npm run lint && npm run typecheck
@@ -19,9 +19,9 @@ test:
     Beyond it, run only the tests for the changed parts, never a whole suite
     again: CI runs the full suite on the PR. Changed mobile/ files: `cd mobile
     && npx jest --ci --findRelatedTests <changed files>`; changed
-    packages/engine/ files: the engine test files for those modules; changed
-    mobile/modules/ownvoice-native/: `./gradlew :ownvoice-native:testDebugUnitTest`
-    from mobile/android. Docs-only changes need no tests.
+    packages/engine/ files: the engine test files for those modules. The native
+    module has no JVM unit tests; its device journeys are in .done-done.yaml.
+    Docs-only changes need no tests.
     Then run exactly one user journey from .done-done.yaml: the journey for
     the changed feature, or `done-done run engine-protocol` (host, no device)
     when no journey covers it or no device is allocated. Run an Android
