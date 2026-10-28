@@ -3,7 +3,14 @@ name: Android
 on:
   push:
     branches: [main]
+  # No `edited`: a title or body edit starts no run (nothing here reads the body).
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: read
 
 # A superseded PR run is cancelled so a queue of them does not hold runners.
 # main pushes carry no PR number, so they get their own group and are never cancelled.
@@ -15,6 +22,9 @@ jobs:
   # Path filter: docs, evidence and engine-only changes cannot affect the legacy
   # Android app or the Expo native project, so those jobs are skipped rather than run.
   changes:
+    # Drafts cost nothing: every other job needs this one, so they skip too.
+    # ready_for_review runs the suite once the PR is ready.
+    if: github.event.pull_request.draft != true
     runs-on: ubuntu-latest
     outputs:
       host: ${{ steps.filter.outputs.host }}
@@ -26,7 +36,33 @@ jobs:
         with:
           fetch-depth: 0
       - id: filter
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          # A push to main that is just a merged PR repeats nothing the PR already ran:
+          # the PR's head had a green run here (its `changes` job ran, so not a draft
+          # skip), main was already in the PR head, and the pushed tree is the PR head's
+          # tree. Anything else (direct push, stale branch, no green run) runs in full.
+          tested() {
+            [ "${{ github.event_name }}" = push ] || return 1
+            sha="${{ github.sha }}"; repo="${{ github.repository }}"
+            pr="$(gh api "repos/$repo/commits/$sha/pulls" --jq "[.[] | select(.merge_commit_sha == \"$sha\")][0].number // empty")" || return 1
+            [ -n "$pr" ] || return 1
+            head="$(gh api "repos/$repo/pulls/$pr" --jq .head.sha)" || return 1
+            git fetch -q origin "refs/pull/$pr/head" || return 1
+            [ "$(git rev-parse FETCH_HEAD)" = "$head" ] || return 1
+            [ "$(git rev-parse "$sha^{tree}")" = "$(git rev-parse "$head^{tree}")" ] || return 1
+            git merge-base --is-ancestor "${{ github.event.before }}" "$head" || return 1
+            for id in $(gh api "repos/$repo/actions/workflows/android.yml/runs?head_sha=$head&event=pull_request&status=success" --jq '.workflow_runs[].id'); do
+              [ "$(gh api "repos/$repo/actions/runs/$id/jobs" --jq '[.jobs[] | select(.name == "changes" and .conclusion == "success")] | length')" = 1 ] && return 0
+            done
+            return 1
+          }
+          if tested; then
+            echo "main push is PR merge of an already-tested head: skipping heavy jobs"
+            printf '%s\n' host=false mobile=false native=false legacy=false >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           base="${{ github.event.pull_request.base.sha || github.event.before }}"
           if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then base=HEAD~1; fi
           changed="$(git diff --name-only "$base"...HEAD 2>/dev/null || git diff --name-only "$base" HEAD 2>/dev/null || echo .github/workflows/android.yml)"
@@ -38,10 +74,12 @@ jobs:
             cat "$GITHUB_OUTPUT"
             exit 0
           fi
-          { grep -vE '\.md$|(^|/)(reports|artifacts|verify-artifacts)/' /tmp/changed.txt | grep -qE '^(mobile/|packages/engine/|scripts/|\.done-done\.yaml|\.no-mistakes\.yaml|\.github/workflows/android\.yml)' || grep -q '^CONSTRAINTS.md$' /tmp/changed.txt; } && echo "host=true" >> "$GITHUB_OUTPUT" || echo "host=false" >> "$GITHUB_OUTPUT"
-          { grep -qE '^mobile/' /tmp/changed.txt && echo "mobile=true" || echo "mobile=false"; } >> "$GITHUB_OUTPUT"
-          { grep -qE '^(mobile/(modules/ownvoice-native/|package(-lock)?\.json|app\.config\.js|plugins/|src/core/defaultApps\.json)|\.github/workflows/android\.yml)'  /tmp/changed.txt && echo "native=true" || echo "native=false"; } >> "$GITHUB_OUTPUT"
-          { grep -qE '^(app/|link/|gradle/|gradlew|build\.gradle|settings\.gradle|gradle\.properties|mobile/src/core/defaultApps\.json|\.github/workflows/android\.yml)' /tmp/changed.txt && echo "legacy=true" || echo "legacy=false"; } >> "$GITHUB_OUTPUT"
+          # Top-level docs, docs/ and .sign-off/ evidence never trigger a heavy job.
+          { grep -vE '(^|/)(README|VISION|AGENTS|CLAUDE)\.md$|^docs/|^\.sign-off/' /tmp/changed.txt || true; } > /tmp/code.txt
+          { grep -vE '\.md$|(^|/)(reports|artifacts|verify-artifacts)/' /tmp/code.txt | grep -qE '^(mobile/|packages/engine/|scripts/|\.done-done\.yaml|\.no-mistakes\.yaml|\.github/workflows/android\.yml)' || grep -q '^CONSTRAINTS.md$' /tmp/changed.txt; } && echo "host=true" >> "$GITHUB_OUTPUT" || echo "host=false" >> "$GITHUB_OUTPUT"
+          { grep -qE '^mobile/' /tmp/code.txt && echo "mobile=true" || echo "mobile=false"; } >> "$GITHUB_OUTPUT"
+          { grep -qE '^(mobile/(modules/ownvoice-native/|package(-lock)?\.json|app\.config\.js|plugins/|src/core/defaultApps\.json)|\.github/workflows/android\.yml)'  /tmp/code.txt && echo "native=true" || echo "native=false"; } >> "$GITHUB_OUTPUT"
+          { grep -qE '^(app/|link/|gradle/|gradlew|build\.gradle|settings\.gradle|gradle\.properties|mobile/src/core/defaultApps\.json|\.github/workflows/android\.yml)' /tmp/code.txt && echo "legacy=true" || echo "legacy=false"; } >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
   mobile:
