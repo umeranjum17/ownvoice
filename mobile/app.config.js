@@ -6,12 +6,12 @@ module.exports = {
   expo: {
     name: 'Ownvoice',
     slug: 'ownvoice-mobile',
-    version: '1.0.11',
+    version: '1.0.12',
     scheme: 'ownvoice',
     icon: './assets/icon/dot-icon.png',
     android: {
       package: 'dev.ownvoice.next',
-      versionCode: 14,
+      versionCode: 15,
       // Reply outcomes and opt-in text stay on this phone, including outside Android backups.
       allowBackup: false,
       adaptiveIcon: {
