@@ -1,5 +1,8 @@
 // Plan chooser sign-in proof (PR 156): EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_DOWNLOAD=1
-// EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<port>; ChatGPT via host stand-in, Claude hits its real page. Args: <apk> <out> [only].
+// EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:<port>; ChatGPT via host stand-in, Claude hits its real page.
+// The choice is the kit's own provider list, so a provider is picked by the way its row signs in (Claude:
+// "Sign in, then paste the code back"), then setup's Continue opens that sign-in. Args: <apk> <out> [only],
+// e.g. only=sX-claude runs just the Claude paste-back walk.
 import { execFileSync, spawn } from 'node:child_process';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -114,17 +117,43 @@ const theme = async dark => {
 };
 const toChoose = async () => {
   adb('shell', 'am', 'start', '-n', `${pkg}/.MainActivity`);
-  try { await waitForLine('replies that sound', 15); } catch (e) {
+  try { await waitForLine('replies that sound', 30); } catch (e) {
     if (!screenText().includes("isn't responding")) throw e;
     await tapText('wait'); await waitForLine('replies that sound', 30); // Cold-boot ANR: let it finish loading.
   }
   await tapText('continue'); await waitForLine('how should ownvoice write');
 };
-const pickPlan = async name => {
-  await tapText(`with your ${name}`); await tapText('continue');
-  try { await waitForLine('your code', 20); } catch (e) {
-    if (!screenText().includes('try again')) throw e; // Stalled start: a real user retries it.
-    await tapText('try again'); await waitForLine('your code', 30);
+// The choice lists every route the kit knows, and a provider appears once per way in. Pick the row by the
+// words of the way it signs in, not by the provider's name, which several rows share.
+const ways = { claude: 'paste the code back', chatgpt: 'sign in with a code' };
+const swipe = async (from, to) => {
+  adb('shell', 'input', 'swipe', String(Math.round(width / 2)), String(Math.round(height * from)), String(Math.round(width / 2)), String(Math.round(height * to)), '300');
+  await wait(1000);
+};
+const scrollTo = async (label, swipes = 10) => {
+  const want = label.toLowerCase();
+  for (let i = 0; i <= swipes; i++) {
+    if (screenText().includes(want)) return;
+    if (i < swipes) await swipe(.7, .3);
+  }
+  throw new Error(`The provider list never showed "${label}" - a sign-in step is missing.`);
+};
+const scrollTop = async (swipes = 10) => {
+  for (let i = 0; i <= swipes; i++) {
+    if (screenText().includes('how should ownvoice write')) return;
+    if (i < swipes) await swipe(.3, .7);
+  }
+  throw new Error('Leaving the sign-in did not bring the provider list back.');
+};
+const pickPlan = async (name, step) => {
+  const way = ways[name];
+  if (!way) throw new Error(`No row is known for ${name}'s way in.`);
+  await scrollTo(way);
+  await tapText(way); await tapText('continue');
+  try { await waitForLine(step, 20); } catch (e) {
+    if (!screenText().includes('try again')) throw new Error(`${name} sign-in never reached "${step}": ${String((e && e.message) || e).slice(0, 160)}`);
+    await tapText('try again'); // Stalled start: a real user retries it.
+    try { await waitForLine(step, 30); } catch (e2) { throw new Error(`${name} sign-in never reached "${step}" after Try again: ${String((e2 && e2.message) || e2).slice(0, 160)}`); }
   }
 };
 const code = async (mock, tag) => {
@@ -148,14 +177,14 @@ const run = async (name, fn) => { if (only.length && !only.includes(name)) retur
 try {
   for (const dark of [false, true]) { const T = dark ? 'dark' : 'light';
     await run(`s1-chooser-${T}`, async () => {
-      await theme(dark); await fresh(); await record(`s1-chooser-${T}`, toChoose);
-      const text = screenText(), a = text.indexOf('claude'), b = text.indexOf('chatgpt');
-      if (a < 0 || b < 0 || a > b) throw new Error(`Plan order wrong on screen: ${text.slice(0, 200)}`);
-      log(`chooser: Claude card before ChatGPT card (${T})`); shot(`s1-chooser-${T}`);
+      await fresh(); await theme(dark); await record(`s1-chooser-${T}`, toChoose);
+      if (!screenText().includes('plans')) throw new Error(`The writer choice did not open the kit's list: ${screenText().slice(0, 200)}`);
+      await scrollTo(ways.claude); // The pasted-back sign-in is one of Claude's rows in that list.
+      log(`chooser: the kit's list with Claude's paste-back row (${T})`); shot(`s1-chooser-${T}`);
     });
     await run(`s3-approve-${T}`, async () => {
-      await theme(dark); await fresh(); await cleanOff(); await toChoose();
-      await pickPlan('chatgpt');
+      await fresh(); await theme(dark); await cleanOff(); await toChoose();
+      await pickPlan('chatgpt', 'your code');
       const c = await code(mock, `s3-code-` + T);
       log(`chatgpt code issued: ${c}`);
       await record(`s3-approve-${T}`, async () => {
@@ -168,8 +197,8 @@ try {
       shot(`s3-permission-${T}`); // The ChatGPT promise row shows the stored plan.
     });
     await run(`s4-backout-${T}`, async () => {
-      await theme(dark); await fresh(); await toChoose();
-      await pickPlan('chatgpt');
+      await fresh(); await theme(dark); await toChoose();
+      await pickPlan('chatgpt', 'your code');
       const c = await code(mock, `s4-code-` + T);
       await record(`s4-backout-${T}`, async () => {
         if (dark) await tapText('cancel'); else adb('shell', 'input', 'keyevent', '4');
@@ -181,8 +210,8 @@ try {
       log('back-out held after late approval; nothing stored'); shot(`s4-backout-${T}`);
     });
     await run(`s5-failed-${T}`, async () => {
-      await theme(dark); await fresh(); await toChoose();
-      await pickPlan('chatgpt');
+      await fresh(); await theme(dark); await toChoose();
+      await pickPlan('chatgpt', 'your code');
       const c = await code(mock, `s5-code-` + T);
       await record(`s5-retry-${T}`, async () => {
         mock.approve(c, true); // The page declines: the step must explain and offer retry plus the phone.
@@ -196,13 +225,14 @@ try {
   }
   await run('s6-wrappers', async () => {
     for (const dark of [false, true]) { const T = dark ? 'dark' : 'light';
-      await theme(dark); await fresh(); await toChoose();
+      await fresh(); await theme(dark); await toChoose();
       adb('shell', 'input', 'keyevent', '4'); await waitForLine('where the bubble shows', 30); // Back with no sign-in finishes setup storing nothing.
       adb('shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', 'ownvoice://source', pkg);
       await waitForLine(['how ownvoice writes', 'choose who writes'], 20);
       shot(`s6-source-${T}`);
       for (let i = 0; i < 3; i++) { // Re-renders can swallow a press; retry on effect.
-        await tapText('with your chatgpt');
+        await scrollTo(ways.chatgpt);
+        await tapText(ways.chatgpt);
         try { await waitForLine('your code', 10); break; } catch (e) { if (i === 2) throw new Error('ChatGPT sign-in never started.'); }
       }
       const c = await code(mock, `s6-code-${T}`);
@@ -214,8 +244,8 @@ try {
   });
   await run('s9-e2e', async () => {
     for (const dark of [false, true]) { const T = dark ? 'dark' : 'light';
-      await theme(dark); await fresh(); await cleanOff(); await toChoose();
-      await pickPlan('chatgpt');
+      await fresh(); await theme(dark); await cleanOff(); await toChoose();
+      await pickPlan('chatgpt', 'your code');
       await approve(mock, await code(mock, `s9-code-` + T));
       await waitForLine(['signed in to', 'will write your drafts'], 40);
       await record(`s9-walk-${T}`, async () => {
@@ -249,16 +279,18 @@ try {
       log(`full plan walk done (${T})`);
     }
   });
-  // Claude reaches its real page unapproved (no account): code screen + back-out at most; a failed start is evidence.
+  // Claude reaches its real page unapproved (no account): the paste-back step is the proof; back out from it.
   await run('sX-claude', async () => {
     for (const dark of [false, true]) { const T = dark ? 'dark' : 'light';
-      await theme(dark); await fresh(); await cleanOff(); await toChoose();
-      adb('shell', 'logcat', '-c'); await tapText('with your claude'); await tapText('continue');
-      let started = true;
-      try { await waitForLine('your code', 30); } catch { started = false; shot(`sX-claude-failed-${T}`); log(`claude sign-in did not start (${T})`); }
-      if (started) { shot(`sX-claude-code-${T}`); log(`claude waiting screen (${T})`); } // A real unapproved code; it expires untouched.
+      await fresh(); await theme(dark); await cleanOff(); await toChoose();
+      adb('shell', 'logcat', '-c');
+      await pickPlan('claude', 'open the claude page');
+      const paste = screenText();
+      if (!paste.includes('paste the code from the claude page')) throw new Error(`Claude reached a sign-in screen without its paste-back field: ${paste.slice(0, 200)}`);
+      shot(`sX-claude-paste-${T}`); log(`claude paste-back step reached (${T})`); // The real unapproved sign-in; nothing is pasted.
       await record(`sX-backout-${T}`, async () => {
-        if (started) await tapText('cancel'); else adb('shell', 'input', 'keyevent', '4');
+        await tapText('cancel');
+        await scrollTop();
         await waitForLine('how should ownvoice write');
       });
       shot(`sX-claude-backout-${T}`);
