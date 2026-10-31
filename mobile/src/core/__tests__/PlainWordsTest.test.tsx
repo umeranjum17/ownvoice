@@ -265,7 +265,7 @@ describe('panel copy', () => {
     await fireEvent.press(button);
     await act(async () => { settle('on'); await Promise.resolve(); });
     expect(native.serviceState).toHaveBeenCalledTimes(1);
-    expect(native.insert).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(1));
   });
 
   test('a note every card shares is dropped', async () => {
