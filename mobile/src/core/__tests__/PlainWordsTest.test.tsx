@@ -265,7 +265,6 @@ describe('panel copy', () => {
     await fireEvent.press(button);
     await act(async () => { settle('on'); await Promise.resolve(); });
     expect(native.serviceState).toHaveBeenCalledTimes(1);
-    // The insert lands a beat later: the panel comes down before the activity that insert() closes.
     await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(1));
   });
 

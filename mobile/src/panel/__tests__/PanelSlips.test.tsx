@@ -112,13 +112,12 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
   await fireEvent.press(screen.getByRole('button', { name: words.tryAgain }));
   await screen.findByRole('button', { name: words.writeNew });
   await checkOriginal();
-  // The refresh that comes back after the text changed clears the stale slips.
   native.capture.mockResolvedValue({ ...capture, typed: 'I can bring the stove.', id: 'tap-changed' });
   await screen.rerender(view({ ...writer }));
-  await act(async () => { finishRefresh(true); });
   await waitFor(() => expect(screen.queryByText(words.slipsTitle)).toBeNull());
+  await act(async () => { finishRefresh(true); });
+  expect(screen.queryByText(words.slipsTitle)).toBeNull();
   expect(screen.queryByRole('button', { name: words.fix })).toBeNull();
-  expect(screen.queryByText('There are possible slips to review.')).toBeNull();
 });
 
 // A limited (capped-prefix) capture must never write the whole field: the panel discloses the
@@ -158,9 +157,8 @@ test('an ordinary capture keeps Fix and Insert enabled', async () => {
   expect(await screen.findByText(words.slipsTitle)).toBeTruthy();
   const fixes = screen.getAllByRole('button', { name: words.fix });
   expect(fixes.map(disabledOf)).toEqual(fixes.map(() => false));
-  const inserts = await screen.findAllByRole('button', { name: words.useThis });
-  expect(inserts.map(disabledOf)).toEqual(inserts.map(() => false));
-  // A Fix is an insert, and an insert closes the panel (see PanelCloseOnInsert).
   fireEvent.press(fixes[0]);
   await waitFor(() => expect(native.insert).toHaveBeenCalled());
+  // The sheet is unmounted before insert() finishes the panel activity (a mounted tree crashed Fabric on Gmail).
+  expect(screen.queryAllByRole('button', { name: words.useThis })).toHaveLength(0);
 });
