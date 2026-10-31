@@ -210,6 +210,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   };
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
+  const [closed, setClosed] = useState(false);
   // The posts of the last "Worth a reply?" tap, marked best first: the list the panel shows above the reply written
   // for the best one. Empty in every other mode.
   const [worth, setWorth] = useState<(FeedPost & { fit: Fit })[]>([]);
@@ -500,13 +501,16 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (inserting.current) return Promise.resolve(false);
     inserting.current = true;
     setInsertBusy(true);
-    const run = Native.serviceState().then(state => {
+    const run = Native.serviceState().then(async state => {
       if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return false; }
       const reading = capture;
       const platform = platformOf.current.id;
       const platformLabel = platformOf.current.label || reading?.label || '';
       const level = fitKindOf(mode) && fitBarVisible(fit, ratings)
         ? (fitFlag(ratings) ? LEVELS[0] : fit?.level != null ? LEVELS[fit.level] : fit?.words ?? null) : null;
+      // Unmount the sheet first: insert() finishes this activity, which must not destroy a mounted tree (Fabric crash on removeViewAt).
+      setClosed(true);
+      await new Promise(resolve => setTimeout(resolve, 60));
       return Native.insert(text).then(async result => {
         if (!result?.ok || !reading) return result?.ok === true;
         try {
@@ -702,6 +706,8 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const phoneUnsure = fitted && [...(yours ? [yours] : []), ...shown].some(draft => fits.get(draft.text)?.onPhone && !fitBarVisible(fits.get(draft.text), draft.ratings));
   const coverDraft = why != null ? [...(yours ? [yours] : []), ...shown].find(draft => draft.slot === why) : undefined;
   const check = coverDraft ? whys.get(coverDraft.text) : undefined;
+
+  if (closed) return null;
 
   return <Sheet
     title={placeTitle}
