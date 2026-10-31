@@ -112,21 +112,13 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
   await fireEvent.press(screen.getByRole('button', { name: words.tryAgain }));
   await screen.findByRole('button', { name: words.writeNew });
   await checkOriginal();
-  const insertions = native.insert.mock.calls.length;
-  await fireEvent.press(screen.getByRole('button', { name: words.fix }));
-  await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(insertions + 1));
-  await waitFor(() => expect(native.insert).toHaveBeenLastCalledWith('I can definitely bring the stove.'));
+  // The refresh that comes back after the text changed clears the stale slips.
   native.capture.mockResolvedValue({ ...capture, typed: 'I can bring the stove.', id: 'tap-changed' });
   await screen.rerender(view({ ...writer }));
-  await waitFor(() => expect(screen.queryByText(words.slipsTitle)).toBeNull());
   await act(async () => { finishRefresh(true); });
-  expect(screen.queryByText(words.slipsTitle)).toBeNull();
+  await waitFor(() => expect(screen.queryByText(words.slipsTitle)).toBeNull());
   expect(screen.queryByRole('button', { name: words.fix })).toBeNull();
-  await fireEvent.press(screen.getAllByRole('button', { name: words.why })[0]);
-  await screen.findByText('Names the stove');
   expect(screen.queryByText('There are possible slips to review.')).toBeNull();
-  await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
-  expect(screen.queryByText('Sounds natural', { exact: false })).toBeNull();
 });
 
 // A limited (capped-prefix) capture must never write the whole field: the panel discloses the
@@ -166,8 +158,9 @@ test('an ordinary capture keeps Fix and Insert enabled', async () => {
   expect(await screen.findByText(words.slipsTitle)).toBeTruthy();
   const fixes = screen.getAllByRole('button', { name: words.fix });
   expect(fixes.map(disabledOf)).toEqual(fixes.map(() => false));
+  const inserts = await screen.findAllByRole('button', { name: words.useThis });
+  expect(inserts.map(disabledOf)).toEqual(inserts.map(() => false));
+  // A Fix is an insert, and an insert closes the panel (see PanelCloseOnInsert).
   fireEvent.press(fixes[0]);
   await waitFor(() => expect(native.insert).toHaveBeenCalled());
-  const inserts = await screen.findAllByRole('button', { name: words.useThis });
-  expect(disabledOf(inserts[0])).toBe(false);
 });

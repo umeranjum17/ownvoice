@@ -265,7 +265,8 @@ describe('panel copy', () => {
     await fireEvent.press(button);
     await act(async () => { settle('on'); await Promise.resolve(); });
     expect(native.serviceState).toHaveBeenCalledTimes(1);
-    expect(native.insert).toHaveBeenCalledTimes(1);
+    // The insert lands a beat later: the panel comes down before the activity that insert() closes.
+    await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(1));
   });
 
   test('a note every card shares is dropped', async () => {

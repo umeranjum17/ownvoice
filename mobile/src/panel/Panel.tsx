@@ -61,9 +61,6 @@ type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
 
 /** Lines only Ownvoice itself can fix (choosing a writer, signing in, the phone's one-time download): the panel offers to open it. */
 const opensApp: Set<string> = new Set([words.needWriterPanel, words.needWriterNote, words.phoneOnlyCant, words.readyPanel]);
-const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
-/** A plan limit is not stuck: open the writer list so the person can pick another writer. */
-const openSource = () => { void Native.openRoute('ownvoice://source').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
 /** Lines that end a run with no card: another writer may do better, so the panel offers the writer list beside Try again. */
 const otherWriter: Set<string> = new Set([words.noReplies, words.noVersions, words.tookTooLong]);
 
@@ -210,6 +207,22 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   };
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
+  // An insert closes this panel from the native side (PanelActivity.finish()). The sheet comes down here first,
+  // while the React surface is still alive: 1.0.12 let the Activity destroy a mounted, animating tree and the
+  // Fabric mount batch that tore it down killed the process on a real Gmail thread.
+  const closing = useRef(false);
+  const [closed, setClosed] = useState(false);
+  /** Takes the sheet down on this still-live surface and gives the commit a beat, so the activity that finishes the
+   *  panel never has a mounted, animating tree to unmount. Nothing renders after this. */
+  const dropSheet = async () => {
+    closing.current = true;
+    setClosed(true);
+    await new Promise(resolve => setTimeout(resolve, 60));
+  };
+  const closePanel = async () => { await dropSheet(); await Native.closePanel().catch(() => {}); };
+  /** Opens an Ownvoice screen, taking the sheet down first: the activity it leaves must not unmount a live tree. */
+  const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {}).finally(() => { void closePanel(); }); };
+  const openSource = () => { void Native.openRoute('ownvoice://source').catch(() => {}).finally(() => { void closePanel(); }); };
   // The posts of the last "Worth a reply?" tap, marked best first: the list the panel shows above the reply written
   // for the best one. Empty in every other mode.
   const [worth, setWorth] = useState<(FeedPost & { fit: Fit })[]>([]);
@@ -500,13 +513,16 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
     if (inserting.current) return Promise.resolve(false);
     inserting.current = true;
     setInsertBusy(true);
-    const run = Native.serviceState().then(state => {
+    const run = Native.serviceState().then(async state => {
       if (state !== 'on') { setNote(words.serviceOff); setPhase('failed'); return false; }
       const reading = capture;
       const platform = platformOf.current.id;
       const platformLabel = platformOf.current.label || reading?.label || '';
       const level = fitKindOf(mode) && fitBarVisible(fit, ratings)
         ? (fitFlag(ratings) ? LEVELS[0] : fit?.level != null ? LEVELS[fit.level] : fit?.words ?? null) : null;
+      // Unmount the sheet and give the commit a beat before the insert that finishes the panel activity.
+      // No panel state changes after this point: the panel is gone either way.
+      await dropSheet();
       return Native.insert(text).then(async result => {
         if (!result?.ok || !reading) return result?.ok === true;
         try {
@@ -517,8 +533,11 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         }
         return true;
       });
-    }).catch(() => { setNote(words.serviceOff); setPhase('failed'); return false; })
-      .finally(() => { inserting.current = false; setInsertBusy(false); });
+    }).catch(() => {
+      if (!closing.current) { setNote(words.serviceOff); setPhase('failed'); }
+      return false;
+    })
+      .finally(() => { inserting.current = false; if (!closing.current) setInsertBusy(false); });
     insertRun.current = run;
     return run;
   };
@@ -703,11 +722,14 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const coverDraft = why != null ? [...(yours ? [yours] : []), ...shown].find(draft => draft.slot === why) : undefined;
   const check = coverDraft ? whys.get(coverDraft.text) : undefined;
 
+  // The panel is closing: an empty tree is all the surface has left to unmount.
+  if (closed) return null;
+
   return <Sheet
     title={placeTitle}
     note={empty ? undefined : mainNote ?? undefined}
     mood={mood}
-    onClose={() => { void Native.closePanel().catch(() => {}); }}
+    onClose={() => { void closePanel(); }}
     cover={coverDraft ? {
       title: replies ? words.whyReply : words.whyVersion,
       children: <WhyCover draft={coverDraft} checks={check ?? { state: 'running', meaning: null }} who={who} slips={coverDraft.slot === -1 ? slips.length : 0} footnote={fitted ? REACH_UNKNOWN : undefined} />,
