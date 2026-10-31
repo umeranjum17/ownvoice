@@ -118,6 +118,28 @@ test('original spelling evidence survives regeneration and retry, and refreshes 
   await act(async () => { finishRefresh(true); });
   expect(screen.queryByText(words.slipsTitle)).toBeNull();
   expect(screen.queryByRole('button', { name: words.fix })).toBeNull();
+  await fireEvent.press(screen.getAllByRole('button', { name: words.why })[0]);
+  await screen.findByText('Names the stove');
+  expect(screen.queryByText('There are possible slips to review.')).toBeNull();
+  await fireEvent.press(screen.getByRole('button', { name: 'Close' }));
+  expect(screen.queryByText('Sounds natural', { exact: false })).toBeNull();
+});
+
+// Fix is an insert: it writes the corrected text, then the sheet is gone (insert() finishes the panel activity).
+test('Fix inserts the corrected text from the original capture', async () => {
+  const conversation = 'Sam: Are we still on for Saturday?\nSam: I can bring the tent if you bring the stove.';
+  native.capture.mockResolvedValue({ conversation, written: conversation, nodes: [], fieldTop: null, typed: 'I can definately bring the stove.', app: 'com.whatsapp', label: 'WhatsApp', at: 0, id: 'tap-fix', hasField: true });
+  native.typingCheck.mockResolvedValue(true);
+  mockState.mockResolvedValue({ phase: 'ready' });
+  mockAsk.mockImplementation(async (prompt) => prompt.startsWith('Below is the text') ? 'MESSAGE' : 'GENERIC: 0\nSPECIFICITY: 10');
+  const writer: Writer = { write: async (_request, events) => { events?.landed?.('I can bring the stove.', 0, 'Cleaned up'); return { drafts: ['I can bring the stove.'] }; } };
+  const screen = await render(<SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 0, height: 0 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } }}><Panel writer={writer} /></SafeAreaProvider>);
+  await screen.findByText(words.slipsTitle);
+  const insertions = native.insert.mock.calls.length;
+  await fireEvent.press(screen.getByRole('button', { name: words.fix }));
+  await waitFor(() => expect(native.insert).toHaveBeenCalledTimes(insertions + 1));
+  await waitFor(() => expect(native.insert).toHaveBeenLastCalledWith('I can definitely bring the stove.'));
+  expect(screen.queryByRole('button', { name: words.fix })).toBeNull();
 });
 
 // A limited (capped-prefix) capture must never write the whole field: the panel discloses the
@@ -157,6 +179,8 @@ test('an ordinary capture keeps Fix and Insert enabled', async () => {
   expect(await screen.findByText(words.slipsTitle)).toBeTruthy();
   const fixes = screen.getAllByRole('button', { name: words.fix });
   expect(fixes.map(disabledOf)).toEqual(fixes.map(() => false));
+  const inserts = await screen.findAllByRole('button', { name: words.useThis });
+  expect(disabledOf(inserts[0])).toBe(false);
   fireEvent.press(fixes[0]);
   await waitFor(() => expect(native.insert).toHaveBeenCalled());
   // The sheet is unmounted before insert() finishes the panel activity (a mounted tree crashed Fabric on Gmail).
