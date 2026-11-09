@@ -402,8 +402,12 @@ describe('grow fit bar', () => {
       expect(screen.queryAllByTestId('fit-bar')).toHaveLength(0);
       expect(screen.queryAllByLabelText(UNSURE)).toHaveLength(0);
       expect(screen.queryByText(new RegExp(words.fitWhyUnsure))).toBeNull();
+      let mountedAtClose = true;
+      native.closePanel.mockImplementation(async () => { mountedAtClose = screen.queryByText(words.claudeChooseWriter) !== null; });
       fireEvent.press(screen.getByText(words.claudeChooseWriter));
-      expect(native.openRoute).toHaveBeenCalledWith('ownvoice://source');
+      await waitFor(() => expect(native.openRoute).toHaveBeenCalledWith('ownvoice://source'));
+      await waitFor(() => expect(native.closePanel).toHaveBeenCalled());
+      expect(mountedAtClose).toBe(false);
     } finally { phone.mockRestore(); askLocalMock.mockReset(); phoneModel('unsupported'); }
   });
 
