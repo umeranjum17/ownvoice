@@ -61,9 +61,6 @@ type WhyState = { state: 'running' | 'none' | 'done'; meaning: Check | null };
 
 /** Lines only Ownvoice itself can fix (choosing a writer, signing in, the phone's one-time download): the panel offers to open it. */
 const opensApp: Set<string> = new Set([words.needWriterPanel, words.needWriterNote, words.phoneOnlyCant, words.readyPanel]);
-const openOwnvoice = () => { void Linking.openURL('ownvoice://').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
-/** A plan limit is not stuck: open the writer list so the person can pick another writer. */
-const openSource = () => { void Native.openRoute('ownvoice://source').catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }); };
 /** Lines that end a run with no card: another writer may do better, so the panel offers the writer list beside Try again. */
 const otherWriter: Set<string> = new Set([words.noReplies, words.noVersions, words.tookTooLong]);
 
@@ -211,6 +208,18 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   const inserting = useRef(false);
   const [insertBusy, setInsertBusy] = useState(false);
   const [closed, setClosed] = useState(false);
+  const sheetUnmounted = useRef<(() => void) | null>(null);
+  const closeSheet = () => new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(() => { sheetUnmounted.current = null; reject(new Error('Sheet did not unmount')); }, 2000);
+    sheetUnmounted.current = () => { clearTimeout(timer); sheetUnmounted.current = null; resolve(); };
+    setClosed(true);
+  });
+  const openRoute = (open: () => Promise<unknown>) => {
+    void closeSheet().then(() => open().catch(() => {}).finally(() => { void Native.closePanel().catch(() => {}); }))
+      .catch(() => { setClosed(false); setNote(words.serviceOff); setPhase('failed'); });
+  };
+  const openOwnvoice = () => openRoute(() => Linking.openURL('ownvoice://'));
+  const openSource = () => openRoute(() => Native.openRoute('ownvoice://source'));
   // The posts of the last "Worth a reply?" tap, marked best first: the list the panel shows above the reply written
   // for the best one. Empty in every other mode.
   const [worth, setWorth] = useState<(FeedPost & { fit: Fit })[]>([]);
@@ -509,8 +518,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
       const level = fitKindOf(mode) && fitBarVisible(fit, ratings)
         ? (fitFlag(ratings) ? LEVELS[0] : fit?.level != null ? LEVELS[fit.level] : fit?.words ?? null) : null;
       // Unmount the sheet first: insert() finishes this activity, which must not destroy a mounted tree (Fabric crash on removeViewAt).
-      setClosed(true);
-      await new Promise(resolve => setTimeout(resolve, 60));
+      await closeSheet();
       return Native.insert(text).then(async result => {
         if (!result?.ok || !reading) return result?.ok === true;
         try {
@@ -521,7 +529,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
         }
         return true;
       });
-    }).catch(() => { setNote(words.serviceOff); setPhase('failed'); return false; })
+    }).catch(() => { setClosed(false); setNote(words.serviceOff); setPhase('failed'); return false; })
       .finally(() => { inserting.current = false; setInsertBusy(false); });
     insertRun.current = run;
     return run;
@@ -710,6 +718,7 @@ export default function Panel({ writer, select = gptRoute }: { writer?: Writer; 
   if (closed) return null;
 
   return <Sheet
+    onUnmount={() => sheetUnmounted.current?.()}
     title={placeTitle}
     note={empty ? undefined : mainNote ?? undefined}
     mood={mood}

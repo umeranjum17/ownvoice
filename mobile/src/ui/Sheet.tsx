@@ -13,6 +13,7 @@ type SheetProps = {
   note?: string;
   mood?: Mood;
   onClose: () => void;
+  onUnmount?: () => void;
   children: ReactNode;
   /** The second body (the Why? note). While a cover is given, X, Back and an outside tap return to the main body. */
   cover?: Cover;
@@ -22,7 +23,7 @@ type SheetProps = {
 };
 
 /** The bottom sheet. Slides up, holds still for less motion, and fades out when it closes. */
-export function Sheet({ title, note, mood, onClose, children, cover, onCloseCover, footer }: SheetProps) {
+export function Sheet({ title, note, mood, onClose, onUnmount, children, cover, onCloseCover, footer }: SheetProps) {
   const t = useTheme();
   const reduced = useReducedMotion();
   const insets = useSafeAreaInsets();
@@ -31,6 +32,9 @@ export function Sheet({ title, note, mood, onClose, children, cover, onCloseCove
   const slide = useRef(new Animated.Value(reduced === true ? 0 : 600)).current;
   const fade = useRef(new Animated.Value(1)).current;
   const opened = useRef(false);
+  const unmount = useRef(onUnmount);
+  unmount.current = onUnmount;
+  useEffect(() => () => unmount.current?.(), []);
 
   useEffect(() => {
     if (opened.current || reduced === null) return;

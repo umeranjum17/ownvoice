@@ -271,6 +271,13 @@ journeys:
       OWN_POST_TALK=1 node mobile/e2e/own-post.mjs "$APK" "$E" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
     timeout: 30m
 
+  panel-close-paths:
+    description: "Android: on an owned emulator with the stub writer, open the source picker and writer list ten times each from the panel, then put a draft in the X-style lab field; check the process stays alive."
+    command: |
+      set -u; : "${APK:?path to stub release APK required}"; : "${PANEL_SCRATCH:?owned emulator scratch directory required}"; E="$DONE_DONE_EVIDENCE_ROOT"; cd "$(git rev-parse --show-toplevel)"
+      node mobile/e2e/panel-close-paths.mjs "$APK" >"$E/driver.log" 2>&1; code=$?; echo "driver exit=$code" >>"$E/driver.log"; exit $code
+    timeout: 30m
+
   note-clear:
     description: "Android (AA-34): the note after Copy and after Insert ('Copied.', 'Inserted. Send it yourself.') never covers the composer field or its Post button, at phone widths 360, 390 and 445 dp with the largest text (1.3), light and dark; the base build (BEFORE_APK) is captured at 360 dp the same way with the boxes only logged. Each screenshot is its own file (`copied-try<n>-after-360-light.png`), so a miss cannot be overwritten by the try that found the note. Drafts come from the stub build's phone writer. Each note's box comes from the screenshot's own moment: the note's pill is read from the accessible tree (its overlay window), a system toast by OCR; the field and button from the accessible tree (note-boxes-<label>-<theme>.json, with foundBy naming the reading). The guest's Wi-Fi stays off. Needs an explicit emulator allocation, JAVA_HOME, and stub+GPT release APKs built with EXPO_PUBLIC_E2E_STUB=1 EXPO_PUBLIC_E2E_GPT=1 EXPO_PUBLIC_E2E_AUTH_BASE=http://10.0.2.2:21455 (APK for this change, BEFORE_APK for the base)."
     command: |

@@ -196,9 +196,12 @@ test('choosing first offers to open Ownvoice, which closes the panel', async () 
   const screen = await open({ chatgpt: () => writer('ChatGPT') }, undefined, async () => routeWriters({ source: null, signedIn: false, phoneOnlyApp: false, enabled: true, phone: 'cant', chatgpt: () => writer('ChatGPT'), phoneWriter: writer('Phone'), lines: cloudWords('chatgpt') }));
   await waitFor(() => expect(shown(screen)).toContain(words.openOwnvoice));
   expect(shown(screen)).not.toContain(words.tryAgain);
+  let mountedAtClose = true;
+  native.closePanel.mockImplementation(async () => { mountedAtClose = screen.queryByText(words.openOwnvoice) !== null; });
   fireEvent.press(screen.getByText(words.openOwnvoice));
-  expect(openURL).toHaveBeenCalledWith('ownvoice://');
+  await waitFor(() => expect(openURL).toHaveBeenCalledWith('ownvoice://'));
   await waitFor(() => expect(native.closePanel).toHaveBeenCalled());
+  expect(mountedAtClose).toBe(false);
 });
 
 test('ChatGPT failing on a phone that cannot write leaves Try again', async () => {
